@@ -23,7 +23,7 @@ def test_loading(tmp_path, sensor, suffix):
     {"csv": lambda: sensor.to_csv(path, index=False),
      "parquet": lambda: sensor.to_parquet(path),
      "pkl": lambda: sensor.to_pickle(path)}[suffix]()
-    pd.testing.assert_frame_equal(load_sensor_file(path), sensor, check_exact=False)
+    pd.testing.assert_frame_equal(load_sensor_file(path, allow_pickle=suffix == "pkl"), sensor, check_exact=False)
 
 
 def test_real_tremor_pipeline(tmp_path, sensor):

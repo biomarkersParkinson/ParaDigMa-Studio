@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 
-from .core import analyze, export_results, load_sensor_file, result_tables
+from .core import analyze, export_results, export_table_csv, load_sensor_file, result_tables
 
 
 class FrameModel(QAbstractTableModel):
@@ -94,6 +94,7 @@ class MainWindow(QMainWindow):
         self.open_button.clicked.connect(self.open_file)
         toolbar.addWidget(self.open_button)
         self.file_label = QLabel("No recording loaded")
+        self.file_label.setTextFormat(Qt.PlainText)
         toolbar.addWidget(self.file_label, 1)
         self.run_button = QPushButton("Run ParaDigMa")
         self.run_button.clicked.connect(self.run_analysis)
@@ -166,6 +167,7 @@ class MainWindow(QMainWindow):
         self.log.setReadOnly(True)
         tabs.addTab(self.log, "Processing log")
         self.status = QLabel("Open a recording to begin. Analysis runs locally.")
+        self.status.setTextFormat(Qt.PlainText)
         layout.addWidget(self.status)
         self.progress = QProgressBar()
         self.progress.setVisible(False)
@@ -218,14 +220,16 @@ class MainWindow(QMainWindow):
             "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)")
         if not path:
             return
+        allow_pickle = False
         if Path(path).suffix.lower() in (".pkl", ".pickle"):
             reply = QMessageBox.warning(self, "Trusted pickle files only",
                 "Pickle files can execute code when opened. Only continue if you trust this file's source.",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply != QMessageBox.Yes:
                 return
+            allow_pickle = True
         self.status.setText("Loading recording…")
-        self.start_job(lambda logger: (path, load_sensor_file(path)), self.loaded)
+        self.start_job(lambda logger: (path, load_sensor_file(path, allow_pickle=allow_pickle)), self.loaded)
 
     def loaded(self, payload):
         self.source, self.frame = payload
@@ -326,7 +330,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Export selected table", "output.csv", "CSV (*.csv)")
         if path:
             try:
-                frame.to_csv(path, index=False)
+                export_table_csv(path, frame, source=self.source)
             except Exception as exc:
                 self.failure(str(exc))
 

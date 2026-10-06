@@ -4,6 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pandas as pd
 from PySide6.QtWidgets import QApplication
 from paradigma_desktop.app import MainWindow, Worker
+from paradigma_desktop import app as desktop_app
 
 
 def test_window_results_and_plot(tmp_path):
@@ -32,3 +33,16 @@ def test_worker_failure_is_delivered():
     assert worker.wait(5000)
     app.processEvents()
     assert errors == ["ValueError: bad recording"]
+
+
+def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileName", lambda *args: (str(tmp_path / "sensor.pkl"), ""))
+    monkeypatch.setattr(desktop_app.QMessageBox, "warning", lambda *args: desktop_app.QMessageBox.No)
+    started = []
+    monkeypatch.setattr(window, "start_job", lambda *args: started.append(args))
+    window.open_file()
+    assert started == []
+    assert window.worker is None
+    window.close()

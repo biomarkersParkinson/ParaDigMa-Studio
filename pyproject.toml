@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Windows desktop interface for the official ParaDigMa toolbox"
 requires-python = ">=3.11,<3.14"
-dependencies = ["paradigma==1.1.2", "PySide6>=6.8,<7", "matplotlib>=3.9,<4", "openmovement==0.0.1"]
+dependencies = ["paradigma==1.1.2", "PySide6==6.11.2", "matplotlib==3.11.2", "openmovement==0.0.1"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pyinstaller>=6.11,<7"]
+dev = ["pytest==9.1.1", "pyinstaller==6.22.3"]
 
 [project.gui-scripts]
 paradigma-desktop = "paradigma_desktop.app:main"

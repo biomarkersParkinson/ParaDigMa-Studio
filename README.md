@@ -8,6 +8,7 @@ Install 64-bit Python 3.12, then run these commands in PowerShell from this repo
 
 ```powershell
 py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2,<27"
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\paradigma-desktop.exe
 ```
@@ -40,7 +41,7 @@ Required channels:
 | Gait | Tremor columns plus `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
 | Pulse rate | `time`, `green` (accelerometer optional) |
 
-Toolbox diagnostic logs are written to the temporary directory `paradigma-desktop-logs`.
+Default toolbox diagnostic files use a unique temporary directory and are deleted after analysis; the processing log remains visible in the application. CSV exports neutralize formula-like text, while JSON preserves original text. Exports cannot overwrite the currently loaded sensor file.
 
 The wrapper requires numeric, finite sensor samples and increasing timestamps, except when using difference-based time. CSV date strings need conversion to one of the supported numeric time units before import. Pulse rate runs separately from gait/tremor. In ParaDigMa 1.1.2, raw PPG preparation also requires accelerometer channels; PPG-only input must already be prepared. Sensor rate, recording duration, device compatibility and scientific interpretation remain governed by the [official toolbox documentation](https://biomarkersparkinson.github.io/paradigma/). Not every file with a supported extension necessarily contains compatible sensor data. Pickle files can execute code; open only files from trusted sources.
 
@@ -48,9 +49,16 @@ The wrapper requires numeric, finite sensor samples and increasing timestamps, e
 
 ```bash
 python -m venv .venv
+.venv/bin/python -m pip install --upgrade 'pip>=26.2,<27'
 .venv/bin/python -m pip install -e '.[dev]'
 QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest -q
 .venv/bin/paradigma-desktop
 ```
 
 Tests exercise CSV/Parquet/pickle loading, real tremor, gait and pulse-rate pipeline execution, including tremor preparation and export, invalid input handling, nested gait result traversal, Qt result rendering/plotting, and background-worker error delivery. Synthetic gait input can yield no detected gait bouts, and the pulse-rate quality classifier rejects the synthetic sine signal (no estimates); physiological gait/pulse-rate output still requires representative real recordings. Device-specific Avro/CWA/TSDF loading uses upstream implementations; representative recordings are needed to validate those devices. A Windows CI build is provided but must run before claiming Windows packaging has been verified.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the review findings, dependency-audit exception, remaining risks, and a Windows Sandbox configuration for a first run. Use a normal user account without administrator elevation. Pickle import requires explicit trust confirmation; prefer CSV/Parquet for exchanged recordings.
+
+Windows builds audit installed Python dependencies and include package versions, the source commit, the audit report and `SHA256SUMS.txt` in the artifact. These checks do not constitute a security guarantee or a digital signature.

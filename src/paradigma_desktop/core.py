@@ -1,5 +1,8 @@
 """File loading, analysis and lossless tabular result export."""
 import json
+import csv
+import logging
+import os
 import tempfile
 from pathlib import Path
 
@@ -11,10 +14,12 @@ from paradigma.orchestrator import run_paradigma
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
 
 
-def load_sensor_file(path):
+def load_sensor_file(path, *, allow_pickle=False):
     path = Path(path)
     if path.suffix.lower() not in SUPPORTED:
         raise ValueError(f"Unsupported file format: {path.suffix}")
+    if path.suffix.lower() in {".pkl", ".pickle"} and not allow_pickle:
+        raise ValueError("Pickle loading is disabled unless the file is explicitly trusted.")
     _, frame, _ = load_single_data_file(path)
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         raise ValueError("The sensor file contains no tabular samples.")
@@ -53,12 +58,28 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
     if not settings.get("time_input_unit", "relative_s").startswith("difference"):
         if not (np.diff(values["time"]) > 0).all():
             raise ValueError("Time must be strictly increasing; remove duplicates or sort the file.")
-    settings.setdefault("output_dir", Path(tempfile.gettempdir()) / "paradigma-desktop-logs")
-    return run_paradigma(
-        dfs=frame.copy(), pipelines=pipelines, column_mapping=mapping,
-        save_intermediate=[], return_intermediate=["classification", "quantification"],
-        custom_logger=logger, **settings,
-    )
+    def run(output_dir):
+        package_logger = logging.getLogger("paradigma")
+        handlers_before = set(package_logger.handlers)
+        try:
+            return run_paradigma(
+                dfs=frame.copy(), pipelines=pipelines, column_mapping=mapping,
+                save_intermediate=[], return_intermediate=["classification", "quantification"],
+                custom_logger=logger, **{**settings, "output_dir": output_dir},
+            )
+        finally:
+            # Upstream may leave its diagnostic file open after an exception.
+            for handler in list(package_logger.handlers):
+                if handler not in handlers_before and isinstance(handler, logging.FileHandler):
+                    package_logger.removeHandler(handler)
+                    handler.close()
+
+    if "output_dir" in settings:
+        return run(settings["output_dir"])
+    # A unique directory prevents pre-created files/symlinks in a shared temp
+    # folder from redirecting diagnostic writes; logs are removed after each run.
+    with tempfile.TemporaryDirectory(prefix="paradigma-desktop-") as directory:
+        return run(directory)
 
 
 def result_tables(value, path=""):
@@ -98,6 +119,41 @@ def json_value(value):
     return str(value)
 
 
+def _write_export(path, writer, *, source=None):
+    target = Path(path)
+    if source:
+        original = Path(source)
+        same_file = target.resolve() == original.resolve()
+        if target.exists() and original.exists():
+            same_file = same_file or target.samefile(original)
+        if same_file:
+            raise ValueError("An export cannot overwrite the loaded sensor file. Choose another filename.")
+    # Write completely before replacing the chosen destination. A failed export
+    # leaves any existing file intact and does not leave a partial output behind.
+    fd, temporary = tempfile.mkstemp(prefix=".paradigma-export-", suffix=".tmp", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            writer(stream)
+        os.replace(temporary, target)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def export_results(path, results, provenance):
-    Path(path).write_text(json.dumps({"analysis": provenance, "results": json_value(results)},
-                                    indent=2, allow_nan=False), encoding="utf-8")
+    _write_export(path, lambda stream: json.dump(
+        {"analysis": provenance, "results": json_value(results)}, stream,
+        indent=2, allow_nan=False), source=provenance.get("source"))
+
+
+def _spreadsheet_text(value):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
+def export_table_csv(path, frame, *, source=None):
+    """Neutralize formula-like text while retaining actual numeric values."""
+    safe = frame.map(_spreadsheet_text)
+    safe.columns = [_spreadsheet_text(str(column)) for column in frame.columns]
+    _write_export(path, lambda stream: safe.to_csv(stream, index=False, quoting=csv.QUOTE_ALL),
+                  source=source)
