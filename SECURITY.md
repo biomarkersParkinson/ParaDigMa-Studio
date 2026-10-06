@@ -68,6 +68,12 @@ Once Windows Sandbox is installed, save this as `ParaDigMa-test.wsb`, replacing 
 
 Double-click the `.wsb` file. Open a CSV recording from `C:\App`, run analysis, inspect results, and export to the **Sandbox's own Desktop**, not the read-only shared folder. Close Sandbox afterward; its local files are discarded. Do not map your whole home directory or enable network/clipboard sharing for this first test. [Microsoft's Sandbox configuration documentation](https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-configure-using-wsb-file) describes these settings.
 
+## CWA reader revision
+
+Version 0.1.3 uses the official Open Movement repository at commit `087ac7b5a80b866c400d8021b7a2716d247fc034` to fix NumPy 2 timestamp arithmetic in its older PyPI release. Both distributions identify themselves as 0.0.1. Build manifests now also record VCS commit IDs, so the source revision remains distinguishable from the PyPI release. The dependency audit still checks known advisories for the package/version; it does not audit that repository's complete source history. Installation needs Git and network access to the official repository; running the packaged application does not.
+
+The executable smoke test additionally loads the unmodified public ParaDigMa CWA example, runs gait analysis and renders its result plot. The recording's origin, hash and Apache 2.0 license accompany it in the bundle.
+
 ## Remaining risks and limits
 
 - The application runs with the launching user's permissions; it is not itself a security sandbox. Administrator execution would increase the possible impact of a defect.

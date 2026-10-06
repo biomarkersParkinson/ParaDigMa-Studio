@@ -19,8 +19,17 @@ def main(bundle, audit_report):
         "python": platform.python_version(),
         "platform": platform.platform(),
         "packages": sorted({d.metadata["Name"]: d.version for d in distributions()}.items()),
+        # Source builds can keep the same package version as an older PyPI
+        # release. Record their commit, without copying URLs or local paths.
+        "package_vcs_revisions": {},
         "notice": "Hashes detect changes; they are not a digital signature or a security guarantee.",
     }
+    for package in distributions():
+        direct_url = package.read_text("direct_url.json")
+        if direct_url:
+            revision = json.loads(direct_url).get("vcs_info", {}).get("commit_id")
+            if revision:
+                metadata["package_vcs_revisions"][package.metadata["Name"]] = revision
     security = bundle / "security"
     security.mkdir(exist_ok=True)
     shutil.copyfile(audit_report, security / "dependency-audit.json")

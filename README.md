@@ -4,7 +4,7 @@ A native Windows desktop wrapper around the **official ParaDigMa 1.1.2 toolbox**
 
 ## Run on Windows
 
-Install 64-bit Python 3.12, then run these commands in PowerShell from this repository:
+Install 64-bit Python 3.12 and Git, then run these commands in PowerShell from this repository. Git installs the pinned official Open Movement reader revision:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -23,6 +23,14 @@ Run on Windows from the repository directory:
 ```
 
 Launch `dist\ParaDigMaDesktop\ParaDigMaDesktop.exe`. Distribute the **entire ParaDigMaDesktop folder**, including `_internal`; the executable depends on it. This is an unsigned portable application, not an installer. The build explicitly includes scikit-learn's native runtime libraries, including Windows `vcomp140.dll` and `msvcp140.dll`. The GitHub Actions Windows desktop workflow runs tests, builds this folder, and launches the packaged executable before uploading an artifact. The executable check loads all four bundled classifiers, extracts real tremor output from synthetic sensor samples, renders a Qt plot and exports results. A Windows binary must be built and tested on Windows; Linux builds cannot generate Windows executables.
+
+Version 0.1.3 fixes `OverflowError: Python integer 65536 out of bounds for uint16` when opening CWA recordings with fractional timestamps. The app pins the official Open Movement reader to commit `087ac7b5a80b866c400d8021b7a2716d247fc034`, which widens timestamp arithmetic for NumPy 2. The older PyPI release also calls itself 0.0.1, so an existing source installation needs this explicit replacement before reinstalling the app:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --force-reinstall --no-deps "openmovement @ git+https://github.com/digitalinteraction/openmovement-python.git@087ac7b5a80b866c400d8021b7a2716d247fc034"
+```
+
+For the downloaded executable, download and extract the entire new successful Windows artifact into a fresh folder. No Python or Git installation is needed to run it. The packaged executable check now also loads the official CWA recording, runs gait analysis and renders its output plot.
 
 ## Open and analyze a recording
 
@@ -57,7 +65,9 @@ QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m py
 .venv/bin/paradigma-desktop
 ```
 
-Tests exercise CSV/Parquet/pickle loading, real tremor, gait and pulse-rate pipeline execution, including tremor preparation and export, invalid input handling, nested gait result traversal, Qt result rendering/plotting, and background-worker error delivery. Synthetic gait input can yield no detected gait bouts, and the pulse-rate quality classifier rejects the synthetic sine signal (no estimates); physiological gait/pulse-rate output still requires representative real recordings. Device-specific Avro/CWA/TSDF loading uses upstream implementations; representative recordings are needed to validate those devices. A Windows CI build is provided but must run before claiming Windows packaging has been verified.
+Tests exercise CSV/Parquet/pickle loading, the official Axivity CWA example (36,400 samples) and its gait output, real tremor, gait and pulse-rate pipeline execution, including tremor preparation and export, invalid input handling, nested gait result traversal, Qt result rendering/plotting, and background-worker error delivery. Fractional CWA timestamp checks cover large fractions and negative offsets at 100 and 3,200 Hz. Synthetic gait input can yield no detected gait bouts, and the pulse-rate quality classifier rejects the synthetic sine signal (no estimates); physiological pulse-rate output still requires representative recordings. Device-specific Avro/TSDF loading uses upstream implementations; representative recordings are needed to validate those devices. A Windows CI build is provided but must run before claiming Windows packaging has been verified. The bundled public CWA fixture and its license/provenance are in `src/paradigma_desktop/data/`.
+
+On the CWA example, ParaDigMa 1.1.2 returns tremor window measurements but can report an aggregation error (`dataset input should have multiple elements`) when too few detected tremor windows are available for its modal statistic. The application retains the window results and reports this upstream limitation; the CWA import fix does not change scientific aggregation rules.
 
 Regression checks also cover mapped/prepared numeric text, short-recording failures, separate gap segments at different sensor rates, units/orientation, custom time indexes, missing samples, numeric plot column names, background UI recovery, JSON float precision, and protecting TSDF companion binaries during export.
 

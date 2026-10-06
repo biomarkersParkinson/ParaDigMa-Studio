@@ -10,6 +10,8 @@ def main():
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
         "--name", "ParaDigMaDesktop", "--collect-all", "paradigma",
         "--collect-all", "openmovement",
+        # Include the licensed upstream CWA recording for the executable check.
+        "--collect-data", "paradigma_desktop",
         # sklearn's Windows importer preloads .libs/vcomp140.dll and
         # .libs/msvcp140.dll. Collect them with their directory structure.
         "--collect-binaries", "sklearn",

@@ -4,10 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-desktop"
-version = "0.1.2"
+version = "0.1.3"
 description = "Windows desktop interface for the official ParaDigMa toolbox"
 requires-python = ">=3.11,<3.14"
-dependencies = ["paradigma==1.1.2", "PySide6==6.11.2", "matplotlib==3.11.2", "openmovement==0.0.1"]
+dependencies = [
+    "paradigma==1.1.2",
+    "PySide6==6.11.2",
+    "matplotlib==3.11.2",
+    # PyPI 0.0.1 overflows when reading fractional CWA timestamps with NumPy 2.
+    "openmovement @ git+https://github.com/digitalinteraction/openmovement-python.git@087ac7b5a80b866c400d8021b7a2716d247fc034",
+]
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "pyinstaller==6.22.3"]
@@ -17,6 +23,9 @@ paradigma-desktop = "paradigma_desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+paradigma_desktop = ["data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

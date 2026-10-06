@@ -68,9 +68,31 @@ def smoke_test(report_path):
                 saved = json.loads(export.read_text(encoding="utf-8"))
                 if len(saved["results"]["quantifications"]["tremor"]["data"]) != len(quantified):
                     raise RuntimeError("Result export lost quantified rows")
+                # The official example has fractional timestamps that break
+                # the older PyPI CWA reader under NumPy 2. Exercise the real
+                # recording and gait pipeline inside the packaged executable.
+                cwa_source = files("paradigma_desktop") / "data" / "test_data.CWA"
+                cwa_frame = load_sensor_file(cwa_source)
+                if len(cwa_frame) != 36400 or not cwa_frame["time"].is_unique:
+                    raise RuntimeError("CWA sample count or timestamps are incorrect")
+                cwa_results = analyze(cwa_frame, pipelines=["gait"], watch_side="left")
+                if cwa_results.get("errors"):
+                    raise RuntimeError(f"CWA gait analysis failed: {cwa_results['errors']}")
+                cwa_quantified = cwa_results["quantifications"]["gait"]["unfiltered"]
+                if cwa_quantified.empty or "range_of_motion" not in cwa_quantified:
+                    raise RuntimeError("CWA gait analysis returned no quantified output")
+                window.loaded((str(cwa_source), cwa_frame))
+                window.analyzed(cwa_results)
+                window.dataset.setCurrentText("quantifications/gait/unfiltered")
+                app.processEvents()
+                window.canvas.draw()
+                if len(window.figure.axes[0].lines) != 1:
+                    raise RuntimeError("CWA result plot was not rendered")
                 report.update(status="passed", paradigma_version=version("paradigma"),
                               models_loaded=models, quantified_rows=len(quantified),
-                              qt_plot_rendered=True, export_verified=True)
+                              qt_plot_rendered=True, export_verified=True,
+                              cwa_samples=len(cwa_frame), cwa_gait_rows=len(cwa_quantified),
+                              cwa_plot_rendered=True)
         finally:
             window.close()
             app.processEvents()
