@@ -91,7 +91,9 @@ def load_sensor_file(path, *, allow_pickle=False):
     if path.suffix.lower() == ".avro":
         frame = load_empatica_imu(path)
     else:
-        _, frame, _ = load_single_data_file(path)
+        _, frame, start = load_single_data_file(path)
+        if start is not None:
+            frame.attrs["desktop_recording_start"] = str(start)
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         raise ValueError("The sensor file contains no tabular samples.")
     return frame
@@ -100,10 +102,35 @@ def load_sensor_file(path, *, allow_pickle=False):
 def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings):
     if isinstance(pipelines, str):
         pipelines = [pipelines]
-    if not pipelines or ("pulse_rate" in pipelines and len(pipelines) > 1):
-        raise ValueError("Select gait/tremor, or pulse rate on its own.")
+    if not pipelines:
+        raise ValueError("Select at least one analysis module.")
     if any(p not in {"gait", "tremor", "pulse_rate"} for p in pipelines):
         raise ValueError("Unknown pipeline. Choose gait, tremor or pulse_rate.")
+    if "pulse_rate" in pipelines and len(pipelines) > 1:
+        groups = [[pipeline for pipeline in pipelines if pipeline != "pulse_rate"], ["pulse_rate"]]
+        combined = {"quantifications": {}, "classifications": {}, "aggregations": {}, "metadata": {}, "errors": []}
+        preparation = {}
+        for group in groups:
+            (logger or logging.getLogger("paradigma")).info("Running selected modules: %s", ", ".join(group))
+            try:
+                output = analyze(frame, pipelines=group, column_mapping=column_mapping, logger=logger,
+                                 drop_missing_samples=drop_missing_samples, **settings)
+            except Exception as exc:
+                combined["errors"].append({"pipelines": group, "stage": "desktop_execution", "error": f"{type(exc).__name__}: {exc}"})
+                for pipeline in group:
+                    combined["aggregations"][pipeline] = {}
+                (logger or logging.getLogger("paradigma")).error("Modules %s failed: %s", ", ".join(group), exc)
+                continue
+            for category in ("quantifications", "classifications", "aggregations"):
+                combined[category].update(output.get(category, {}))
+            metadata = dict(output.get("metadata", {}))
+            details = metadata.pop("desktop_preparation", None)
+            if details:
+                preparation.update({pipeline: dict(details) for pipeline in group})
+            combined["metadata"].update(metadata)
+            combined["errors"].extend(output.get("errors", []))
+        combined["metadata"]["desktop_preparation"] = {"analysis_groups": groups, "by_module": preparation}
+        return combined
     mapping = validate_column_mapping(column_mapping)
     axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
     mapped = frame.rename(columns=mapping).copy().reset_index(drop=True)
@@ -229,6 +256,11 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
                   for i, (_, group) in enumerate(prepared.groupby("data_segment_nr", sort=False, dropna=False))}
 
     def run(output_dir):
+        # Retain the official classification exports that 1.1.2 computes but
+        # omits from its orchestrator return value. A fresh directory prevents
+        # a failed run from reading a previous run's predictions.
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
         package_logger = logging.getLogger("paradigma")
         active_logger = logger if logger is not None else logging.Logger("paradigma-desktop-analysis", logging.INFO)
         recorder = _PipelineFailures()
@@ -239,10 +271,32 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
         try:
             results = run_paradigma(
                 dfs=inputs, pipelines=pipelines, column_mapping=None,
-                save_intermediate=[], return_intermediate=["classification", "quantification"],
-                custom_logger=active_logger, **{**settings, "output_dir": output_dir,
+                save_intermediate=["classification"], return_intermediate=["classification", "quantification"],
+                custom_logger=active_logger, **{**settings, "output_dir": run_directory,
                                                "skip_preparation": True, "split_by_gaps": False},
             )
+            files = {"gait": {"detection": "gait_predictions.parquet", "arm_activity": "arm_activity_predictions.parquet"},
+                     "tremor": {"": "tremor_predictions.parquet"},
+                     "pulse_rate": {"": "ppg_quality_predictions.parquet"}}
+            keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
+            classifications = {}
+            for pipeline in pipelines:
+                for name, filename in files[pipeline].items():
+                    frames = []
+                    for key in keys:
+                        path = run_directory / "individual_files" / key / "classification" / filename
+                        if path.is_file():
+                            classified = pd.read_parquet(path)
+                            if len(keys) > 1:
+                                classified["file_key"] = key
+                            frames.append(classified)
+                    if frames:
+                        classified = pd.concat(frames, ignore_index=True)
+                        if name:
+                            classifications.setdefault(pipeline, {})[name] = classified
+                        else:
+                            classifications[pipeline] = classified
+            results["classifications"] = classifications
             for error in recorder.errors:
                 if error not in results.setdefault("errors", []):
                     results["errors"].append(error)

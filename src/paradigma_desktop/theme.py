@@ -49,6 +49,10 @@ QPushButton#primary { background: #2563a5; color: white; border-color: #2563a5;
 QPushButton#primary:hover { background: #1c518b; }
 QPushButton#primary:disabled { background: #b3c4d8; border-color: #b3c4d8; color: white; }
 QPushButton#module { text-align: left; padding: 14px; min-height: 32px; font-weight: 600; }
+QPushButton#helpInfo { padding: 0; min-height: 0; border-radius: 11px;
+    background: #edf4fc; color: #21578f; border: 1px solid #adc5df; font-weight: 600; }
+QPushButton#helpInfo:hover, QPushButton#helpInfo:checked { background: #d8e8f8; }
+QLabel#fieldHelp { color: #33465d; background: #f0f5fb; padding: 10px; border-radius: 6px; }
 QPushButton#module:checked { background: #eef5ff; border: 2px solid #2563a5; }
 QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox { background: white;
     color: #22324a; border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px;
@@ -68,16 +72,17 @@ QComboBox QAbstractItemView::item:hover { background: #edf3fa; color: #22324a; }
 QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:selected:hover {
     background: #2563a5; color: white; }
 QCheckBox { spacing: 9px; padding: 4px 0; }
-QListWidget { background: white; border: 1px solid #e1e6ee; border-radius: 6px; }
-QListWidget::item { padding: 8px; min-height: 20px; }
-QListWidget::item:hover { background: #edf3fa; }
-QCheckBox::indicator, QListView::indicator { width: 18px; height: 18px; background: white;
+QListWidget, QTreeWidget { background: white; border: 1px solid #e1e6ee; border-radius: 6px; }
+QListWidget::item, QTreeWidget::item { padding: 8px; min-height: 20px; }
+QTreeWidget::item { padding: 5px; }
+QListWidget::item:hover, QTreeWidget::item:hover { background: #edf3fa; }
+QCheckBox::indicator, QListView::indicator, QTreeView::indicator { width: 18px; height: 18px; background: white;
     border: 1px solid #8c9db3; border-radius: 4px; }
-QCheckBox::indicator:hover, QListView::indicator:hover { border-color: #2563a5; }
-QCheckBox::indicator:checked, QListView::indicator:checked { background: #2563a5; border-color: #2563a5;
+QCheckBox::indicator:hover, QListView::indicator:hover, QTreeView::indicator:hover { border-color: #2563a5; }
+QCheckBox::indicator:checked, QListView::indicator:checked, QTreeView::indicator:checked { background: #2563a5; border-color: #2563a5;
     image: url("__CHECKMARK_ICON__"); }
-QCheckBox::indicator:disabled, QListView::indicator:disabled { background: #f4f6f9; border-color: #c6d0de; }
-QCheckBox::indicator:checked:disabled, QListView::indicator:checked:disabled { background: #8ba9c9; }
+QCheckBox::indicator:disabled, QListView::indicator:disabled, QTreeView::indicator:disabled { background: #f4f6f9; border-color: #c6d0de; }
+QCheckBox::indicator:checked:disabled, QListView::indicator:checked:disabled, QTreeView::indicator:checked:disabled { background: #8ba9c9; }
 QTableView { background: white; alternate-background-color: #f8fafc; border: none;
     gridline-color: #edf0f5; selection-background-color: #e3eefb; selection-color: #16253a; }
 QTableView::item { padding: 4px 8px; }
@@ -111,9 +116,9 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: t
 STYLESHEET = STYLESHEET.replace("__CHECKMARK_ICON__", (Path(__file__).with_name("data") / "checkmark.svg").as_posix())
 
 
-def style_axes(figure):
+def style_axes(figure, position=(1, 1, 1), sharex=None):
     figure.set_facecolor("white")
-    ax = figure.add_subplot(111)
+    ax = figure.add_subplot(*position, sharex=sharex)
     ax.set_facecolor("white")
     ax.tick_params(colors="#68778c", labelsize=9)
     for side in ("top", "right"):

@@ -23,19 +23,38 @@ have been removed.
 
 ## Analyze
 
-Select gait and tremor independently or together, or pulse rate on its own. All settings are in one Analysis parameters panel. The Run Analysis button remains visible when the page scrolls.
+Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel, with an **i** button beside each field for inline documented guidance. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
 
 ![Analysis workspace](screenshots/analyze.png)
 
+![Inline guidance for device axes and column mapping](screenshots/analyze-help.png)
+
 ## Results
 
-Metric and axis controls are on the page; expand Filters for text/numeric bounds. Overview, Graphs and Tables share the selected rows. Metadata is available within Overview.
+Overview shows official aggregate values and relevant metadata grouped into module
+cards. Gait segment metadata is summarized by counts and duration distributions;
+individual segment records are reserved for detailed inspection. Detail filters
+do not replace the official aggregate values with selection statistics.
 
 ![Result overview](screenshots/results.png)
 
+Graphs and Tables contain classifications and quantifications only. The Plot
+series tree supports multiple modules and metrics simultaneously, with vertically
+aligned plots sharing recording date/time. Dates come from source timestamps or
+metadata; files with only elapsed time can use a user-supplied time origin.
+Gait points are estimated within explicit segment boundaries and labeled as estimates.
+
 ![Interactive result graphs](screenshots/graphs.png)
 
-Sensor context opens in a full-size tab. In this example, explicit gait-segment metadata links a derived arm-swing result to original sensor samples; individual arm-swing timestamps are not inferred.
+Tables retain official values alongside recording timestamps and gait timing annotations.
+
+![Detailed result tables](screenshots/results-tables.png)
+
+Sensor context opens in a full-size tab. In this example, explicit gait-segment
+metadata links a derived arm-swing result to original sensor samples. Drill-down
+uses the entire recorded segment, rather than treating an estimated point as an
+observed arm-swing timestamp. The CWA example can return a tremor aggregation
+error when too few tremor windows are detected; available detail remains visible.
 
 ![Original sensor context](screenshots/sensor-context.png)
 

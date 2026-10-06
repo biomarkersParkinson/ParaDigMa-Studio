@@ -145,17 +145,39 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
                                          "skip_preparation", "split_by_gaps"}}
     expected, reference_stages = observe_stages(lambda: run_paradigma(
         dfs=deepcopy(reference_input), pipelines=pipelines, skip_preparation=True,
-        split_by_gaps=False, save_intermediate=[],
+        split_by_gaps=False, save_intermediate=["classification"],
         return_intermediate=["classification", "quantification"],
         output_dir=directory / "official", custom_logger=logging.Logger("official-reference", logging.INFO),
         **reference_settings))
+    # Read the independently generated official classification files. The
+    # reference does not use the desktop's classification-retention helper.
+    expected["classifications"] = {}
+    names = {"gait": {"detection": "gait_predictions.parquet", "arm_activity": "arm_activity_predictions.parquet"},
+             "tremor": {"": "tremor_predictions.parquet"}, "pulse_rate": {"": "ppg_quality_predictions.parquet"}}
+    file_keys = list(reference_input) if isinstance(reference_input, dict) else ["df_1"]
+    for pipeline in pipelines:
+        for stage, filename in names[pipeline].items():
+            frames = []
+            for key in file_keys:
+                exported = directory / "official" / "individual_files" / key / "classification" / filename
+                if exported.exists():
+                    frame_out = pd.read_parquet(exported)
+                    if len(file_keys) > 1:
+                        frame_out["file_key"] = key
+                    frames.append(frame_out)
+            if frames:
+                joined = pd.concat(frames, ignore_index=True)
+                if stage:
+                    expected["classifications"].setdefault(pipeline, {})[stage] = joined
+                else:
+                    expected["classifications"][pipeline] = joined
     actual, app_stages = observe_stages(lambda: analyze(frame, pipelines=pipelines,
         output_dir=directory / "desktop", **deepcopy(settings)))
     assert expected["errors"] == [], "Reference must complete successfully, not merely fail identically"
     assert actual["errors"] == []
     assert reference_stages, "The real scientific pipeline must execute"
     assert_equivalent(app_stages, reference_stages, "intermediate stages")
-    for name in ("quantifications", "aggregations", "errors"):
+    for name in ("quantifications", "aggregations", "classifications", "errors"):
         assert_equivalent(actual[name], expected[name], name)
     metadata = {key: value for key, value in actual["metadata"].items() if key != "desktop_preparation"}
     assert_equivalent(metadata, expected["metadata"], "scientific metadata")
@@ -199,6 +221,31 @@ def test_reference_fixture_integrity_and_toolbox_version():
 def test_upstream_synthetic_pipeline_equivalence(pipeline, tmp_path):
     frame = upstream_synthetic(pipeline)
     compare_workflows(frame, frame, [pipeline], tmp_path, skip_preparation=True, watch_side="left")
+
+
+def test_all_three_modules_equal_independent_official_workflows(tmp_path):
+    frame = upstream_synthetic("gait")
+    frame["green"] = np.sin(2 * np.pi * (70 / 60) * frame.time)
+    original = frame.copy(deep=True)
+    expected = {key: {} for key in ("quantifications", "classifications", "aggregations", "metadata")}
+    stages = []
+    for index, group in enumerate((["gait", "tremor"], ["pulse_rate"])):
+        _, reference, reference_stages = compare_workflows(frame, frame, group,
+            tmp_path / str(index), skip_preparation=True, watch_side="left")
+        for key in expected:
+            expected[key].update(reference[key])
+        stages.extend(reference_stages)
+    actual, actual_stages = observe_stages(lambda: analyze(frame,
+        pipelines=["gait", "tremor", "pulse_rate"], skip_preparation=True, watch_side="left",
+        output_dir=tmp_path / "combined"))
+    assert actual["errors"] == []
+    assert_equivalent(actual_stages, stages, "combined scientific stages")
+    for key in ("quantifications", "classifications", "aggregations"):
+        assert_equivalent(actual[key], expected[key], key)
+    assert_equivalent({k: v for k, v in actual["metadata"].items() if k != "desktop_preparation"},
+                      expected["metadata"], "combined scientific metadata")
+    assert actual["metadata"]["desktop_preparation"]["analysis_groups"] == [["gait", "tremor"], ["pulse_rate"]]
+    pd.testing.assert_frame_equal(frame, original, check_exact=True)
 
 
 @pytest.fixture(scope="module", params=["left", "right"])
@@ -347,12 +394,21 @@ def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded
         selected = reference.iloc[positions]
         assert len(selected) > 0 and len(selected) < len(reference)
         np.testing.assert_array_equal(window.active_positions, positions)
-        assert_equivalent(window.result_table.model().frame, selected, "visible table")
-        line = window.figure.axes[0].lines[0]
-        np.testing.assert_array_equal(line.get_xdata(), positions)
+        assert_equivalent(window.result_table.model().frame[selected.columns], selected, "visible scientific table columns")
+        axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/gait/unfiltered")
+        line = axes.lines[0]
+        # Positions are estimates for presentation, computed before filtering
+        # from independent official segment metadata; measurements stay exact.
+        reference_times = np.full(len(reference), np.nan)
+        for number, rows in reference.groupby("gait_segment_nr", sort=False).indices.items():
+            meta = expected["metadata"]["gait"]["unfiltered"]["per_segment"][number]
+            reference_times[rows] = float(meta["start_s"]) + (np.arange(len(rows)) + .5) / len(rows) * (float(meta["end_s"]) - float(meta["start_s"]))
+        np.testing.assert_allclose(line.get_xdata(), reference_times[positions], rtol=RTOL, atol=ATOL)
         np.testing.assert_array_equal(line.get_ydata(), selected.range_of_motion.to_numpy())
-        summary = window.summary_table.model().frame.set_index("Metric")
-        assert summary.loc["range_of_motion", "Median"] == selected.range_of_motion.median()
+        for key, value in expected["aggregations"]["gait"]["unfiltered"].items():
+            if isinstance(value, (int, float)):
+                shown = window.overview_values[("gait", "Aggregates", ("unfiltered", key))]
+                assert float(shown.toolTip()) == value
         window.reset_filters()
         assert_equivalent(window.active_frame, reference, "reset selection")
         assert_equivalent(actual, originals, "unaltered scientific results")

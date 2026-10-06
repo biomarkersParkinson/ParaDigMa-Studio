@@ -7,14 +7,24 @@ See the [README](../README.md) for downloading the Windows app and the basic wor
 The app uses the official ParaDigMa loaders and processing functions, with an
 Empatica IMU import adapter. Opening a file loads that recording only.
 
-Choose **Analysis modules** on Analyze: gait and tremor independently or together,
-or pulse rate on its own. Set all processing options in **Analysis parameters**.
+Choose any combination of gait, tremor and pulse rate in **Analysis modules**.
+Set processing options in **Analysis parameters**. Each field's **i** button expands
+inline guidance with a reference to the official ParaDigMa documentation.
+The axes example explains the direction of each signed mapping; column-mapping
+examples rename your file's columns to the required toolbox names.
+
+When pulse rate is selected alongside gait or tremor, the desktop runs the
+official orchestrator twice in the background and combines their returned outputs.
+The workflows retain independent sensor requirements and missing-sample exclusions.
+If one fails, the other workflow's successful outputs remain available with warnings.
 
 - Check acceleration units, gyroscope units and time representation against the
   recording. Numeric time supports relative, absolute or difference-based values
   in seconds or milliseconds. CSV date strings need conversion to a supported
   numeric representation before analysis.
-- Set watch side and device axes. Signed orientations such as `-y,x,z` are supported.
+- Set the actual wrist as watch side. Device axes are signed source axes in the
+  order of toolbox X, Y, Z: `-y,x,z` gives X = −sensor Y, Y = sensor X, Z = sensor Z.
+  Watch-side inversion happens separately in official pipeline preprocessing.
 - Map alternate names to official channel names, for example
   `{"timestamp": "time", "gyr_x": "gyroscope_x", "ppg": "green"}`.
   Map every required channel.
@@ -53,17 +63,51 @@ Data **Overview** separates sensor and time statistics:
 Data **Graphs** overlays checked channels with stable colors and a legend.
 Values retain their file units. Data **Tables** shows original samples.
 
-Results **Overview**, **Graphs** and **Tables** share the selected output and
-filters. Select metrics, horizontal axes and, when available, participants and
-sections. Overview summaries describe selected rows; official aggregations remain
-separate outputs.
+Results **Overview** shows all returned official aggregates and relevant metadata
+in module cards. Gait metadata is summarized by branch: segment count and total,
+median, IQR and range of segment durations. Individual segment records stay out
+of Overview. Detail filters do not recompute or alter official aggregates.
+
+Results **Graphs** and **Tables** contain only classifications and quantifications.
+Check **Plot series** to compare metrics from several modules on vertically aligned
+plots with a shared time axis. Different quantities keep their own vertical scales.
+Choose a detailed output for its table, CSV export or column filter. Participant,
+recording-section and time filters apply across outputs; column/text/numeric filters
+apply to the chosen output and remain attached to that output when switching tables.
+
+Absolute dates come from the source recording's datetime channel, absolute numeric
+timestamps or start metadata, aligned to the analysis timeline. Known timezones
+are preserved; unzoned timestamps are marked **timezone unspecified**. Relative-only
+recordings display elapsed seconds. To display dates, enter **Time origin** in
+Filters: the ISO date/time corresponding to analysis second zero. This is recorded
+as user supplied and changes presentation only. From/Until accepts full ISO dates
+or elapsed seconds. Include a timezone offset for ambiguous local times.
+
+Combined workflows can have different internal time origins after excluding
+missing samples. The display aligns each workflow to the same source clock.
+**Analysis time (s)** retains the original module time; **Timeline time (s)** appears
+when alignment offsets are needed. CSV includes these display annotations, and
+JSON preserves the offsets so reopened results use the same dates.
+
+Gait arm-swing measurements lack individual timestamps. Their display positions
+are evenly spaced bin midpoints within each official segment's start/end interval,
+computed before filtering. They are labeled **Estimated within gait segment** and
+drawn as points. Tables show their time basis and segment boundaries. Missing or
+invalid segment metadata leaves timing unavailable; sample positions are not used
+as invented time labels. Scientific outputs and aggregate calculations are unchanged.
+
+The app retains the toolbox's official classification Parquet exports because
+ParaDigMa 1.1.2 omits these tables from its orchestrator return value. Classification
+is not rerun and predictions are not reconstructed from quantified measurements.
 
 All graphs share one inline **Graph settings** panel for title, axis labels and
 limits, grid and legend. Expand **Axis limits** to set automatic or explicit bounds; date axes
 accept ISO timestamps. **Apply** changes presentation; **Reset** restores the
 current graph's labels and automatic limits. Choosing a different metric or
 channel refreshes labels and limits. Grid and legend preferences persist.
-The toolbar retains reset view, back/forward, pan, zoom and figure saving.
+For multiple result plots, click the graph whose labels or vertical limits you
+want to edit. Shared horizontal limits, grid and legend settings apply across
+plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
 
 Plots display at most 20,000 samples per series for responsiveness. Tables and
 exports retain all selected rows. Result lines do not join separate sections;
@@ -77,9 +121,12 @@ retained in the same session and usable timing metadata.
 
 ## Exports and run history
 
-- **CSV:** exports selected rows; formula-like text is neutralized.
+- **CSV:** exports selected rows with their displayed timing annotations, including
+  the estimated gait time basis; formula-like text is neutralized.
 - **JSON:** exports all outputs, source, toolbox version and settings, independently
-  of exploration filters. JSON converts non-finite scalars to null.
+  of exploration filters. Scientific tables keep their original columns; display
+  clock metadata is saved with the analysis provenance. JSON converts non-finite
+  scalars to null. Absolute plots can be restored without reopening the recording.
 - **Runs:** saves status, parameters, warnings, log and export locations in
   `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows. Recordings are not copied there.
   Full result tables remain in memory until exported.

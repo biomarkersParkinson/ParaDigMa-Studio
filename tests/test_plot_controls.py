@@ -130,7 +130,7 @@ def test_date_limits_accept_iso_timestamps_and_graph_changes_refresh_settings(wi
 def test_result_and_sensor_context_settings_use_current_graph_without_mutating_tables(window):
     recording(window)
     result = pd.DataFrame({"time": [0., 1., 2.], "metric": [10., 20., 30.]})
-    window.analyzed({"metric_table": result})
+    window.analyzed({"quantifications": {"tremor": result}})
     window.plot_toolbar.settings_action.setChecked(True)
     panel = window.plot_toolbar.settings
     panel.y_label.setText("Derived metric")

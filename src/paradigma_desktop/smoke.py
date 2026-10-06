@@ -93,11 +93,22 @@ def smoke_test(report_path):
                 if window.selected_modules() != ["gait", "tremor"]:
                     raise RuntimeError("Analysis module multi-selection failed")
                 window.set_modules(["tremor"])
+                window.set_modules(["gait", "tremor", "pulse_rate"])
+                if window.selected_modules() != ["gait", "tremor", "pulse_rate"]:
+                    raise RuntimeError("All three modules cannot be selected together")
+                help_button, help_text = window.analysis_help["Device axes"]
+                help_button.click()
+                if help_text.isHidden() or "toolbox X = minus sensor Y" not in help_text.text():
+                    raise RuntimeError("Documented inline axis guidance is unavailable")
+                help_button.click()
+                window.set_modules(["tremor"])
                 if not window.pages.widget(1).isAncestorOf(window.mapping):
                     raise RuntimeError("Analysis parameters are not integrated into Analyze")
                 if not window.pages.widget(2).isAncestorOf(window.y_column):
                     raise RuntimeError("Result controls are not integrated into Results")
                 window.analyzed(results)
+                if results["classifications"]["tremor"].empty or not window.overview_values:
+                    raise RuntimeError("Official classification retention or aggregate overview failed")
                 if window.pages.currentIndex() != 2:
                     raise RuntimeError("Completed analysis did not open the Results workspace")
                 window.dataset.setCurrentText("quantifications/tremor")
@@ -133,8 +144,23 @@ def smoke_test(report_path):
                 cwa_quantified = cwa_results["quantifications"]["gait"]["unfiltered"]
                 if cwa_quantified.empty or "range_of_motion" not in cwa_quantified:
                     raise RuntimeError("CWA gait analysis returned no quantified output")
+                combined_input = frame.copy()
+                combined_input["green"] = np.sin(2 * np.pi * 1.2 * t)
+                for axis in "xyz":
+                    combined_input[f"accelerometer_{axis}"] = (1 if axis == "z" else 0) + .1 * np.sin(t)
+                combined = analyze(combined_input, pipelines=["gait", "tremor", "pulse_rate"],
+                                   skip_preparation=True, watch_side="left")
+                if combined["errors"] or set(combined["classifications"]) != {"gait", "tremor", "pulse_rate"}:
+                    raise RuntimeError("Combined official IMU and pulse-rate execution failed")
                 window.loaded((str(cwa_source), cwa_frame))
                 window.analyzed(cwa_results)
+                if window.display_clock is None:
+                    raise RuntimeError("CWA recording dates are missing from results")
+                if any("per_segment" in path for module, group, path in window.overview_values):
+                    raise RuntimeError("Individual gait-segment metadata leaked into Overview")
+                timing = window._timings["quantifications/gait/unfiltered"]
+                if not timing["Time basis"].str.contains("Estimated", case=False).all():
+                    raise RuntimeError("Gait display times were not identified as estimates")
                 window.dataset.setCurrentText("quantifications/gait/unfiltered")
                 app.processEvents()
                 window.canvas.draw()
@@ -203,6 +229,11 @@ def smoke_test(report_path):
                               integrated_page_controls_verified=True,
                               dropdown_indicator_rendered=True,
                               module_multiselection_verified=True,
+                              all_module_execution_verified=True,
+                              inline_analysis_help_verified=True,
+                              aggregate_overview_verified=True,
+                              absolute_recording_clock_verified=True,
+                              estimated_gait_positions_verified=True,
                               linked_result_selection_verified=True,
                               gait_sensor_context_verified=True,
                               run_history_reopened=True,

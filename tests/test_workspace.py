@@ -111,7 +111,7 @@ def test_data_overview_graphs_and_tables_use_original_recording(window):
     pd.testing.assert_frame_equal(frame, original)
 
 
-def test_module_cards_allow_gait_tremor_selection_and_enforce_pulse_workflow(window):
+def test_module_cards_allow_every_combination(window):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
     assert window.selected_modules() == ["gait"]
     window.module_buttons["Tremor"].click()
@@ -128,9 +128,37 @@ def test_module_cards_allow_gait_tremor_selection_and_enforce_pulse_workflow(win
     window.module_buttons["Gait"].click()
     window.module_buttons["Tremor"].click()
     window.module_buttons["Pulse rate"].click()
-    assert window.selected_modules() == ["pulse_rate"]
+    assert window.selected_modules() == ["gait", "tremor", "pulse_rate"]
+    assert window.side.isEnabled()
     window.module_buttons["Tremor"].click()
-    assert window.selected_modules() == ["tremor"]
+    assert window.selected_modules() == ["gait", "pulse_rate"]
+    window.set_modules(["tremor", "pulse_rate"])
+    assert window.selected_modules() == ["tremor", "pulse_rate"]
+
+
+def test_inline_analysis_help_does_not_change_configuration(window):
+    from paradigma_desktop.analysis_help import FIELD_HELP
+    assert set(window.analysis_help) == set(FIELD_HELP)
+    def configuration():
+        return (window.selected_modules(), window.side.currentText(), window.acc.currentText(),
+                window.gyro.currentText(), window.time.currentText(), window.orientation.text(),
+                window.prepared.isChecked(), window.gaps.isChecked(), window.drop_missing.isChecked(),
+                window.max_gap.value(), window.min_segment.value(), window.mapping.toPlainText())
+    before = configuration()
+    window.navigate(1)
+    window.show()
+    for title, (info, description) in window.analysis_help.items():
+        assert description.isHidden()
+        assert info.accessibleName() == f"Information: {title}"
+        info.click()
+        assert not description.isHidden()
+        assert "ParaDigMa documentation" in description.text()
+        assert window.pages.widget(1).isAncestorOf(description)
+        info.click()
+        assert description.isHidden()
+    assert configuration() == before
+    assert "toolbox X = minus sensor Y" in window.analysis_help["Device axes"][1].text()
+    assert "column_in_your_file" in window.analysis_help["Column mapping (JSON)"][1].text()
 
 
 def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_and_legend(window):
@@ -198,24 +226,22 @@ def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(w
     assert window.input_table.columnWidth(0) >= window.input_table._heading_widths[0]
 
 
-def test_metric_changes_reuse_summary_but_filters_refresh_it(window):
+def test_metric_and_filter_changes_leave_official_overview_aggregates_unchanged(window):
     frame = output().assign(other_metric=lambda data: data.metric * 2)
-    window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    summary_model = window.summary_table.model()
+    window.analyzed({"quantifications": {"test": frame},
+                     "aggregations": {"test": {"median_metric": 12.5}}, "errors": []})
+    aggregate = window.overview_values[("test", "Aggregates", ("median_metric",))]
+    assert aggregate.text() == "12.5"
+    assert not hasattr(window, "summary_table")
     window.y_column.setCurrentText("other_metric")
-    assert window.summary_table.model() is summary_model
-    assert window.result_values[1].text() == "25"
     np.testing.assert_array_equal(window.figure.axes[0].lines[0].get_ydata(), frame.other_metric)
     window.participant.setCurrentIndex(window.participant.findData("a"))
-    filtered_model = window.summary_table.model()
-    assert filtered_model is not summary_model
-    summary = filtered_model.frame.set_index("Metric")
-    assert summary.loc["other_metric", "Count"] == 3
-    assert summary.loc["other_metric", "Median"] == 24
-    assert window.result_values[1].text() == "24"
+    assert window.overview_values[("test", "Aggregates", ("median_metric",))] is aggregate
+    assert aggregate.text() == "12.5"
+    pd.testing.assert_frame_equal(window.active_frame, frame.iloc[[0, 2, 4]])
     window.clear_results()
-    assert window._summary_frame is None
-    assert window.summary_table.model() is None
+    assert window.overview_values == {}
+    assert window.result_table.model() is None
 
 
 def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, monkeypatch):
@@ -295,7 +321,7 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
         app.setPalette(previous)
 
 
-def test_one_selection_drives_graph_table_summary_and_csv(window, tmp_path, monkeypatch):
+def test_one_selection_drives_detailed_graph_table_and_csv(window, tmp_path, monkeypatch):
     frame = output()
     original = frame.copy()
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
@@ -306,13 +332,11 @@ def test_one_selection_drives_graph_table_summary_and_csv(window, tmp_path, monk
     window.filter_max.setText("14")
     window.apply_filters()
     assert window.active_positions.tolist() == [4]
-    pd.testing.assert_frame_equal(window.result_table.model().frame, frame.iloc[[4]])
+    pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame.iloc[[4]])
     assert list(window.figure.axes[0].lines[0].get_xdata()) == [4.]
     assert list(window.figure.axes[0].lines[0].get_ydata()) == [14.]
-    assert window.result_values[0].text() == "1"
-    assert window.result_values[1].text() == "14"
-    window.x_column.setCurrentIndex(0)
-    assert list(window.figure.axes[0].lines[0].get_xdata()) == [4]
+    assert "1 / 6 rows" in window.selection_note.text()
+    assert window.result_table.model().frame["Analysis time (s)"].tolist() == [4.]
     path = tmp_path / "selection.csv"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
@@ -337,7 +361,7 @@ def test_invalid_filter_retains_selection_and_empty_filter_clears_graph(window):
     assert window.active_frame.empty
     assert window.result_table.model().rowCount() == 0
     assert not window.figure.axes[0].lines
-    assert window.result_values[0].text() == "0"
+    assert "0 / 6 rows" in window.selection_note.text()
 
 
 def test_graph_click_selects_nearest_row_within_active_selection(window):
@@ -390,7 +414,8 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     window.analyzed({"quantifications": {"gait": {"unfiltered": quantified}},
         "metadata": {"gait": {"unfiltered": {"per_segment": {"3": {"start_s": 1., "end_s": 2.}}}}}, "errors": []})
     assert window.y_column.currentData() == "range_of_motion"
-    assert window.summary_table.model().frame["Metric"].tolist() == ["range_of_motion"]
+    assert window.result_table.model().frame["Analysis time (s)"].tolist() == [1.25, 1.75]
+    assert window.result_table.model().frame["Time basis"].eq("Estimated within gait segment").all()
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()
     assert window.context_button.text() == "Inspect gait segment"

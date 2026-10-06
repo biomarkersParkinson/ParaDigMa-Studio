@@ -15,7 +15,7 @@ The reference is the official [ParaDigMa test suite at commit
 | `test_gait_analysis.py`, `test_tremor_analysis.py`, `test_pulse_rate_analysis.py`: synthetic pipeline/orchestrator checks | Adapted signals with a fixed random seed, executed through both the app and a direct official workflow |
 | `test_prepare_data.py`: units, preparation and interrupted recordings | Numeric comparisons after mapping, g/m/s² and deg/s/rad/s conversion, signed axis permutation and all six supported numeric time encodings |
 | `conftest.py` and stored TSDF fixtures: reference comparisons | Recorded IMU/PPG inputs decoded from `tests/data/1.prepared_data`; comparison of intermediate signals, features, classifications and derived outputs |
-| `test_orchestrator.py` and gait tests: orchestration and multiple input frames | Gait + tremor, both watch sides, filtered/unfiltered branches, independent sections, identifiers, segment timing metadata and aggregation |
+| `test_orchestrator.py` and gait tests: orchestration and multiple input frames | Gait + tremor, all three modules via independent IMU/PPG calls, both watch sides, filtered/unfiltered branches, independent sections, identifiers, segment timing metadata and aggregation |
 
 The app's existing public Axivity CWA and Physilog Parquet fixtures add raw-import
 and missing-sample coverage. Source attribution, selections and checksums are in
@@ -54,6 +54,11 @@ the original functions and return their results unchanged; they do not replace
 models, probabilities or signal processing. Both paths must actually execute
 the scientific stages and finish without processing errors.
 
+Both workflows now also request the official classification exports. The desktop
+retains those files in its results, and the independent reference reads its own
+files to compare every classification value, timestamp, column and section key.
+Saving classifications changes output retention, not the pipeline's computations.
+
 ## Assertions and tolerances
 
 Comparisons cover:
@@ -63,8 +68,8 @@ Comparisons cover:
 - All quantification rows/columns, both gait branches and tremor power.
 - Every returned official aggregation and scientific metadata value.
 - Exact row counts, order, column names, timestamps and missing-value masks.
-- Real-result Qt filters, table values and plotted arrays, plus descriptive
-  summary values without changing the original official outputs.
+- Real-result Qt filters, scientific table values and plotted measurements, plus
+  independently derived gait display positions and unchanged official aggregate cards.
 - JSON export/reopening and CSV exports, including missing tremor measurements.
 
 Discrete labels, identifiers and time columns must match exactly. Other floating
@@ -83,8 +88,14 @@ while checking the restored scientific values. CSV is read with pandas'
 The wrapper adds missing-sample provenance under
 `metadata.desktop_preparation`. It is checked separately against the known
 excluded sample count, analyzed sample count and section count; it is the only
-metadata excluded from the official metadata comparison. Overview summaries
-describe the selected rows; they are not substitutes for official aggregations.
+metadata excluded from the official metadata comparison. Overview retains official
+aggregates regardless of detail filters. Gait-segment summaries and display-only
+time estimates do not modify the scientific tables.
+
+The combined three-module test compares every scientific stage, classification,
+quantification, aggregate and metadata value against two independent official
+workflows. Additional UI tests check absolute-time alignment when IMU and PPG
+missing-sample exclusions create different analysis origins, including JSON reopening.
 
 ## Positive and empty-output cases
 
@@ -124,6 +135,12 @@ version, but cannot detect a change that affects both paths identically.
 The fixture manifest requires ParaDigMa 1.1.2; upgrading the toolbox requires
 explicit review of these references and settings. They cover representative
 recordings and supported preparation choices, not every device or recording.
+
+Presentation tests additionally cover shared multi-module time filters, midnight
+and daylight-saving transitions, preserving named timezones in exported provenance,
+classification/quantification graph clicks, and clearly labeled gait estimates
+computed before filtering. Estimated positions do not claim clinical event timing
+and are never inserted into the official scientific result tables.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

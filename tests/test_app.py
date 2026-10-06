@@ -58,17 +58,15 @@ def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
     window.close()
 
 
-def test_plot_handles_numeric_column_names_and_real_row_number_column():
+def test_time_plot_handles_numeric_metric_names_without_using_row_numbers_as_time():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    frame = pd.DataFrame({0: [1., 2., 3.], "Row number": [10., 20., 30.]}, index=["a", "b", "c"])
+    frame = pd.DataFrame({"time": [10., 20., 30.], 0: [1., 2., 3.], "Row number": [100., 200., 300.]}, index=["a", "b", "c"])
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    window.x_column.setCurrentIndex(2)
-    window.y_column.setCurrentIndex(0)
+    window.y_column.setCurrentIndex(window.y_column.findData(0))
     assert list(window.figure.axes[0].lines[0].get_xdata()) == [10., 20., 30.]
     assert list(window.figure.axes[0].lines[0].get_ydata()) == [1., 2., 3.]
-    window.x_column.setCurrentIndex(0)
-    assert list(window.figure.axes[0].lines[0].get_xdata()) == [0, 1, 2]
+    pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
     window.close()
 
 

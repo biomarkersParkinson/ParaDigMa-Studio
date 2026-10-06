@@ -28,6 +28,14 @@ class GraphToolbar(NavigationToolbar2QT):
         self.settings_action.toggled.connect(self.show_settings)
         self.addSeparator()
         self.addAction(self.settings_action)
+        self.active_axes = None
+        canvas.mpl_connect("button_press_event", self.select_axes)
+
+    def select_axes(self, event):
+        if event.inaxes in self.canvas.figure.axes:
+            self.active_axes = event.inaxes
+            if self.settings_action.isChecked():
+                self.settings.read_axes()
 
     def show_settings(self, visible):
         if visible:
@@ -37,6 +45,8 @@ class GraphToolbar(NavigationToolbar2QT):
     def refresh(self):
         # A new metric or recording has new axes and a new navigation history.
         self.update()
+        if self.active_axes not in self.canvas.figure.axes:
+            self.active_axes = None
         if self.settings._defaults is not None and self.settings._defaults[0] is not self.settings.axes():
             self.settings._defaults = None
         self.settings.apply_visibility()
@@ -114,6 +124,10 @@ class GraphSettings(QFrame):
         self.error.setObjectName("graphError")
         layout.addWidget(self.error, 4, 0, 1, 5)
         self.error.hide()
+        self.graph_hint = QLabel()
+        self.graph_hint.setWordWrap(True)
+        layout.addWidget(self.graph_hint, 5, 0, 1, 5)
+        self.graph_hint.hide()
         layout.setColumnStretch(2, 1)
         layout.setColumnStretch(4, 1)
         self.hide()
@@ -127,6 +141,8 @@ class GraphSettings(QFrame):
         return label
 
     def axes(self):
+        if self.toolbar.active_axes in self.canvas.figure.axes:
+            return self.toolbar.active_axes
         return self.canvas.figure.axes[0] if self.canvas.figure.axes else None
 
     def read_axes(self):
@@ -134,6 +150,8 @@ class GraphSettings(QFrame):
         self.setEnabled(ax is not None)
         if ax is None:
             return
+        self.graph_hint.setText("Click a graph to edit its labels and vertical limits.")
+        self.graph_hint.setVisible(len(self.canvas.figure.axes) > 1)
         if self._defaults is None or self._defaults[0] is not ax:
             title = ax.get_title() or ax.get_title(loc="left")
             self._defaults = ax, title, ax.get_xlabel(), ax.get_ylabel()
@@ -152,8 +170,7 @@ class GraphSettings(QFrame):
         self.error.hide()
 
     def apply_visibility(self):
-        ax = self.axes()
-        if ax is not None:
+        for ax in self.canvas.figure.axes:
             ax.grid(self.grid.isChecked())
             legend = ax.get_legend()
             if legend is not None:

@@ -20,11 +20,13 @@ A verified signing identity must be configured before the signed workflow can pr
 
 1. **Data:** Open a recording. Inspect sensor/time statistics, overlay selected
    channels in Graphs, or view original samples in Tables.
-2. **Analyze:** Select gait, tremor, both together, or pulse rate separately.
-   Review units, time representation, watch side and channel mapping, then click **Run Analysis**.
-3. **Results:** Choose an output and metric. Overview, Graphs and Tables use the
-   same filters. Use **Graph settings** for titles, axis limits, grid and legend;
-   use the toolbar to pan, zoom or save a figure.
+2. **Analyze:** Select any combination of gait, tremor and pulse rate.
+   Review units, time representation, watch side and channel mapping; use each
+   field's **i** button for guidance, then click **Run Analysis**.
+3. **Results:** Overview shows module aggregates and metadata. Graphs compares
+   selected metrics from multiple modules across recording time; Tables shows
+   detailed classifications and measurements using the same filters.
+   Use **Graph settings** or the toolbar to adjust, zoom or save figures.
 4. **Runs:** Review parameters, warnings, logs and export locations.
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
@@ -60,5 +62,8 @@ not raw green PPG, and its gyroscope stream is empty.
 - [Scientific validation](docs/SCIENTIFIC_TESTS.md): comparisons with the official processing workflow.
 - [Development and building](docs/DEVELOPMENT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
 
-Version **0.2.3**. Scientific processing uses the pinned official toolbox; the app's
+Gait points use clearly marked estimated positions within recorded segment boundaries.
+Files without recording dates use elapsed time until you supply a time origin.
+
+Version **0.3.0**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
