@@ -1,5 +1,6 @@
 import os
 import time
+from importlib.resources import files
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
@@ -108,4 +109,23 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     assert not window.progress.isVisible()
     assert "processing error" in window.status.text()
     assert window.export_button.isEnabled()
+    window.close()
+
+
+def test_empatica_opens_in_background_without_gyro(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    source = str(files("paradigma_desktop") / "data" / "test_data.avro")
+    errors = []
+    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileName", lambda *args: (source, ""))
+    monkeypatch.setattr(desktop_app.QMessageBox, "critical", lambda *args: errors.append(args))
+    window.open_file()
+    deadline = time.monotonic() + 10
+    while window.worker is not None and time.monotonic() < deadline:
+        QTest.qWait(20)
+    assert window.worker is None
+    assert errors == []
+    assert window.input_table.model().rowCount() == 115904
+    assert "require gyroscope data" in window.status.text()
+    assert window.open_button.isEnabled()
     window.close()

@@ -252,7 +252,15 @@ class MainWindow(QMainWindow):
         self.input_table.setModel(FrameModel(self.frame))
         self.file_label.setText(f"{Path(self.source).name} • {len(self.frame):,} samples")
         self.file_label.setToolTip(self.source)
-        self.status.setText("Recording loaded. Review settings, then run analysis.")
+        if self.frame.attrs.get("source_format") == "empatica" and not any(
+            f"gyroscope_{axis}" in self.frame for axis in "xyz"
+        ):
+            message = ("Empatica accelerometer samples loaded. Gait and tremor require gyroscope data; "
+                       "pulse rate requires raw green PPG. This import contains neither.")
+            self.status.setText(message)
+            self.log.appendPlainText(message)
+        else:
+            self.status.setText("Recording loaded. Review settings, then run analysis.")
 
     def run_analysis(self):
         try:

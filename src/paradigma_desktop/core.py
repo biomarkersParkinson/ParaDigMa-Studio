@@ -13,6 +13,8 @@ from paradigma.orchestrator import run_paradigma
 from paradigma.prepare_data import correct_watch_orientation, prepare_raw_data
 from paradigma.segmenting import create_segments, discard_segments
 
+from .empatica import load_empatica_imu
+
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
 TIME_UNITS = {"relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"}
 
@@ -58,7 +60,10 @@ def load_sensor_file(path, *, allow_pickle=False):
         raise ValueError(f"Unsupported file format: {path.suffix}")
     if path.suffix.lower() in {".pkl", ".pickle"} and not allow_pickle:
         raise ValueError("Pickle loading is disabled unless the file is explicitly trusted.")
-    _, frame, _ = load_single_data_file(path)
+    if path.suffix.lower() == ".avro":
+        frame = load_empatica_imu(path)
+    else:
+        _, frame, _ = load_single_data_file(path)
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         raise ValueError("The sensor file contains no tabular samples.")
     return frame
@@ -91,7 +96,12 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
         required.update(accelerometer_columns)
     missing = required - set(mapped.columns)
     if missing:
-        raise ValueError("Missing sensor columns: " + ", ".join(sorted(missing)))
+        message = "Missing sensor columns: " + ", ".join(sorted(missing))
+        if any(column.startswith("gyroscope_") for column in missing):
+            message += ". Gait and tremor require gyroscope samples; an accelerometer-only recording cannot run these pipelines."
+        if "green" in missing:
+            message += ". Pulse rate requires raw green PPG; processed BVP is a different input."
+        raise ValueError(message)
     if len(mapped) < 2:
         raise ValueError("At least two samples are required.")
     if pd.api.types.is_datetime64_any_dtype(mapped["time"].dtype) or pd.api.types.is_timedelta64_dtype(mapped["time"].dtype):

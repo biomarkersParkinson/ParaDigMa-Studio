@@ -76,6 +76,8 @@ The executable smoke test additionally loads the unmodified public ParaDigMa CWA
 
 ## Remaining risks and limits
 
+Version 0.1.4 adds an Empatica IMU adapter that reads Avro with the same Apache Avro library used by ParaDigMa, follows its device-loading tutorial and makes gyroscope data optional. Import does not execute pickle or recording-supplied code. The adapter validates channel lengths, finite samples, conversion parameters and matching IMU timelines, and rejects multi-record files instead of silently dropping records. The public example and license are bundled for the executable check. This change does not add support for treating processed BVP as raw green PPG.
+
 - The application runs with the launching user's permissions; it is not itself a security sandbox. Administrator execution would increase the possible impact of a defect.
 - Confirmed pickle input and bundled toolbox classifier pickles remain executable deserialization. Trust the input's source and the application/dependency distribution; a warning does not make an untrusted pickle safe.
 - Native Qt, NumPy, SciPy, Arrow and other parsers were not exhaustively audited or fuzz-tested. Malformed or extremely large recordings can cause crashes, high memory use or long processing. Analysis has no hard resource limits or enforced timeout.

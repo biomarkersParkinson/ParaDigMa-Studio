@@ -88,11 +88,24 @@ def smoke_test(report_path):
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("CWA result plot was not rendered")
+                # The official Empatica example has an empty gyroscope stream.
+                # Import it for inspection without inventing missing channels.
+                avro_source = files("paradigma_desktop") / "data" / "test_data.avro"
+                avro_frame = load_sensor_file(avro_source)
+                if len(avro_frame) != 115904 or any("gyroscope" in column for column in avro_frame):
+                    raise RuntimeError("Empatica import lost samples or invented gyroscope channels")
+                window.loaded((str(avro_source), avro_frame))
+                app.processEvents()
+                if window.input_table.model().rowCount() != 115904:
+                    raise RuntimeError("Empatica samples were not displayed")
+                if "require gyroscope" not in window.status.text():
+                    raise RuntimeError("Empatica analysis requirements were not displayed")
                 report.update(status="passed", paradigma_version=version("paradigma"),
                               models_loaded=models, quantified_rows=len(quantified),
                               qt_plot_rendered=True, export_verified=True,
                               cwa_samples=len(cwa_frame), cwa_gait_rows=len(cwa_quantified),
-                              cwa_plot_rendered=True)
+                              cwa_plot_rendered=True, empatica_samples=len(avro_frame),
+                              empatica_inspection_verified=True)
         finally:
             window.close()
             app.processEvents()
