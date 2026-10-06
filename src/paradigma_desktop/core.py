@@ -69,7 +69,7 @@ def load_sensor_file(path, *, allow_pickle=False):
     return frame
 
 
-def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
+def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings):
     if isinstance(pipelines, str):
         pipelines = [pipelines]
     if not pipelines or ("pulse_rate" in pipelines and len(pipelines) > 1):
@@ -106,17 +106,53 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
         raise ValueError("At least two samples are required.")
     if pd.api.types.is_datetime64_any_dtype(mapped["time"].dtype) or pd.api.types.is_timedelta64_dtype(mapped["time"].dtype):
         raise ValueError("Time must use numeric seconds or milliseconds; convert datetime values before analysis.")
-    values = mapped[list(required)].apply(pd.to_numeric, errors="raise")
-    if any(pd.api.types.is_complex_dtype(dtype) for dtype in values.dtypes) or values.isna().any().any():
-        raise ValueError("Required sensor channels must contain finite real numbers without missing values.")
-    values = values.astype(float)
-    if not np.isfinite(values.to_numpy()).all():
-        raise ValueError("Required sensor channels must contain finite real numbers without missing values.")
     time_unit = settings.get("time_input_unit", "relative_s")
     if time_unit not in TIME_UNITS:
         raise ValueError("Select a supported numeric time unit.")
     if settings.get("skip_preparation", False) and time_unit != "relative_s":
         raise ValueError("Prepared data must use relative seconds. Enable preparation to convert time units.")
+    values = mapped[sorted(required)].apply(pd.to_numeric, errors="raise")
+    if any(pd.api.types.is_complex_dtype(dtype) for dtype in values.dtypes):
+        raise ValueError("Required sensor channels must contain finite real numbers without missing values.")
+    values = values.astype(float)
+    finite = np.isfinite(values.to_numpy())
+    invalid = ~finite.all(axis=1)
+    excluded_count = int(invalid.sum())
+    exclusion = None
+    if excluded_count:
+        bad_columns = values.columns[~finite.all(axis=0)].tolist()
+        if not drop_missing_samples:
+            raise ValueError(
+                "Required sensor channels must contain finite real numbers without missing values. "
+                f"Found {excluded_count} affected samples in {', '.join(bad_columns)}. "
+                "Enable 'Exclude missing sensor samples' to discard affected rows before analysis."
+            )
+        # Convert the complete difference timeline before removing sensor rows.
+        if time_unit.startswith("difference"):
+            if not np.isfinite(values["time"]).all():
+                raise ValueError("Missing time differences cannot be excluded; supply a valid relative or absolute timeline.")
+            if values["time"].iloc[0] < 0 or not (values["time"].iloc[1:] > 0).all():
+                raise ValueError("Time differences must be positive after the first sample, which can be zero.")
+            elapsed = values["time"].cumsum() - values["time"].iloc[0]
+            values["time"] = elapsed / (1000 if time_unit == "difference_ms" else 1)
+            time_unit = "relative_s"
+            settings["time_input_unit"] = time_unit
+        positions = np.flatnonzero(~invalid)
+        if len(positions) < 2:
+            raise ValueError("At least two valid samples must remain after excluding missing sensor samples.")
+        mapped = mapped.iloc[positions].copy().reset_index(drop=True)
+        values = values.iloc[positions].reset_index(drop=True)
+        boundaries = np.r_[True, np.diff(positions) > 1]
+        if "data_segment_nr" in mapped:
+            boundaries |= mapped["data_segment_nr"].ne(mapped["data_segment_nr"].shift()).fillna(True).to_numpy(dtype=bool)
+        mapped["data_segment_nr"] = np.cumsum(boundaries)
+        exclusion = {"input_samples": len(frame), "excluded_samples": excluded_count,
+                     "samples_after_exclusion": len(mapped), "invalid_columns": bad_columns,
+                     "split_at_excluded_samples": True}
+        (logger or logging.getLogger("paradigma")).info(
+            "Excluded %s of %s samples with missing/non-finite values in %s; processing valid sections separately.",
+            excluded_count, len(frame), ", ".join(bad_columns),
+        )
     if time_unit.startswith("difference"):
         if values["time"].iloc[0] < 0 or not (values["time"].iloc[1:] > 0).all():
             raise ValueError("Time differences must be positive after the first sample, which can be zero.")
@@ -149,7 +185,11 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
                 raise ValueError("Gap and minimum segment durations must be positive finite seconds.")
             intervals = np.diff(prepared["time"].to_numpy())
             frequency = 1 / np.median(intervals)
-            prepared["data_segment_nr"] = create_segments(prepared["time"].to_numpy(), max_segment_gap_s=max_gap)
+            gaps = pd.Series(create_segments(prepared["time"].to_numpy(), max_segment_gap_s=max_gap), index=prepared.index)
+            boundaries = gaps.ne(gaps.shift())
+            if "data_segment_nr" in prepared:
+                boundaries |= prepared["data_segment_nr"].ne(prepared["data_segment_nr"].shift()).fillna(True)
+            prepared["data_segment_nr"] = boundaries.cumsum()
             prepared = discard_segments(prepared, "data_segment_nr", minimum, frequency).reset_index(drop=True)
 
     # The pinned preprocessing code otherwise interpolates across gaps even
@@ -178,6 +218,11 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, **settings):
             for error in recorder.errors:
                 if error not in results.setdefault("errors", []):
                     results["errors"].append(error)
+            if exclusion:
+                results.setdefault("metadata", {})["desktop_preparation"] = {
+                    **exclusion, "analyzed_samples": len(prepared),
+                    "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
+                }
             return results
         finally:
             for target in loggers:

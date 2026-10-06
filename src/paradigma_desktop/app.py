@@ -123,11 +123,15 @@ class MainWindow(QMainWindow):
         self.mapping.setMaximumHeight(120)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
+        self.gaps.setChecked(True)
+        self.drop_missing = QCheckBox("Exclude missing sensor samples")
+        self.drop_missing.setChecked(True)
+        self.drop_missing.setToolTip("Exclude rows with missing/non-finite required samples, report the count, and process valid sections separately.")
         self.prepared.toggled.connect(self.preparation_changed)
         for name, widget in [("Pipeline", self.pipeline), ("Watch side", self.side),
                              ("Acceleration units", self.acc), ("Gyroscope units", self.gyro),
                              ("Time units", self.time), ("Device axes", self.orientation),
-                             ("Column mapping (JSON)", self.mapping), ("", self.prepared), ("", self.gaps)]:
+                             ("Column mapping (JSON)", self.mapping), ("", self.prepared), ("", self.gaps), ("", self.drop_missing)]:
             settings.addRow(name, widget)
         help_text = QLabel("Device axes: three signed axes, e.g. x,y,z or -y,x,z.\n\n"
                            "Gait: accelerometer + gyroscope.\nTremor: gyroscope.\n"
@@ -273,7 +277,7 @@ class MainWindow(QMainWindow):
                             accelerometer_units=self.acc.currentText(), gyroscope_units=self.gyro.currentText(),
                             time_input_unit=self.time.currentText(), device_orientation=axes,
                             column_mapping=mapping, skip_preparation=self.prepared.isChecked(),
-                            split_by_gaps=self.gaps.isChecked())
+                            split_by_gaps=self.gaps.isChecked(), drop_missing_samples=self.drop_missing.isChecked())
             if self.prepared.isChecked():
                 settings.update(accelerometer_units="g", gyroscope_units="deg/s",
                                 time_input_unit="relative_s", split_by_gaps=False)

@@ -100,12 +100,25 @@ def smoke_test(report_path):
                     raise RuntimeError("Empatica samples were not displayed")
                 if "require gyroscope" not in window.status.text():
                     raise RuntimeError("Empatica analysis requirements were not displayed")
+                physilog_source = files("paradigma_desktop") / "data" / "physilog_excerpt.parquet"
+                physilog = load_sensor_file(physilog_source)
+                physilog_results = analyze(physilog, pipelines=["gait"], watch_side="left",
+                                           drop_missing_samples=True, split_by_gaps=True)
+                details = physilog_results["metadata"]["desktop_preparation"]
+                if physilog_results.get("errors") or details["excluded_samples"] != 10 or details["continuous_sections"] != 4:
+                    raise RuntimeError("Physilog missing samples or recording gaps were not handled correctly")
+                physilog_gait = physilog_results["quantifications"]["gait"]["unfiltered"]
+                if physilog_gait.empty:
+                    raise RuntimeError("Physilog example returned no gait measurements")
                 report.update(status="passed", paradigma_version=version("paradigma"),
                               models_loaded=models, quantified_rows=len(quantified),
                               qt_plot_rendered=True, export_verified=True,
                               cwa_samples=len(cwa_frame), cwa_gait_rows=len(cwa_quantified),
                               cwa_plot_rendered=True, empatica_samples=len(avro_frame),
-                              empatica_inspection_verified=True)
+                              empatica_inspection_verified=True,
+                              physilog_excluded_samples=details["excluded_samples"],
+                              physilog_continuous_sections=details["continuous_sections"],
+                              physilog_gait_rows=len(physilog_gait))
         finally:
             window.close()
             app.processEvents()

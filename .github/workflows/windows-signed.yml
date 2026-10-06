@@ -1,0 +1,134 @@
+name: Windows signed desktop
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade "pip>=26.2,<27"
+      - run: python -m pip install -e ".[dev]" "pip-audit==2.10.1"
+      - run: python scripts/audit_dependencies.py dependency-audit.json
+      - run: python -m pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: python scripts/build_desktop.py
+      - run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
+      - run: python scripts/write_build_manifest.py dist/ParaDigMaDesktop dependency-audit.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unsigned-signing-input
+          path: dist/ParaDigMaDesktop/
+          include-hidden-files: true
+          retention-days: 1
+
+  sign:
+    needs: build
+    runs-on: windows-2025
+    environment: windows-signing
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      publisher_subject: ${{ steps.signing-config.outputs.publisher_subject }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      SIGNING_ENDPOINT: ${{ vars.SIGNING_ENDPOINT }}
+      SIGNING_ACCOUNT_NAME: ${{ vars.SIGNING_ACCOUNT_NAME }}
+      SIGNING_CERTIFICATE_PROFILE: ${{ vars.SIGNING_CERTIFICATE_PROFILE }}
+      SIGNING_PUBLISHER_SUBJECT: ${{ vars.SIGNING_PUBLISHER_SUBJECT }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Require the configured publisher account
+        id: signing-config
+        run: python scripts/signing_bundle.py config
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unsigned-signing-input
+          path: bundle
+      - name: Inventory native files and preserve valid vendor signatures
+        run: python scripts/signing_bundle.py plan bundle --catalog signing-catalog.txt
+      - name: Authenticate to Azure with GitHub OIDC
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign unsigned native components using the verified publisher
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ vars.SIGNING_CERTIFICATE_PROFILE }}
+          files-catalog: ${{ github.workspace }}\signing-catalog.txt
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          timeout: '1200'
+          batch-size: '15000'
+          cache-dependencies: 'false'
+          exclude-environment-credential: 'true'
+          exclude-workload-identity-credential: 'true'
+          exclude-managed-identity-credential: 'true'
+          exclude-shared-token-cache-credential: 'true'
+          exclude-visual-studio-credential: 'true'
+          exclude-visual-studio-code-credential: 'true'
+          exclude-azure-cli-credential: 'false'
+          exclude-azure-powershell-credential: 'true'
+          exclude-azure-developer-cli-credential: 'true'
+          exclude-interactive-browser-credential: 'true'
+      - name: Verify publisher, timestamp and every native signature chain
+        run: python scripts/signing_bundle.py verify bundle
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signed-verification-input
+          path: bundle/
+          include-hidden-files: true
+          retention-days: 1
+
+  verify:
+    needs: sign
+    runs-on: windows-2025
+    # Application execution is isolated from the job with signing credentials.
+    permissions:
+      contents: read
+    env:
+      SIGNING_PUBLISHER_SUBJECT: ${{ needs.sign.outputs.publisher_subject }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: signed-verification-input
+          path: bundle
+      - run: python scripts/signing_bundle.py verify bundle
+      - name: Launch and test the signed application without signing credentials
+        run: python scripts/check_frozen.py bundle/ParaDigMaDesktop.exe
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ParaDigMaDesktop-Windows-Signed
+          path: bundle/
+          include-hidden-files: true

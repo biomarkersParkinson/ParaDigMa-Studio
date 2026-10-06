@@ -97,6 +97,7 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     frame = pd.DataFrame({"time": t, **{f"gyroscope_{axis}": np.sin(t) for axis in "xyz"}})
     window.loaded(("short.csv", frame))
     window.pipeline.setCurrentText("Tremor")
+    window.gaps.setChecked(False)  # Exercise the classifier's short-input failure.
     window.run_analysis()
     assert not window.run_button.isEnabled()
     deadline = time.monotonic() + 10

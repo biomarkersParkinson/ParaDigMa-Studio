@@ -84,6 +84,10 @@ The executable smoke test additionally loads the unmodified public ParaDigMa CWA
 
 ## Remaining risks and limits
 
+The optional manual signing workflow is described in [SIGNING.md](SIGNING.md). It requires a verified Public Trust publisher account and a GitHub `windows-signing` environment restricted to `main`. Only the signing job receives OIDC permission; application execution occurs in a separate job. Existing valid vendor signatures and classifier/resource hashes are checked, invalid signatures stop signing, and final checksums are generated after signatures are added. Ordinary push/PR artifacts remain unsigned. Actual signing and recipient Smart App Control acceptance remain unverified until the external account is configured and the Windows workflow succeeds.
+
+Version 0.1.5 adds explicit exclusion of missing/non-finite required samples, enabled by default in the GUI and logged with counts. The source file is unchanged. Analysis runs valid sections independently across excluded stretches and enabled time gaps; original missing samples are not replaced with generated sensor values. The exclusion count and analyzed sample count are retained in output metadata. Missing time differences remain an error because their elapsed duration cannot be inferred.
+
 Version 0.1.4 adds an Empatica IMU adapter that reads Avro with the same Apache Avro library used by ParaDigMa, follows its device-loading tutorial and makes gyroscope data optional. Import does not execute pickle or recording-supplied code. The adapter validates channel lengths, finite samples, conversion parameters and matching IMU timelines, and rejects multi-record files instead of silently dropping records. The public example and license are bundled for the executable check. This change does not add support for treating processed BVP as raw green PPG.
 
 - The application runs with the launching user's permissions; it is not itself a security sandbox. Administrator execution would increase the possible impact of a defect.

@@ -28,3 +28,6 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["cwa_plot_rendered"]
     assert data["empatica_samples"] == 115904
     assert data["empatica_inspection_verified"]
+    assert data["physilog_excluded_samples"] == 10
+    assert data["physilog_continuous_sections"] == 4
+    assert data["physilog_gait_rows"] > 0
