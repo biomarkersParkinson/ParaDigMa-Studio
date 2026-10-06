@@ -1,0 +1,27 @@
+{
+  "upstream_repository": "https://github.com/biomarkersParkinson/paradigma",
+  "upstream_commit": "4735d6d21b2a62b764a0bc7e0f677577e6ce1668",
+  "paradigma_version": "1.1.2",
+  "fixtures": {
+    "prepared_imu.parquet": {
+      "rows": 72947,
+      "sha256": "b31d27f8a8cc3b014323e07627d5161ed2adde91b2f33ff99b8b634cf49740b5",
+      "source_files": {
+        "tests/data/1.prepared_data/imu/imu_meta.json": "f59556bcfd5822f70c95ac0642356979c4318764504112e9233a5cc7520655a7",
+        "tests/data/1.prepared_data/imu/imu_time.bin": "dbfcbcb95a04a98f32826caad9c6e576e088da81f54857894ed6e4805da6f2cc",
+        "tests/data/1.prepared_data/imu/imu_values.bin": "6f20e773aa64fa16f1d1a07bd53bbb87c6776bf58418e2e51bd7d1b8e02fffb4"
+      },
+      "selection": "all rows"
+    },
+    "prepared_ppg.parquet": {
+      "rows": 18000,
+      "sha256": "e8e20cd2d41a763f2769324405c3787804a8f7915560eff2449c1e039ba8a9db",
+      "source_files": {
+        "tests/data/1.prepared_data/ppg/ppg_meta.json": "0b986d76219604ee06abff120874a3255f2f6e1f0b284948758d23fa494d80c9",
+        "tests/data/1.prepared_data/ppg/ppg_time.bin": "4773b20f8c222bb87d07b968b7c0977fa9b380d8f534e36544d880ac54d8a035",
+        "tests/data/1.prepared_data/ppg/ppg_values.bin": "590f60d019362d3e85ff36d31a073099b154258d201f039eb6786645534a8828"
+      },
+      "selection": "first 18000 rows; original values and timestamps retained"
+    }
+  }
+}

@@ -6,3 +6,4 @@ build/
 dist/
 *.spec
 dependency-audit.json
+test-results.xml

@@ -29,3 +29,4 @@ paradigma_desktop = ["data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["scientific: numerical equivalence with independent official ParaDigMa workflows"]
