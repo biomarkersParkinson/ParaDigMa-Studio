@@ -15,7 +15,10 @@ from PySide6.QtWidgets import (
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 
-from .core import analyze, export_results, export_table_csv, load_sensor_file, result_tables
+from .core import (
+    analyze, export_results, export_table_csv, load_sensor_file, result_tables,
+    validate_column_mapping, validate_orientation,
+)
 
 
 class FrameModel(QAbstractTableModel):
@@ -120,6 +123,7 @@ class MainWindow(QMainWindow):
         self.mapping.setMaximumHeight(120)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
+        self.prepared.toggled.connect(self.preparation_changed)
         for name, widget in [("Pipeline", self.pipeline), ("Watch side", self.side),
                              ("Acceleration units", self.acc), ("Gyroscope units", self.gyro),
                              ("Time units", self.time), ("Device axes", self.orientation),
@@ -156,7 +160,7 @@ class MainWindow(QMainWindow):
         for label, widget in [("X", self.x_column), ("Y", self.y_column)]:
             plot_controls.addWidget(QLabel(label))
             plot_controls.addWidget(widget, 1)
-            widget.currentTextChanged.connect(self.plot)
+            widget.currentIndexChanged.connect(self.plot)
         result_layout.addLayout(plot_controls)
         self.figure = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.figure)
@@ -180,9 +184,13 @@ class MainWindow(QMainWindow):
         return combo
 
     def start_job(self, operation, completed):
+        if self.worker is not None:
+            return
         self.open_button.setEnabled(False)
         self.run_button.setEnabled(False)
         self.settings_panel.setEnabled(False)
+        self.export_button.setEnabled(False)
+        self.csv_button.setEnabled(False)
         self.progress.setRange(0, 0)
         self.progress.show()
         self.worker = Worker(operation)
@@ -196,9 +204,16 @@ class MainWindow(QMainWindow):
         self.open_button.setEnabled(True)
         self.run_button.setEnabled(self.frame is not None)
         self.settings_panel.setEnabled(True)
+        self.preparation_changed()
+        self.export_button.setEnabled(self.results is not None)
+        self.csv_button.setEnabled(self.dataset.currentText() in self.tables)
         self.progress.hide()
         self.worker.deleteLater()
         self.worker = None
+
+    def preparation_changed(self, *_):
+        for widget in (self.acc, self.gyro, self.time, self.orientation, self.gaps):
+            widget.setEnabled(not self.prepared.isChecked())
 
     def failure(self, message):
         self.status.setText("Operation failed. See the processing log.")
@@ -241,10 +256,9 @@ class MainWindow(QMainWindow):
 
     def run_analysis(self):
         try:
-            mapping = json.loads(self.mapping.toPlainText())
-            axes = [v.strip() for v in self.orientation.text().split(",")]
-            if len(axes) != 3 or sorted(v.lstrip("-") for v in axes) != ["x", "y", "z"]:
-                raise ValueError("Device axes must contain x, y and z once each, optionally prefixed with '-'.")
+            mapping = validate_column_mapping(json.loads(self.mapping.toPlainText()))
+            axes = (["x", "y", "z"] if self.prepared.isChecked() else
+                    validate_orientation([v.strip() for v in self.orientation.text().split(",")]))
             pipelines = {"Gait": ["gait"], "Tremor": ["tremor"],
                          "Gait + tremor": ["gait", "tremor"], "Pulse rate": ["pulse_rate"]}[self.pipeline.currentText()]
             settings = dict(pipelines=pipelines, watch_side=self.side.currentText(),
@@ -252,6 +266,9 @@ class MainWindow(QMainWindow):
                             time_input_unit=self.time.currentText(), device_orientation=axes,
                             column_mapping=mapping, skip_preparation=self.prepared.isChecked(),
                             split_by_gaps=self.gaps.isChecked())
+            if self.prepared.isChecked():
+                settings.update(accelerometer_units="g", gyroscope_units="deg/s",
+                                time_input_unit="relative_s", split_by_gaps=False)
         except (ValueError, KeyError) as exc:
             self.failure(str(exc))
             return
@@ -283,11 +300,15 @@ class MainWindow(QMainWindow):
         self.x_column.clear()
         self.y_column.clear()
         self.csv_button.setEnabled(frame is not None)
+        self.result_table.setModel(None)
         if frame is not None:
             self.result_table.setModel(FrameModel(frame))
-            numeric = [str(c) for c in frame.select_dtypes(include="number").columns]
-            self.x_column.addItems(["Row number"] + numeric)
-            self.y_column.addItems(numeric)
+            numeric = list(frame.select_dtypes(include="number").columns)
+            self.x_column.addItem("Row number", userData=None)
+            for column in numeric:
+                label = "Row number (column)" if column == "Row number" else str(column)
+                self.x_column.addItem(label, userData=column)
+                self.y_column.addItem(str(column), userData=column)
             if "time" in numeric:
                 self.x_column.setCurrentText("time")
             self.y_column.setCurrentIndex(1 if numeric and numeric[0] == "time" and len(numeric) > 1 else 0)
@@ -299,15 +320,17 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         frame = self.tables.get(self.dataset.currentText())
-        y = self.y_column.currentText()
-        x = self.x_column.currentText()
-        if frame is not None and y in frame and len(frame):
+        y = self.y_column.currentData()
+        x = self.x_column.currentData()
+        row_number = self.x_column.currentIndex() == 0
+        if frame is not None and y in frame and (row_number or x in frame) and len(frame):
             # Bound rendering cost; the table and exports retain every row.
-            sample = frame.iloc[::max(1, int(np.ceil(len(frame) / 20000)))]
-            xv = sample.index if x == "Row number" else sample[x]
+            step = max(1, int(np.ceil(len(frame) / 20000)))
+            sample = frame.iloc[::step]
+            xv = np.arange(len(frame))[::step] if row_number else sample[x]
             ax.plot(xv, sample[y], linewidth=1)
-            ax.set_xlabel(x)
-            ax.set_ylabel(y)
+            ax.set_xlabel(self.x_column.currentText())
+            ax.set_ylabel(self.y_column.currentText())
             ax.set_title(self.dataset.currentText())
             ax.grid(alpha=0.2)
         else:
