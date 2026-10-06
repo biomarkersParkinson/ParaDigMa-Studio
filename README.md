@@ -10,7 +10,7 @@ Install 64-bit Python 3.12 and Git, then run these commands in PowerShell from t
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2,<27"
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\paradigma-desktop.exe
+.\.venv\Scripts\python.exe desktop.py
 ```
 
 ## Build a Windows executable
@@ -35,6 +35,20 @@ For the downloaded executable, download and extract the entire new successful Wi
 Version 0.1.4 fixes Empatica imports failing with `Gyroscope data not found in Empatica file`. The official example contains 115,904 accelerometer samples and an empty gyroscope stream. The wrapper follows the official device-loading tutorial to import these samples without requiring gyroscope data, and applies each IMU sensor's own conversion parameters when gyroscope data is present.
 
 **Import support does not imply that every pipeline can analyze the recording.** Gait and tremor require gyroscope samples. Pulse rate requires raw green PPG; the example's processed BVP signal is not imported as green PPG. The example therefore opens for accelerometer inspection, with its analysis requirements shown in the app. No missing sensor channels are fabricated. Empatica import currently supports one Avro record with accelerometer samples and optional gyroscope samples on the same timeline. Multi-record files or IMU streams with different timestamps/rates need splitting or alignment before import. Other Avro streams such as BVP, EDA and temperature are not imported by this IMU adapter.
+
+## Smart App Control blocks the executable
+
+The current GitHub Actions artifact is unsigned. If Windows reports that its publisher cannot be verified, downloading another unsigned build will not establish publisher trust. The dependency audit, test results and SHA-256 manifest do not replace a publisher signature.
+
+A signed distribution requires a trusted Windows code-signing certificate or a signing service with publisher identity verification. No signing identity is configured in this repository. A locally generated self-signed certificate does not establish trust for an ordinary recipient's Windows installation. Signing also needs to account for bundled executable code and dependencies; signing only the launcher does not guarantee that Smart App Control will accept the complete application.
+
+For development, download this repository's source and use the Python installation commands above. Launch from the repository directory with the verified Python interpreter directly:
+
+```powershell
+.\.venv\Scripts\python.exe desktop.py
+```
+
+This avoids the generated unsigned desktop launcher. It is an alternative way to run the application, not a guarantee of Smart App Control compatibility: Windows may still block a native dependency. For isolated testing, see the disposable VM/Windows Sandbox instructions in [SECURITY.md](SECURITY.md). Keep the host's security protections enabled. Do not assume a SmartScreen “Run anyway” instruction or removing a download's blocked flag resolves a Smart App Control publisher block.
 
 ## Open and analyze a recording
 

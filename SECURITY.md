@@ -40,6 +40,14 @@ Compare it with the `ParaDigMaDesktop.exe` entry in `SHA256SUMS.txt`. A matching
 
 Local validation for this review: 25 tests passed; the dependency audit checked 86 installed packages with no blocking findings and the single distinct Arrow exception above; Bandit reported no medium/high-severity findings and nine low-severity subprocess review items. The rebuilt Linux executable loaded all four classifiers, produced 29 quantified tremor windows, rendered the plot and verified JSON export. All 2,385 files listed in the generated bundle manifest matched their SHA-256 hashes. These results are Linux validation, not a scan of a downloaded Windows artifact.
 
+## Publisher verification and Smart App Control
+
+The current Windows build has no publisher signature. Smart App Control can therefore refuse to run it because its publisher cannot be verified. A successful CI build, malware scan or matching hash does not provide a signing identity. Rebuilding the same unsigned application does not resolve that requirement.
+
+Publisher signing requires a trusted code-signing certificate or a signing service with identity verification, neither of which is configured here. A self-signed certificate is insufficient to establish publisher trust on a recipient's standard Windows installation. All executable components and native dependencies need consideration; a signed launcher alone does not guarantee acceptance of the whole bundle.
+
+For development, run the source with a verified Python installation using `python.exe desktop.py` from the repository directory. This avoids the generated desktop launcher, but Smart App Control may still block unsigned native dependencies. A disposable VM or Windows Sandbox can provide a separate environment for testing. Keep the host's Smart App Control and Defender protections enabled; this repository does not provide a bypass or a script to weaken those settings.
+
 ## First run on Windows
 
 Run with a normal user account, without administrator elevation. Keep Microsoft Defender enabled. In Windows Security, use Virus & threat protection → Scan options → Custom scan to scan the extracted application folder. No Defender scan of the Windows artifact or test on the user's computer was performed by this cloud review.
