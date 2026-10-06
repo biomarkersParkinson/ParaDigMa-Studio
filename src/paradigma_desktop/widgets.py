@@ -152,5 +152,3 @@ def field(title, control):
     layout.addWidget(control)
     control.setAccessibleName(title)
     return widget
-
-
