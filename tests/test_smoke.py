@@ -19,6 +19,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     )
     data = json.loads(report.read_text())
     assert data["status"] == "passed"
+    assert data["app_icon_rendered"]
     assert data["quantified_rows"] > 0
     assert len(data["models_loaded"]) == 4
     assert data["qt_plot_rendered"]

@@ -37,6 +37,8 @@ def smoke_test(report_path):
         app.setStyle("Fusion")
         window = MainWindow()
         try:
+            if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
+                raise RuntimeError("Bundled application icon could not be rendered")
             with tempfile.TemporaryDirectory(prefix="paradigma-smoke-") as directory:
                 directory = Path(directory)
                 t = np.arange(12000) / 100
@@ -111,6 +113,7 @@ def smoke_test(report_path):
                 if physilog_gait.empty:
                     raise RuntimeError("Physilog example returned no gait measurements")
                 report.update(status="passed", paradigma_version=version("paradigma"),
+                              app_icon_rendered=True,
                               models_loaded=models, quantified_rows=len(quantified),
                               qt_plot_rendered=True, export_verified=True,
                               cwa_samples=len(cwa_frame), cwa_gait_rows=len(cwa_quantified),

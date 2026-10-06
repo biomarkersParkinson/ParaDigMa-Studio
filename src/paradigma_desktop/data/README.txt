@@ -33,3 +33,10 @@ https://github.com/biomarkersParkinson/paradigma/blob/4735d6d21b2a62b764a0bc7e0f
 
 Full source SHA-256: 29b27e2c3c59c35b95086d838b8873b3b11f8bdd81f3855095d23667bad14187
 Excerpt SHA-256: 1067a4fce9bf7998cfa12c13c7236ee0c0309ca266eab3b1d1feece5330f447f
+
+app-icon.png and app-icon.ico are based on the orange smartwatch/waveform
+figure supplied by the repository owner on 2026-10-06 for this application's
+icon. The PNG is an icon-ready version prepared with transparent surroundings;
+the ICO contains 16, 24, 32, 48, 64, 128 and 256 pixel representations.
+These application graphics are separate from the upstream ParaDigMa example
+recordings described above and their accompanying Apache 2.0 license.

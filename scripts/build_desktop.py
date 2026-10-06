@@ -8,9 +8,10 @@ def main():
     root = Path(__file__).resolve().parents[1]
     subprocess.run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
+        "--icon", str(root / "src" / "paradigma_desktop" / "data" / "app-icon.ico"),
         "--name", "ParaDigMaDesktop", "--collect-all", "paradigma",
         "--collect-all", "openmovement",
-        # Include the licensed upstream CWA recording for the executable check.
+        # Include the app icon and licensed recordings for the executable check.
         "--collect-data", "paradigma_desktop",
         # sklearn's Windows importer preloads .libs/vcomp140.dll and
         # .libs/msvcp140.dll. Collect them with their directory structure.

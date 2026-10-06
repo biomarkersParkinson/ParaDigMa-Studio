@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QThread, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
     QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
@@ -81,6 +82,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ParaDigMa • Sensor analysis")
+        self.setWindowIcon(QIcon(str(Path(__file__).with_name("data") / "app-icon.png")))
         self.resize(1250, 850)
         self.frame = self.results = self.worker = None
         self.source = ""
@@ -381,5 +383,6 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     window = MainWindow()
+    app.setWindowIcon(window.windowIcon())
     window.show()
     sys.exit(app.exec())

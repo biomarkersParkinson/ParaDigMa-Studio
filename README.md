@@ -24,6 +24,8 @@ Run on Windows from the repository directory:
 
 Launch `dist\ParaDigMaDesktop\ParaDigMaDesktop.exe`. Distribute the **entire ParaDigMaDesktop folder**, including `_internal`; the executable depends on it. This is an unsigned portable application, not an installer. The build explicitly includes scikit-learn's native runtime libraries, including Windows `vcomp140.dll` and `msvcp140.dll`. The GitHub Actions Windows desktop workflow runs tests, builds this folder, and launches the packaged executable before uploading an artifact. The executable check loads all four bundled classifiers, extracts real tremor output from synthetic sensor samples, renders a Qt plot and exports results. A Windows binary must be built and tested on Windows; Linux builds cannot generate Windows executables.
 
+Version 0.1.6 adds the supplied orange smartwatch icon to the executable and application window. The transparent Windows icon contains sizes from 16 to 256 pixels, and the packaged-app check verifies that the window icon renders.
+
 Version 0.1.3 fixes `OverflowError: Python integer 65536 out of bounds for uint16` when opening CWA recordings with fractional timestamps. The app pins the official Open Movement reader to commit `087ac7b5a80b866c400d8021b7a2716d247fc034`, which widens timestamp arithmetic for NumPy 2. The older PyPI release also calls itself 0.0.1, so an existing source installation needs this explicit replacement before reinstalling the app:
 
 ```powershell
