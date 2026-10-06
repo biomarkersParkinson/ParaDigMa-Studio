@@ -4,7 +4,7 @@ A native Windows desktop wrapper around the **official ParaDigMa 1.1.2 toolbox**
 
 ## Scientific workspace
 
-Version **0.2.1** separates analysis configuration from result exploration, using four pages in a collapsible sidebar:
+Version **0.2.2** separates analysis configuration from result exploration, using four pages in a collapsible sidebar:
 
 See the [workspace screenshots](docs/WORKSPACE.md) for the redesigned layout and sensor drill-down.
 
@@ -56,6 +56,18 @@ For the downloaded executable, download and extract the entire new successful Wi
 Version 0.1.4 fixes Empatica imports failing with `Gyroscope data not found in Empatica file`. The official example contains 115,904 accelerometer samples and an empty gyroscope stream. The wrapper follows the official device-loading tutorial to import these samples without requiring gyroscope data, and applies each IMU sensor's own conversion parameters when gyroscope data is present.
 
 **Import support does not imply that every pipeline can analyze the recording.** Gait and tremor require gyroscope samples. Pulse rate requires raw green PPG; the example's processed BVP signal is not imported as green PPG. The example therefore opens for accelerometer inspection, with its analysis requirements shown in the app. No missing sensor channels are fabricated. Empatica import currently supports one Avro record with accelerometer samples and optional gyroscope samples on the same timeline. Multi-record files or IMU streams with different timestamps/rates need splitting or alignment before import. Other Avro streams such as BVP, EDA and temperature are not imported by this IMU adapter.
+
+## Performance
+
+Version 0.2.2 defers analysis imports until the background file-loading/analysis worker needs them, keeps a persistent font cache for the portable build, and omits unused Arrow query modules and development headers. It also avoids duplicate missing-value scans and recalculating the Results summary when only the graph metric changes. Scientific processing and supported formats remain unchanged.
+
+The first file load pays the one-time toolbox import cost; the first launch builds the font cache. Later launches reuse fonts. Windows caches live below `%LOCALAPPDATA%\ParaDigMaDesktop\matplotlib`, with separate caches after moving the bundle or updating Matplotlib. If caching is unavailable, the app uses a temporary cache.
+
+See the [performance review](docs/PERFORMANCE.md) for measurements and limits. Windows build artifacts include `performance.json` with launch samples and component sizes. To measure your own portable build:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report performance.json
+```
 
 ## Smart App Control blocks the executable
 

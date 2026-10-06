@@ -124,6 +124,26 @@ def test_module_cards_allow_gait_tremor_selection_and_enforce_pulse_workflow(win
     assert window.selected_modules() == ["tremor"]
 
 
+def test_metric_changes_reuse_summary_but_filters_refresh_it(window):
+    frame = output().assign(other_metric=lambda data: data.metric * 2)
+    window.analyzed({"quantifications": {"test": frame}, "errors": []})
+    summary_model = window.summary_table.model()
+    window.y_column.setCurrentText("other_metric")
+    assert window.summary_table.model() is summary_model
+    assert window.result_values[1].text() == "25"
+    np.testing.assert_array_equal(window.figure.axes[0].lines[0].get_ydata(), frame.other_metric)
+    window.participant.setCurrentIndex(window.participant.findData("a"))
+    filtered_model = window.summary_table.model()
+    assert filtered_model is not summary_model
+    summary = filtered_model.frame.set_index("Metric")
+    assert summary.loc["other_metric", "Count"] == 3
+    assert summary.loc["other_metric", "Median"] == 24
+    assert window.result_values[1].text() == "24"
+    window.clear_results()
+    assert window._summary_frame is None
+    assert window.summary_table.model() is None
+
+
 def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, monkeypatch):
     frame = pd.DataFrame({"time": [0., 1.]})
     window.loaded(("sensor.csv", frame))

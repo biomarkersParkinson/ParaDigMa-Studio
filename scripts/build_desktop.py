@@ -11,6 +11,11 @@ def main():
         "--icon", str(root / "src" / "paradigma_desktop" / "data" / "app-icon.ico"),
         "--name", "ParaDigMaDesktop", "--collect-all", "paradigma",
         "--collect-all", "openmovement",
+        "--additional-hooks-dir", str(root / "scripts" / "pyinstaller_hooks"),
+        # The GUI uses Qt, not Tk. Avoid UPX compression of native libraries.
+        "--exclude-module", "tkinter", "--noupx",
+        # The stable font cache is invalidated when Matplotlib is updated.
+        "--copy-metadata", "matplotlib",
         # Include the app icon and licensed recordings for the executable check.
         "--collect-data", "paradigma_desktop",
         # sklearn's Windows importer preloads .libs/vcomp140.dll and

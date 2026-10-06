@@ -17,6 +17,10 @@ from PySide6.QtWidgets import (
     QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableView, QListView,
     QTabWidget, QVBoxLayout, QWidget,
 )
+from .plot_cache import configure_plot_cache
+
+PLOT_CACHE_DIRECTORY = configure_plot_cache(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation))
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 
@@ -170,6 +174,7 @@ class MainWindow(QMainWindow):
         self.source = ""
         self.tables, self.provenance = {}, {}
         self.active_frame = None
+        self._summary_frame = None
         self.active_positions = np.array([], dtype=int)
         self.active_selection = {}
         self.result_source_frame = None
@@ -760,6 +765,7 @@ class MainWindow(QMainWindow):
 
     def clear_results(self):
         self.results, self.active_frame = None, None
+        self._summary_frame = None
         self.tables = {}
         self.dataset.clear()
         self.result_table.setModel(None)
@@ -800,9 +806,10 @@ class MainWindow(QMainWindow):
         self.analysis_input_detail.setText(f"{len(self.frame):,} samples · {len(self.frame.columns)} channels")
         self.data_values[0].setText(f"{len(self.frame):,}")
         self.data_values[1].setText(str(len(self.frame.columns)))
-        self.data_values[2].setText(f"{int(self.frame.isna().sum().sum()):,}")
+        missing = self.frame.isna().sum()
+        self.data_values[2].setText(f"{int(missing.sum()):,}")
         channels = pd.DataFrame({"Channel": [str(c) for c in self.frame],
-            "Type": [str(t) for t in self.frame.dtypes], "Missing": self.frame.isna().sum().to_numpy()})
+            "Type": [str(t) for t in self.frame.dtypes], "Missing": missing.to_numpy()})
         self.channel_table.setModel(FrameModel(channels))
         self.channel_table.resizeColumnsToContents()
         self.channel_table.setColumnWidth(0, 180)
@@ -1019,20 +1026,25 @@ class MainWindow(QMainWindow):
         self.result_values[0].setText(f"{len(frame):,}" if frame is not None else "—")
         self.result_values[1].setText("—")
         self.result_values[2].setText("—")
-        self.summary_table.setModel(None)
+        if frame is not self._summary_frame:
+            self.summary_table.setModel(None)
         if frame is not None:
-            numeric = frame[measurement_columns(frame)].replace([np.inf, -np.inf], np.nan)
-            if len(numeric.columns) and len(numeric):
-                summary = numeric.describe().T.reset_index().rename(columns={"index": "Metric"})
-                summary = summary[["Metric", "count", "mean", "std", "min", "50%", "max"]].rename(
-                    columns={"count": "Count", "mean": "Mean", "std": "SD", "min": "Min", "50%": "Median", "max": "Max"})
-                self.summary_table.setModel(FrameModel(summary, compact=True))
-                self.summary_table.resizeColumnsToContents()
+            # Changing only the graph metric does not change this selection's
+            # overview. Recompute its full statistics when rows/dataset change.
+            if frame is not self._summary_frame:
+                numeric = frame[measurement_columns(frame)].replace([np.inf, -np.inf], np.nan)
+                if len(numeric.columns) and len(numeric):
+                    summary = numeric.describe().T.reset_index().rename(columns={"index": "Metric"})
+                    summary = summary[["Metric", "count", "mean", "std", "min", "50%", "max"]].rename(
+                        columns={"count": "Count", "mean": "Mean", "std": "SD", "min": "Min", "50%": "Median", "max": "Max"})
+                    self.summary_table.setModel(FrameModel(summary, compact=True))
+                    self.summary_table.resizeColumnsToContents()
             if metric in frame and pd.api.types.is_numeric_dtype(frame[metric].dtype):
                 values = frame[metric].replace([np.inf, -np.inf], np.nan).dropna()
                 if len(values):
                     self.result_values[1].setText(f"{values.median():.4g}")
                     self.result_values[2].setText(f"{values.min():.4g} – {values.max():.4g}")
+        self._summary_frame = frame
         self.plot()
 
     def plot(self, *_):

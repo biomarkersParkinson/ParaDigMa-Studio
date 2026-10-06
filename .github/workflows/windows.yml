@@ -31,6 +31,8 @@ jobs:
         run: python scripts/build_desktop.py
       - name: Verify and launch the packaged executable
         run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
+      - name: Measure Windows startup and bundle size
+        run: python scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report dist/ParaDigMaDesktop/performance.json
       - name: Record package versions, audit and bundle checksums
         run: python scripts/write_build_manifest.py dist/ParaDigMaDesktop dependency-audit.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

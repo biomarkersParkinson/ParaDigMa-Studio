@@ -8,15 +8,43 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from paradigma.load import load_single_data_file
-from paradigma.orchestrator import run_paradigma
-from paradigma.prepare_data import correct_watch_orientation, prepare_raw_data
-from paradigma.segmenting import create_segments, discard_segments
 
 from .empatica import load_empatica_imu
 
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
 TIME_UNITS = {"relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"}
+
+
+def load_single_data_file(*args, **kwargs):
+    # ParaDigMa's package initializer imports every pipeline. Defer that work
+    # until file loading/analysis, which the GUI already performs in a worker.
+    from paradigma.load import load_single_data_file as official
+    return official(*args, **kwargs)
+
+
+def run_paradigma(*args, **kwargs):
+    from paradigma.orchestrator import run_paradigma as official
+    return official(*args, **kwargs)
+
+
+def prepare_raw_data(*args, **kwargs):
+    from paradigma.prepare_data import prepare_raw_data as official
+    return official(*args, **kwargs)
+
+
+def correct_watch_orientation(*args, **kwargs):
+    from paradigma.prepare_data import correct_watch_orientation as official
+    return official(*args, **kwargs)
+
+
+def create_segments(*args, **kwargs):
+    from paradigma.segmenting import create_segments as official
+    return official(*args, **kwargs)
+
+
+def discard_segments(*args, **kwargs):
+    from paradigma.segmenting import discard_segments as official
+    return official(*args, **kwargs)
 
 
 def validate_column_mapping(mapping):

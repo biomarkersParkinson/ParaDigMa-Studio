@@ -1,7 +1,6 @@
 """Selection helpers shared by result graphs, summaries and tables."""
 import numpy as np
 import pandas as pd
-from paradigma.util import transform_time_array
 
 
 PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject", "patient_id")
@@ -74,6 +73,8 @@ def source_timeline(frame, settings):
     Sensor values remain in their original units. No signal preprocessing or
     derived window interpretation is performed for this contextual display.
     """
+    from paradigma.util import transform_time_array
+
     mapped = frame.rename(columns=settings.get("column_mapping", {}))
     if "time" not in mapped or not mapped.columns.is_unique:
         raise ValueError("The original recording has no unambiguous time channel.")
