@@ -10,7 +10,8 @@ import pandas as pd
 import pytest
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QComboBox
+from PySide6.QtWidgets import QApplication, QComboBox, QTableView
+from PySide6.QtCore import Qt
 
 from paradigma_desktop import app as desktop
 from paradigma_desktop.app import MainWindow
@@ -90,11 +91,19 @@ def test_data_overview_graphs_and_tables_use_original_recording(window):
     assert [window.data_tabs.tabText(i) for i in range(3)] == ["Overview", "Graphs", "Tables"]
     assert [item.text() for item in window.data_values] == ["3", "3", "1"]
     assert window.data_tabs.widget(0).isAncestorOf(window.data_values[0])
-    assert window.data_tabs.widget(0).isAncestorOf(window.data_metadata)
-    assert window.data_tabs.widget(1).isAncestorOf(window.data_channel)
+    assert not hasattr(window, "data_metadata")
+    assert window.data_tabs.widget(0).isAncestorOf(window.time_table)
+    assert window.data_tabs.widget(1).isAncestorOf(window.data_channels)
     assert window.data_tabs.widget(2) is window.input_table
-    assert window.channel_table.model().frame["Missing"].tolist() == [0, 1, 0]
-    window.data_channel.setCurrentText("green")
+    summary = window.channel_table.model().frame.set_index("Channel")
+    assert summary.index.tolist() == ["gyroscope_x", "green"]
+    assert summary["Missing"].tolist() == [1, 0]
+    assert summary.loc["gyroscope_x", "Median"] == 2
+    assert summary.loc["gyroscope_x", "IQR"] == 1
+    assert summary.loc["gyroscope_x", "Range"] == "1 – 3"
+    timing = window.time_table.model().frame.set_index("Statistic")
+    assert timing.loc["Estimated sampling rate (Hz)", "Value"] == pytest.approx(10)
+    window.set_input_channels(["green"])
     line = window.data_figure.axes[0].lines[0]
     np.testing.assert_array_equal(line.get_xdata(), frame.time)
     np.testing.assert_array_equal(line.get_ydata(), frame.green)
@@ -122,6 +131,71 @@ def test_module_cards_allow_gait_tremor_selection_and_enforce_pulse_workflow(win
     assert window.selected_modules() == ["pulse_rate"]
     window.module_buttons["Tremor"].click()
     assert window.selected_modules() == ["tremor"]
+
+
+def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_and_legend(window):
+    frame = pd.DataFrame({"time": [0., .1, .2], "gyroscope_x": [1., 2., 3.],
+                          "gyroscope_y": [3., 2., 1.], "gyroscope_z": [0., 1., 0.]})
+    original = frame.copy(deep=True)
+    window.loaded(("sensor.csv", frame))
+    window.set_input_channels(["gyroscope_x", "gyroscope_z"])
+    axes = window.data_figure.axes[0]
+    lines = axes.lines
+    assert [line.get_label() for line in lines] == ["gyroscope_x", "gyroscope_z"]
+    assert lines[0].get_color() != lines[1].get_color()
+    previous_color = lines[1].get_color()
+    assert [text.get_text() for text in axes.get_legend().get_texts()] == ["gyroscope_x", "gyroscope_z"]
+    for line in lines:
+        np.testing.assert_array_equal(line.get_xdata(), frame.time)
+        np.testing.assert_array_equal(line.get_ydata(), frame[line.get_label()])
+    window.data_channels.item(0).setCheckState(Qt.Unchecked)
+    assert window.selected_input_channels() == ["gyroscope_z"]
+    assert window.data_figure.axes[0].lines[0].get_color() == previous_color
+    window.set_input_channels(window._channel_colors)
+    assert len(window.data_figure.axes[0].lines) == 3
+    window.set_input_channels([])
+    assert not window.data_figure.axes[0].lines
+    pd.testing.assert_frame_equal(window.input_table.model().frame, original)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(window):
+    t = np.arange(60001, dtype=float) / 100
+    frame = pd.DataFrame({"time": t, "accelerometer_x": np.sin(t), "gyroscope_x": np.cos(t)})
+    window.loaded(("long.csv", frame))
+    window.set_input_channels(["accelerometer_x", "gyroscope_x"])
+    step = 4
+    for line in window.data_figure.axes[0].lines:
+        assert len(line.get_ydata()) <= 20000
+        np.testing.assert_array_equal(line.get_ydata(), frame[line.get_label()].iloc[::step])
+    assert window.input_table.model().rowCount() == 60001
+
+
+def test_data_time_units_are_explicit_and_do_not_change_analysis_parameters(window):
+    window.loaded(("milliseconds.csv", pd.DataFrame({"device_ticks": [0., 10., 20.], "gyroscope_x": [1., 2., 3.]})))
+    window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("device_ticks"))
+    window.data_time_unit.setCurrentText("relative_ms")
+    assert window.time.currentText() == "relative_s"
+    stats = window.time_table.model().frame.set_index("Statistic")
+    assert stats.loc["Estimated sampling rate (Hz)", "Value"] == pytest.approx(100)
+    assert window.channel_table.model().frame.Channel.tolist() == ["gyroscope_x"]
+
+
+def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(window):
+    heading = "quantified_sensor_measurement_with_a_long_column_heading"
+    frame = pd.DataFrame({heading: [1., 2.], "short": [3., 4.]})
+    window.loaded(("sensor.csv", frame))
+    window.analyzed({"quantifications": {"test": frame}, "errors": []})
+    for widget in window.findChildren(QTableView):
+        assert widget.horizontalHeader().defaultAlignment() & Qt.AlignLeft
+        assert widget.horizontalHeader().textElideMode() == Qt.ElideNone
+        if widget.model() is not None:
+            for column in range(widget.model().columnCount()):
+                title = widget.model().headerData(column, Qt.Horizontal)
+                assert widget.columnWidth(column) >= widget.horizontalHeader().fontMetrics().horizontalAdvance(title) + 28
+                assert widget.model().headerData(column, Qt.Horizontal, Qt.ToolTipRole) == title
+    window.input_table.setColumnWidth(0, 20)
+    assert window.input_table.columnWidth(0) >= window.input_table._heading_widths[0]
 
 
 def test_metric_changes_reuse_summary_but_filters_refresh_it(window):
@@ -202,6 +276,9 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
         window.show()
         window.time.showPopup()
         app.processEvents()
+        popup = window.time.view().window()
+        assert popup.palette().color(QPalette.Window).name() == "#ffffff"
+        assert popup.autoFillBackground()
         for combo in window.findChildren(QComboBox):
             palette = combo.view().palette()
             for foreground, background in ((QPalette.Text, QPalette.Base),
@@ -209,6 +286,8 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
                 values = sorted([luminance(palette.color(QPalette.Active, foreground)),
                                  luminance(palette.color(QPalette.Active, background))])
                 assert (values[1] + .05) / (values[0] + .05) >= 4.5
+        for checkbox in (window.prepared, window.gaps, window.drop_missing):
+            assert checkbox.palette().color(QPalette.WindowText).name() == "#22324a"
         window.time.hidePopup()
     finally:
         if window is not None:

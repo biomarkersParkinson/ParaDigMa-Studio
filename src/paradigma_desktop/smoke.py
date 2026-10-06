@@ -43,6 +43,8 @@ def smoke_test(report_path):
                 raise RuntimeError("Bundled application icon could not be rendered")
             if QPixmap(str(files("paradigma_desktop") / "data" / "chevron-down.svg")).isNull():
                 raise RuntimeError("Bundled dropdown indicator could not be rendered")
+            if QPixmap(str(files("paradigma_desktop") / "data" / "checkmark.svg")).isNull():
+                raise RuntimeError("Bundled checkbox indicator could not be rendered")
             with tempfile.TemporaryDirectory(prefix="paradigma-smoke-") as directory:
                 directory = Path(directory)
                 t = np.arange(12000) / 100
@@ -62,6 +64,29 @@ def smoke_test(report_path):
                 if quantified.empty or "tremor_power" not in quantified.columns:
                     raise RuntimeError("Tremor analysis returned no quantified output")
                 window.loaded((str(source), loaded))
+                window.set_input_channels(["gyroscope_x", "gyroscope_y", "gyroscope_z"])
+                lines = window.data_figure.axes[0].lines
+                if len(lines) != 3 or len({tuple(line.get_color()) for line in lines}) != 3:
+                    raise RuntimeError("Input channel multi-selection or distinct plot colors failed")
+                for line in lines:
+                    if not np.array_equal(line.get_ydata(), loaded[line.get_label()].to_numpy()):
+                        raise RuntimeError("Input graph changed original sensor values")
+                toolbar = window.data_toolbar
+                actions = [action.text() for action in toolbar.actions()]
+                if actions.count("Graph settings") != 1 or "Subplots" in actions or "Customize" in actions:
+                    raise RuntimeError("Graph settings are duplicated")
+                toolbar.settings_action.setChecked(True)
+                toolbar.settings.title.setText("Sensor inspection")
+                toolbar.settings.apply_button.click()
+                if window.data_figure.axes[0].get_title(loc="left") != "Sensor inspection":
+                    raise RuntimeError("Integrated graph settings did not apply")
+                toolbar.settings.reset_button.click()
+                toolbar.settings_action.setChecked(False)
+                if "time" in window.channel_table.model().frame["Channel"].tolist():
+                    raise RuntimeError("Time channel was included in sensor descriptives")
+                timing = window.time_table.model().frame.set_index("Statistic")
+                if not np.isclose(timing.loc["Estimated sampling rate (Hz)", "Value"], 100):
+                    raise RuntimeError("Input time descriptives have an incorrect sampling rate")
                 if [window.data_tabs.tabText(i) for i in range(3)] != ["Overview", "Graphs", "Tables"]:
                     raise RuntimeError("Data exploration tabs are missing")
                 window.module_buttons["Tremor"].click()

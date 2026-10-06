@@ -40,7 +40,8 @@ time before excluding sensor rows. This avoids using the app's own boundary
 detection to construct its expected output.
 
 The direct orchestrator runs with explicit prepared inputs because its 1.1.2 raw
-preparation has known parameter-forwarding limitations documented in the README.
+preparation has known parameter-forwarding limitations documented in the
+[user guide](USER_GUIDE.md#input-and-analysis-settings).
 Comparing a raw default orchestrator call with the app's explicit missing-sample
 exclusion, unit conversion or independent gap processing would compare different
 workflows.

@@ -4,11 +4,20 @@ These screenshots show the native Qt development build using the public Axivity 
 
 ## Data
 
-Overview shows sample counts, channel details, missing values and metadata. Graphs and Tables show the original sensor data.
+Overview shows sample counts and separates sensor-channel descriptives from time-channel statistics. Sensor ranges, medians and IQRs use finite original samples. Sampling rate is estimated from the median positive time interval; the displayed gap threshold is 1.5 times that interval. Numeric time units are explicit, and invalid timestamps are not bridged. The recording metadata box has been removed. The panels stack in compact windows.
 
 ![Data workspace](screenshots/data.png)
 
+Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Display sampling remains limited to 20,000 points per selected channel while Tables and exports retain all samples.
+
 ![Original sensor graphs](screenshots/data-graphs.png)
+
+Each graph has one inline **Graph settings** panel for title, axis labels,
+grid and legend. Expand **Axis limits** for manual bounds. Pan, zoom, reset
+view and figure saving stay on the toolbar; the two generic figure dialogs
+have been removed.
+
+![Integrated graph settings](screenshots/graph-settings.png)
 
 ![Original sensor tables](screenshots/data-tables.png)
 
@@ -43,7 +52,10 @@ Collapse the sidebar for more room. Controls are integrated into each page, and 
 ![Compact analysis layout](screenshots/compact.png)
 
 Dropdowns use dark text on white and white text on blue for the selected item,
-including when the operating system uses a dark palette.
+including when the operating system uses a dark palette. The outer popup also
+uses a white background, without dark strips above or below the list. Parameter
+checkboxes use explicit borders and checkmarks. All table headings align left
+and keep their full text, with horizontal scrolling for wider tables.
 
 ![Dropdown popup](screenshots/dropdown.png)
 

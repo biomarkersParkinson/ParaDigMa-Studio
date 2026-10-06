@@ -9,20 +9,21 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QThread, Signal, QStandardPaths
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QIcon, QFont, QPalette
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableView, QListView,
-    QTabWidget, QVBoxLayout, QWidget,
+    QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem,
 )
 from .plot_cache import configure_plot_cache
 
 PLOT_CACHE_DIRECTORY = configure_plot_cache(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation))
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from matplotlib import colormaps
 
 from .core import (
     analyze, export_results, export_table_csv, load_sensor_file, result_tables,
@@ -30,6 +31,8 @@ from .core import (
 )
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, select_rows, source_timeline
 from .history import RunHistory, load_result_export, new_run, now
+from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
+from .plot_controls import add_graph_controls
 from .theme import STYLESHEET, light_palette, style_axes
 
 
@@ -48,13 +51,73 @@ class FrameModel(QAbstractTableModel):
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
             value = self.frame.iat[index.row(), index.column()]
+            if self.compact and role == Qt.DisplayRole and (value is pd.NA or value is None
+                    or isinstance(value, (float, np.floating)) and np.isnan(value)):
+                return "—"
             if self.compact and role == Qt.DisplayRole and isinstance(value, (float, np.floating)):
                 return f"{value:.5g}"
             return str(value)
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole:
+        if role in (Qt.DisplayRole, Qt.ToolTipRole):
             return str(self.frame.columns[section]) if orientation == Qt.Horizontal else str(section + 1)
+
+
+class ReadableComboBox(QComboBox):
+    def showPopup(self):
+        # The outer popup owns the margins above/below the list. It does not
+        # reliably inherit the list palette on Windows with a dark system theme.
+        popup = self.view().window()
+        palette = light_palette()
+        for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
+            palette.setColor(group, QPalette.Window, palette.color(group, QPalette.Base))
+        popup.setPalette(palette)
+        popup.setAutoFillBackground(True)
+        super().showPopup()
+
+
+class ReadableTable(QTableView):
+    def __init__(self):
+        super().__init__()
+        self._heading_widths = []
+        header = self.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setTextElideMode(Qt.ElideNone)
+        font = header.font()
+        font.setWeight(QFont.DemiBold)
+        header.setFont(font)
+        # Size data columns from a small sample, never the entire sensor file.
+        header.setResizeContentsPrecision(25)
+        header.sectionResized.connect(self.keep_heading_readable)
+
+    def setModel(self, model):
+        self._heading_widths = []
+        super().setModel(model)
+        if model is not None:
+            self.ensurePolished()
+            self.horizontalHeader().ensurePolished()
+            metrics = self.horizontalHeader().fontMetrics()
+            self._heading_widths = [metrics.horizontalAdvance(str(model.headerData(i, Qt.Horizontal))) + 28
+                                    for i in range(model.columnCount())]
+            self.resizeColumnsToContents()
+
+    def resizeColumnsToContents(self):
+        super().resizeColumnsToContents()
+        for i, width in enumerate(self._heading_widths):
+            if self.columnWidth(i) < width:
+                self.setColumnWidth(i, width)
+
+    def setColumnWidth(self, column, width):
+        if column < len(self._heading_widths):
+            width = max(width, self._heading_widths[column])
+        super().setColumnWidth(column, width)
+
+    def keep_heading_readable(self, column, old_width, width):
+        if column < len(self._heading_widths) and width < self._heading_widths[column]:
+            header = self.horizontalHeader()
+            previous = header.blockSignals(True)
+            header.resizeSection(column, self._heading_widths[column])
+            header.blockSignals(previous)
 
 
 class SignalHandler(logging.Handler):
@@ -125,14 +188,13 @@ def card():
 
 
 def table():
-    widget = QTableView()
+    widget = ReadableTable()
     widget.setPalette(light_palette())
     widget.horizontalHeader().setPalette(light_palette())
     widget.verticalHeader().setPalette(light_palette())
     widget.setAlternatingRowColors(True)
     widget.setShowGrid(False)
     widget.verticalHeader().hide()
-    widget.horizontalHeader().setStretchLastSection(True)
     widget.setSelectionBehavior(QAbstractItemView.SelectRows)
     widget.setSelectionMode(QAbstractItemView.SingleSelection)
     widget.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -199,7 +261,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def combo(items=()):
-        combo = QComboBox()
+        combo = ReadableComboBox()
         # A Qt list view and explicit palette avoid native dark-theme popups
         # combining dark selection backgrounds with inherited dark text.
         view = QListView()
@@ -207,6 +269,7 @@ class MainWindow(QMainWindow):
         view.setPalette(light_palette())
         combo.setView(view)
         combo.setPalette(light_palette())
+        combo.setMaxVisibleItems(12)
         combo.addItems(items)
         return combo
 
@@ -310,28 +373,56 @@ class MainWindow(QMainWindow):
             self.data_values.append(value)
             metrics.addWidget(panel, 1)
         overview_layout.addLayout(metrics)
-        details = QHBoxLayout()
+        details = self.data_details = QSplitter(Qt.Horizontal)
+        details.setHandleWidth(12)
         panel, content = card()
-        content.addWidget(label("Channels", "sectionTitle"))
+        content.addWidget(label("Sensor channels", "sectionTitle"))
         self.channel_table = table()
         content.addWidget(self.channel_table, 1)
-        details.addWidget(panel, 2)
+        details.addWidget(panel)
         panel, content = card()
-        content.addWidget(label("Recording metadata", "sectionTitle"))
-        self.data_metadata = readout()
-        self.data_metadata.setPlaceholderText("No recording loaded")
-        content.addWidget(self.data_metadata, 1)
-        details.addWidget(panel, 1)
-        overview_layout.addLayout(details, 1)
+        time_controls = QHBoxLayout()
+        content.addWidget(label("Time channel", "sectionTitle"))
+        self.data_time_channel = self.combo()
+        self.data_time_channel.setPlaceholderText("Select time column")
+        self.data_time_channel.setToolTip("Time column inspected here. Analysis uses its column mapping.")
+        time_controls.addWidget(self.data_time_channel, 1)
+        self.data_time_unit = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
+        self.data_time_unit.setToolTip("Units for inspecting the raw time column. Analysis parameters are set on Analyze.")
+        time_controls.addWidget(self.data_time_unit)
+        content.addLayout(time_controls)
+        self.time_table = table()
+        content.addWidget(self.time_table, 1)
+        details.addWidget(panel)
+        details.setSizes([660, 400])
+        overview_layout.addWidget(details, 1)
         self.data_tabs.addTab(overview, "Overview")
         preview = QWidget()
-        preview_layout = QVBoxLayout(preview)
-        self.data_channel = self.combo()
-        preview_layout.addWidget(field("Channel", self.data_channel))
+        preview_layout = QHBoxLayout(preview)
+        channels = QWidget()
+        channels.setMinimumWidth(190)
+        channels.setMaximumWidth(260)
+        channel_layout = QVBoxLayout(channels)
+        channel_layout.addWidget(label("Channels", "sectionTitle"))
+        selection = QHBoxLayout()
+        selection.addWidget(button("Select all", lambda: self.set_input_channels(self._channel_colors)))
+        selection.addWidget(button("Clear", lambda: self.set_input_channels([])))
+        channel_layout.addLayout(selection)
+        self.data_channels = QListWidget()
+        self._channel_colors = {}
+        self.data_channels.setPalette(light_palette())
+        self.data_channels.setSelectionMode(QAbstractItemView.NoSelection)
+        self.data_channels.setTextElideMode(Qt.ElideNone)
+        self.data_channels.setAccessibleName("Sensor channels to plot")
+        channel_layout.addWidget(self.data_channels, 1)
+        preview_layout.addWidget(channels)
+        graph = QWidget()
+        graph_layout = QVBoxLayout(graph)
         self.data_figure = Figure(layout="constrained")
         self.data_canvas = FigureCanvasQTAgg(self.data_figure)
-        preview_layout.addWidget(NavigationToolbar2QT(self.data_canvas, self))
-        preview_layout.addWidget(self.data_canvas, 1)
+        self.data_toolbar = add_graph_controls(graph_layout, self.data_canvas, self)
+        graph_layout.addWidget(self.data_canvas, 1)
+        preview_layout.addWidget(graph, 1)
         self.data_tabs.addTab(preview, "Graphs")
         self.input_table = table()
         self.data_tabs.addTab(self.input_table, "Tables")
@@ -392,6 +483,8 @@ class MainWindow(QMainWindow):
         self.acc = self.combo(["g", "m/s^2"])
         self.gyro = self.combo(["deg/s", "rad/s"])
         self.time = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
+        for widget in (self.side, self.acc, self.gyro, self.time):
+            widget.setMinimumWidth(160)
         self.orientation = QLineEdit("x,y,z")
         self.orientation.setToolTip("Three signed axes, for example x,y,z or -y,x,z")
         for title, widget in (("Watch side", self.side), ("Acceleration units", self.acc),
@@ -525,8 +618,7 @@ class MainWindow(QMainWindow):
         graph_layout = QVBoxLayout(graphs)
         self.figure = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.figure)
-        self.plot_toolbar = NavigationToolbar2QT(self.canvas, self)
-        graph_layout.addWidget(self.plot_toolbar)
+        self.plot_toolbar = add_graph_controls(graph_layout, self.canvas, self)
         graph_layout.addWidget(self.canvas, 1)
         self.canvas.setToolTip("Click a time-based point to select its result row.")
         self.result_tabs.addTab(graphs, "Graphs")
@@ -546,7 +638,7 @@ class MainWindow(QMainWindow):
         graph_layout = QVBoxLayout(sensor_graph)
         self.sensor_figure = Figure(layout="constrained")
         self.sensor_canvas = FigureCanvasQTAgg(self.sensor_figure)
-        graph_layout.addWidget(NavigationToolbar2QT(self.sensor_canvas, self))
+        self.sensor_toolbar = add_graph_controls(graph_layout, self.sensor_canvas, self)
         graph_layout.addWidget(self.sensor_canvas, 1)
         sensor_tabs.addTab(sensor_graph, "Signal")
         self.sensor_table = table()
@@ -617,7 +709,10 @@ class MainWindow(QMainWindow):
             item.toggled.connect(lambda checked, n=name: self.modules_changed(n, checked))
         for combo in (self.acc, self.gyro, self.time):
             combo.currentTextChanged.connect(self.preparation_changed)
-        self.data_channel.currentIndexChanged.connect(self.plot_input)
+        self.data_channels.itemChanged.connect(self.plot_input)
+        self.data_time_channel.currentIndexChanged.connect(self.refresh_data_descriptives)
+        self.time.currentTextChanged.connect(self.data_time_unit.setCurrentText)
+        self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
         self.dataset.currentTextChanged.connect(self.select_dataset)
         self.x_column.currentIndexChanged.connect(self.plot)
         self.y_column.currentIndexChanged.connect(self.update_metric)
@@ -697,7 +792,8 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             return
         for widget in (self.open_button, self.run_button, self.settings_panel, self.analysis_controls,
-                       self.export_button, self.csv_button, self.open_run_button, self.use_parameters_button):
+                       self.export_button, self.csv_button, self.open_run_button, self.use_parameters_button,
+                       self.data_time_channel, self.data_time_unit):
             widget.setEnabled(False)
         self.progress.setRange(0, 0)
         self.progress.show()
@@ -715,6 +811,8 @@ class MainWindow(QMainWindow):
         self.open_button.setEnabled(True)
         self.settings_panel.setEnabled(True)
         self.analysis_controls.setEnabled(True)
+        self.data_time_channel.setEnabled(True)
+        self.data_time_unit.setEnabled(True)
         self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
@@ -794,10 +892,15 @@ class MainWindow(QMainWindow):
             allow_pickle = True
         self.show_notice("")
         self.status.setText("Loading recording…")
-        self.start_job(lambda logger: (path, load_sensor_file(path, allow_pickle=allow_pickle)), self.loaded)
+        unit = self.time.currentText()
+        def load(logger):
+            frame = load_sensor_file(path, allow_pickle=allow_pickle)
+            return path, frame, inspect_recording(frame, unit)
+        self.start_job(load, self.loaded)
 
     def loaded(self, payload):
-        self.source, self.frame = payload
+        self.source, self.frame = payload[:2]
+        description = payload[2] if len(payload) > 2 else inspect_recording(self.frame, self.time.currentText())
         self.data_tabs.setCurrentIndex(0)
         self.input_table.setModel(FrameModel(self.frame))
         self.file_label.setText(Path(self.source).name)
@@ -806,22 +909,20 @@ class MainWindow(QMainWindow):
         self.analysis_input_detail.setText(f"{len(self.frame):,} samples · {len(self.frame.columns)} channels")
         self.data_values[0].setText(f"{len(self.frame):,}")
         self.data_values[1].setText(str(len(self.frame.columns)))
-        missing = self.frame.isna().sum()
-        self.data_values[2].setText(f"{int(missing.sum()):,}")
-        channels = pd.DataFrame({"Channel": [str(c) for c in self.frame],
-            "Type": [str(t) for t in self.frame.dtypes], "Missing": missing.to_numpy()})
-        self.channel_table.setModel(FrameModel(channels))
-        self.channel_table.resizeColumnsToContents()
-        self.channel_table.setColumnWidth(0, 180)
-        self.channel_table.setColumnWidth(1, 145)
-        self.data_metadata.setPlainText(self.source +
-            ("\n\n" + json.dumps(self.frame.attrs, indent=2, default=str) if self.frame.attrs else ""))
-        self.data_channel.blockSignals(True)
-        self.data_channel.clear()
-        for column in self.frame.select_dtypes(include="number").columns:
-            if column != "time":
-                self.data_channel.addItem(str(column), column)
-        self.data_channel.blockSignals(False)
+        self.data_values[2].setText(f"{description['missing']:,}")
+        self.data_time_channel.blockSignals(True)
+        self.data_time_channel.clear()
+        for column in self.frame:
+            self.data_time_channel.addItem(str(column), column)
+        self.data_time_channel.setCurrentIndex(self.data_time_channel.findData(description["time_column"]))
+        self.data_time_channel.blockSignals(False)
+        self.data_time_unit.blockSignals(True)
+        self.data_time_unit.setCurrentText(description["time_unit"])
+        self.data_time_unit.blockSignals(False)
+        self.channel_table.setModel(FrameModel(description["sensors"], compact=True))
+        self.time_table.setModel(FrameModel(description["time"], compact=True) if description["time"] is not None else None)
+        self.update_time_unit_control()
+        self.populate_input_channels()
         self.plot_input()
         self.continue_button.setEnabled(True)
         self.modules_changed()
@@ -836,20 +937,91 @@ class MainWindow(QMainWindow):
         else:
             self.status.setText("Recording loaded.")
 
+    def update_time_unit_control(self):
+        column = self.data_time_channel.currentData()
+        numeric_time = self.frame is not None and column in self.frame and not (
+            pd.api.types.is_datetime64_any_dtype(self.frame[column].dtype)
+            or pd.api.types.is_timedelta64_dtype(self.frame[column].dtype))
+        self.data_time_unit.setVisible(numeric_time)
+        self.data_time_unit.setEnabled(self.worker is None)
+
+    def refresh_data_descriptives(self, *_):
+        if self.frame is not None:
+            column = self.data_time_channel.currentData()
+            self.channel_table.setModel(FrameModel(sensor_descriptives(self.frame, column), compact=True))
+            self.populate_input_channels(self.selected_input_channels())
+            self.update_time_statistics()
+            self.plot_input()
+
+    def update_time_statistics(self, *_):
+        column = self.data_time_channel.currentData()
+        if self.frame is not None and column in self.frame:
+            self.time_table.setModel(FrameModel(time_descriptives(self.frame[column], self.data_time_unit.currentText()), compact=True))
+        else:
+            self.time_table.setModel(None)
+        self.update_time_unit_control()
+
+    def selected_input_channels(self):
+        return [self.data_channels.item(i).data(Qt.UserRole) for i in range(self.data_channels.count())
+                if self.data_channels.item(i).checkState() == Qt.Checked]
+
+    def set_input_channels(self, channels):
+        self.data_channels.blockSignals(True)
+        for i in range(self.data_channels.count()):
+            item = self.data_channels.item(i)
+            item.setCheckState(Qt.Checked if item.data(Qt.UserRole) in channels else Qt.Unchecked)
+        self.data_channels.blockSignals(False)
+        self.plot_input()
+
+    def populate_input_channels(self, selection=None):
+        numeric = [column for column in self.frame.select_dtypes(include="number").columns
+                   if str(column).lower() not in TIME_NAMES
+                   and not pd.api.types.is_complex_dtype(self.frame[column].dtype)]
+        palette = colormaps["tab10"] if len(numeric) <= 10 else colormaps["tab20"] if len(numeric) <= 20 else None
+        colors = palette.colors if palette is not None else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
+        self._channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
+        self.data_channels.blockSignals(True)
+        self.data_channels.clear()
+        for column in numeric:
+            if column == self.data_time_channel.currentData():
+                continue
+            item = QListWidgetItem(str(column), self.data_channels)
+            item.setData(Qt.UserRole, column)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if selection is not None and column in selection else Qt.Unchecked)
+        if selection is None and self.data_channels.count():
+            self.data_channels.item(0).setCheckState(Qt.Checked)
+        self.data_channels.blockSignals(False)
+
     def plot_input(self, *_):
         self.data_figure.clear()
         ax = style_axes(self.data_figure)
-        channel = self.data_channel.currentData()
-        if self.frame is not None and channel in self.frame:
+        channels = self.selected_input_channels()
+        if self.frame is not None and channels:
             step = max(1, int(np.ceil(len(self.frame) / 20000)))
             sample = self.frame.iloc[::step]
-            times = pd.to_numeric(sample["time"], errors="coerce") if "time" in sample else None
+            column = self.data_time_channel.currentData()
+            times, time_label = None, "Time (file units)"
+            if column in sample:
+                series = sample[column]
+                if pd.api.types.is_datetime64_any_dtype(series.dtype):
+                    times, time_label = series, "Time"
+                elif pd.api.types.is_timedelta64_dtype(series.dtype):
+                    times, time_label = series.dt.total_seconds(), "Time (s)"
+                elif not pd.api.types.is_complex_dtype(series.dtype):
+                    times = pd.to_numeric(series, errors="coerce")
             numeric_time = times is not None and times.notna().all()
-            ax.plot(times if numeric_time else np.arange(len(self.frame))[::step], sample[channel], color="#2563a5", linewidth=1)
-            ax.set_xlabel("Time (file units)" if numeric_time else "Sample position")
-            ax.set_ylabel(str(channel))
+            for channel in channels:
+                ax.plot(times if numeric_time else np.arange(len(self.frame))[::step], sample[channel],
+                        color=self._channel_colors[channel], linewidth=1, label=str(channel))
+            ax.set_xlabel(time_label if numeric_time else "Sample position")
+            ax.set_ylabel(str(channels[0]) if len(channels) == 1 else "Sensor values (file units)")
+            if len(channels) > 1:
+                ax.legend(loc="upper left", bbox_to_anchor=(0, 1.02), ncols=min(3, len(channels)), frameon=False, fontsize=9)
         else:
-            ax.text(.5, .5, "Open a recording with numeric sensor channels", ha="center", transform=ax.transAxes)
+            ax.text(.5, .5, "Select sensor channels" if self.frame is not None else "Open a recording with numeric sensor channels",
+                    ha="center", transform=ax.transAxes)
+        self.data_toolbar.refresh()
         self.data_canvas.draw_idle()
 
     def run_analysis(self):
@@ -1071,6 +1243,7 @@ class MainWindow(QMainWindow):
             ax.set_title(self.dataset.currentText(), fontsize=10, loc="left")
         else:
             ax.text(.5, .5, "No rows or numeric metric in the current selection", ha="center", transform=ax.transAxes, color="#68778c")
+        self.plot_toolbar.refresh()
         self.canvas.draw_idle()
 
     def result_row_changed(self, current, previous):
@@ -1156,6 +1329,7 @@ class MainWindow(QMainWindow):
             ax.set_ylabel(str(column))
         else:
             ax.text(.5, .5, "No original samples in this context", ha="center", transform=ax.transAxes)
+        self.sensor_toolbar.refresh()
         self.sensor_canvas.draw_idle()
 
     def refresh_runs(self):
@@ -1278,6 +1452,14 @@ class MainWindow(QMainWindow):
             event.ignore()
         else:
             event.accept()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "data_details"):
+            orientation = Qt.Horizontal if self.width() >= 1280 else Qt.Vertical
+            if self.data_details.orientation() != orientation:
+                self.data_details.setOrientation(orientation)
+                self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
 
 
 def main():
