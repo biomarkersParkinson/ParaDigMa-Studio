@@ -283,10 +283,12 @@ def json_value(value):
     return str(value)
 
 
-def _write_export(path, writer, *, source=None):
+def _write_export(path, writer, *, source=None, protected_sources=()):
     target = Path(path)
-    if source:
-        original = Path(source)
+    for protected in [source, *protected_sources]:
+        if not protected:
+            continue
+        original = Path(protected)
         originals = [original]
         if original.suffix.lower() == ".json":
             prefix = original.stem.replace("_meta", "")
@@ -308,10 +310,10 @@ def _write_export(path, writer, *, source=None):
         Path(temporary).unlink(missing_ok=True)
 
 
-def export_results(path, results, provenance):
+def export_results(path, results, provenance, *, protected_sources=()):
     _write_export(path, lambda stream: json.dump(
         {"analysis": provenance, "results": json_value(results)}, stream,
-        indent=2, allow_nan=False), source=provenance.get("source"))
+        indent=2, allow_nan=False), source=provenance.get("source"), protected_sources=protected_sources)
 
 
 def _spreadsheet_text(value):
@@ -320,9 +322,9 @@ def _spreadsheet_text(value):
     return value
 
 
-def export_table_csv(path, frame, *, source=None):
+def export_table_csv(path, frame, *, source=None, protected_sources=()):
     """Neutralize formula-like text while retaining actual numeric values."""
     safe = frame.map(_spreadsheet_text)
     safe.columns = [_spreadsheet_text(str(column)) for column in frame.columns]
     _write_export(path, lambda stream: safe.to_csv(stream, index=False, quoting=csv.QUOTE_ALL),
-                  source=source)
+                  source=source, protected_sources=protected_sources)

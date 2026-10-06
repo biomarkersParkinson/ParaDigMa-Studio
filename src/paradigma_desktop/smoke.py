@@ -17,6 +17,7 @@ def smoke_test(report_path):
         import pandas as pd
         from importlib.resources import files
         from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QEventLoop, QTimer
         from paradigma.classification import ClassifierPackage
 
         from .app import MainWindow
@@ -35,7 +36,7 @@ def smoke_test(report_path):
 
         app = QApplication.instance() or QApplication([])
         app.setStyle("Fusion")
-        window = MainWindow()
+        window = MainWindow(history_dir=report_path.parent / "run-history")
         try:
             if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
                 raise RuntimeError("Bundled application icon could not be rendered")
@@ -59,12 +60,23 @@ def smoke_test(report_path):
                     raise RuntimeError("Tremor analysis returned no quantified output")
                 window.loaded((str(source), loaded))
                 window.analyzed(results)
+                if window.pages.currentIndex() != 2 or window.inspector_pages.currentIndex() != 2:
+                    raise RuntimeError("Completed analysis did not open the Results workspace")
                 window.dataset.setCurrentText("quantifications/tremor")
                 window.show()
                 app.processEvents()
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("Result plot was not rendered")
+                window.filter_column.setCurrentText("time")
+                window.filter_min.setText("60")
+                window.apply_filters()
+                selected = quantified.loc[quantified["time"] >= 60]
+                if window.result_table.model().rowCount() != len(selected) or len(selected) == len(quantified):
+                    raise RuntimeError("Shared result filtering did not change the table")
+                if not np.array_equal(window.figure.axes[0].lines[0].get_ydata(), selected[window.y_column.currentData()].to_numpy()):
+                    raise RuntimeError("Graph and table did not use the same result selection")
+                window.reset_filters()
                 export = directory / "results.json"
                 export_results(export, results, {"source": source.name})
                 saved = json.loads(export.read_text(encoding="utf-8"))
@@ -90,6 +102,12 @@ def smoke_test(report_path):
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("CWA result plot was not rendered")
+                window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+                if not window.context_button.isEnabled():
+                    raise RuntimeError("Explicit gait segment metadata did not enable sensor inspection")
+                window.inspect_sensor_context()
+                if window.sensor_table.model() is None or not window.sensor_table.model().rowCount():
+                    raise RuntimeError("Gait segment did not reveal its original sensor samples")
                 # The official Empatica example has an empty gyroscope stream.
                 # Import it for inspection without inventing missing channels.
                 avro_source = files("paradigma_desktop") / "data" / "test_data.avro"
@@ -112,8 +130,41 @@ def smoke_test(report_path):
                 physilog_gait = physilog_results["quantifications"]["gait"]["unfiltered"]
                 if physilog_gait.empty:
                     raise RuntimeError("Physilog example returned no gait measurements")
+                # Reopen an explicitly exported result through the Runs page.
+                # This also exercises the frozen app's Qt background worker,
+                # metadata persistence and safe JSON restoration.
+                from .history import new_run, now
+                record = new_run(str(source), {"pipelines": ["tremor"]})
+                record.update(status="Completed", finished=now(), paradigma_version=version("paradigma"),
+                              outputs=[{"kind": "JSON", "path": str(export)}])
+                window.history.save(record)
+                window.runs, issues = window.history.load()
+                if issues or len(window.runs) != 1:
+                    raise RuntimeError("Run history did not round-trip")
+                window.selected_run = None
+                window.refresh_runs()
+                window.navigate(3)
+                window.open_run()
+                if window.worker is None:
+                    raise RuntimeError("Exported result was not reopened in a background worker")
+                loop = QEventLoop()
+                timer = QTimer()
+                timer.setSingleShot(True)
+                timer.timeout.connect(loop.quit)
+                window.worker.finished.connect(loop.quit)
+                timer.start(15000)
+                loop.exec()
+                timer.stop()
+                if window.worker is not None or window.results["quantifications"]["tremor"].shape != quantified.shape:
+                    raise RuntimeError("Exported run did not reopen correctly")
+                if window.pages.currentIndex() != 2 or window.result_source_frame is not None:
+                    raise RuntimeError("Reopening a run changed its navigation or reloaded original sensor data")
                 report.update(status="passed", paradigma_version=version("paradigma"),
                               app_icon_rendered=True,
+                              workspace_navigation_verified=True,
+                              linked_result_selection_verified=True,
+                              gait_sensor_context_verified=True,
+                              run_history_reopened=True,
                               models_loaded=models, quantified_rows=len(quantified),
                               qt_plot_rendered=True, export_verified=True,
                               cwa_samples=len(cwa_frame), cwa_gait_rows=len(cwa_quantified),

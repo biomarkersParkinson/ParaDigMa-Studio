@@ -1,0 +1,331 @@
+"""Behavioral checks for navigation, linked exploration and previous runs."""
+import json
+import os
+import time
+from types import SimpleNamespace
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import numpy as np
+import pandas as pd
+import pytest
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
+
+from paradigma_desktop import app as desktop
+from paradigma_desktop.app import MainWindow
+from paradigma_desktop.core import export_results
+from paradigma_desktop.exploration import source_timeline
+from paradigma_desktop.history import RunHistory, load_result_export, new_run
+
+
+@pytest.fixture
+def window(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    widget = MainWindow(history_dir=tmp_path / "runs")
+    yield widget
+    wait_for_job(widget)
+    widget.close()
+    app.processEvents()
+
+
+def wait_for_job(window):
+    deadline = time.monotonic() + 10
+    while window.worker is not None and time.monotonic() < deadline:
+        QTest.qWait(20)
+    assert window.worker is None, "Background operation did not finish"
+
+
+def output():
+    return pd.DataFrame({"time": np.arange(6, dtype=float),
+        "participant_id": ["a", "b", "a", "b", "a", "b"],
+        "file_key": ["segment_1"] * 3 + ["segment_2"] * 3,
+        "metric": np.arange(10, 16, dtype=float)})
+
+
+def test_navigation_inspector_and_compact_sidebar_preserve_settings(window):
+    assert window.pages.count() == 4
+    assert window.SECTIONS == ("Data", "Analyze", "Results", "Runs")
+    window.navigate(1)
+    window.pipeline.setCurrentText("Gait + tremor")
+    assert window.module_buttons["Gait"].isChecked()
+    assert window.module_buttons["Tremor"].isChecked()
+    assert not window.module_buttons["Pulse rate"].isChecked()
+    assert set(window.module_buttons) == {"Gait", "Tremor", "Pulse rate"}
+    window.advanced_toggle.setChecked(True)
+    assert not window.advanced_settings.isHidden()
+    window.gyro.setCurrentText("rad/s")
+    for index in range(4):
+        window.nav_buttons[index].click()
+        assert window.pages.currentIndex() == window.inspector_pages.currentIndex() == index
+        assert window.nav_buttons[index].isChecked()
+        assert sum(item.isChecked() for item in window.nav_buttons) == 1
+    window.toggle_sidebar()
+    assert window.sidebar.width() == 68
+    assert [item.accessibleName() for item in window.nav_buttons] == list(window.SECTIONS)
+    window.toggle_sidebar()
+    assert window.sidebar.width() == 194
+    window.inspector_toggle.setChecked(False)
+    assert window.inspector.isHidden()
+    window.inspector_toggle.setChecked(True)
+    window.navigate(1)
+    assert window.pipeline.currentText() == "Gait + tremor"
+    assert window.gyro.currentText() == "rad/s"
+
+
+def test_run_button_remains_visible_in_compact_analysis_workspace(window):
+    app = QApplication.instance()
+    window.navigate(1)
+    window.toggle_sidebar()
+    window.advanced_toggle.setChecked(True)
+    window.resize(1050, 720)
+    window.show()
+    app.processEvents()
+    assert window.run_button.isVisible()
+    assert window.run_button.parentWidget() is window.pages.widget(1)
+    assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
+
+
+def test_one_selection_drives_graph_table_summary_and_csv(window, tmp_path, monkeypatch):
+    frame = output()
+    original = frame.copy()
+    window.analyzed({"quantifications": {"test": frame}, "errors": []})
+    window.participant.setCurrentText("a")
+    window.segment.setCurrentText("segment_2")
+    window.filter_column.setCurrentText("metric")
+    window.filter_min.setText("14")
+    window.filter_max.setText("14")
+    window.apply_filters()
+    assert window.active_positions.tolist() == [4]
+    pd.testing.assert_frame_equal(window.result_table.model().frame, frame.iloc[[4]])
+    assert list(window.figure.axes[0].lines[0].get_xdata()) == [4.]
+    assert list(window.figure.axes[0].lines[0].get_ydata()) == [14.]
+    assert window.result_values[0].text() == "1"
+    assert window.result_values[1].text() == "14"
+    window.x_column.setCurrentIndex(0)
+    assert list(window.figure.axes[0].lines[0].get_xdata()) == [4]
+    path = tmp_path / "selection.csv"
+    monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+    window.export_csv()
+    assert pd.read_csv(path)["metric"].tolist() == [14.]
+    window.reset_filters()
+    assert len(window.active_frame) == 6
+    assert window.result_table.model().rowCount() == 6
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_invalid_filter_retains_selection_and_empty_filter_clears_graph(window):
+    window.analyzed({"quantifications": {"test": output()}, "errors": []})
+    window.filter_column.setCurrentText("metric")
+    window.filter_min.setText("15")
+    window.filter_max.setText("10")
+    window.apply_filters()
+    assert "minimum" in window.filter_status.text()
+    assert len(window.active_frame) == window.result_table.model().rowCount() == 6
+    window.filter_max.setText("20")
+    window.filter_min.setText("19")
+    window.apply_filters()
+    assert window.active_frame.empty
+    assert window.result_table.model().rowCount() == 0
+    assert not window.figure.axes[0].lines
+    assert window.result_values[0].text() == "0"
+
+
+def test_graph_click_selects_nearest_row_within_active_selection(window):
+    window.analyzed({"quantifications": {"test": output()}, "errors": []})
+    window.participant.setCurrentText("b")
+    window.graph_clicked(SimpleNamespace(inaxes=window.figure.axes[0], xdata=3.1))
+    assert window.result_table.currentIndex().row() == 1
+    assert window.active_frame.iloc[1]["time"] == 3.
+
+
+def test_context_drills_into_original_mapped_sensor_values(window):
+    frame = pd.DataFrame({"timestamp": 1_700_000_000_000 + np.arange(301) * 10,
+                          "gyr_x": np.arange(301, dtype=float) * 100}, index=np.arange(301) + 500)
+    original = frame.copy()
+    window.loaded(("sensor.csv", frame))
+    window.provenance = {"source": "sensor.csv", "settings": {
+        "time_input_unit": "absolute_ms", "column_mapping": {"timestamp": "time"},
+        "pipelines": ["tremor"], "drop_missing_samples": True}}
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [1., 2.], "metric": [5., 6.]})}, "errors": []})
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    assert window.context_button.isEnabled()
+    window.context_radius.setValue(.2)
+    window.inspect_sensor_context()
+    assert window.result_tabs.currentIndex() == window.sensor_tab_index
+    assert window.result_tabs.isTabVisible(window.sensor_tab_index)
+    mask = np.abs(np.arange(301) / 100 - 1.) <= .2
+    pd.testing.assert_frame_equal(window.sensor_table.model().frame, frame.iloc[np.flatnonzero(mask)])
+    assert list(window.sensor_figure.axes[0].lines[0].get_ydata()) == frame.iloc[np.flatnonzero(mask)]["gyr_x"].tolist()
+    assert "not the algorithm's exact window" in window.sensor_note.text()
+    pd.testing.assert_frame_equal(frame, original)
+    window.hide_sensor_context()
+    assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
+
+
+def test_missing_participant_and_original_recording_are_explicit(window):
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [1., 2.], "power": [1., 2.]})}, "errors": []})
+    assert not window.participant.isEnabled()
+    assert "no participant" in window.filter_status.text()
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    assert not window.context_button.isEnabled()
+    assert "requires the original recording" in window.context_hint.text()
+
+
+def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata(window):
+    raw = pd.DataFrame({"time": np.arange(40) / 10, "gyroscope_x": np.arange(40, dtype=float)})
+    window.loaded(("sensor.csv", raw))
+    quantified = pd.DataFrame({"gait_segment_nr": [3, 3], "range_of_motion": [20., 30.]})
+    window.provenance = {"source": "sensor.csv", "settings": {"skip_preparation": True}}
+    window.analyzed({"quantifications": {"gait": {"unfiltered": quantified}},
+        "metadata": {"gait": {"unfiltered": {"per_segment": {"3": {"start_s": 1., "end_s": 2.}}}}}, "errors": []})
+    assert window.y_column.currentData() == "range_of_motion"
+    assert window.summary_table.model().frame["Metric"].tolist() == ["range_of_motion"]
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    assert window.context_button.isEnabled()
+    assert window.context_button.text() == "Inspect gait segment"
+    window.inspect_sensor_context()
+    pd.testing.assert_frame_equal(window.sensor_table.model().frame, raw.iloc[10:20])
+    assert "using toolbox metadata" in window.sensor_note.text()
+    assert "Individual arm-swing timestamps are not provided" in window.sensor_note.text()
+    window.analyzed({"quantifications": {"gait": {"unfiltered": quantified}}, "errors": []})
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    assert not window.context_button.isEnabled()  # No inferred timing without metadata.
+
+
+def test_nullable_result_values_plot_without_losing_rows(window):
+    frame = pd.DataFrame({"time": [0., 1., 2.], "power": pd.Series([1., pd.NA, 3.], dtype="Float64")})
+    window.analyzed({"quantifications": {"tremor": frame}, "errors": []})
+    assert window.result_table.model().rowCount() == 3
+    assert np.isnan(window.figure.axes[0].lines[0].get_ydata()[1])
+
+
+def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window, monkeypatch):
+    frame = pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})
+    window.loaded(("first.csv", frame))
+    window.pipeline.setCurrentText("Tremor")
+    def analyze(frame, logger, **settings):
+        logger.warning("Example quality warning")
+        return {"quantifications": {"tremor": output()}, "errors": []}
+    monkeypatch.setattr(desktop, "analyze", analyze)
+    window.run_analysis()
+    window.navigate(3)  # Navigation stays available while analysis runs.
+    wait_for_job(window)
+    first = window.runs[0]
+    assert first["status"] == "Completed"
+    assert "Example quality warning" in first["warnings"]
+    saved = json.loads((window.history.directory / f"{first['id']}.json").read_text())
+    assert "_frame" not in saved and "_results" not in saved
+    assert saved["settings"]["pipelines"] == ["tremor"]
+    assert window.pages.currentIndex() == 2
+    def fail(*args, **kwargs):
+        raise ValueError("Sensor validation failed")
+    monkeypatch.setattr(desktop, "analyze", fail)
+    window.loaded(("second.csv", frame.copy()))
+    window.run_analysis()
+    wait_for_job(window)
+    assert window.runs[0]["status"] == "Failed"
+    assert window.runs[0]["warnings"] == ["ValueError: Sensor validation failed"]
+    assert window.run_button.isEnabled() and window.open_button.isEnabled()
+    assert window.settings_panel.isEnabled() and window.analysis_controls.isEnabled()
+    window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
+    window.open_run()
+    assert window.current_run is first
+    assert window.provenance["source"] == "first.csv"
+    assert window.source == "second.csv"  # Exploring history does not replace input.
+    assert window.result_source_frame is frame
+    assert window.result_table.model().rowCount() == 6
+
+
+def test_exported_json_can_reopen_after_restart_without_loading_pickle(window, tmp_path, monkeypatch):
+    window.loaded((str(tmp_path / "trusted.pkl"), pd.DataFrame({"time": [0., 1.]})))
+    monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"tremor": output()}, "errors": []})
+    window.pipeline.setCurrentText("Tremor")
+    window.run_analysis()
+    wait_for_job(window)
+    target = tmp_path / "results.json"
+    monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(target), ""))
+    window.export()
+    assert window.current_run["outputs"][-1]["path"] == str(target)
+    reopened = MainWindow(history_dir=window.history.directory)
+    try:
+        monkeypatch.setattr(desktop, "load_sensor_file", lambda *args, **kwargs: pytest.fail("Must not reload source recording"))
+        assert reopened.open_run_button.isEnabled()
+        reopened.open_run()
+        wait_for_job(reopened)
+        assert reopened.frame is None
+        assert reopened.result_source_frame is None
+        assert reopened.result_table.model().rowCount() == 6
+        assert reopened.provenance["source"].endswith("trusted.pkl")
+        assert not reopened.context_button.isEnabled()
+    finally:
+        reopened.close()
+
+
+@pytest.mark.parametrize("target_input", ["previous", "current"])
+def test_export_protects_result_source_and_current_input(window, tmp_path, monkeypatch, target_input):
+    original = tmp_path / "original.csv"
+    original.write_text("original samples")
+    window.loaded((str(original), pd.DataFrame({"time": [0., 1.]})))
+    window.provenance = {"source": str(original), "settings": {}}
+    window.analyzed({"quantifications": {"tremor": output()}, "errors": []})
+    current = tmp_path / "new.csv"
+    current.write_text("current sensor samples")
+    window.loaded((str(current), pd.DataFrame({"time": [5., 6.]})))
+    target = original if target_input == "previous" else current
+    monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(target), ""))
+    window.export_csv()
+    assert original.read_text() == "original samples"
+    assert current.read_text() == "current sensor samples"
+    assert "cannot overwrite" in window.notice.text()
+
+
+def test_history_write_failure_keeps_result_available(window, monkeypatch):
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
+    monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"test": output()}, "errors": []})
+    def cannot_save(record):
+        raise OSError("disk is read-only")
+    monkeypatch.setattr(window.history, "save", cannot_save)
+    window.run_analysis()
+    wait_for_job(window)
+    assert window.result_table.model().rowCount() == 6
+    assert window.export_button.isEnabled()
+    assert window.runs[0]["status"] == "Completed"
+    assert "history could not be saved" in window.notice.text()
+
+
+def test_history_rejects_damaged_entries_and_marks_unfinished_runs(tmp_path):
+    history = RunHistory(tmp_path / "runs")
+    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    history.save(record)
+    (history.directory / "bad.json").write_text("{broken")
+    records, issues = history.load()
+    assert len(records) == 1 and records[0]["status"] == "Unfinished"
+    assert len(issues) == 1
+    record["outputs"] = ["not an output object"]
+    history.save(record)
+    assert history.load()[0] == []
+
+
+def test_export_round_trip_preserves_numeric_columns_and_float_values(tmp_path):
+    path = tmp_path / "results.json"
+    frame = pd.DataFrame({0: [np.nextafter(1., 2.), None], "power": [2., 3.]})
+    export_results(path, {"quantifications": {"test": frame}, "errors": []}, {"source": "input.csv"})
+    provenance, results = load_result_export(path)
+    assert provenance["source"] == "input.csv"
+    pd.testing.assert_frame_equal(results["quantifications"]["test"], frame)
+
+
+@pytest.mark.parametrize("unit", ["difference_s", "difference_ms"])
+def test_sensor_context_preserves_elapsed_time_when_missing_rows_were_excluded(unit):
+    scale = 1000 if unit.endswith("ms") else 1
+    frame = pd.DataFrame({"time": np.array([.1, .1, .3, .1]) * scale,
+        "gyroscope_x": [1., np.nan, 1., 1.], "gyroscope_y": 1., "gyroscope_z": 1.})
+    aligned = source_timeline(frame, {"time_input_unit": unit, "pipelines": ["tremor"], "drop_missing_samples": True})
+    assert aligned == pytest.approx([0., .1, .4, .5])
+
+
+def test_sensor_context_absolute_origin_uses_first_retained_sample():
+    frame = pd.DataFrame({"time": [1000., 1001., 1002.], "gyroscope_x": [np.nan, 1., 1.],
+                          "gyroscope_y": 1., "gyroscope_z": 1.})
+    settings = {"time_input_unit": "absolute_s", "pipelines": ["tremor"], "drop_missing_samples": True}
+    assert source_timeline(frame, settings).tolist() == [-1., 0., 1.]

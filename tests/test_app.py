@@ -5,10 +5,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import pandas as pd
+import pytest
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from paradigma_desktop.app import MainWindow, Worker
 from paradigma_desktop import app as desktop_app
+
+
+@pytest.fixture(autouse=True)
+def isolate_local_run_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(desktop_app.QStandardPaths, "writableLocation", lambda location: str(tmp_path))
 
 
 def test_window_results_and_plot(tmp_path):
@@ -66,9 +72,10 @@ def test_plot_handles_numeric_column_names_and_real_row_number_column():
     window.close()
 
 
-def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypatch):
+def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypatch, tmp_path):
     app = QApplication.instance() or QApplication([])
-    window = MainWindow()
+    window = MainWindow(history_dir=tmp_path / "runs")
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
     window.pipeline.setCurrentText("Tremor")
     window.time.setCurrentText("relative_ms")
     window.gyro.setCurrentText("rad/s")
@@ -105,7 +112,10 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
         QTest.qWait(20)
     assert window.worker is None
     assert window.results["errors"]
-    assert warnings
+    assert warnings == []  # Processing errors are reported inline, without a modal.
+    assert "processing error" in window.notice.text()
+    assert window.runs[0]["status"] == "Partial"
+    assert window.runs[0]["warnings"]
     assert window.run_button.isEnabled()
     assert not window.progress.isVisible()
     assert "processing error" in window.status.text()
