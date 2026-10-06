@@ -64,6 +64,14 @@ Select a run to review status and its Parameters, Warnings, Outputs and Processi
 
 ![Run history](screenshots/runs.png)
 
+## Acknowledgement and citation
+
+**About & citations**, available on every page, credits the official ParaDigMa
+authors and provides research references, a copyable BibTeX entry and the complete
+upstream licence. Attribution files also accompany the executable.
+
+![ParaDigMa acknowledgement and research citations](screenshots/acknowledgements.png)
+
 ## Compact layout
 
 Collapse the sidebar for more room. Controls are integrated into each page, and settings persist while navigating.

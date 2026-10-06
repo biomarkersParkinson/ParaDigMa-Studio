@@ -1,7 +1,16 @@
 """Build the portable desktop bundle using the repository's packaging options."""
 import subprocess
+import shutil
 import sys
 from pathlib import Path
+
+
+def copy_notices(bundle):
+    """Place the packaged canonical notices next to the portable executable."""
+    source = Path(__file__).resolve().parents[1] / "src" / "paradigma_desktop" / "data" / "notices"
+    for notice in source.iterdir():
+        if notice.is_file():
+            shutil.copyfile(notice, Path(bundle) / notice.name)
 
 
 def main():
@@ -26,6 +35,7 @@ def main():
         "--hidden-import", "sklearn.linear_model._logistic",
         "desktop.py",
     ], cwd=root, check=True)
+    copy_notices(root / "dist" / "ParaDigMaDesktop")
 
 
 if __name__ == "__main__":

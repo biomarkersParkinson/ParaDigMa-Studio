@@ -9,13 +9,13 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QThread, Signal, QStandardPaths
-from PySide6.QtGui import QAction, QIcon, QFont, QPalette
+from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QApplication, QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox,
+    QApplication, QAbstractItemView, QCheckBox, QDoubleSpinBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableView, QListView,
+    QScrollArea, QSplitter, QStackedWidget, QListView,
     QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout,
 )
 from .plot_cache import configure_plot_cache
@@ -40,90 +40,7 @@ from .results_view import (
 )
 from .theme import STYLESHEET, light_palette, style_axes
 from .analysis_help import FIELD_HELP, SOURCE
-
-
-class FrameModel(QAbstractTableModel):
-    def __init__(self, frame, compact=False):
-        super().__init__()
-        self.frame = frame
-        self.compact = compact
-
-    def rowCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self.frame)
-
-    def columnCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self.frame.columns)
-
-    def data(self, index, role=Qt.DisplayRole):
-        if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
-            value = self.frame.iat[index.row(), index.column()]
-            if self.compact and role == Qt.DisplayRole and (value is pd.NA or value is None
-                    or isinstance(value, (float, np.floating)) and np.isnan(value)):
-                return "—"
-            if self.compact and role == Qt.DisplayRole and isinstance(value, (float, np.floating)):
-                return f"{value:.5g}"
-            return str(value)
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role in (Qt.DisplayRole, Qt.ToolTipRole):
-            return str(self.frame.columns[section]) if orientation == Qt.Horizontal else str(section + 1)
-
-
-class ReadableComboBox(QComboBox):
-    def showPopup(self):
-        # The outer popup owns the margins above/below the list. It does not
-        # reliably inherit the list palette on Windows with a dark system theme.
-        popup = self.view().window()
-        palette = light_palette()
-        for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
-            palette.setColor(group, QPalette.Window, palette.color(group, QPalette.Base))
-        popup.setPalette(palette)
-        popup.setAutoFillBackground(True)
-        super().showPopup()
-
-
-class ReadableTable(QTableView):
-    def __init__(self):
-        super().__init__()
-        self._heading_widths = []
-        header = self.horizontalHeader()
-        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        header.setTextElideMode(Qt.ElideNone)
-        font = header.font()
-        font.setWeight(QFont.DemiBold)
-        header.setFont(font)
-        # Size data columns from a small sample, never the entire sensor file.
-        header.setResizeContentsPrecision(25)
-        header.sectionResized.connect(self.keep_heading_readable)
-
-    def setModel(self, model):
-        self._heading_widths = []
-        super().setModel(model)
-        if model is not None:
-            self.ensurePolished()
-            self.horizontalHeader().ensurePolished()
-            metrics = self.horizontalHeader().fontMetrics()
-            self._heading_widths = [metrics.horizontalAdvance(str(model.headerData(i, Qt.Horizontal))) + 28
-                                    for i in range(model.columnCount())]
-            self.resizeColumnsToContents()
-
-    def resizeColumnsToContents(self):
-        super().resizeColumnsToContents()
-        for i, width in enumerate(self._heading_widths):
-            if self.columnWidth(i) < width:
-                self.setColumnWidth(i, width)
-
-    def setColumnWidth(self, column, width):
-        if column < len(self._heading_widths):
-            width = max(width, self._heading_widths[column])
-        super().setColumnWidth(column, width)
-
-    def keep_heading_readable(self, column, old_width, width):
-        if column < len(self._heading_widths) and width < self._heading_widths[column]:
-            header = self.horizontalHeader()
-            previous = header.blockSignals(True)
-            header.resizeSection(column, self._heading_widths[column])
-            header.blockSignals(previous)
+from .widgets import FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -164,66 +81,6 @@ class Worker(QThread):
             package_logger.removeHandler(handler)
             package_logger.setLevel(previous_level)
             handler.close()
-
-
-def label(text="", role=None):
-    widget = QLabel(text)
-    widget.setTextFormat(Qt.PlainText)
-    widget.setWordWrap(True)
-    if role:
-        widget.setObjectName(role)
-    return widget
-
-
-def button(text, callback=None, primary=False):
-    widget = QPushButton(text)
-    if primary:
-        widget.setObjectName("primary")
-    if callback:
-        widget.clicked.connect(callback)
-    return widget
-
-
-def card():
-    widget = QFrame()
-    widget.setObjectName("card")
-    layout = QVBoxLayout(widget)
-    layout.setContentsMargins(18, 16, 18, 16)
-    layout.setSpacing(12)
-    return widget, layout
-
-
-def table():
-    widget = ReadableTable()
-    widget.setPalette(light_palette())
-    widget.horizontalHeader().setPalette(light_palette())
-    widget.verticalHeader().setPalette(light_palette())
-    widget.setAlternatingRowColors(True)
-    widget.setShowGrid(False)
-    widget.verticalHeader().hide()
-    widget.setSelectionBehavior(QAbstractItemView.SelectRows)
-    widget.setSelectionMode(QAbstractItemView.SingleSelection)
-    widget.setEditTriggers(QAbstractItemView.NoEditTriggers)
-    return widget
-
-
-def readout():
-    widget = QPlainTextEdit()
-    widget.setReadOnly(True)
-    return widget
-
-
-def field(title, control):
-    widget = QWidget()
-    layout = QVBoxLayout(widget)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(5)
-    heading = label(title, "muted")
-    heading.setBuddy(control)
-    layout.addWidget(heading)
-    layout.addWidget(control)
-    control.setAccessibleName(title)
-    return widget
 
 
 class MainWindow(QMainWindow):
@@ -330,6 +187,9 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         self.page_title = label("", "pageTitle")
         heading.addWidget(self.page_title, 1)
+        self.about_button = button("About & citations", self.show_acknowledgements)
+        self.about_button.setShortcut("F1")
+        heading.addWidget(self.about_button)
         center_layout.addLayout(heading)
         self.notice = label("", "notice")
         self.notice.hide()
@@ -800,6 +660,14 @@ class MainWindow(QMainWindow):
         self.page_title.setText(self.SECTIONS[index])
         for i, item in enumerate(self.nav_buttons):
             item.setChecked(i == index)
+
+    def show_acknowledgements(self):
+        if getattr(self, "_acknowledgements_dialog", None) is None:
+            from .acknowledgements import AcknowledgementsDialog
+            self._acknowledgements_dialog = AcknowledgementsDialog(self)
+        self._acknowledgements_dialog.show()
+        self._acknowledgements_dialog.raise_()
+        self._acknowledgements_dialog.activateWindow()
 
     def toggle_sidebar(self):
         self.sidebar_collapsed = not self.sidebar_collapsed
@@ -1754,6 +1622,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Processing in progress", "Wait for processing to finish before closing.")
             event.ignore()
         else:
+            if getattr(self, "_acknowledgements_dialog", None) is not None:
+                self._acknowledgements_dialog.close()
             event.accept()
 
     def resizeEvent(self, event):

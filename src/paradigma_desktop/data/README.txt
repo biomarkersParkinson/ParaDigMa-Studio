@@ -8,7 +8,7 @@ https://github.com/biomarkersParkinson/paradigma/blob/4735d6d21b2a62b764a0bc7e0f
 SHA-256: 32119972958fd19d110183650e611f1eda9d26b118336a931e5dd5308532a409
 
 Distributed under the source project's Apache License 2.0; see the accompanying
-LICENSE-paradigma.txt. This is a test recording, not a patient's import or a
+notices/LICENSE-paradigma.txt. This is a test recording, not a patient's import or a
 scientific reference result. No changes were made to the recording.
 
 test_data.avro is also an unmodified public ParaDigMa example, distributed
@@ -40,6 +40,11 @@ icon. The PNG is an icon-ready version prepared with transparent surroundings;
 the ICO contains 16, 24, 32, 48, 64, 128 and 256 pixel representations.
 These application graphics are separate from the upstream ParaDigMa example
 recordings described above and their accompanying Apache 2.0 license.
+
+notices/ groups the ParaDigMa acknowledgement, unchanged upstream licence,
+BibTeX citation and unchanged upstream CITATION.cff metadata. These files are
+also copied beside the executable for distribution. See ACKNOWLEDGEMENTS.md
+in that folder for citation sources and the desktop's relationship to ParaDigMa.
 
 chevron-down.svg is the application's dropdown indicator, created for the
 integrated page layout in version 0.2.1. It is separate from the upstream

@@ -45,6 +45,16 @@ def smoke_test(report_path):
                 raise RuntimeError("Bundled dropdown indicator could not be rendered")
             if QPixmap(str(files("paradigma_desktop") / "data" / "checkmark.svg")).isNull():
                 raise RuntimeError("Bundled checkbox indicator could not be rendered")
+            window.about_button.click()
+            attribution = window._acknowledgements_dialog
+            if "10.5281/zenodo.13838392" not in attribution.acknowledgement.toPlainText():
+                raise RuntimeError("ParaDigMa research citation is missing from About")
+            if "Copyright (c) 2023, Peter Kok" not in attribution.licence.toPlainText():
+                raise RuntimeError("The full upstream licence/copyright notice is missing")
+            attribution.copy_button.click()
+            if "@software{paradigma2024" not in app.clipboard().text():
+                raise RuntimeError("ParaDigMa software citation could not be copied")
+            attribution.close()
             with tempfile.TemporaryDirectory(prefix="paradigma-smoke-") as directory:
                 directory = Path(directory)
                 t = np.arange(12000) / 100
@@ -231,6 +241,7 @@ def smoke_test(report_path):
                               module_multiselection_verified=True,
                               all_module_execution_verified=True,
                               inline_analysis_help_verified=True,
+                              paradigma_acknowledgement_verified=True,
                               aggregate_overview_verified=True,
                               absolute_recording_clock_verified=True,
                               estimated_gait_positions_verified=True,

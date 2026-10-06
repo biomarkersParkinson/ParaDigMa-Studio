@@ -34,6 +34,8 @@ Build on Windows; a Linux build does not generate a Windows executable.
 Distribute the entire `dist\ParaDigMaDesktop` folder. The portable executable
 depends on `_internal`. The build includes model assets, SVG icons and native
 scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
+The build also places the ParaDigMa acknowledgement, licence and citation files
+beside the executable; keep these with any redistributed bundle.
 
 The **Windows desktop** GitHub workflow runs tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
@@ -65,6 +67,8 @@ runs real pipelines, renders graphs and reopens exported results.
 
 Public fixture provenance and licenses are under `src/paradigma_desktop/data/`
 and `tests/data/paradigma/`. No patient data or external fixture download is needed.
+
+See the [repository map](REPOSITORY.md) for folder and module responsibilities.
 
 Read the [performance review](PERFORMANCE.md) before changing import timing or
 bundle exclusions. Runtime optimization must preserve native libraries, model

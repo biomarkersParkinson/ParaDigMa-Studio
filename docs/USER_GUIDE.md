@@ -2,6 +2,10 @@
 
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
 
+**About & citations** (or **F1**) opens the ParaDigMa acknowledgement, official
+software citation, pipeline publication links and full Apache 2.0 licence.
+**Copy software citation** copies the upstream BibTeX entry for research use.
+
 ## Input and analysis settings
 
 The app uses the official ParaDigMa loaders and processing functions, with an

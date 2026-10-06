@@ -26,6 +26,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["module_multiselection_verified"]
     assert data["all_module_execution_verified"]
     assert data["inline_analysis_help_verified"]
+    assert data["paradigma_acknowledgement_verified"]
     assert data["aggregate_overview_verified"]
     assert data["absolute_recording_clock_verified"]
     assert data["estimated_gait_positions_verified"]

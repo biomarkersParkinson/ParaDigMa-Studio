@@ -38,6 +38,9 @@ Export selected rows as **CSV**, or all results and analysis settings as **JSON*
 Export JSON to reopen results after restarting. Run history alone does not save
 full result tables. [See the workspace screenshots](docs/WORKSPACE.md).
 
+Gait points use clearly marked estimated positions within recorded segment boundaries.
+Files without recording dates use elapsed time until you supply a time origin.
+
 ## Supported input
 
 CSV, Parquet, trusted pickle (`.pkl` / `.pickle`), TSDF `*_meta.json`,
@@ -62,8 +65,15 @@ not raw green PPG, and its gyroscope stream is empty.
 - [Scientific validation](docs/SCIENTIFIC_TESTS.md): comparisons with the official processing workflow.
 - [Development and building](docs/DEVELOPMENT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
 
-Gait points use clearly marked estimated positions within recorded segment boundaries.
-Files without recording dates use elapsed time until you supply a time origin.
+## Acknowledgement and citation
 
-Version **0.3.0**. Scientific processing uses the pinned official toolbox; the app's
+Scientific processing is provided by **ParaDigMa**, developed by its authors and
+contributors and licensed under [Apache 2.0](src/paradigma_desktop/data/notices/LICENSE-paradigma.txt).
+For research, cite Post et al. (2024), *ParaDigMa: Parkinson's disease Digital Markers*,
+[doi:10.5281/zenodo.13838392](https://doi.org/10.5281/zenodo.13838392), and relevant
+pipeline publications. **About & citations** in the app provides credits, the
+licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
+are also included beside the Windows executable.
+
+Version **0.3.1**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

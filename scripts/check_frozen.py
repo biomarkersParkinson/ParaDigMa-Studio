@@ -8,6 +8,11 @@ from pathlib import Path
 
 def check_bundle(executable):
     executable = Path(executable).resolve()
+    for name in ("ACKNOWLEDGEMENTS.md", "LICENSE-paradigma.txt", "PARADIGMA-CITATION.bib", "PARADIGMA-CITATION.cff"):
+        notice = executable.parent / name
+        packaged = executable.parent / "_internal" / "paradigma_desktop" / "data" / "notices" / name
+        if not notice.is_file() or not packaged.is_file() or notice.read_bytes() != packaged.read_bytes():
+            raise RuntimeError(f"Missing or inconsistent ParaDigMa attribution: {name}")
     if sys.platform == "win32":
         for name in ("vcomp140.dll", "msvcp140.dll"):
             dll = executable.parent / "_internal" / "sklearn" / ".libs" / name

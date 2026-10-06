@@ -57,6 +57,8 @@ QPushButton#module:checked { background: #eef5ff; border: 2px solid #2563a5; }
 QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox { background: white;
     color: #22324a; border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px;
     selection-background-color: #2563a5; selection-color: white; }
+QTextBrowser { background: white; color: #22324a; border: 1px solid #d7dfe9;
+    border-radius: 5px; padding: 12px; }
 QComboBox { min-height: 22px; padding: 8px 30px 8px 10px; combobox-popup: 0; }
 QComboBoxPrivateContainer { background: white; border: 1px solid #d7dfe9; }
 QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border-color: #2563a5; }

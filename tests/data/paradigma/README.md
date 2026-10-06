@@ -5,7 +5,7 @@ These fixtures come from the official ParaDigMa repository at commit
 Its package version is 1.1.2, matching the desktop dependency. They are public
 upstream test recordings, not user imports. ParaDigMa contributors retain their
 copyright; distribution follows the upstream Apache 2.0 license, reproduced in
-[`LICENSE-paradigma.txt`](../../../src/paradigma_desktop/data/LICENSE-paradigma.txt).
+[`LICENSE-paradigma.txt`](../../../src/paradigma_desktop/data/notices/LICENSE-paradigma.txt).
 
 Changes: original TSDF time/value binaries were decoded with `tsdf` and written
 as compressed Parquet without altering channel values or timestamps. The IMU

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Windows desktop interface for the official ParaDigMa toolbox"
 requires-python = ">=3.11,<3.14"
 dependencies = [
@@ -25,7 +25,7 @@ paradigma-desktop = "paradigma_desktop.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-paradigma_desktop = ["data/*"]
+paradigma_desktop = ["data/*", "data/notices/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
