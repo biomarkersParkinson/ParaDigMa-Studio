@@ -1,0 +1,346 @@
+"""Native Qt application. File loading and analysis never block the UI thread."""
+import json
+import logging
+import sys
+from importlib.metadata import version
+from pathlib import Path
+
+import numpy as np
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QThread, Signal
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
+    QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
+    QPushButton, QSplitter, QTableView, QTabWidget, QVBoxLayout, QWidget,
+)
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.figure import Figure
+
+from .core import analyze, export_results, load_sensor_file, result_tables
+
+
+class FrameModel(QAbstractTableModel):
+    def __init__(self, frame):
+        super().__init__()
+        self.frame = frame
+
+    def rowCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.frame)
+
+    def columnCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.frame.columns)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if index.isValid() and role == Qt.DisplayRole:
+            return str(self.frame.iat[index.row(), index.column()])
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            return str(self.frame.columns[section]) if orientation == Qt.Horizontal else str(section + 1)
+
+
+class SignalHandler(logging.Handler):
+    def __init__(self, signal):
+        super().__init__()
+        self.signal = signal
+
+    def emit(self, record):
+        self.signal.emit(self.format(record))
+
+
+class Worker(QThread):
+    completed = Signal(object)
+    failed = Signal(str)
+    message = Signal(str)
+
+    def __init__(self, operation):
+        super().__init__()
+        self.operation = operation
+
+    def run(self):
+        logger = logging.Logger("paradigma-desktop", logging.INFO)
+        handler = SignalHandler(self.message)
+        logger.addHandler(handler)
+        package_logger = logging.getLogger("paradigma")
+        previous_level = package_logger.level
+        package_logger.setLevel(logging.INFO)
+        package_logger.addHandler(handler)
+        try:
+            self.completed.emit(self.operation(logger))
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+        finally:
+            package_logger.removeHandler(handler)
+            package_logger.setLevel(previous_level)
+            handler.close()
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("ParaDigMa • Sensor analysis")
+        self.resize(1250, 850)
+        self.frame = self.results = self.worker = None
+        self.source = ""
+        self.tables = {}
+        self.provenance = {}
+        root = QWidget()
+        self.setCentralWidget(root)
+        layout = QVBoxLayout(root)
+        title = QLabel("ParaDigMa sensor analysis")
+        title.setStyleSheet("font-size: 24px; font-weight: 600; padding: 8px")
+        layout.addWidget(title)
+        toolbar = QHBoxLayout()
+        self.open_button = QPushButton("Open sensor file…")
+        self.open_button.clicked.connect(self.open_file)
+        toolbar.addWidget(self.open_button)
+        self.file_label = QLabel("No recording loaded")
+        toolbar.addWidget(self.file_label, 1)
+        self.run_button = QPushButton("Run ParaDigMa")
+        self.run_button.clicked.connect(self.run_analysis)
+        self.run_button.setEnabled(False)
+        toolbar.addWidget(self.run_button)
+        self.export_button = QPushButton("Export results…")
+        self.export_button.clicked.connect(self.export)
+        self.export_button.setEnabled(False)
+        toolbar.addWidget(self.export_button)
+        layout.addLayout(toolbar)
+        split = QSplitter()
+        layout.addWidget(split, 1)
+        self.settings_panel = QWidget()
+        settings = QFormLayout(self.settings_panel)
+        self.pipeline = self.combo(["Gait", "Tremor", "Gait + tremor", "Pulse rate"])
+        self.side = self.combo(["left", "right"])
+        self.acc = self.combo(["g", "m/s^2"])
+        self.gyro = self.combo(["deg/s", "rad/s"])
+        self.time = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
+        self.orientation = QLineEdit("x,y,z")
+        self.mapping = QPlainTextEdit("{}")
+        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
+        self.mapping.setMaximumHeight(120)
+        self.prepared = QCheckBox("Already prepared (skip conversion)")
+        self.gaps = QCheckBox("Split recordings at time gaps")
+        for name, widget in [("Pipeline", self.pipeline), ("Watch side", self.side),
+                             ("Acceleration units", self.acc), ("Gyroscope units", self.gyro),
+                             ("Time units", self.time), ("Device axes", self.orientation),
+                             ("Column mapping (JSON)", self.mapping), ("", self.prepared), ("", self.gaps)]:
+            settings.addRow(name, widget)
+        help_text = QLabel("Device axes: three signed axes, e.g. x,y,z or -y,x,z.\n\n"
+                           "Gait: accelerometer + gyroscope.\nTremor: gyroscope.\n"
+                           "Pulse rate: green PPG (accelerometer optional).\nAll require a numeric time column.\n\n"
+                           "Choose units and orientation for your device before running.")
+        help_text.setWordWrap(True)
+        settings.addRow(help_text)
+        split.addWidget(self.settings_panel)
+        tabs = QTabWidget()
+        split.addWidget(tabs)
+        split.setStretchFactor(1, 1)
+        self.input_table = QTableView()
+        tabs.addTab(self.input_table, "Sensor samples")
+        result_panel = QWidget()
+        result_layout = QVBoxLayout(result_panel)
+        controls = QHBoxLayout()
+        self.dataset = QComboBox()
+        self.dataset.currentTextChanged.connect(self.select_dataset)
+        controls.addWidget(self.dataset, 1)
+        self.csv_button = QPushButton("Export table CSV…")
+        self.csv_button.clicked.connect(self.export_csv)
+        self.csv_button.setEnabled(False)
+        controls.addWidget(self.csv_button)
+        result_layout.addLayout(controls)
+        self.result_table = QTableView()
+        result_layout.addWidget(self.result_table)
+        plot_controls = QHBoxLayout()
+        self.x_column = QComboBox()
+        self.y_column = QComboBox()
+        for label, widget in [("X", self.x_column), ("Y", self.y_column)]:
+            plot_controls.addWidget(QLabel(label))
+            plot_controls.addWidget(widget, 1)
+            widget.currentTextChanged.connect(self.plot)
+        result_layout.addLayout(plot_controls)
+        self.figure = Figure(layout="constrained")
+        self.canvas = FigureCanvasQTAgg(self.figure)
+        result_layout.addWidget(NavigationToolbar2QT(self.canvas, self))
+        result_layout.addWidget(self.canvas, 1)
+        tabs.addTab(result_panel, "Results & plots")
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        tabs.addTab(self.log, "Processing log")
+        self.status = QLabel("Open a recording to begin. Analysis runs locally.")
+        layout.addWidget(self.status)
+        self.progress = QProgressBar()
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
+
+    @staticmethod
+    def combo(items):
+        combo = QComboBox()
+        combo.addItems(items)
+        return combo
+
+    def start_job(self, operation, completed):
+        self.open_button.setEnabled(False)
+        self.run_button.setEnabled(False)
+        self.settings_panel.setEnabled(False)
+        self.progress.setRange(0, 0)
+        self.progress.show()
+        self.worker = Worker(operation)
+        self.worker.completed.connect(completed)
+        self.worker.failed.connect(self.failure)
+        self.worker.message.connect(self.log.appendPlainText)
+        self.worker.finished.connect(self.job_finished)
+        self.worker.start()
+
+    def job_finished(self):
+        self.open_button.setEnabled(True)
+        self.run_button.setEnabled(self.frame is not None)
+        self.settings_panel.setEnabled(True)
+        self.progress.hide()
+        self.worker.deleteLater()
+        self.worker = None
+
+    def failure(self, message):
+        self.status.setText("Operation failed. See the processing log.")
+        self.log.appendPlainText(message)
+        QMessageBox.critical(self, "Processing failed", message)
+
+    def clear_results(self):
+        self.results = None
+        self.tables = {}
+        self.dataset.clear()
+        self.result_table.setModel(None)
+        self.export_button.setEnabled(False)
+        self.csv_button.setEnabled(False)
+        self.figure.clear()
+        self.canvas.draw_idle()
+
+    def open_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Open sensor recording", "",
+            "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)")
+        if not path:
+            return
+        if Path(path).suffix.lower() in (".pkl", ".pickle"):
+            reply = QMessageBox.warning(self, "Trusted pickle files only",
+                "Pickle files can execute code when opened. Only continue if you trust this file's source.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply != QMessageBox.Yes:
+                return
+        self.status.setText("Loading recording…")
+        self.start_job(lambda logger: (path, load_sensor_file(path)), self.loaded)
+
+    def loaded(self, payload):
+        self.source, self.frame = payload
+        self.clear_results()
+        self.input_table.setModel(FrameModel(self.frame))
+        self.file_label.setText(f"{Path(self.source).name} • {len(self.frame):,} samples")
+        self.file_label.setToolTip(self.source)
+        self.status.setText("Recording loaded. Review settings, then run analysis.")
+
+    def run_analysis(self):
+        try:
+            mapping = json.loads(self.mapping.toPlainText())
+            axes = [v.strip() for v in self.orientation.text().split(",")]
+            if len(axes) != 3 or sorted(v.lstrip("-") for v in axes) != ["x", "y", "z"]:
+                raise ValueError("Device axes must contain x, y and z once each, optionally prefixed with '-'.")
+            pipelines = {"Gait": ["gait"], "Tremor": ["tremor"],
+                         "Gait + tremor": ["gait", "tremor"], "Pulse rate": ["pulse_rate"]}[self.pipeline.currentText()]
+            settings = dict(pipelines=pipelines, watch_side=self.side.currentText(),
+                            accelerometer_units=self.acc.currentText(), gyroscope_units=self.gyro.currentText(),
+                            time_input_unit=self.time.currentText(), device_orientation=axes,
+                            column_mapping=mapping, skip_preparation=self.prepared.isChecked(),
+                            split_by_gaps=self.gaps.isChecked())
+        except (ValueError, KeyError) as exc:
+            self.failure(str(exc))
+            return
+        self.clear_results()
+        self.provenance = {"source": self.source, "paradigma_version": version("paradigma"), "settings": settings}
+        self.log.clear()
+        self.status.setText("Running ParaDigMa…")
+        self.start_job(lambda logger: analyze(self.frame, logger=logger, **settings), self.analyzed)
+
+    def analyzed(self, results):
+        self.results = results
+        self.tables = result_tables(results)
+        self.dataset.addItems(self.tables)
+        self.export_button.setEnabled(True)
+        errors = results.get("errors", [])
+        if errors:
+            self.log.appendPlainText(json.dumps(errors, indent=2, default=str))
+            self.status.setText(f"Analysis returned {len(errors)} processing error(s); inspect the log and partial results.")
+            QMessageBox.warning(self, "Incomplete analysis", self.status.text())
+        else:
+            has_rows = any(len(v) for k, v in self.tables.items() if k.startswith("quantifications/"))
+            self.status.setText("Analysis completed. Select an output and numeric columns to plot." if has_rows
+                                else "Analysis returned no quantified windows. Inspect the log and recording requirements.")
+
+    def select_dataset(self, name):
+        frame = self.tables.get(name)
+        self.x_column.blockSignals(True)
+        self.y_column.blockSignals(True)
+        self.x_column.clear()
+        self.y_column.clear()
+        self.csv_button.setEnabled(frame is not None)
+        if frame is not None:
+            self.result_table.setModel(FrameModel(frame))
+            numeric = [str(c) for c in frame.select_dtypes(include="number").columns]
+            self.x_column.addItems(["Row number"] + numeric)
+            self.y_column.addItems(numeric)
+            if "time" in numeric:
+                self.x_column.setCurrentText("time")
+            self.y_column.setCurrentIndex(1 if numeric and numeric[0] == "time" and len(numeric) > 1 else 0)
+        self.x_column.blockSignals(False)
+        self.y_column.blockSignals(False)
+        self.plot()
+
+    def plot(self, *_):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        frame = self.tables.get(self.dataset.currentText())
+        y = self.y_column.currentText()
+        x = self.x_column.currentText()
+        if frame is not None and y in frame and len(frame):
+            # Bound rendering cost; the table and exports retain every row.
+            sample = frame.iloc[::max(1, int(np.ceil(len(frame) / 20000)))]
+            xv = sample.index if x == "Row number" else sample[x]
+            ax.plot(xv, sample[y], linewidth=1)
+            ax.set_xlabel(x)
+            ax.set_ylabel(y)
+            ax.set_title(self.dataset.currentText())
+            ax.grid(alpha=0.2)
+        else:
+            ax.text(0.5, 0.5, "Select a non-empty numeric output to visualize", ha="center", transform=ax.transAxes)
+        self.canvas.draw_idle()
+
+    def export(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export complete results", "paradigma-results.json", "JSON (*.json)")
+        if path:
+            try:
+                export_results(path, self.results, self.provenance)
+                self.status.setText(f"Results exported to {path}")
+            except Exception as exc:
+                self.failure(str(exc))
+
+    def export_csv(self):
+        frame = self.tables.get(self.dataset.currentText())
+        if frame is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export selected table", "output.csv", "CSV (*.csv)")
+        if path:
+            try:
+                frame.to_csv(path, index=False)
+            except Exception as exc:
+                self.failure(str(exc))
+
+    def closeEvent(self, event):
+        if self.worker is not None and self.worker.isRunning():
+            QMessageBox.information(self, "Processing in progress", "Wait for processing to finish before closing.")
+            event.ignore()
+        else:
+            event.accept()
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())

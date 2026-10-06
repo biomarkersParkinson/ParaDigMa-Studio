@@ -1,0 +1,1 @@
+"""Desktop wrapper for ParaDigMa."""
