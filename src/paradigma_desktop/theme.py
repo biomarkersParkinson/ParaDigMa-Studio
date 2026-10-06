@@ -1,4 +1,24 @@
 """Shared visual language for the desktop workspace."""
+from pathlib import Path
+from PySide6.QtGui import QColor, QPalette
+
+
+def light_palette():
+    palette = QPalette()
+    colors = {
+        QPalette.Window: "#f4f6fa", QPalette.WindowText: "#22324a",
+        QPalette.Base: "#ffffff", QPalette.AlternateBase: "#f8fafc",
+        QPalette.Text: "#22324a", QPalette.Button: "#ffffff",
+        QPalette.ButtonText: "#22324a", QPalette.Highlight: "#2563a5",
+        QPalette.HighlightedText: "#ffffff", QPalette.PlaceholderText: "#68778c",
+        QPalette.ToolTipBase: "#ffffff", QPalette.ToolTipText: "#22324a",
+    }
+    for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
+        for role, color in colors.items():
+            palette.setColor(group, role, QColor(color))
+    for role in (QPalette.Text, QPalette.WindowText, QPalette.ButtonText):
+        palette.setColor(QPalette.Disabled, role, QColor("#68778c"))
+    return palette
 
 STYLESHEET = """
 QWidget { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 13px; color: #22324a; }
@@ -19,7 +39,6 @@ QLabel#notice { color: #77561d; background: #fff6e4; border: 1px solid #eddfbf;
     border-radius: 7px; padding: 10px; }
 QFrame#card { background: white; border: 1px solid #e1e6ee; border-radius: 10px; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
-QFrame#inspector { background: white; border-left: 1px solid #e1e6ee; }
 QPushButton { background: white; border: 1px solid #d7dfe9; border-radius: 6px;
     padding: 8px 12px; min-height: 18px; }
 QPushButton:hover { background: #edf3fa; border-color: #9aadc4; }
@@ -29,17 +48,27 @@ QPushButton#primary { background: #2563a5; color: white; border-color: #2563a5;
     font-weight: 600; padding: 11px 20px; }
 QPushButton#primary:hover { background: #1c518b; }
 QPushButton#primary:disabled { background: #b3c4d8; border-color: #b3c4d8; color: white; }
-QPushButton#module { text-align: left; padding: 14px; min-height: 66px; }
+QPushButton#module { text-align: left; padding: 14px; min-height: 32px; font-weight: 600; }
 QPushButton#module:checked { background: #eef5ff; border: 2px solid #2563a5; }
 QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox { background: white;
-    border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px; selection-background-color: #2563a5; }
+    color: #22324a; border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px;
+    selection-background-color: #2563a5; selection-color: white; }
 QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border-color: #2563a5; }
-QLineEdit:disabled, QComboBox:disabled { background: #f4f6f9; color: #8c98a8; }
-QComboBox QAbstractItemView { background: white; selection-background-color: #dceafa;
-    selection-color: #16253a; border: 1px solid #d7dfe9; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right;
+    width: 24px; border: none; }
+QComboBox::down-arrow { image: url("__DROPDOWN_ICON__"); width: 12px; height: 8px; }
+QLineEdit:disabled, QComboBox:disabled, QDoubleSpinBox:disabled { background: #f4f6f9; color: #68778c; }
+QComboBox QAbstractItemView { background: white; color: #22324a;
+    selection-background-color: #2563a5; selection-color: white;
+    border: 1px solid #d7dfe9; outline: none; }
+QComboBox QAbstractItemView::item { padding: 8px; min-height: 20px; }
+QComboBox QAbstractItemView::item:hover { background: #edf3fa; color: #22324a; }
+QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:selected:hover {
+    background: #2563a5; color: white; }
 QCheckBox { spacing: 9px; padding: 4px 0; }
 QTableView { background: white; alternate-background-color: #f8fafc; border: none;
     gridline-color: #edf0f5; selection-background-color: #e3eefb; selection-color: #16253a; }
+QHeaderView { background: #f8fafc; color: #53657d; }
 QHeaderView::section { background: #f8fafc; border: none; border-bottom: 1px solid #e1e6ee;
     padding: 9px; font-weight: 600; color: #53657d; }
 QTabWidget::pane { background: white; border: 1px solid #e1e6ee; border-radius: 7px; }
@@ -54,7 +83,7 @@ QSplitter::handle { background: #edf0f5; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #c6d0de; min-height: 30px; border-radius: 4px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-"""
+""".replace("__DROPDOWN_ICON__", (Path(__file__).with_name("data") / "chevron-down.svg").as_posix())
 
 
 def style_axes(figure):

@@ -17,6 +17,7 @@ def smoke_test(report_path):
         import pandas as pd
         from importlib.resources import files
         from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QPixmap
         from PySide6.QtCore import QEventLoop, QTimer
         from paradigma.classification import ClassifierPackage
 
@@ -40,6 +41,8 @@ def smoke_test(report_path):
         try:
             if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
                 raise RuntimeError("Bundled application icon could not be rendered")
+            if QPixmap(str(files("paradigma_desktop") / "data" / "chevron-down.svg")).isNull():
+                raise RuntimeError("Bundled dropdown indicator could not be rendered")
             with tempfile.TemporaryDirectory(prefix="paradigma-smoke-") as directory:
                 directory = Path(directory)
                 t = np.arange(12000) / 100
@@ -59,8 +62,18 @@ def smoke_test(report_path):
                 if quantified.empty or "tremor_power" not in quantified.columns:
                     raise RuntimeError("Tremor analysis returned no quantified output")
                 window.loaded((str(source), loaded))
+                if [window.data_tabs.tabText(i) for i in range(3)] != ["Overview", "Graphs", "Tables"]:
+                    raise RuntimeError("Data exploration tabs are missing")
+                window.module_buttons["Tremor"].click()
+                if window.selected_modules() != ["gait", "tremor"]:
+                    raise RuntimeError("Analysis module multi-selection failed")
+                window.set_modules(["tremor"])
+                if not window.pages.widget(1).isAncestorOf(window.mapping):
+                    raise RuntimeError("Analysis parameters are not integrated into Analyze")
+                if not window.pages.widget(2).isAncestorOf(window.y_column):
+                    raise RuntimeError("Result controls are not integrated into Results")
                 window.analyzed(results)
-                if window.pages.currentIndex() != 2 or window.inspector_pages.currentIndex() != 2:
+                if window.pages.currentIndex() != 2:
                     raise RuntimeError("Completed analysis did not open the Results workspace")
                 window.dataset.setCurrentText("quantifications/tremor")
                 window.show()
@@ -162,6 +175,9 @@ def smoke_test(report_path):
                 report.update(status="passed", paradigma_version=version("paradigma"),
                               app_icon_rendered=True,
                               workspace_navigation_verified=True,
+                              integrated_page_controls_verified=True,
+                              dropdown_indicator_rendered=True,
+                              module_multiselection_verified=True,
                               linked_result_selection_verified=True,
                               gait_sensor_context_verified=True,
                               run_history_reopened=True,

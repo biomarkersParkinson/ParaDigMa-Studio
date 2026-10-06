@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication, QComboBox
 
 from paradigma_desktop import app as desktop
 from paradigma_desktop.app import MainWindow
@@ -42,21 +43,22 @@ def output():
         "metric": np.arange(10, 16, dtype=float)})
 
 
-def test_navigation_inspector_and_compact_sidebar_preserve_settings(window):
+def test_navigation_and_integrated_controls_preserve_settings(window):
     assert window.pages.count() == 4
     assert window.SECTIONS == ("Data", "Analyze", "Results", "Runs")
     window.navigate(1)
-    window.pipeline.setCurrentText("Gait + tremor")
+    window.module_buttons["Tremor"].click()
     assert window.module_buttons["Gait"].isChecked()
     assert window.module_buttons["Tremor"].isChecked()
     assert not window.module_buttons["Pulse rate"].isChecked()
     assert set(window.module_buttons) == {"Gait", "Tremor", "Pulse rate"}
-    window.advanced_toggle.setChecked(True)
-    assert not window.advanced_settings.isHidden()
+    assert window.pages.widget(1).isAncestorOf(window.settings_panel)
+    assert not hasattr(window, "inspector")
+    assert not hasattr(window, "pipeline")
     window.gyro.setCurrentText("rad/s")
     for index in range(4):
         window.nav_buttons[index].click()
-        assert window.pages.currentIndex() == window.inspector_pages.currentIndex() == index
+        assert window.pages.currentIndex() == index
         assert window.nav_buttons[index].isChecked()
         assert sum(item.isChecked() for item in window.nav_buttons) == 1
     window.toggle_sidebar()
@@ -64,11 +66,8 @@ def test_navigation_inspector_and_compact_sidebar_preserve_settings(window):
     assert [item.accessibleName() for item in window.nav_buttons] == list(window.SECTIONS)
     window.toggle_sidebar()
     assert window.sidebar.width() == 194
-    window.inspector_toggle.setChecked(False)
-    assert window.inspector.isHidden()
-    window.inspector_toggle.setChecked(True)
     window.navigate(1)
-    assert window.pipeline.currentText() == "Gait + tremor"
+    assert window.selected_modules() == ["gait", "tremor"]
     assert window.gyro.currentText() == "rad/s"
 
 
@@ -76,13 +75,125 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     app = QApplication.instance()
     window.navigate(1)
     window.toggle_sidebar()
-    window.advanced_toggle.setChecked(True)
     window.resize(1050, 720)
     window.show()
     app.processEvents()
     assert window.run_button.isVisible()
     assert window.run_button.parentWidget() is window.pages.widget(1)
     assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
+
+
+def test_data_overview_graphs_and_tables_use_original_recording(window):
+    frame = pd.DataFrame({"time": [0., .1, .2], "gyroscope_x": [1., np.nan, 3.], "green": [5., 6., 7.]})
+    original = frame.copy(deep=True)
+    window.loaded(("sensor.csv", frame))
+    assert [window.data_tabs.tabText(i) for i in range(3)] == ["Overview", "Graphs", "Tables"]
+    assert [item.text() for item in window.data_values] == ["3", "3", "1"]
+    assert window.data_tabs.widget(0).isAncestorOf(window.data_values[0])
+    assert window.data_tabs.widget(0).isAncestorOf(window.data_metadata)
+    assert window.data_tabs.widget(1).isAncestorOf(window.data_channel)
+    assert window.data_tabs.widget(2) is window.input_table
+    assert window.channel_table.model().frame["Missing"].tolist() == [0, 1, 0]
+    window.data_channel.setCurrentText("green")
+    line = window.data_figure.axes[0].lines[0]
+    np.testing.assert_array_equal(line.get_xdata(), frame.time)
+    np.testing.assert_array_equal(line.get_ydata(), frame.green)
+    pd.testing.assert_frame_equal(window.input_table.model().frame, original)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_module_cards_allow_gait_tremor_selection_and_enforce_pulse_workflow(window):
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
+    assert window.selected_modules() == ["gait"]
+    window.module_buttons["Tremor"].click()
+    assert window.selected_modules() == ["gait", "tremor"]
+    window.module_buttons["Gait"].click()
+    assert window.selected_modules() == ["tremor"]
+    assert not window.side.isEnabled()
+    window.module_buttons["Tremor"].click()
+    assert window.selected_modules() == []
+    assert not window.run_button.isEnabled()
+    window.run_analysis()
+    assert window.worker is None and window.runs == []
+    assert "Select an analysis module" in window.notice.text()
+    window.module_buttons["Gait"].click()
+    window.module_buttons["Tremor"].click()
+    window.module_buttons["Pulse rate"].click()
+    assert window.selected_modules() == ["pulse_rate"]
+    window.module_buttons["Tremor"].click()
+    assert window.selected_modules() == ["tremor"]
+
+
+def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, monkeypatch):
+    frame = pd.DataFrame({"time": [0., 1.]})
+    window.loaded(("sensor.csv", frame))
+    window.module_buttons["Tremor"].click()
+    window.side.setCurrentText("right")
+    window.acc.setCurrentText("m/s^2")
+    window.gyro.setCurrentText("rad/s")
+    window.time.setCurrentText("relative_ms")
+    window.orientation.setText("-y,x,z")
+    window.mapping.setPlainText('{"device_time": "time"}')
+    window.max_gap.setValue(2.5)
+    window.min_segment.setValue(4)
+    window.drop_missing.setChecked(False)
+    captured = []
+    def analyze(source, logger, **settings):
+        assert source is frame
+        captured.append(settings)
+        return {"quantifications": {"test": output()}, "errors": []}
+    monkeypatch.setattr(desktop, "analyze", analyze)
+    window.run_analysis()
+    wait_for_job(window)
+    expected = dict(pipelines=["gait", "tremor"], watch_side="right", accelerometer_units="m/s^2",
+        gyroscope_units="rad/s", time_input_unit="relative_ms", device_orientation=["-y", "x", "z"],
+        column_mapping={"device_time": "time"}, skip_preparation=False, split_by_gaps=True,
+        drop_missing_samples=False, max_gap_seconds=2.5, min_segment_seconds=4.)
+    assert captured == [expected]
+    assert window.runs[0]["settings"] == expected
+    window.set_modules(["pulse_rate"])
+    window.gyro.setCurrentText("deg/s")
+    window.use_run_parameters()
+    assert window.pages.currentIndex() == 1
+    assert window.selected_modules() == ["gait", "tremor"]
+    assert window.gyro.currentText() == "rad/s"
+    assert window.max_gap.value() == 2.5
+    assert window.orientation.text() == "-y,x,z"
+    assert json.loads(window.mapping.toPlainText()) == {"device_time": "time"}
+
+
+def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    previous = app.palette()
+    dark = QPalette(previous)
+    for role in (QPalette.Window, QPalette.Base, QPalette.Button, QPalette.Highlight):
+        dark.setColor(role, QColor("#101522"))
+    dark.setColor(QPalette.Text, QColor("#000000"))
+    dark.setColor(QPalette.HighlightedText, QColor("#000000"))
+    app.setPalette(dark)
+    window = None
+    def luminance(color):
+        channels = [color.redF(), color.greenF(), color.blueF()]
+        linear = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in channels]
+        return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2]
+    try:
+        window = MainWindow(history_dir=tmp_path / "runs")
+        window.navigate(1)
+        window.show()
+        window.time.showPopup()
+        app.processEvents()
+        for combo in window.findChildren(QComboBox):
+            palette = combo.view().palette()
+            for foreground, background in ((QPalette.Text, QPalette.Base),
+                                            (QPalette.HighlightedText, QPalette.Highlight)):
+                values = sorted([luminance(palette.color(QPalette.Active, foreground)),
+                                 luminance(palette.color(QPalette.Active, background))])
+                assert (values[1] + .05) / (values[0] + .05) >= 4.5
+        window.time.hidePopup()
+    finally:
+        if window is not None:
+            window.close()
+        app.setPalette(previous)
 
 
 def test_one_selection_drives_graph_table_summary_and_csv(window, tmp_path, monkeypatch):
@@ -165,10 +276,11 @@ def test_context_drills_into_original_mapped_sensor_values(window):
 def test_missing_participant_and_original_recording_are_explicit(window):
     window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [1., 2.], "power": [1., 2.]})}, "errors": []})
     assert not window.participant.isEnabled()
-    assert "no participant" in window.filter_status.text()
+    assert window.participant_field.isHidden()
+    assert "no participant" in window.participant.toolTip()
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not window.context_button.isEnabled()
-    assert "requires the original recording" in window.context_hint.text()
+    assert window.context_hint.text() == "Original sensor data unavailable"
 
 
 def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata(window):
@@ -202,7 +314,7 @@ def test_nullable_result_values_plot_without_losing_rows(window):
 def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window, monkeypatch):
     frame = pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})
     window.loaded(("first.csv", frame))
-    window.pipeline.setCurrentText("Tremor")
+    window.set_modules(["tremor"])
     def analyze(frame, logger, **settings):
         logger.warning("Example quality warning")
         return {"quantifications": {"tremor": output()}, "errors": []}
@@ -239,7 +351,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
 def test_exported_json_can_reopen_after_restart_without_loading_pickle(window, tmp_path, monkeypatch):
     window.loaded((str(tmp_path / "trusted.pkl"), pd.DataFrame({"time": [0., 1.]})))
     monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"tremor": output()}, "errors": []})
-    window.pipeline.setCurrentText("Tremor")
+    window.set_modules(["tremor"])
     window.run_analysis()
     wait_for_job(window)
     target = tmp_path / "results.json"

@@ -40,3 +40,7 @@ icon. The PNG is an icon-ready version prepared with transparent surroundings;
 the ICO contains 16, 24, 32, 48, 64, 128 and 256 pixel representations.
 These application graphics are separate from the upstream ParaDigMa example
 recordings described above and their accompanying Apache 2.0 license.
+
+chevron-down.svg is the application's dropdown indicator, created for the
+integrated page layout in version 0.2.1. It is separate from the upstream
+recordings and the repository owner's smartwatch icon.

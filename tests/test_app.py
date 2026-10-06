@@ -76,7 +76,7 @@ def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypat
     app = QApplication.instance() or QApplication([])
     window = MainWindow(history_dir=tmp_path / "runs")
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
-    window.pipeline.setCurrentText("Tremor")
+    window.set_modules(["tremor"])
     window.time.setCurrentText("relative_ms")
     window.gyro.setCurrentText("rad/s")
     window.orientation.setText("--x,y,z")
@@ -103,7 +103,7 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     t = np.arange(30) / 100
     frame = pd.DataFrame({"time": t, **{f"gyroscope_{axis}": np.sin(t) for axis in "xyz"}})
     window.loaded(("short.csv", frame))
-    window.pipeline.setCurrentText("Tremor")
+    window.set_modules(["tremor"])
     window.gaps.setChecked(False)  # Exercise the classifier's short-input failure.
     window.run_analysis()
     assert not window.run_button.isEnabled()

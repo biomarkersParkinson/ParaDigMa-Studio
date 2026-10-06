@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableView,
+    QPushButton, QScrollArea, QSplitter, QStackedWidget, QTableView, QListView,
     QTabWidget, QVBoxLayout, QWidget,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -26,7 +26,7 @@ from .core import (
 )
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, select_rows, source_timeline
 from .history import RunHistory, load_result_export, new_run, now
-from .theme import STYLESHEET, style_axes
+from .theme import STYLESHEET, light_palette, style_axes
 
 
 class FrameModel(QAbstractTableModel):
@@ -122,6 +122,9 @@ def card():
 
 def table():
     widget = QTableView()
+    widget.setPalette(light_palette())
+    widget.horizontalHeader().setPalette(light_palette())
+    widget.verticalHeader().setPalette(light_palette())
     widget.setAlternatingRowColors(True)
     widget.setShowGrid(False)
     widget.verticalHeader().hide()
@@ -138,14 +141,22 @@ def readout():
     return widget
 
 
+def field(title, control):
+    widget = QWidget()
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(5)
+    heading = label(title, "muted")
+    heading.setBuddy(control)
+    layout.addWidget(heading)
+    layout.addWidget(control)
+    control.setAccessibleName(title)
+    return widget
+
+
 class MainWindow(QMainWindow):
     SECTIONS = ("Data", "Analyze", "Results", "Runs")
-    SUBTITLES = (
-        "Open a recording and inspect its sensor channels.",
-        "Choose an analysis plan and review preparation settings.",
-        "Explore metrics, compare selections and inspect sensor context.",
-        "Review analysis status, parameters, warnings and saved outputs.",
-    )
+    MODULES = {"Gait": "gait", "Tremor": "tremor", "Pulse rate": "pulse_rate"}
 
     def __init__(self, history_dir=None):
         super().__init__()
@@ -153,6 +164,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(Path(__file__).with_name("data") / "app-icon.png")))
         self.resize(1450, 920)
         self.setMinimumSize(960, 650)
+        self.setPalette(light_palette())
         self.setStyleSheet(STYLESHEET)
         self.frame = self.results = self.worker = None
         self.source = ""
@@ -173,7 +185,6 @@ class MainWindow(QMainWindow):
         self._build_analyze()
         self._build_results()
         self._build_runs()
-        self._build_inspectors()
         self._connect()
         self.refresh_runs()
         self.navigate(0)
@@ -182,8 +193,15 @@ class MainWindow(QMainWindow):
             self.show_notice("\n".join(history_issues))
 
     @staticmethod
-    def combo(items):
+    def combo(items=()):
         combo = QComboBox()
+        # A Qt list view and explicit palette avoid native dark-theme popups
+        # combining dark selection backgrounds with inherited dark text.
+        view = QListView()
+        view.setUniformItemSizes(True)
+        view.setPalette(light_palette())
+        combo.setView(view)
+        combo.setPalette(light_palette())
         combo.addItems(items)
         return combo
 
@@ -221,7 +239,7 @@ class MainWindow(QMainWindow):
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
-        self.local_label = label("Local processing\nYour data stays on this device.")
+        self.local_label = label("Local processing")
         navigation.addWidget(self.local_label)
         self.collapse_button = button("‹  Collapse", self.toggle_sidebar)
         self.collapse_button.setObjectName("collapse")
@@ -233,65 +251,29 @@ class MainWindow(QMainWindow):
         center_layout.setContentsMargins(24, 20, 20, 12)
         center_layout.setSpacing(14)
         heading = QHBoxLayout()
-        titles = QVBoxLayout()
         self.page_title = label("", "pageTitle")
-        self.page_subtitle = label("", "muted")
-        titles.addWidget(self.page_title)
-        titles.addWidget(self.page_subtitle)
-        heading.addLayout(titles, 1)
-        self.inspector_toggle = button("Inspector")
-        self.inspector_toggle.setCheckable(True)
-        self.inspector_toggle.setChecked(True)
-        self.inspector_toggle.setToolTip("Show or hide contextual settings and metadata")
-        heading.addWidget(self.inspector_toggle)
+        heading.addWidget(self.page_title, 1)
         center_layout.addLayout(heading)
         self.notice = label("", "notice")
         self.notice.hide()
         center_layout.addWidget(self.notice)
-        self.workspace_split = QSplitter()
         self.pages = QStackedWidget()
-        self.workspace_split.addWidget(self.pages)
-        self.inspector = QFrame()
-        self.inspector.setObjectName("inspector")
-        self.inspector.setMinimumWidth(258)
-        self.inspector.setMaximumWidth(390)
-        inspector_layout = QVBoxLayout(self.inspector)
-        inspector_layout.setContentsMargins(16, 16, 12, 12)
-        self.inspector_title = label("", "sectionTitle")
-        inspector_layout.addWidget(self.inspector_title)
-        self.inspector_pages = QStackedWidget()
-        inspector_layout.addWidget(self.inspector_pages, 1)
-        self.workspace_split.addWidget(self.inspector)
-        self.workspace_split.setStretchFactor(0, 1)
-        self.workspace_split.setStretchFactor(1, 0)
-        self.workspace_split.setSizes([900, 310])
-        center_layout.addWidget(self.workspace_split, 1)
+        center_layout.addWidget(self.pages, 1)
         self.progress = QProgressBar()
         self.progress.setTextVisible(False)
         self.progress.hide()
         center_layout.addWidget(self.progress)
-        self.status = label("Open a recording to begin. Analysis runs locally.", "muted")
+        self.status = label("Open a sensor file.", "muted")
         center_layout.addWidget(self.status)
         shell.addWidget(center, 1)
 
     def page(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 12, 0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
         self.pages.addWidget(widget)
         return layout
-
-    def inspector_page(self):
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(0, 2, 4, 8)
-        layout.setSpacing(14)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(content)
-        self.inspector_pages.addWidget(scroll)
-        return content, layout
 
     def _build_data(self):
         layout = self.page()
@@ -300,15 +282,19 @@ class MainWindow(QMainWindow):
         self.file_label = label("No recording loaded", "sectionTitle")
         row.addWidget(self.file_label, 1)
         self.open_button = button("Open sensor file…", self.open_file, primary=True)
-        self.open_button.setToolTip("Open a sensor recording (Ctrl+O)")
+        self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
         self.open_action = QAction("Open recording", self)
         self.open_action.setShortcut("Ctrl+O")
         self.open_action.triggered.connect(self.open_file)
         self.addAction(self.open_action)
         row.addWidget(self.open_button)
         content.addLayout(row)
-        content.addWidget(label("CSV, Parquet, Axivity CWA, Empatica Avro, TSDF or trusted pickle.", "muted"))
         layout.addWidget(panel)
+        self.data_tabs = QTabWidget()
+        overview = QWidget()
+        overview_layout = QVBoxLayout(overview)
+        overview_layout.setContentsMargins(18, 18, 18, 18)
+        overview_layout.setSpacing(16)
         metrics = QHBoxLayout()
         self.data_values = []
         for title in ("Sensor samples", "Channels", "Missing values"):
@@ -318,17 +304,32 @@ class MainWindow(QMainWindow):
             content.addWidget(value)
             self.data_values.append(value)
             metrics.addWidget(panel, 1)
-        layout.addLayout(metrics)
-        self.data_tabs = QTabWidget()
-        self.input_table = table()
-        self.data_tabs.addTab(self.input_table, "Samples")
+        overview_layout.addLayout(metrics)
+        details = QHBoxLayout()
+        panel, content = card()
+        content.addWidget(label("Channels", "sectionTitle"))
+        self.channel_table = table()
+        content.addWidget(self.channel_table, 1)
+        details.addWidget(panel, 2)
+        panel, content = card()
+        content.addWidget(label("Recording metadata", "sectionTitle"))
+        self.data_metadata = readout()
+        self.data_metadata.setPlaceholderText("No recording loaded")
+        content.addWidget(self.data_metadata, 1)
+        details.addWidget(panel, 1)
+        overview_layout.addLayout(details, 1)
+        self.data_tabs.addTab(overview, "Overview")
         preview = QWidget()
         preview_layout = QVBoxLayout(preview)
+        self.data_channel = self.combo()
+        preview_layout.addWidget(field("Channel", self.data_channel))
         self.data_figure = Figure(layout="constrained")
         self.data_canvas = FigureCanvasQTAgg(self.data_figure)
         preview_layout.addWidget(NavigationToolbar2QT(self.data_canvas, self))
         preview_layout.addWidget(self.data_canvas, 1)
-        self.data_tabs.addTab(preview, "Signal preview")
+        self.data_tabs.addTab(preview, "Graphs")
+        self.input_table = table()
+        self.data_tabs.addTab(self.input_table, "Tables")
         layout.addWidget(self.data_tabs, 1)
         self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
         self.continue_button.setEnabled(False)
@@ -344,11 +345,13 @@ class MainWindow(QMainWindow):
         content.setSpacing(18)
         panel, input_layout = card()
         input_layout.addWidget(label("Selected input", "muted"))
-        self.analysis_input = label("Open a sensor recording in Data to begin.", "sectionTitle")
-        input_layout.addWidget(self.analysis_input)
+        input_row = QHBoxLayout()
+        self.analysis_input = label("No recording loaded", "sectionTitle")
+        input_row.addWidget(self.analysis_input, 1)
+        input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
+        input_layout.addLayout(input_row)
         self.analysis_input_detail = label("", "muted")
         input_layout.addWidget(self.analysis_input_detail)
-        input_layout.addWidget(button("Inspect input", lambda: self.navigate(0)), alignment=Qt.AlignLeft)
         content.addWidget(panel)
         self.analysis_controls = QWidget()
         controls = QVBoxLayout(self.analysis_controls)
@@ -357,37 +360,69 @@ class MainWindow(QMainWindow):
         controls.addWidget(label("Analysis modules", "sectionTitle"))
         modules = QHBoxLayout()
         self.module_buttons = {}
-        for name, description in (("Gait", "Detection and\narm-swing metrics"),
-                                  ("Tremor", "Detection and\ntremor measurements"),
-                                  ("Pulse rate", "Raw green PPG\nanalysis")):
-            item = button(f"{name}\n{description}", lambda checked=False, n=name: self.pipeline.setCurrentText(n))
+        for name, description in (("Gait", "Requires accelerometer and gyroscope channels."),
+                                  ("Tremor", "Requires gyroscope channels. Can run together with gait."),
+                                  ("Pulse rate", "Requires raw green PPG. Runs separately from gait and tremor.")):
+            item = button(name)
             item.setObjectName("module")
             item.setCheckable(True)
             item.setToolTip(description)
             self.module_buttons[name] = item
             modules.addWidget(item, 1)
+        self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
-        panel, common = card()
-        form = QFormLayout()
-        form.setSpacing(14)
-        self.pipeline = self.combo(["Gait", "Tremor", "Gait + tremor", "Pulse rate"])
-        self.side = self.combo(["left", "right"])
-        form.addRow("Analysis plan", self.pipeline)
-        form.addRow("Watch side", self.side)
-        common.addLayout(form)
         self.module_requirements = label("", "muted")
-        common.addWidget(self.module_requirements)
-        controls.addWidget(panel)
-        panel, prep_layout = card()
-        prep_layout.addWidget(label("Preprocessing", "sectionTitle"))
-        prep_layout.addWidget(label("The toolbox prepares the required signals before extracting metrics. Review input units, missing samples and gaps in the inspector.", "muted"))
-        self.preparation_summary = label("", "muted")
-        prep_layout.addWidget(self.preparation_summary)
-        controls.addWidget(panel)
+        controls.addWidget(self.module_requirements)
+        self.settings_panel, parameters = card()
+        parameters.addWidget(label("Analysis parameters", "sectionTitle"))
+        columns = QHBoxLayout()
+        columns.setSpacing(28)
+        left = QFormLayout()
+        right = QFormLayout()
+        for form in (left, right):
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            form.setSpacing(14)
+        self.side = self.combo(["left", "right"])
+        self.acc = self.combo(["g", "m/s^2"])
+        self.gyro = self.combo(["deg/s", "rad/s"])
+        self.time = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
+        self.orientation = QLineEdit("x,y,z")
+        self.orientation.setToolTip("Three signed axes, for example x,y,z or -y,x,z")
+        for title, widget in (("Watch side", self.side), ("Acceleration units", self.acc),
+                              ("Gyroscope units", self.gyro), ("Time units", self.time),
+                              ("Device axes", self.orientation)):
+            left.addRow(title, widget)
+        self.prepared = QCheckBox("Already prepared (skip conversion)")
+        self.prepared.setToolTip("Prepared data must already use relative seconds, g and deg/s.")
+        self.gaps = QCheckBox("Split recordings at time gaps")
+        self.gaps.setChecked(True)
+        self.drop_missing = QCheckBox("Exclude missing sensor samples")
+        self.drop_missing.setChecked(True)
+        self.drop_missing.setToolTip("Exclude invalid required samples and analyze valid sections separately.")
+        for widget in (self.prepared, self.gaps, self.drop_missing):
+            widget.setPalette(light_palette())
+            right.addRow(widget)
+        self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
+        for widget in (self.max_gap, self.min_segment):
+            widget.setRange(0.01, 86400)
+            widget.setValue(1.5)
+            widget.setSuffix(" s")
+            widget.setDecimals(2)
+        right.addRow("Maximum gap", self.max_gap)
+        right.addRow("Minimum section duration", self.min_segment)
+        columns.addLayout(left, 1)
+        columns.addLayout(right, 1)
+        parameters.addLayout(columns)
+        self.mapping = QPlainTextEdit("{}")
+        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
+        self.mapping.setFixedHeight(70)
+        parameters.addWidget(field("Column mapping (JSON)", self.mapping))
+        controls.addWidget(self.settings_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
         row = QHBoxLayout()
-        row.addWidget(label("Runs locally · results open in the Results workspace", "muted"), 1)
+        row.addStretch()
         self.run_button = button("Run Analysis", self.run_analysis, primary=True)
         self.run_button.setShortcut("Ctrl+Return")
         self.run_button.setEnabled(False)
@@ -400,10 +435,14 @@ class MainWindow(QMainWindow):
     def _build_results(self):
         layout = self.page()
         controls = QHBoxLayout()
-        self.dataset = QComboBox()
+        self.dataset = self.combo()
         self.dataset.setMinimumWidth(160)
         self.dataset.setAccessibleName("Result dataset")
+        self.dataset.setToolTip("Output dataset")
         controls.addWidget(self.dataset, 1)
+        self.filters_toggle = button("Filters")
+        self.filters_toggle.setCheckable(True)
+        controls.addWidget(self.filters_toggle)
         self.csv_button = button("Export selection CSV…", self.export_csv)
         self.export_button = button("Export all JSON…", self.export)
         self.csv_button.setEnabled(False)
@@ -411,7 +450,44 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.csv_button)
         controls.addWidget(self.export_button)
         layout.addLayout(controls)
-        self.selection_note = label("Run an analysis to explore its outputs.", "muted")
+        settings = QHBoxLayout()
+        self.x_column, self.y_column = self.combo(), self.combo()
+        settings.addWidget(field("Metric", self.y_column), 1)
+        settings.addWidget(field("Horizontal axis", self.x_column), 1)
+        self.participant, self.segment = self.combo(), self.combo()
+        self.participant_field = field("Participant", self.participant)
+        self.segment_field = field("Recording section", self.segment)
+        settings.addWidget(self.participant_field, 1)
+        settings.addWidget(self.segment_field, 1)
+        self.participant_field.hide()
+        self.segment_field.hide()
+        layout.addLayout(settings)
+        self.filters_panel, filters = card()
+        row = QHBoxLayout()
+        self.filter_column = self.combo()
+        self.filter_value = QLineEdit()
+        self.filter_value.setPlaceholderText("Contains text")
+        self.filter_min, self.filter_max = QLineEdit(), QLineEdit()
+        self.filter_min.setPlaceholderText("Minimum")
+        self.filter_max.setPlaceholderText("Maximum")
+        row.addWidget(field("Column", self.filter_column), 2)
+        row.addWidget(field("Text", self.filter_value), 2)
+        row.addWidget(field("Minimum", self.filter_min), 1)
+        row.addWidget(field("Maximum", self.filter_max), 1)
+        actions = QVBoxLayout()
+        actions.addStretch()
+        actions.addWidget(button("Apply", self.apply_filters, primary=True))
+        row.addLayout(actions)
+        actions = QVBoxLayout()
+        actions.addStretch()
+        actions.addWidget(button("Reset", self.reset_filters))
+        row.addLayout(actions)
+        filters.addLayout(row)
+        self.filter_status = label("", "muted")
+        filters.addWidget(self.filter_status)
+        layout.addWidget(self.filters_panel)
+        self.filters_panel.hide()
+        self.selection_note = label("No results", "muted")
         layout.addWidget(self.selection_note)
         self.result_tabs = QTabWidget()
         overview = QWidget()
@@ -427,12 +503,18 @@ class MainWindow(QMainWindow):
             self.result_values.append(value)
             metrics.addWidget(panel, 1)
         overview_layout.addLayout(metrics)
-        self.overview_text = label("Choose an output dataset and metric in the inspector.", "muted")
-        overview_layout.addWidget(self.overview_text)
         overview_layout.addWidget(label("Descriptive statistics of the selection", "sectionTitle"))
         self.summary_table = table()
         overview_layout.addWidget(self.summary_table, 1)
-        overview_layout.addWidget(label("These summaries describe selected rows. Toolbox aggregations remain available as separate datasets.", "muted"))
+        self.summary_table.setToolTip("Statistics of selected rows. Official aggregations are separate output datasets.")
+        self.metadata_toggle = button("Metadata")
+        self.metadata_toggle.setCheckable(True)
+        overview_layout.addWidget(self.metadata_toggle, alignment=Qt.AlignLeft)
+        self.result_metadata = readout()
+        self.result_metadata.setMaximumHeight(130)
+        overview_layout.addWidget(self.result_metadata)
+        self.result_metadata.hide()
+        self.metadata_toggle.toggled.connect(self.result_metadata.setVisible)
         self.result_tabs.addTab(overview, "Overview")
         graphs = QWidget()
         graph_layout = QVBoxLayout(graphs)
@@ -441,7 +523,7 @@ class MainWindow(QMainWindow):
         self.plot_toolbar = NavigationToolbar2QT(self.canvas, self)
         graph_layout.addWidget(self.plot_toolbar)
         graph_layout.addWidget(self.canvas, 1)
-        graph_layout.addWidget(label("Pan, zoom or save the figure. Click a time-based point to select its row for sensor inspection.", "muted"))
+        self.canvas.setToolTip("Click a time-based point to select its result row.")
         self.result_tabs.addTab(graphs, "Graphs")
         self.result_table = table()
         self.result_tabs.addTab(self.result_table, "Tables")
@@ -452,7 +534,7 @@ class MainWindow(QMainWindow):
         sensor_header.addWidget(button("Close", self.hide_sensor_context))
         sensor_layout.addLayout(sensor_header)
         sensor_layout.addWidget(self.sensor_note)
-        self.sensor_channel = QComboBox()
+        self.sensor_channel = self.combo()
         sensor_layout.addWidget(self.sensor_channel)
         sensor_tabs = QTabWidget()
         sensor_graph = QWidget()
@@ -468,12 +550,26 @@ class MainWindow(QMainWindow):
         self.sensor_tab_index = self.result_tabs.addTab(self.sensor_panel, "Sensor context")
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)
         layout.addWidget(self.result_tabs, 1)
+        context = QHBoxLayout()
+        self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
+        self.context_button.setEnabled(False)
+        context.addWidget(self.context_button)
+        self.context_radius = QDoubleSpinBox()
+        self.context_radius.setRange(0.1, 120)
+        self.context_radius.setValue(2)
+        self.context_radius.setSuffix(" s")
+        self.context_radius.setMaximumWidth(100)
+        self.context_radius.setToolTip("Original samples within this radius of the selected time; not an analysis window.")
+        context.addWidget(label("±", "muted"))
+        context.addWidget(self.context_radius)
+        self.context_hint = label("Select a result row", "muted")
+        context.addWidget(self.context_hint, 1)
+        layout.addLayout(context)
 
     def _build_runs(self):
         layout = self.page()
+        split = QSplitter(Qt.Vertical)
         panel, content = card()
-        content.addWidget(label("Analysis history", "sectionTitle"))
-        content.addWidget(label("Run metadata is saved locally. Results stay in this session until you export them; exported JSON can be reopened here.", "muted"))
         self.run_table = table()
         content.addWidget(self.run_table, 1)
         actions = QHBoxLayout()
@@ -483,147 +579,37 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.use_parameters_button)
         actions.addStretch()
         content.addLayout(actions)
-        layout.addWidget(panel, 1)
+        split.addWidget(panel)
         panel, content = card()
-        content.addWidget(label("Processing log", "sectionTitle"))
-        self.log = readout()
-        content.addWidget(self.log, 1)
-        layout.addWidget(panel, 1)
-
-    def _build_inspectors(self):
-        _, layout = self.inspector_page()
-        layout.addWidget(label("Recording metadata", "sectionTitle"))
-        self.data_metadata = readout()
-        self.data_metadata.setPlaceholderText("Open a recording to inspect its path, channels and metadata.")
-        self.data_metadata.setMinimumHeight(210)
-        layout.addWidget(self.data_metadata)
-        layout.addWidget(label("Preview channel", "sectionTitle"))
-        self.data_channel = QComboBox()
-        layout.addWidget(self.data_channel)
-        layout.addWidget(label("The preview displays original sensor values. Its horizontal axis uses the file's numeric time values, or sample positions if numeric time is unavailable.", "muted"))
-        layout.addStretch()
-        self.settings_panel, layout = self.inspector_page()
-        layout.addWidget(label("Preparation", "sectionTitle"))
-        self.prepared = QCheckBox("Already prepared (skip conversion)")
-        self.gaps = QCheckBox("Split recordings at time gaps")
-        self.gaps.setChecked(True)
-        self.drop_missing = QCheckBox("Exclude missing sensor samples")
-        self.drop_missing.setChecked(True)
-        self.drop_missing.setToolTip("Exclude invalid required samples, record the count, and analyze valid sections separately.")
-        for widget in (self.prepared, self.gaps, self.drop_missing):
-            layout.addWidget(widget)
-        layout.addWidget(label("Confirm units and orientation for your device before running. Defaults may differ from the recording.", "muted"))
-        self.advanced_toggle = button("Advanced parameters  ›")
-        self.advanced_toggle.setCheckable(True)
-        layout.addWidget(self.advanced_toggle)
-        self.advanced_settings = QWidget()
-        advanced = QFormLayout(self.advanced_settings)
-        advanced.setContentsMargins(0, 4, 0, 4)
-        advanced.setRowWrapPolicy(QFormLayout.WrapAllRows)
-        advanced.setSpacing(12)
-        self.acc = self.combo(["g", "m/s^2"])
-        self.gyro = self.combo(["deg/s", "rad/s"])
-        self.time = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
-        self.orientation = QLineEdit("x,y,z")
-        self.mapping = QPlainTextEdit("{}")
-        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
-        self.mapping.setFixedHeight(100)
-        self.max_gap = QDoubleSpinBox()
-        self.min_segment = QDoubleSpinBox()
-        for widget in (self.max_gap, self.min_segment):
-            widget.setRange(0.01, 86400)
-            widget.setValue(1.5)
-            widget.setSuffix(" s")
-            widget.setDecimals(2)
-        for name, widget in (("Acceleration units", self.acc), ("Gyroscope units", self.gyro),
-                             ("Time units", self.time), ("Device axes", self.orientation),
-                             ("Column mapping (JSON)", self.mapping), ("Maximum gap", self.max_gap),
-                             ("Minimum section duration", self.min_segment)):
-            advanced.addRow(name, widget)
-        advanced.addRow(label("Axes: three signed axes, for example x,y,z or -y,x,z.", "muted"))
-        layout.addWidget(self.advanced_settings)
-        self.advanced_settings.hide()
-        layout.addStretch()
-        _, layout = self.inspector_page()
-        layout.addWidget(label("Metric & axes", "sectionTitle"))
-        self.x_column, self.y_column = QComboBox(), QComboBox()
-        form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.WrapAllRows)
-        form.addRow("Horizontal axis", self.x_column)
-        form.addRow("Metric", self.y_column)
-        layout.addLayout(form)
-        layout.addWidget(label("Shared selection", "sectionTitle"))
-        self.participant = QComboBox()
-        self.segment = QComboBox()
-        self.filter_column = QComboBox()
-        self.filter_value = QLineEdit()
-        self.filter_value.setPlaceholderText("Contains text (optional)")
-        self.filter_min, self.filter_max = QLineEdit(), QLineEdit()
-        self.filter_min.setPlaceholderText("Minimum")
-        self.filter_max.setPlaceholderText("Maximum")
-        form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.WrapAllRows)
-        form.addRow("Participant", self.participant)
-        form.addRow("Recording section", self.segment)
-        form.addRow("Filter column", self.filter_column)
-        form.addRow("Text", self.filter_value)
-        bounds = QHBoxLayout()
-        bounds.addWidget(self.filter_min)
-        bounds.addWidget(self.filter_max)
-        form.addRow("Numeric bounds", bounds)
-        layout.addLayout(form)
-        row = QHBoxLayout()
-        row.addWidget(button("Apply filters", self.apply_filters, primary=True))
-        row.addWidget(button("Reset", self.reset_filters))
-        layout.addLayout(row)
-        self.filter_status = label("", "muted")
-        layout.addWidget(self.filter_status)
-        self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
-        self.context_button.setEnabled(False)
-        layout.addWidget(self.context_button)
-        self.context_radius = QDoubleSpinBox()
-        self.context_radius.setRange(0.1, 120)
-        self.context_radius.setValue(2)
-        self.context_radius.setSuffix(" s on each side")
-        layout.addWidget(self.context_radius)
-        self.context_hint = label("Select a row or click a time-based graph point. Context shows original values near the timestamp, not a reconstructed analysis window.", "muted")
-        layout.addWidget(self.context_hint)
-        self.result_metadata = readout()
-        self.result_metadata.setPlaceholderText("Choose an output to inspect its metadata.")
-        self.result_metadata.setMinimumHeight(130)
-        layout.addWidget(label("Result metadata", "sectionTitle"))
-        layout.addWidget(self.result_metadata)
-        layout.addStretch()
-        _, layout = self.inspector_page()
-        self.run_heading = label("Select an analysis run.", "sectionTitle")
-        layout.addWidget(self.run_heading)
+        self.run_heading = label("Select a run", "sectionTitle")
+        content.addWidget(self.run_heading)
         self.run_summary = label("", "muted")
         self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.run_summary)
-        layout.addWidget(label("Parameters", "sectionTitle"))
-        self.run_details = readout()
-        self.run_details.setMinimumHeight(180)
-        layout.addWidget(self.run_details)
-        layout.addWidget(label("Warnings & errors", "sectionTitle"))
-        self.run_warnings = readout()
-        self.run_warnings.setMinimumHeight(120)
-        layout.addWidget(self.run_warnings)
-        layout.addWidget(label("Output locations", "sectionTitle"))
-        self.run_outputs = readout()
-        self.run_outputs.setMinimumHeight(100)
-        layout.addWidget(self.run_outputs)
-        location = label(f"Local history: {self.history.directory}", "muted")
-        location.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(location)
-        layout.addStretch()
+        content.addWidget(self.run_summary)
+        self.run_detail_tabs = QTabWidget()
+        self.run_details, self.run_warnings, self.run_outputs = readout(), readout(), readout()
+        self.log = readout()
+        for widget, title in ((self.run_details, "Parameters"), (self.run_warnings, "Warnings"),
+                              (self.run_outputs, "Outputs"), (self.log, "Processing log")):
+            self.run_detail_tabs.addTab(widget, title)
+        content.addWidget(self.run_detail_tabs, 1)
+        split.addWidget(panel)
+        split.setSizes([300, 360])
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 1)
+        layout.addWidget(split, 1)
+        self.history_location = label(str(self.history.directory), "muted")
+        self.history_location.setToolTip("Local run history")
+        self.history_location.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(self.history_location)
 
     def _connect(self):
-        self.inspector_toggle.toggled.connect(self.inspector.setVisible)
-        self.advanced_toggle.toggled.connect(self.toggle_advanced)
+        self.filters_toggle.toggled.connect(self.filters_panel.setVisible)
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
         self.drop_missing.toggled.connect(self.preparation_changed)
-        self.pipeline.currentTextChanged.connect(self.plan_changed)
+        for name, item in self.module_buttons.items():
+            item.toggled.connect(lambda checked, n=name: self.modules_changed(n, checked))
         for combo in (self.acc, self.gyro, self.time):
             combo.currentTextChanged.connect(self.preparation_changed)
         self.data_channel.currentIndexChanged.connect(self.plot_input)
@@ -637,15 +623,12 @@ class MainWindow(QMainWindow):
         self.filter_max.returnPressed.connect(self.apply_filters)
         self.sensor_channel.currentIndexChanged.connect(self.plot_sensor)
         self.canvas.mpl_connect("button_press_event", self.graph_clicked)
-        self.plan_changed()
+        self.modules_changed()
         self.preparation_changed()
 
     def navigate(self, index):
         self.pages.setCurrentIndex(index)
-        self.inspector_pages.setCurrentIndex(index)
         self.page_title.setText(self.SECTIONS[index])
-        self.page_subtitle.setText(self.SUBTITLES[index])
-        self.inspector_title.setText(("Data inspector", "Analysis settings", "Explore & filter", "Run details")[index])
         for i, item in enumerate(self.nav_buttons):
             item.setChecked(i == index)
 
@@ -662,24 +645,41 @@ class MainWindow(QMainWindow):
         self.collapse_button.setText("›" if compact else "‹  Collapse")
         self.collapse_button.setAccessibleName("Expand navigation" if compact else "Collapse navigation")
 
-    def toggle_advanced(self, checked):
-        self.advanced_settings.setVisible(checked)
-        self.advanced_toggle.setText("Advanced parameters  ⌄" if checked else "Advanced parameters  ›")
-
     def show_notice(self, message):
         self.notice.setText(message)
         self.notice.setVisible(bool(message))
 
-    def plan_changed(self, *_):
-        plan = self.pipeline.currentText()
+    def selected_modules(self):
+        return [self.MODULES[name] for name, item in self.module_buttons.items() if item.isChecked()]
+
+    def set_modules(self, pipelines):
+        selected = set(pipelines)
+        if "pulse_rate" in selected:
+            selected = {"pulse_rate"}
         for name, item in self.module_buttons.items():
-            item.setChecked(name == plan or (plan == "Gait + tremor" and name in ("Gait", "Tremor")))
-        self.module_requirements.setText({
-            "Gait": "Requires numeric time, accelerometer and gyroscope channels.",
-            "Tremor": "Requires numeric time and gyroscope channels.",
-            "Gait + tremor": "Runs gait and tremor together. Requires accelerometer and gyroscope channels.",
-            "Pulse rate": "Runs separately. Requires raw green PPG and accelerometer channels for raw-data preparation.",
-        }[plan])
+            blocked = item.blockSignals(True)
+            item.setChecked(self.MODULES[name] in selected)
+            item.blockSignals(blocked)
+        self.modules_changed()
+
+    def modules_changed(self, changed=None, checked=False):
+        # Gait and tremor are independently selectable; the official API
+        # requires pulse rate to run on its own.
+        if checked:
+            incompatible = ("Gait", "Tremor") if changed == "Pulse rate" else ("Pulse rate",)
+            for name in incompatible:
+                item = self.module_buttons[name]
+                blocked = item.blockSignals(True)
+                item.setChecked(False)
+                item.blockSignals(blocked)
+        selected = self.selected_modules()
+        self.side.setEnabled("gait" in selected)
+        self.module_requirements.setText(
+            "Requires accelerometer and gyroscope channels." if "gait" in selected else
+            "Requires gyroscope channels." if "tremor" in selected else
+            "Raw green PPG required; raw preparation also needs accelerometer channels." if "pulse_rate" in selected else
+            "Select an analysis module.")
+        self.run_button.setEnabled(self.frame is not None and bool(selected) and self.worker is None)
 
     def preparation_changed(self, *_):
         prepared = self.prepared.isChecked()
@@ -687,14 +687,6 @@ class MainWindow(QMainWindow):
             widget.setEnabled(not prepared)
         for widget in (self.max_gap, self.min_segment):
             widget.setEnabled(not prepared and self.gaps.isChecked())
-        if prepared:
-            text = "Already prepared · relative seconds, g and deg/s expected"
-        else:
-            text = f"{self.acc.currentText()} · {self.gyro.currentText()} · {self.time.currentText()}"
-        text += " · missing samples excluded" if self.drop_missing.isChecked() else " · strict sample validation"
-        if self.gaps.isChecked() and not prepared:
-            text += " · split at time gaps"
-        self.preparation_summary.setText(text)
 
     def start_job(self, operation, completed):
         if self.worker is not None:
@@ -716,9 +708,9 @@ class MainWindow(QMainWindow):
         worker = self.worker
         self.worker = None
         self.open_button.setEnabled(True)
-        self.run_button.setEnabled(self.frame is not None)
         self.settings_panel.setEnabled(True)
         self.analysis_controls.setEnabled(True)
+        self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
         self.csv_button.setEnabled(self.active_frame is not None)
@@ -800,6 +792,7 @@ class MainWindow(QMainWindow):
 
     def loaded(self, payload):
         self.source, self.frame = payload
+        self.data_tabs.setCurrentIndex(0)
         self.input_table.setModel(FrameModel(self.frame))
         self.file_label.setText(Path(self.source).name)
         self.file_label.setToolTip(self.source)
@@ -808,9 +801,14 @@ class MainWindow(QMainWindow):
         self.data_values[0].setText(f"{len(self.frame):,}")
         self.data_values[1].setText(str(len(self.frame.columns)))
         self.data_values[2].setText(f"{int(self.frame.isna().sum().sum()):,}")
-        metadata = {"source": self.source, "samples": len(self.frame),
-                    "columns": {str(c): str(t) for c, t in self.frame.dtypes.items()}, "metadata": self.frame.attrs}
-        self.data_metadata.setPlainText(json.dumps(metadata, indent=2, default=str))
+        channels = pd.DataFrame({"Channel": [str(c) for c in self.frame],
+            "Type": [str(t) for t in self.frame.dtypes], "Missing": self.frame.isna().sum().to_numpy()})
+        self.channel_table.setModel(FrameModel(channels))
+        self.channel_table.resizeColumnsToContents()
+        self.channel_table.setColumnWidth(0, 180)
+        self.channel_table.setColumnWidth(1, 145)
+        self.data_metadata.setPlainText(self.source +
+            ("\n\n" + json.dumps(self.frame.attrs, indent=2, default=str) if self.frame.attrs else ""))
         self.data_channel.blockSignals(True)
         self.data_channel.clear()
         for column in self.frame.select_dtypes(include="number").columns:
@@ -819,7 +817,7 @@ class MainWindow(QMainWindow):
         self.data_channel.blockSignals(False)
         self.plot_input()
         self.continue_button.setEnabled(True)
-        self.run_button.setEnabled(self.worker is None)
+        self.modules_changed()
         self.show_notice("")
         self.navigate(0)
         if self.frame.attrs.get("source_format") == "empatica" and not any(f"gyroscope_{axis}" in self.frame for axis in "xyz"):
@@ -829,7 +827,7 @@ class MainWindow(QMainWindow):
             self.show_notice(message)
             self.append_log(message)
         else:
-            self.status.setText("Recording loaded. Open Analyze to configure a run.")
+            self.status.setText("Recording loaded.")
 
     def plot_input(self, *_):
         self.data_figure.clear()
@@ -854,12 +852,15 @@ class MainWindow(QMainWindow):
             self.show_notice("Open a recording in Data before running an analysis.")
             self.navigate(0)
             return
+        pipelines = self.selected_modules()
+        if not pipelines:
+            self.show_notice("Select an analysis module.")
+            self.navigate(1)
+            return
         try:
             mapping = validate_column_mapping(json.loads(self.mapping.toPlainText()))
             axes = (["x", "y", "z"] if self.prepared.isChecked() else
                     validate_orientation([v.strip() for v in self.orientation.text().split(",")]))
-            pipelines = {"Gait": ["gait"], "Tremor": ["tremor"],
-                         "Gait + tremor": ["gait", "tremor"], "Pulse rate": ["pulse_rate"]}[self.pipeline.currentText()]
             settings = dict(pipelines=pipelines, watch_side=self.side.currentText(),
                             accelerometer_units=self.acc.currentText(), gyroscope_units=self.gyro.currentText(),
                             time_input_unit=self.time.currentText(), device_orientation=axes,
@@ -915,7 +916,7 @@ class MainWindow(QMainWindow):
             self.finish_run("Partial", errors)
         else:
             has_rows = any(len(v) for k, v in self.tables.items() if k.startswith("quantifications/"))
-            message = "Analysis completed. Explore outputs in Overview, Graphs or Tables." if has_rows else "Analysis returned no quantified windows. Inspect Runs and recording requirements."
+            message = "Analysis completed." if has_rows else "No quantified windows. See Runs for details."
             self.status.setText(message)
             self.finish_run("Completed", [] if has_rows else [message])
         self.navigate(2)
@@ -924,8 +925,7 @@ class MainWindow(QMainWindow):
         frame = self.tables.get(name)
         self.hide_sensor_context()
         self.context_button.setEnabled(False)
-        self.context_hint.setText("Select a row or click a time-based graph point. Context shows original samples near the timestamp." if self.result_source_frame is not None else
-                                  "Sensor context requires the original recording from this session. Reopened JSON contains derived results only.")
+        self.context_hint.setText("Select a result row" if self.result_source_frame is not None else "Original sensor data unavailable")
         for widget in (self.x_column, self.y_column, self.participant, self.segment, self.filter_column):
             widget.blockSignals(True)
             widget.clear()
@@ -960,6 +960,8 @@ class MainWindow(QMainWindow):
                     self.segment.addItem(str(value), value)
         self.participant.setEnabled(self.participant_column is not None)
         self.segment.setEnabled(frame is not None and "file_key" in frame)
+        self.participant_field.setVisible(self.participant_column is not None)
+        self.segment_field.setVisible(frame is not None and "file_key" in frame)
         self.participant.setToolTip("Filters existing participant identifiers; none are inferred." if self.participant_column else "This output contains no participant identifiers.")
         for widget in (self.x_column, self.y_column, self.participant, self.segment, self.filter_column):
             widget.blockSignals(False)
@@ -972,7 +974,7 @@ class MainWindow(QMainWindow):
             self.active_positions = np.array([], dtype=int)
             self.result_table.setModel(None)
             self.csv_button.setEnabled(False)
-            self.selection_note.setText("Run an analysis to explore its outputs.")
+            self.selection_note.setText("No results")
             self.result_metadata.clear()
             self.filter_status.setText("No output selected.")
             self.update_metric()
@@ -995,8 +997,8 @@ class MainWindow(QMainWindow):
         self.context_button.setEnabled(False)
         self.csv_button.setEnabled(self.worker is None)
         source = self.provenance.get("source", self.source)
-        self.selection_note.setText(f"{Path(source).name or 'Current analysis'} · {len(selected):,} of {len(frame):,} rows selected · graphs, tables and summaries share this selection")
-        self.filter_status.setText(f"{len(selected):,} selected rows" + (" · no participant field" if self.participant_column is None else ""))
+        self.selection_note.setText(f"{Path(source).name or 'Current analysis'} · {len(selected):,} / {len(frame):,} rows")
+        self.filter_status.clear()
         self.update_metric()
         self.result_metadata.setPlainText(json.dumps({"dataset": self.dataset.currentText(), "rows": len(frame),
             "selected_rows": len(selected), "source": source,
@@ -1031,9 +1033,6 @@ class MainWindow(QMainWindow):
                 if len(values):
                     self.result_values[1].setText(f"{values.median():.4g}")
                     self.result_values[2].setText(f"{values.min():.4g} – {values.max():.4g}")
-            self.overview_text.setText(f"Metric: {metric if metric is not None else 'choose a numeric column'} · {len(frame):,} selected rows")
-        else:
-            self.overview_text.setText("Run an analysis to explore its outputs.")
         self.plot()
 
     def plot(self, *_):
@@ -1073,9 +1072,9 @@ class MainWindow(QMainWindow):
         self.context_radius.setEnabled(bool(timestamp))
         self.context_button.setText("Inspect gait segment" if segment is not None and not timestamp else "Inspect sensor context")
         if valid_row and not timestamp and segment is None:
-            self.context_hint.setText("This output has no explicit timestamp or gait-segment time metadata. No sensor timing will be inferred.")
+            self.context_hint.setText("No sensor timing available")
         if self.result_source_frame is None:
-            self.context_hint.setText("Sensor context requires the original recording from this session. Reopened JSON contains derived results only.")
+            self.context_hint.setText("Original sensor data unavailable")
 
     def graph_clicked(self, event):
         frame = self.active_frame
@@ -1173,10 +1172,10 @@ class MainWindow(QMainWindow):
         self.run_heading.setToolTip(f"Run ID: {record['id']}")
         started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
         finished = datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S") if record.get("finished") else "—"
-        self.run_summary.setText(f"Started: {started}\nFinished: {finished}\nToolbox: {record.get('paradigma_version', '—')}\n\nSource: {record['source']}")
+        self.run_summary.setText(f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')}\n{record['source']}")
         self.run_details.setPlainText("\n".join(f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}" for key, value in record["settings"].items()))
         self.run_warnings.setPlainText("\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings.")
-        self.run_outputs.setPlainText("\n\n".join(f"{item.get('kind', 'Export')}: {item.get('path', '')}" for item in record["outputs"]) or "No exports saved. Open results and export to choose an output location.")
+        self.run_outputs.setPlainText("\n\n".join(f"{item.get('kind', 'Export')}: {item.get('path', '')}" for item in record["outputs"]) or "No exports saved.")
         self.log.setPlainText(record.get("log", ""))
         self.update_run_actions()
 
@@ -1214,7 +1213,7 @@ class MainWindow(QMainWindow):
         if self.selected_run is None or self.worker is not None:
             return
         settings = self.selected_run["settings"]
-        self.pipeline.setCurrentText({("gait",): "Gait", ("tremor",): "Tremor", ("gait", "tremor"): "Gait + tremor", ("pulse_rate",): "Pulse rate"}.get(tuple(settings.get("pipelines", [])), "Gait"))
+        self.set_modules(settings.get("pipelines", ["gait"]))
         for widget, key in ((self.side, "watch_side"), (self.acc, "accelerometer_units"), (self.gyro, "gyroscope_units"), (self.time, "time_input_unit")):
             if key in settings:
                 widget.setCurrentText(str(settings[key]))

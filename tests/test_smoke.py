@@ -21,6 +21,9 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["status"] == "passed"
     assert data["app_icon_rendered"]
     assert data["workspace_navigation_verified"]
+    assert data["integrated_page_controls_verified"]
+    assert data["dropdown_indicator_rendered"]
+    assert data["module_multiselection_verified"]
     assert data["linked_result_selection_verified"]
     assert data["gait_sensor_context_verified"]
     assert data["run_history_reopened"]
