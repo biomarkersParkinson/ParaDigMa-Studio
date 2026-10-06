@@ -12,7 +12,10 @@ jobs:
       - run: python -m pytest
         env:
           QT_QPA_PLATFORM: offscreen
-      - run: python -m PyInstaller --noconfirm --clean --windowed --name ParaDigMaDesktop --collect-all paradigma --collect-all openmovement desktop.py
+      - name: Build Windows application with native runtime libraries
+        run: python scripts/build_desktop.py
+      - name: Verify and launch the packaged executable
+        run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
       - uses: actions/upload-artifact@v4
         with:
           name: ParaDigMaDesktop-Windows

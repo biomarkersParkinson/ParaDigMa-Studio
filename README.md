@@ -17,10 +17,11 @@ py -3.12 -m venv .venv
 Run on Windows from the repository directory:
 
 ```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --windowed --name ParaDigMaDesktop --collect-all paradigma --collect-all openmovement desktop.py
+.\.venv\Scripts\python.exe scripts/build_desktop.py
+.\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
 ```
 
-Launch `dist\ParaDigMaDesktop\ParaDigMaDesktop.exe`. Distribute the **entire ParaDigMaDesktop folder**, including `_internal`; the executable depends on it. This is an unsigned portable application, not an installer. The GitHub Actions Windows desktop workflow runs tests and builds this folder as a downloadable artifact on pushes, pull requests, or manual dispatch. A Windows binary must be built and tested on Windows; Linux builds cannot generate Windows executables.
+Launch `dist\ParaDigMaDesktop\ParaDigMaDesktop.exe`. Distribute the **entire ParaDigMaDesktop folder**, including `_internal`; the executable depends on it. This is an unsigned portable application, not an installer. The build explicitly includes scikit-learn's native runtime libraries, including Windows `vcomp140.dll` and `msvcp140.dll`. The GitHub Actions Windows desktop workflow runs tests, builds this folder, and launches the packaged executable before uploading an artifact. The executable check loads all four bundled classifiers, extracts real tremor output from synthetic sensor samples, renders a Qt plot and exports results. A Windows binary must be built and tested on Windows; Linux builds cannot generate Windows executables.
 
 ## Open and analyze a recording
 
