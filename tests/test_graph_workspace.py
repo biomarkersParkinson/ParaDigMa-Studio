@@ -8,7 +8,8 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
-from PySide6.QtWidgets import QApplication, QPushButton, QWidget
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QWidget
 
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.plotting import binary_indicator
@@ -18,6 +19,7 @@ from paradigma_desktop.time_controls import TimeField
 @pytest.fixture
 def window(tmp_path):
     application = QApplication.instance() or QApplication([])
+    application.setStyle("Fusion")  # Match the style selected by app.main().
     widget = MainWindow(history_dir=tmp_path)
     widget.resize(1050, 720)
     widget.show()
@@ -159,7 +161,7 @@ def test_calendar_fields_remain_readable_in_compact_results(window):
     window.filters_toggle.setChecked(True)
     window.show_notice("Analysis warning: review the partial results in Runs.")
     window.resize(960, 720)
-    QApplication.instance().processEvents()
+    QTest.qWait(50)  # Let nested layout/paint requests settle on Windows too.
     assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[0])) == (0, 0, 1, 2)
     for field in (window.clock_input, window.time_from, window.time_to):
         assert field.editors.currentWidget().height() >= 38
@@ -168,9 +170,14 @@ def test_calendar_fields_remain_readable_in_compact_results(window):
     origin, lower, upper = window.time_fields
     assert origin.geometry().bottom() < lower.geometry().top()
     assert lower.geometry().bottom() < window.time_zone.geometry().top()
-    for child in [window.time_zone, *window.filters_panel.findChildren(QPushButton)]:
-        assert child.visibleRegion().boundingRect().height() == child.height()
+    for child in (window.time_zone, window.filter_apply, window.filter_reset):
+        assert child.isVisible(), f"{child.objectName() or type(child).__name__} is hidden"
+        assert child.visibleRegion().boundingRect().contains(child.rect()), (
+            f"Filter control is clipped: {child.objectName() or type(child).__name__}, "
+            f"geometry={child.geometry()}, visible={child.visibleRegion().boundingRect()}, "
+            f"screen={window.screen().geometry()}"
+        )
     assert window.filters_panel.mapTo(window, QPoint(0, window.filters_panel.height())).y() <= window.result_tabs.mapTo(window, QPoint(0, 0)).y()
     window.resize(1450, 920)
-    QApplication.instance().processEvents()
+    QTest.qWait(50)
     assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[2])) == (0, 2, 1, 1)

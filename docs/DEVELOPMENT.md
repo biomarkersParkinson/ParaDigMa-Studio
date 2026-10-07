@@ -53,6 +53,11 @@ QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m py
 .venv/bin/python desktop.py
 ```
 
+Headless UI tests configure a 1920×1080 virtual Qt screen using
+`tests/data/qt-offscreen.json`. Qt's default 800×800 screen is smaller than the
+app's minimum width and can clip visibility checks on Windows. Graph-workspace
+tests use the same Fusion style as the shipped app and wait for layout updates.
+
 The normal suite includes scientific equivalence tests. To run only those:
 
 ```bash
