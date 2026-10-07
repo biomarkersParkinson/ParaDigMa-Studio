@@ -2,6 +2,7 @@
 import json
 import csv
 import logging
+import re
 import os
 import tempfile
 from pathlib import Path
@@ -127,10 +128,143 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
             details = metadata.pop("desktop_preparation", None)
             if details:
                 preparation.update({pipeline: dict(details) for pipeline in group})
+            recording_details = metadata.pop("desktop_recordings", None)
+            if recording_details:
+                previous = combined["metadata"].get("desktop_recordings", {})
+                combined["metadata"]["desktop_recordings"] = {**recording_details,
+                    "sections": {**previous.get("sections", {}), **recording_details["sections"]}}
             combined["metadata"].update(metadata)
             combined["errors"].extend(output.get("errors", []))
         combined["metadata"]["desktop_preparation"] = {"analysis_groups": groups, "by_module": preparation}
         return combined
+    recordings = None
+    if isinstance(frame, dict):
+        if not frame or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", key)
+                            or not isinstance(value, pd.DataFrame) for key, value in frame.items()):
+            raise ValueError("Recordings must be a non-empty mapping of safe identifiers to sensor tables.")
+        inputs, sections, preparation = {}, {}, {}
+        for key, recording in frame.items():
+            (logger or logging.getLogger("paradigma")).info("Preparing recording %s (%s samples)", key, len(recording))
+            try:
+                prepared, excluded, count = _prepare_recording(recording, pipelines, column_mapping, logger,
+                                                              drop_missing_samples, dict(settings))
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"{key}: {exc}") from exc
+            pieces = prepared if isinstance(prepared, dict) else {"": prepared}
+            for section, data in pieces.items():
+                file_key = f"{key}__{section}" if section else key
+                if file_key in inputs:
+                    raise ValueError("Recording identifiers overlap with generated section identifiers.")
+                inputs[file_key], sections[file_key] = data, key
+            preparation[key] = {**(excluded or {}), "input_samples": len(recording),
+                                "analyzed_samples": count, "continuous_sections": len(pieces)}
+        recordings = {"recordings": list(frame), "sections": sections}
+        exclusion = {"by_recording": preparation, "input_samples": sum(len(data) for data in frame.values()),
+                     "excluded_samples": sum(data.get("excluded_samples", 0) for data in preparation.values())}
+        analyzed_samples = sum(data["analyzed_samples"] for data in preparation.values())
+    else:
+        inputs, exclusion, analyzed_samples = _prepare_recording(frame, pipelines, column_mapping, logger,
+                                                                 drop_missing_samples, settings)
+
+    def run(output_dir):
+        # Retain the official classification exports that 1.1.2 computes but
+        # omits from its orchestrator return value. A fresh directory prevents
+        # a failed run from reading a previous run's predictions.
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
+        package_logger = logging.getLogger("paradigma")
+        active_logger = logger if logger is not None else logging.Logger("paradigma-desktop-analysis", logging.INFO)
+        recorder = _PipelineFailures()
+        loggers = {package_logger, active_logger}
+        for target in loggers:
+            target.addHandler(recorder)
+        handlers_before = set(package_logger.handlers)
+        try:
+            results = run_paradigma(
+                dfs=inputs, pipelines=pipelines, column_mapping=None,
+                save_intermediate=["classification"], return_intermediate=["classification", "quantification"],
+                custom_logger=active_logger, **{**settings, "output_dir": run_directory,
+                                               "skip_preparation": True, "split_by_gaps": False},
+            )
+            files = {"gait": {"detection": "gait_predictions.parquet", "arm_activity": "arm_activity_predictions.parquet"},
+                     "tremor": {"": "tremor_predictions.parquet"},
+                     "pulse_rate": {"": "ppg_quality_predictions.parquet"}}
+            keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
+            classifications = {}
+            for pipeline in pipelines:
+                for name, filename in files[pipeline].items():
+                    frames = []
+                    for key in keys:
+                        path = run_directory / "individual_files" / key / "classification" / filename
+                        if path.is_file():
+                            classified = pd.read_parquet(path)
+                            if len(keys) > 1 or recordings is not None:
+                                classified["file_key"] = key
+                            frames.append(classified)
+                    if frames:
+                        classified = pd.concat(frames, ignore_index=True)
+                        if name:
+                            classifications.setdefault(pipeline, {})[name] = classified
+                        else:
+                            classifications[pipeline] = classified
+            results["classifications"] = classifications
+            if recordings is not None and len(keys) == 1:
+                for quantified in result_tables(results.get("quantifications", {})).values():
+                    if isinstance(quantified, pd.DataFrame) and "file_key" not in quantified:
+                        quantified["file_key"] = keys[0]
+            for error in recorder.errors:
+                if error not in results.setdefault("errors", []):
+                    results["errors"].append(error)
+            if exclusion:
+                results.setdefault("metadata", {})["desktop_preparation"] = {
+                    **exclusion, "analyzed_samples": analyzed_samples,
+                    "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
+                }
+            if recordings is not None:
+                results.setdefault("metadata", {})["desktop_recordings"] = recordings
+            return results
+        finally:
+            for target in loggers:
+                target.removeHandler(recorder)
+            recorder.close()
+            # Upstream may leave its diagnostic file open after an exception.
+            for handler in list(package_logger.handlers):
+                if handler not in handlers_before and isinstance(handler, logging.FileHandler):
+                    package_logger.removeHandler(handler)
+                    handler.close()
+
+    if "output_dir" in settings:
+        return run(settings["output_dir"])
+    # A unique directory prevents pre-created files/symlinks in a shared temp
+    # folder from redirecting diagnostic writes; logs are removed after each run.
+    with tempfile.TemporaryDirectory(prefix="paradigma-desktop-") as directory:
+        return run(directory)
+
+
+def result_tables(value, path=""):
+    """Flatten nested results, preserving filtered/unfiltered gait branches."""
+    tables = {}
+    if isinstance(value, pd.DataFrame):
+        tables[path] = value
+    elif isinstance(value, dict):
+        if value and all(not isinstance(v, (dict, list, pd.DataFrame)) for v in value.values()):
+            tables[path] = pd.DataFrame({"measure": list(value), "value": list(value.values())})
+        else:
+            for key, child in value.items():
+                tables.update(result_tables(child, f"{path}/{key}".strip("/")))
+    elif isinstance(value, list):
+        if value:
+            try:
+                tables[path] = pd.DataFrame(value)
+            except (ValueError, TypeError):
+                tables[path] = pd.DataFrame({"value": [str(v) for v in value]})
+    elif value is not None:
+        tables[path] = pd.DataFrame({"value": [value]})
+    return tables
+
+
+
+def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
     mapping = validate_column_mapping(column_mapping)
     axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
     mapped = frame.rename(columns=mapping).copy().reset_index(drop=True)
@@ -255,95 +389,7 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
         inputs = {f"segment_{i + 1}": group.reset_index(drop=True)
                   for i, (_, group) in enumerate(prepared.groupby("data_segment_nr", sort=False, dropna=False))}
 
-    def run(output_dir):
-        # Retain the official classification exports that 1.1.2 computes but
-        # omits from its orchestrator return value. A fresh directory prevents
-        # a failed run from reading a previous run's predictions.
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
-        package_logger = logging.getLogger("paradigma")
-        active_logger = logger if logger is not None else logging.Logger("paradigma-desktop-analysis", logging.INFO)
-        recorder = _PipelineFailures()
-        loggers = {package_logger, active_logger}
-        for target in loggers:
-            target.addHandler(recorder)
-        handlers_before = set(package_logger.handlers)
-        try:
-            results = run_paradigma(
-                dfs=inputs, pipelines=pipelines, column_mapping=None,
-                save_intermediate=["classification"], return_intermediate=["classification", "quantification"],
-                custom_logger=active_logger, **{**settings, "output_dir": run_directory,
-                                               "skip_preparation": True, "split_by_gaps": False},
-            )
-            files = {"gait": {"detection": "gait_predictions.parquet", "arm_activity": "arm_activity_predictions.parquet"},
-                     "tremor": {"": "tremor_predictions.parquet"},
-                     "pulse_rate": {"": "ppg_quality_predictions.parquet"}}
-            keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
-            classifications = {}
-            for pipeline in pipelines:
-                for name, filename in files[pipeline].items():
-                    frames = []
-                    for key in keys:
-                        path = run_directory / "individual_files" / key / "classification" / filename
-                        if path.is_file():
-                            classified = pd.read_parquet(path)
-                            if len(keys) > 1:
-                                classified["file_key"] = key
-                            frames.append(classified)
-                    if frames:
-                        classified = pd.concat(frames, ignore_index=True)
-                        if name:
-                            classifications.setdefault(pipeline, {})[name] = classified
-                        else:
-                            classifications[pipeline] = classified
-            results["classifications"] = classifications
-            for error in recorder.errors:
-                if error not in results.setdefault("errors", []):
-                    results["errors"].append(error)
-            if exclusion:
-                results.setdefault("metadata", {})["desktop_preparation"] = {
-                    **exclusion, "analyzed_samples": len(prepared),
-                    "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
-                }
-            return results
-        finally:
-            for target in loggers:
-                target.removeHandler(recorder)
-            recorder.close()
-            # Upstream may leave its diagnostic file open after an exception.
-            for handler in list(package_logger.handlers):
-                if handler not in handlers_before and isinstance(handler, logging.FileHandler):
-                    package_logger.removeHandler(handler)
-                    handler.close()
-
-    if "output_dir" in settings:
-        return run(settings["output_dir"])
-    # A unique directory prevents pre-created files/symlinks in a shared temp
-    # folder from redirecting diagnostic writes; logs are removed after each run.
-    with tempfile.TemporaryDirectory(prefix="paradigma-desktop-") as directory:
-        return run(directory)
-
-
-def result_tables(value, path=""):
-    """Flatten nested results, preserving filtered/unfiltered gait branches."""
-    tables = {}
-    if isinstance(value, pd.DataFrame):
-        tables[path] = value
-    elif isinstance(value, dict):
-        if value and all(not isinstance(v, (dict, list, pd.DataFrame)) for v in value.values()):
-            tables[path] = pd.DataFrame({"measure": list(value), "value": list(value.values())})
-        else:
-            for key, child in value.items():
-                tables.update(result_tables(child, f"{path}/{key}".strip("/")))
-    elif isinstance(value, list):
-        if value:
-            try:
-                tables[path] = pd.DataFrame(value)
-            except (ValueError, TypeError):
-                tables[path] = pd.DataFrame({"value": [str(v) for v in value]})
-    elif value is not None:
-        tables[path] = pd.DataFrame({"value": [value]})
-    return tables
+    return inputs, exclusion, len(prepared)
 
 
 def json_value(value):

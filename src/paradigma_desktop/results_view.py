@@ -329,6 +329,9 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
     for module, value in (saved_offsets if isinstance(saved_offsets, dict) else {}).items():
         if module in MODULE_NAMES and isinstance(value, (int, float)) and np.isfinite(value):
             offsets[module] = float(value)
+        elif module in MODULE_NAMES and isinstance(value, dict):
+            offsets[module] = {key: float(offset) for key, offset in value.items()
+                               if isinstance(key, str) and isinstance(offset, (int, float)) and np.isfinite(offset)}
     if frame is None:
         return None, {}, offsets
     groups = results.get("metadata", {}).get("desktop_preparation", {}).get("analysis_groups")

@@ -110,6 +110,10 @@ class RunHistory:
                         or not isinstance(record.get("outputs"), list) or not isinstance(record.get("warnings"), list)):
                     raise ValueError("Invalid run metadata.")
                 settings = record["settings"]
+                sources = record.get("sources", {})
+                if not isinstance(sources, dict) or not all(isinstance(key, str) and isinstance(path, str)
+                                                            for key, path in sources.items()):
+                    raise ValueError("Invalid recording sources.")
                 datetime.fromisoformat(record["started"])
                 if record.get("finished") is not None:
                     datetime.fromisoformat(record["finished"])
@@ -158,6 +162,10 @@ def load_result_export(path):
     saved = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(saved, dict) or not isinstance(saved.get("analysis"), dict) or not isinstance(saved.get("results"), dict):
         raise ValueError("This file is not a ParaDigMa result export.")
+    sources = saved["analysis"].get("sources", {})
+    if not isinstance(sources, dict) or not all(isinstance(key, str) and isinstance(path, str)
+                                                for key, path in sources.items()):
+        raise ValueError("Invalid recording sources in the result export.")
 
     def restore(value):
         if isinstance(value, dict):

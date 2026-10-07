@@ -32,6 +32,7 @@ from .core import (
     validate_column_mapping, validate_orientation,
 )
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
+from .recordings import load_recordings, align_recordings, source_key, timeline_offsets
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import GraphToolbar, add_graph_controls
@@ -108,6 +109,9 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(STYLESHEET)
         self.frame = self.results = self.worker = None
         self.source = ""
+        self.sources, self.recordings = {}, {}
+        self._input_descriptions = {}
+        self._recording_bases = {}
         self.tables, self.provenance = {}, {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
@@ -241,7 +245,12 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout()
         self.file_label = label("No recording loaded", "sectionTitle")
         row.addWidget(self.file_label, 1)
-        self.open_button = button("Open sensor file…", self.open_file, primary=True)
+        self.input_recording = self.combo()
+        self.input_recording.setAccessibleName("Recording to inspect")
+        self.input_recording.hide()
+        self.input_recording.currentIndexChanged.connect(self.inspect_input_recording)
+        row.addWidget(self.input_recording, 1)
+        self.open_button = button("Open sensor files…", self.open_file, primary=True)
         self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
         self.open_action = QAction("Open recording", self)
         self.open_action.setShortcut("Ctrl+O")
@@ -835,7 +844,7 @@ class MainWindow(QMainWindow):
             return
         for widget in (self.open_button, self.run_button, self.settings_panel, self.analysis_controls,
                        self.export_button, self.csv_button, self.open_run_button, self.use_parameters_button,
-                       self.data_time_channel, self.data_time_unit):
+                       self.data_time_channel, self.data_time_unit, self.input_recording):
             widget.setEnabled(False)
         self.progress.setRange(0, 0)
         self.progress.show()
@@ -856,6 +865,7 @@ class MainWindow(QMainWindow):
         self.analysis_controls.setEnabled(True)
         self.data_time_channel.setEnabled(True)
         self.data_time_unit.setEnabled(True)
+        self.input_recording.setEnabled(True)
         self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
@@ -951,28 +961,63 @@ class MainWindow(QMainWindow):
     def open_file(self):
         if self.worker is not None:
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Open sensor recording", "",
+        paths, _ = QFileDialog.getOpenFileNames(self, "Open recordings for the same subject", "",
             "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)")
-        if not path:
+        if not paths:
             return
         allow_pickle = False
-        if Path(path).suffix.lower() in (".pkl", ".pickle"):
+        if any(Path(path).suffix.lower() in (".pkl", ".pickle") for path in paths):
             reply = QMessageBox.warning(self, "Trusted pickle files only",
-                "Pickle files can execute code when opened. Only continue if you trust this file's source.",
+                "Pickle files can execute code when opened. Only continue if you trust every selected pickle file's source.",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply != QMessageBox.Yes:
                 return
             allow_pickle = True
         self.show_notice("")
-        self.status.setText("Loading recording…")
+        self.status.setText("Loading recordings…")
         unit = self.time.currentText()
         def load(logger):
-            frame = load_sensor_file(path, allow_pickle=allow_pickle)
-            return path, frame, inspect_recording(frame, unit)
-        self.start_job(load, self.loaded)
+            sources, frames = load_recordings(paths, allow_pickle=allow_pickle, logger=logger)
+            descriptions = {key: inspect_recording(frame, unit) for key, frame in frames.items()}
+            return sources, frames, descriptions
+        self.start_job(load, self.loaded_recordings)
+
+    def loaded_recordings(self, payload):
+        sources, recordings, descriptions = payload
+        if len(recordings) == 1:
+            key = next(iter(recordings))
+            self.loaded((sources[key], recordings[key], descriptions[key]))
+            return
+        self.input_recording.blockSignals(True)
+        self.input_recording.clear()
+        for key, path in sources.items():
+            self.input_recording.addItem(f"{key} · {Path(path).name}", key)
+            self.input_recording.setItemData(self.input_recording.count() - 1, path, Qt.ToolTipRole)
+        self.input_recording.blockSignals(False)
+        self.sources, self.recordings = sources, recordings
+        self._input_descriptions = descriptions
+        self.inspect_input_recording()
+        self.status.setText(f"{len(recordings)} recordings loaded for one subject.")
+
+    def inspect_input_recording(self, *_):
+        key = self.input_recording.currentData()
+        if key not in self.recordings:
+            return
+        sources, recordings, descriptions = self.sources, self.recordings, self._input_descriptions
+        self.loaded((sources[key], recordings[key], descriptions[key]))
+        self.sources, self.recordings = sources, recordings
+        self._input_descriptions = descriptions
+        self.input_recording.show()
+        self.file_label.setText(f"{len(recordings)} recordings")
+        self.file_label.setToolTip("\n".join(sources.values()))
+        self.analysis_input.setText(f"{len(recordings)} recordings · One subject")
+        self.analysis_input_detail.setText(f"{sum(len(frame) for frame in recordings.values()):,} samples")
 
     def loaded(self, payload):
         self.source, self.frame = payload[:2]
+        self.sources, self.recordings = {"recording_001": self.source}, {}
+        self._input_descriptions = {}
+        self.input_recording.hide()
         description = payload[2] if len(payload) > 2 else inspect_recording(self.frame, self.time.currentText())
         self.data_tabs.setCurrentIndex(0)
         self.input_table.setModel(FrameModel(self.frame))
@@ -1147,12 +1192,15 @@ class MainWindow(QMainWindow):
             return
         self.show_notice("")
         record = new_run(self.source, settings)
+        if self.recordings:
+            record["sources"] = dict(self.sources)
         record["paradigma_version"] = version("paradigma")
-        record["_frame"] = self.frame
+        frame = self.recordings if self.recordings else self.frame
+        record["_frame"] = frame
         self.runs.insert(0, record)
         self.active_run = self.current_run = self.selected_run = record
         self.provenance = {"source": self.source, "paradigma_version": record["paradigma_version"], "settings": settings, "run_id": record["id"]}
-        self.result_source_frame = self.frame
+        self.result_source_frame = frame
         self.result_timeline = None
         self.clear_results()
         self.log.clear()
@@ -1160,7 +1208,8 @@ class MainWindow(QMainWindow):
         self.refresh_runs()
         self.status.setText("Running ParaDigMa… Review progress in Runs.")
         self.navigate(1)
-        frame = self.frame
+        if self.recordings:
+            self.provenance["sources"] = dict(self.sources)
         self.start_job(lambda logger: analyze(frame, logger=logger, **settings), self.analyzed)
 
     def results_tab_changed(self, index):
@@ -1344,6 +1393,8 @@ class MainWindow(QMainWindow):
             panel, content = card()
             content.addWidget(label("Input preparation", "sectionTitle"))
             for path, value in flat_values(preparation):
+                if "by_recording" in path:
+                    continue
                 content.addWidget(label(f"{' · '.join(path).replace('_', ' ')}: {value}", "muted"))
             self.overview_layout.addWidget(panel)
         self.overview_layout.addStretch()
@@ -1396,9 +1447,16 @@ class MainWindow(QMainWindow):
     def analyzed(self, results):
         self.results = results
         if self.current_run is None:
-            self.result_source_frame = self.frame
-        self.result_timeline, self._source_timelines, self._display_offsets = analysis_alignment(
-            self.result_source_frame, self.provenance.get("settings", {}), results, self.provenance.get("display_offsets"))
+            self.result_source_frame = self.recordings if self.recordings else self.frame
+        settings = self.provenance.get("settings", {})
+        batch_clock = None
+        self._recording_bases = {}
+        if isinstance(self.result_source_frame, dict):
+            self.result_timeline, self._source_timelines, self._display_offsets, batch_clock, self._recording_bases = align_recordings(
+                self.result_source_frame, settings, results)
+        else:
+            self.result_timeline, self._source_timelines, self._display_offsets = analysis_alignment(
+                self.result_source_frame, settings, results, self.provenance.get("display_offsets"))
         if self._display_offsets:
             self.provenance["display_offsets"] = dict(self._display_offsets)
         self.display_clock = None
@@ -1409,7 +1467,8 @@ class MainWindow(QMainWindow):
                 self.append_log("Stored recording clock is invalid; using available recording timing.")
                 self.provenance.pop("display_clock", None)
         if self.display_clock is None:
-            self.display_clock = recording_clock(self.result_source_frame, self.provenance.get("settings", {}), self.result_timeline)
+            self.display_clock = (batch_clock if isinstance(self.result_source_frame, dict) else
+                                  recording_clock(self.result_source_frame, settings, self.result_timeline))
         if self.display_clock is not None:
             self.provenance["display_clock"] = dict(self.display_clock)
         if self.active_run is not None:
@@ -1427,10 +1486,12 @@ class MainWindow(QMainWindow):
         self.aggregation_tables = aggregation_tables(results)
         self._timings = {name: detail_timing(results, name, frame) for name, frame in self.tables.items()}
         for name, timing in self._timings.items():
-            timing["Timeline time (s)"] = timing["Analysis time (s)"] + self._display_offsets.get(name.split("/")[1], 0.)
+            timing["Timeline time (s)"] = timing["Analysis time (s)"] + timeline_offsets(name, self.tables[name], self._display_offsets)
         self._interval_ends = {name: binary_interval_ends(name, self.tables[name], timing["Timeline time (s)"])
                                for name, timing in self._timings.items()}
-        self.results_source.setText(Path(self.provenance.get("source", self.source)).name or "Current analysis")
+        sources = self.provenance.get("sources", {})
+        self.results_source.setText(f"{len(sources)} recordings · One subject" if len(sources) > 1 else
+                                    Path(self.provenance.get("source", self.source)).name or "Current analysis")
         self.build_result_overview()
         self.populate_result_series()
         times = np.concatenate([t["Timeline time (s)"].to_numpy() for t in self._timings.values()]) if self._timings else np.array([])
@@ -1595,6 +1656,8 @@ class MainWindow(QMainWindow):
             return
         clock_note = (f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
                       if self.display_clock else "Elapsed time · Set a time origin in Filters to display dates")
+        if self.display_clock is None and len(self.provenance.get("sources", {})) > 1:
+            clock_note = "File-order timeline · Recording clocks unavailable"
         estimated = name.startswith("quantifications/gait/") and "time" not in frame
         self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows · {clock_note}"
                                     + (" · Gait positions estimated within segments" if estimated else ""))
@@ -1691,7 +1754,7 @@ class MainWindow(QMainWindow):
                 ax.set_xlabel(f"Recording date/time ({self.display_clock.get('timezone') or 'timezone unspecified'})")
                 ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime("%d %b %Y %H:%M:%S")
             else:
-                ax.set_xlabel("Elapsed analysis time (s)")
+                ax.set_xlabel("File-order timeline (s)" if len(self.provenance.get("sources", {})) > 1 else "Elapsed analysis time (s)")
             ax.tick_params(axis="x", labelbottom=False)
             ax.xaxis.label.set_visible(False)
             ax.xaxis.offsetText.set_visible(False)
@@ -1811,12 +1874,21 @@ class MainWindow(QMainWindow):
         if not self.context_button.isEnabled() or row < 0:
             return
         try:
-            if self.result_timeline is None:
-                self.result_timeline = source_timeline(self.result_source_frame, self.provenance.get("settings", {}))
             selected = self.active_frame.iloc[row]
             parts = self.dataset.currentText().split("/")
             module = parts[1] if len(parts) > 1 else ""
-            module_timeline = self._source_timelines.get(module, self.result_timeline)
+            source_frame = self.result_source_frame
+            if isinstance(source_frame, dict):
+                key = source_key(selected.get("file_key"), self.results)
+                source_frame = source_frame[key]
+                common = self.result_timeline[key]
+                module_timeline = self._source_timelines.get(module, {}).get(key, common)
+                display_timeline = common + self._recording_bases[key]
+            else:
+                if self.result_timeline is None:
+                    self.result_timeline = source_timeline(source_frame, self.provenance.get("settings", {}))
+                module_timeline = self._source_timelines.get(module, self.result_timeline)
+                display_timeline = self.result_timeline
             segment = gait_context(self.results, self.dataset.currentText(), selected)
             if "time" in selected and pd.notna(selected["time"]):
                 anchor = float(selected["time"])
@@ -1829,8 +1901,8 @@ class MainWindow(QMainWindow):
                 description = f"from gait segment {number}, {start:.4g}–{end:.4g} s, using toolbox metadata. Individual arm-swing timestamps are not provided."
             else:
                 raise ValueError("No explicit sensor time context is available.")
-            self.sensor_frame = self.result_source_frame.iloc[np.flatnonzero(mask)]
-            self.sensor_times = self.result_timeline[mask]
+            self.sensor_frame = source_frame.iloc[np.flatnonzero(mask)]
+            self.sensor_times = display_timeline[mask]
             self.sensor_table.setModel(FrameModel(self.sensor_frame))
             self.sensor_channel.blockSignals(True)
             self.sensor_channel.clear()
@@ -1840,6 +1912,9 @@ class MainWindow(QMainWindow):
                     self.sensor_channel.addItem(str(column), column)
             self.sensor_channel.blockSignals(False)
             self.sensor_note.setText(f"{len(self.sensor_frame):,} original samples {description} Original units; horizontal axis aligned to analysis time.")
+            if isinstance(self.result_source_frame, dict):
+                path = self.provenance.get("sources", {}).get(key, key)
+                self.sensor_note.setText(f"{Path(path).name} · " + self.sensor_note.text())
             self.plot_sensor()
             self.result_tabs.setTabVisible(self.sensor_tab_index, True)
             self.result_tabs.setCurrentIndex(self.sensor_tab_index)
@@ -1884,7 +1959,7 @@ class MainWindow(QMainWindow):
 
     def refresh_runs(self):
         data = pd.DataFrame([{"Started": datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y · %H:%M"), "Status": run_status(record),
-            "Input": Path(record["source"]).name, "Modules": ", ".join(record["settings"].get("pipelines", [])),
+            "Input": (f"{len(record['sources'])} recordings" if len(record.get("sources", {})) > 1 else Path(record["source"]).name), "Modules": ", ".join(record["settings"].get("pipelines", [])),
             "Warnings": len(record["warnings"]), "Errors": len(record.get("errors", [])), "Exports": len(record["outputs"])} for record in self.runs],
             columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"])
         self.run_table.setModel(FrameModel(data))
@@ -1904,7 +1979,7 @@ class MainWindow(QMainWindow):
             return
         record = self.runs[current.row()]
         self.selected_run = record
-        self.run_heading.setText(f"{run_status(record)} · {Path(record['source']).name}")
+        self.run_heading.setText(f"{run_status(record)} · " + (f"{len(record['sources'])} recordings" if len(record.get("sources", {})) > 1 else Path(record["source"]).name))
         self.run_heading.setToolTip(f"Run ID: {record['id']}")
         self.run_summary.setText(self.run_summary_text(record))
         self.run_details.setPlainText("\n".join(f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}" for key, value in record["settings"].items()))
@@ -1919,7 +1994,7 @@ class MainWindow(QMainWindow):
         started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
         finished = datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S") if record.get("finished") else "—"
         return (f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
-                f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{record['source']}")
+                f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}")
 
     def update_run_actions(self):
         record = self.selected_run
@@ -1943,7 +2018,7 @@ class MainWindow(QMainWindow):
         run_id, provenance, results = payload
         record = next(record for record in self.runs if record["id"] == run_id)
         self.current_run = record
-        self.provenance = provenance or {"source": record["source"], "settings": record["settings"], "paradigma_version": record["paradigma_version"]}
+        self.provenance = provenance or {"source": record["source"], "settings": record["settings"], "paradigma_version": record["paradigma_version"], "sources": record.get("sources", {})}
         self.result_source_frame = record.get("_frame")
         self.result_timeline = None
         record["_results"], record["_provenance"] = results, self.provenance
@@ -1987,7 +2062,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Export complete results", "paradigma-results.json", "JSON (*.json)")
         if path:
             try:
-                export_results(path, self.results, self.provenance, protected_sources=[self.source])
+                export_results(path, self.results, self.provenance, protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
                 self.record_output(path, "JSON")
                 self.status.setText(f"Results exported to {path}")
             except Exception as exc:
@@ -2000,7 +2075,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Export selected rows", "output.csv", "CSV (*.csv)")
         if path:
             try:
-                export_table_csv(path, frame, source=self.provenance.get("source", self.source), protected_sources=[self.source])
+                export_table_csv(path, frame, source=self.provenance.get("source", self.source), protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
                 self.record_output(path, "CSV")
                 self.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
             except Exception as exc:

@@ -106,6 +106,13 @@ quantification, aggregate and metadata value against two independent official
 workflows. Additional UI tests check absolute-time alignment when IMU and PPG
 missing-sample exclusions create different analysis origins, including JSON reopening.
 
+Multiple recordings of one subject are also compared against a direct official
+dictionary-of-recordings workflow. The recorded IMU cases have unequal lengths;
+classifications, both gait branches, unique gait-segment metadata and pooled
+tremor aggregates must match. UI tests cover original-file inspection, shared
+settings, per-file dates, time filters, source-correct sensor context, JSON
+reopening, file-order fallbacks and protection of all source files during export.
+
 ## Positive and empty-output cases
 
 The recorded IMU tests require actual gait measurements and multiple positive

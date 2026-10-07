@@ -9,7 +9,21 @@ software citation, pipeline publication links and full Apache 2.0 licence.
 ## Input and analysis settings
 
 The app uses the official ParaDigMa loaders and processing functions, with an
-Empatica IMU import adapter. Opening a file loads that recording only.
+Empatica IMU import adapter. **Open sensor files** accepts one or more recordings
+for the same subject. For several files, the Data recording selector inspects
+one original file at a time; Analyze reports the complete selection and sample
+count. One set of units, mappings, watch side and preparation settings applies
+to every file, so select files with compatible sensor conventions.
+
+Each recording is validated and prepared separately. Feature windows and
+filtering never cross file boundaries. Classification and quantification tables
+are combined; the official orchestrator assigns unique gait segments across files;
+aggregates are computed from the combined quantifications using ParaDigMa's own
+aggregation functions. They are not averages of per-file aggregate percentages.
+Detailed tables and CSV exports retain `file_key`; Runs and JSON exports retain
+the mapping from file identifiers to original paths. Exports protect every
+selected source file from overwriting. A load/preparation failure names the
+affected recording; processing errors retain available partial pipeline outputs.
 
 Choose any combination of gait, tremor and pulse rate in **Analysis modules**.
 Set processing options in **Analysis parameters**. Each field's **i** button expands
@@ -102,13 +116,20 @@ the pointer is over result graphs.
 Absolute dates come from the source recording's datetime channel, absolute numeric
 timestamps or start metadata, aligned to the analysis timeline. Known timezones
 are preserved; unzoned timestamps are marked **timezone unspecified**. Relative-only
-recordings display elapsed seconds. To display dates, enable **Time origin** in
+recordings display elapsed seconds. Multiple recordings use their actual relative
+clock offsets when all files have comparable clocks. Otherwise the graph is
+labeled **File-order timeline**: each file follows the preceding file, without
+inferring dates or gaps between recordings. Local scientific timestamps remain
+unchanged in the tables. To display dates, enable **Time origin** in
 Filters and use the calendar and clock to set the date/time corresponding to
 timeline second zero. This is recorded as user supplied and changes presentation
 only. From/Until uses calendar and clock selectors when a recording clock is
 available, and seconds otherwise. Each checkbox enables or clears that field.
 Known timezones and daylight-saving offsets are retained; unzoned recordings
 remain unzoned. Removing the origin preserves the selected range in seconds.
+ParaDigMa's tremor `nr_valid_days` uses its internal quantification timestamps,
+not the display clock. Files with local relative timestamps can therefore count
+as one day even when their source dates differ; the app retains the official value.
 Time fields wrap according to their actual size, including native Windows font
 metrics. A recording-time axis stays fixed below the graphs while either scrolling area moves; pan and zoom keep it synchronized. Saved figures include a time axis. Each Results view scrolls vertically while Overview, Graphs and Tables stay in place. Export and Filters are alongside the tabs.
 

@@ -23,6 +23,23 @@ The two generic figure dialogs have been removed.
 
 ## Analyze
 
+**Open sensor files** can select several recordings from the same subject.
+Data's recording selector inspects each original file. Analyze runs the entire
+selection with shared parameters; ParaDigMa combines its independently processed
+outputs and computes subject-level aggregates. Tables retain file identifiers,
+and sensor context opens the selected row's original recording. Runs and JSON
+exports retain every source path.
+
+![Inspect one recording from a multi-file selection](screenshots/multiple-files-data.png)
+
+![Configure the complete selection](screenshots/multiple-files-analyze.png)
+
+![Combined results across recording time](screenshots/multiple-files-results.png)
+
+These multi-file examples split the bundled recorded IMU fixture into two files,
+using its documented UTC start. Real recording clocks share one date/time axis;
+files without comparable clocks use an explicitly labeled file-order timeline.
+
 Select any combination of gait, tremor and pulse rate. All settings are in one compact Analysis parameters panel, with uniform circular **i** buttons for inline documented guidance. Default controls fit without scrolling at the minimum window size; expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
 
 Gap splitting, maximum gap and minimum section duration are grouped together. Splitting defaults to off; both thresholds default to 1.5 seconds, matching the official package, and each has a **Default** button. **Already prepared** is the last field.

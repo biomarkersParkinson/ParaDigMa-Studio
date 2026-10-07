@@ -139,7 +139,7 @@ def official_preparation(frame, **settings):
 
 def compare_workflows(frame, reference_input, pipelines, directory, **settings):
     """Separate direct official run and real desktop run with fresh configs."""
-    original = frame.copy(deep=True)
+    original = deepcopy(frame)
     reference_original = deepcopy(reference_input)
     reference_settings = {key: deepcopy(value) for key, value in settings.items()
                           if key not in {"column_mapping", "drop_missing_samples", "output_dir",
@@ -180,9 +180,14 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
     assert_equivalent(app_stages, reference_stages, "intermediate stages")
     for name in ("quantifications", "aggregations", "classifications", "errors"):
         assert_equivalent(actual[name], expected[name], name)
-    metadata = {key: value for key, value in actual["metadata"].items() if key != "desktop_preparation"}
+    metadata = {key: value for key, value in actual["metadata"].items() if key not in ("desktop_preparation", "desktop_recordings")}
     assert_equivalent(metadata, expected["metadata"], "scientific metadata")
-    pd.testing.assert_frame_equal(frame, original, check_exact=True)
+    if isinstance(frame, dict):
+        assert frame.keys() == original.keys()
+        for key in frame:
+            pd.testing.assert_frame_equal(frame[key], original[key], check_exact=True)
+    else:
+        pd.testing.assert_frame_equal(frame, original, check_exact=True)
     assert_equivalent(reference_input, reference_original, "unchanged reference input")
     return actual, expected, reference_stages
 
@@ -523,3 +528,55 @@ def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded
     finally:
         window.close()
         application.processEvents()
+
+
+def test_multiple_subject_recordings_equal_official_combined_workflow(tmp_path):
+    recording = pd.read_parquet(DATA / "prepared_imu.parquet")
+    later = recording.iloc[40000:].copy().reset_index(drop=True)
+    later["time"] -= later.time.iloc[0]
+    frames = {"recording_001": recording, "recording_002": later}
+    actual, expected, _ = compare_workflows(frames, frames, ["gait", "tremor"], tmp_path,
+                                           skip_preparation=True, watch_side="right")
+    assert actual["metadata"]["desktop_recordings"]["sections"] == {key: key for key in frames}
+    for stage in actual["classifications"]["gait"].values():
+        assert set(stage.file_key) == set(frames)
+    for branch in ("unfiltered", "filtered"):
+        quantified = actual["quantifications"]["gait"][branch]
+        assert set(quantified.file_key) == set(frames)
+        meta = actual["metadata"]["gait"][branch]["per_segment"]
+        assert set(quantified.gait_segment_nr) <= set(meta)
+    # Unequal file lengths exercise the official pooled denominator rather than
+    # averaging per-file tremor percentages.
+    tremor = expected["quantifications"]["tremor"]
+    assert set(tremor.file_key) == set(frames)
+    assert expected["aggregations"]["tremor"]["perc_windows_tremor"] == (
+        tremor.pred_tremor_checked.sum() / tremor.pred_arm_at_rest.sum() * 100)
+
+
+def test_multiple_recordings_with_all_three_modules_equal_official_groups(tmp_path):
+    frame = upstream_synthetic("gait")
+    frame["green"] = np.sin(2 * np.pi * 1.2 * frame.time)
+    later = frame.iloc[6000:].copy().reset_index(drop=True)
+    later["time"] -= later.time.iloc[0]
+    frames = {"recording_001": frame, "recording_002": later}
+    expected = {category: {} for category in ("quantifications", "classifications", "aggregations")}
+    for index, pipelines in enumerate((["gait", "tremor"], ["pulse_rate"])):
+        _, reference, _ = compare_workflows(frames, frames, pipelines, tmp_path / str(index),
+                                           skip_preparation=True, watch_side="left")
+        for category in expected:
+            expected[category].update(reference[category])
+    actual = analyze(frames, pipelines=["gait", "tremor", "pulse_rate"], skip_preparation=True, watch_side="left")
+    assert not actual["errors"]
+    for category in expected:
+        assert_equivalent(actual[category], expected[category], category)
+    assert actual["metadata"]["desktop_recordings"]["sections"] == {key: key for key in frames}
+
+
+def test_multiple_recorded_ppg_files_keep_positive_pulse_outputs_and_official_aggregates(tmp_path):
+    frame = pd.read_parquet(DATA / "prepared_ppg.parquet")
+    frames = {"recording_001": frame, "recording_002": frame.copy()}
+    actual, expected, _ = compare_workflows(frames, frames, ["pulse_rate"], tmp_path, skip_preparation=True,
+        pulse_rate_config=PulseRateConfig(ppg_sampling_frequency=100, min_window_length_s=10))
+    quantified = actual["quantifications"]["pulse_rate"]
+    assert not quantified.empty and set(quantified.file_key) == set(frames)
+    assert actual["aggregations"]["pulse_rate"]

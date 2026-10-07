@@ -24,6 +24,8 @@ def smoke_test(report_path):
         from .app import MainWindow
         from .core import analyze, export_results, load_sensor_file
         from .plotting import binary_indicator
+        from .inspection import inspect_recording
+        from .recordings import load_recordings
 
         # These bundled models import sklearn classes dynamically via pickle.
         models = []
@@ -244,6 +246,36 @@ def smoke_test(report_path):
                 window.inspect_sensor_context()
                 if window.sensor_table.model() is None or not window.sensor_table.model().rowCount():
                     raise RuntimeError("Gait segment did not reveal its original sensor samples")
+                batch_paths = [directory / "subject-part1.csv", directory / "subject-part2.csv"]
+                frame.to_csv(batch_paths[0], index=False)
+                second = frame.copy()
+                second["gyroscope_x"] += .002
+                second.to_csv(batch_paths[1], index=False)
+                batch_sources, batch_frames = load_recordings(batch_paths)
+                batch_results = analyze(batch_frames, pipelines=["tremor"])
+                batch_quantified = batch_results["quantifications"]["tremor"]
+                if batch_results["errors"] or set(batch_quantified.file_key) != set(batch_frames):
+                    raise RuntimeError("Multiple-recording analysis lost a recording")
+                window.loaded_recordings((batch_sources, batch_frames,
+                    {key: inspect_recording(data, "relative_s") for key, data in batch_frames.items()}))
+                window.provenance = {"source": str(batch_paths[0]), "sources": batch_sources,
+                                     "settings": {"pipelines": ["tremor"]}}
+                window.analyzed(batch_results)
+                if window.display_clock is not None or window.input_recording.isHidden():
+                    raise RuntimeError("Multiple input selection or relative recording clocks are incorrect")
+                window.dataset.setCurrentText("quantifications/tremor")
+                position = int(np.flatnonzero(batch_quantified.file_key.eq("recording_002"))[0])
+                window.result_table.setCurrentIndex(window.result_table.model().index(position, 0))
+                window.inspect_sensor_context()
+                if ("subject-part2.csv" not in window.sensor_note.text()
+                        or not len(window.sensor_times) or window.sensor_times.min() < 120. - 1e-9):
+                    raise RuntimeError("Sensor context used the wrong source recording")
+                batch_export = directory / "batch-results.json"
+                export_results(batch_export, batch_results, window.provenance)
+                from .history import load_result_export
+                batch_provenance, reopened_batch = load_result_export(batch_export)
+                if batch_provenance["sources"] != batch_sources or len(reopened_batch["quantifications"]["tremor"]) != len(batch_quantified):
+                    raise RuntimeError("Multiple-recording export lost sources or rows")
                 # The official Empatica example has an empty gyroscope stream.
                 # Import it for inspection without inventing missing channels.
                 avro_source = files("paradigma_desktop") / "data" / "test_data.avro"
@@ -317,6 +349,7 @@ def smoke_test(report_path):
                               selected_result_marker_verified=True,
                               calendar_time_controls_verified=True,
                               gait_sensor_context_verified=True,
+                              multiple_recordings_verified=True,
                               run_history_reopened=True,
                               models_loaded=models, quantified_rows=len(quantified),
                               qt_plot_rendered=True, export_verified=True,

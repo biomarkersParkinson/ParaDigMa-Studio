@@ -18,7 +18,9 @@ A verified signing identity must be configured before the signed workflow can pr
 
 ## Your first analysis
 
-1. **Data:** Open a recording. Inspect sensor/time statistics, overlay selected
+1. **Data:** Open one or more recordings for the same subject (Ctrl/Shift-select
+   in the file picker). Use the recording
+   selector to inspect each file's sensor/time statistics, overlay selected
    channels in Graphs, or view original samples in Tables.
 2. **Analyze:** Select any combination of gait, tremor and pulse rate.
    Review units, time representation, watch side and channel mapping; use each
@@ -29,6 +31,10 @@ A verified signing identity must be configured before the signed workflow can pr
    Choose metrics in **Plot series** and dates/times in **Filters**.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
 4. **Runs:** Review parameters, warnings, logs and export locations.
+
+Multiple files share the selected analysis settings. ParaDigMa processes them
+independently, combines their detailed outputs with file identifiers, and computes
+subject-level aggregates over the combined results.
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
@@ -77,5 +83,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.3.10**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.4.0**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

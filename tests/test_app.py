@@ -48,7 +48,7 @@ def test_worker_failure_is_delivered():
 def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileName", lambda *args: (str(tmp_path / "sensor.pkl"), ""))
+    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileNames", lambda *args: ([str(tmp_path / "sensor.pkl")], ""))
     monkeypatch.setattr(desktop_app.QMessageBox, "warning", lambda *args: desktop_app.QMessageBox.No)
     started = []
     monkeypatch.setattr(window, "start_job", lambda *args: started.append(args))
@@ -126,7 +126,7 @@ def test_empatica_opens_in_background_without_gyro(monkeypatch):
     window = MainWindow()
     source = str(files("paradigma_desktop") / "data" / "test_data.avro")
     errors = []
-    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileName", lambda *args: (source, ""))
+    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileNames", lambda *args: ([source], ""))
     monkeypatch.setattr(desktop_app.QMessageBox, "critical", lambda *args: errors.append(args))
     window.open_file()
     deadline = time.monotonic() + 10
