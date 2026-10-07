@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
     QScrollArea, QSplitter, QStackedWidget, QListView,
-    QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout,
+    QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
 )
 from .plot_cache import configure_plot_cache
 
@@ -30,16 +30,18 @@ from .core import (
     analyze, export_results, export_table_csv, load_sensor_file, result_tables,
     validate_column_mapping, validate_orientation,
 )
-from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, select_rows, source_timeline
+from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
 from .history import RunHistory, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import add_graph_controls
+from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
 )
 from .theme import STYLESHEET, light_palette, style_axes
 from .analysis_help import FIELD_HELP, SOURCE
+from .time_controls import TimeField
 from .widgets import FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
 
 
@@ -98,7 +100,7 @@ class MainWindow(QMainWindow):
         self.frame = self.results = self.worker = None
         self.source = ""
         self.tables, self.provenance = {}, {}
-        self._timings, self._detail_filters, self._detail_selections, self._series_items = {}, {}, {}, {}
+        self._timings, self._detail_selections, self._series_items = {}, {}, {}
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
         self.active_frame = None
@@ -326,13 +328,10 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
         modules = QHBoxLayout()
         self.module_buttons = {}
-        for name, description in (("Gait", "Requires accelerometer and gyroscope channels."),
-                                  ("Tremor", "Requires gyroscope channels. Can run together with gait."),
-                                  ("Pulse rate", "Requires raw green PPG.")):
+        for name in ("Gait", "Tremor", "Pulse rate"):
             item = button(name)
             item.setObjectName("module")
             item.setCheckable(True)
-            item.setToolTip(description)
             self.module_buttons[name] = item
             modules.addWidget(item, 1)
         self.module_buttons["Gait"].setChecked(True)
@@ -356,18 +355,15 @@ class MainWindow(QMainWindow):
         for widget in (self.side, self.acc, self.gyro, self.time):
             widget.setMinimumWidth(160)
         self.orientation = QLineEdit("x,y,z")
-        self.orientation.setToolTip("Three signed axes, for example x,y,z or -y,x,z")
         for title, widget in (("Watch side", self.side), ("Acceleration units", self.acc),
                               ("Gyroscope units", self.gyro), ("Time units", self.time),
                               ("Device axes", self.orientation)):
             self.analysis_field(title, widget, form=left)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
-        self.prepared.setToolTip("Prepared data must already use relative seconds, g and deg/s.")
         self.gaps = QCheckBox("Split recordings at time gaps")
         self.gaps.setChecked(True)
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(True)
-        self.drop_missing.setToolTip("Exclude invalid required samples and analyze valid sections separately.")
         for title, widget in (("Already prepared", self.prepared),
                               ("Split recordings at time gaps", self.gaps),
                               ("Exclude missing sensor samples", self.drop_missing)):
@@ -410,7 +406,6 @@ class MainWindow(QMainWindow):
         info.setFixedSize(22, 22)
         info.setCheckable(True)
         info.setAccessibleName(f"Information: {title}")
-        info.setToolTip(f"Show information about {title}")
         description = QLabel(f'{escape(text)}<br><a href="{SOURCE}{reference}">ParaDigMa documentation</a>')
         description.setWordWrap(True)
         description.setTextFormat(Qt.RichText)
@@ -461,51 +456,44 @@ class MainWindow(QMainWindow):
         layout.addLayout(header)
         self.detail_controls = QWidget()
         controls_layout = QVBoxLayout(self.detail_controls)
+        controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         settings = QHBoxLayout()
         self.dataset = self.combo()
         self.dataset.setMinimumWidth(180)
-        settings.addWidget(field("Detailed output", self.dataset), 2)
+        self.dataset_field = field("Detailed output", self.dataset)
+        settings.addWidget(self.dataset_field, 2)
         self.y_column = self.combo()
-        settings.addWidget(field("Metric", self.y_column), 1)
-        self.participant, self.segment = self.combo(), self.combo()
-        self.participant_field = field("Participant", self.participant)
-        self.segment_field = field("Recording section", self.segment)
-        settings.addWidget(self.participant_field, 1)
-        settings.addWidget(self.segment_field, 1)
-        self.participant_field.hide()
-        self.segment_field.hide()
+        # Kept as internal metric state for linked table/graph inspection.
+        # Plot series is the user-facing metric selector.
+        self.y_column.setParent(self.detail_controls)
+        self.y_column.hide()
         self.filters_toggle = button("Filters")
         self.filters_toggle.setCheckable(True)
+        settings.addStretch()
         settings.addWidget(self.filters_toggle)
         controls_layout.addLayout(settings)
         self.filters_panel, filters = card()
-        time_row = QHBoxLayout()
-        self.clock_input = QLineEdit()
-        self.clock_input.setPlaceholderText("Optional ISO date/time")
-        self.clock_input.setToolTip("Date/time corresponding to analysis second zero. This changes display only.")
-        self.time_from, self.time_to = QLineEdit(), QLineEdit()
-        for edit in (self.time_from, self.time_to):
-            edit.setPlaceholderText("ISO date/time or seconds")
-        time_row.addWidget(field("Time origin", self.clock_input), 2)
-        time_row.addWidget(field("From", self.time_from), 1)
-        time_row.addWidget(field("Until", self.time_to), 1)
-        filters.addLayout(time_row)
+        filters.setSizeConstraint(QLayout.SetMinimumSize)
+        self.time_grid = QGridLayout()
+        self.clock_input = TimeField("Time origin", origin=True)
+        self.time_from, self.time_to = TimeField("From"), TimeField("Until")
+        self.time_fields = [field(title, control) for title, control in
+                            (("Time origin", self.clock_input), ("From", self.time_from), ("Until", self.time_to))]
+        for widget in self.time_fields:
+            widget.setMinimumHeight(64)
+        self._time_fields_compact = None
+        self.arrange_time_fields()
+        filters.addLayout(self.time_grid)
+        self.time_zone = label("", "muted")
+        filters.addWidget(self.time_zone)
         row = QHBoxLayout()
-        self.filter_column = self.combo()
-        self.filter_value = QLineEdit()
-        self.filter_value.setPlaceholderText("Contains text")
-        self.filter_min, self.filter_max = QLineEdit(), QLineEdit()
-        self.filter_min.setPlaceholderText("Minimum")
-        self.filter_max.setPlaceholderText("Maximum")
-        row.addWidget(field("Column", self.filter_column), 2)
-        row.addWidget(field("Text", self.filter_value), 2)
-        row.addWidget(field("Minimum", self.filter_min), 1)
-        row.addWidget(field("Maximum", self.filter_max), 1)
+        row.addStretch()
         row.addWidget(button("Apply", self.apply_filters, primary=True), alignment=Qt.AlignBottom)
         row.addWidget(button("Reset", self.reset_filters), alignment=Qt.AlignBottom)
         filters.addLayout(row)
         self.filter_status = label("", "muted")
+        self.filter_status.hide()
         filters.addWidget(self.filter_status)
         controls_layout.addWidget(self.filters_panel)
         self.filters_panel.hide()
@@ -513,6 +501,7 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.selection_note)
         layout.addWidget(self.detail_controls)
         self.result_tabs = QTabWidget()
+        self.result_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         self.overview_scroll = QScrollArea()
         self.overview_scroll.setWidgetResizable(True)
         self.overview_content = QWidget()
@@ -536,11 +525,13 @@ class MainWindow(QMainWindow):
         plots = QVBoxLayout(graph)
         plots.setContentsMargins(0, 0, 0, 0)
         self.figure = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.figure)
+        self.canvas = ScrollableFigureCanvas(self.figure)
         self.plot_toolbar = add_graph_controls(plots, self.canvas, self)
         graph_scroll = QScrollArea()
         graph_scroll.setWidgetResizable(True)
         graph_scroll.setWidget(self.canvas)
+        self.graph_scroll = graph_scroll
+        self.canvas.scroll_area = graph_scroll
         plots.addWidget(graph_scroll, 1)
         graph_layout.addWidget(graph, 1)
         self.canvas.setToolTip("Click a point to select its detailed output row.")
@@ -642,12 +633,8 @@ class MainWindow(QMainWindow):
         self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
         self.dataset.currentTextChanged.connect(self.select_dataset)
         self.y_column.currentIndexChanged.connect(self.update_metric)
-        self.participant.currentIndexChanged.connect(self.apply_filters)
-        self.segment.currentIndexChanged.connect(self.apply_filters)
-        self.filter_value.returnPressed.connect(self.apply_filters)
-        self.filter_min.returnPressed.connect(self.apply_filters)
-        self.filter_max.returnPressed.connect(self.apply_filters)
         self.result_series.itemChanged.connect(self.plot)
+        self.result_series.currentItemChanged.connect(self.select_plot_series)
         for edit in (self.time_from, self.time_to, self.clock_input):
             edit.returnPressed.connect(self.apply_filters)
         self.sensor_channel.currentIndexChanged.connect(self.plot_sensor)
@@ -796,7 +783,7 @@ class MainWindow(QMainWindow):
         self._source_timelines, self._display_offsets = {}, {}
         self.clock_input.clear()
         self.tables = {}
-        self._timings, self._detail_filters, self._detail_selections, self._series_items = {}, {}, {}, {}
+        self._timings, self._detail_selections, self._series_items = {}, {}, {}
         self.result_series.blockSignals(True)
         self.result_series.clear()
         self.result_series.blockSignals(False)
@@ -909,11 +896,10 @@ class MainWindow(QMainWindow):
         self.plot_input()
 
     def populate_input_channels(self, selection=None):
-        numeric = [column for column in self.frame.select_dtypes(include="number").columns
+        numeric = [column for column in self.frame.select_dtypes(include=["number", "bool"]).columns
                    if str(column).lower() not in TIME_NAMES
                    and not pd.api.types.is_complex_dtype(self.frame[column].dtype)]
-        palette = colormaps["tab10"] if len(numeric) <= 10 else colormaps["tab20"] if len(numeric) <= 20 else None
-        colors = palette.colors if palette is not None else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
+        colors = GRAPH_COLORS if len(numeric) <= len(GRAPH_COLORS) else colormaps["tab20"].colors if len(numeric) <= 20 else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
         self._channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
         self.data_channels.blockSignals(True)
         self.data_channels.clear()
@@ -930,32 +916,53 @@ class MainWindow(QMainWindow):
 
     def plot_input(self, *_):
         self.data_figure.clear()
-        ax = style_axes(self.data_figure)
         channels = self.selected_input_channels()
-        if self.frame is not None and channels:
-            step = max(1, int(np.ceil(len(self.frame) / 20000)))
-            sample = self.frame.iloc[::step]
+        if self.frame is None or not channels:
+            ax = style_axes(self.data_figure)
+            ax.text(.5, .5, "Select sensor channels" if self.frame is not None else "Open a recording with numeric sensor channels",
+                    ha="center", transform=ax.transAxes, color="#60728A")
+        else:
             column = self.data_time_channel.currentData()
             times, time_label = None, "Time (file units)"
-            if column in sample:
-                series = sample[column]
+            if column in self.frame:
+                series = self.frame[column]
                 if pd.api.types.is_datetime64_any_dtype(series.dtype):
                     times, time_label = series, "Time"
                 elif pd.api.types.is_timedelta64_dtype(series.dtype):
                     times, time_label = series.dt.total_seconds(), "Time (s)"
                 elif not pd.api.types.is_complex_dtype(series.dtype):
                     times = pd.to_numeric(series, errors="coerce")
-            numeric_time = times is not None and times.notna().all()
-            for channel in channels:
-                ax.plot(times if numeric_time else np.arange(len(self.frame))[::step], sample[channel],
-                        color=self._channel_colors[channel], linewidth=1, label=str(channel))
-            ax.set_xlabel(time_label if numeric_time else "Sample position")
-            ax.set_ylabel(str(channels[0]) if len(channels) == 1 else "Sensor values (file units)")
-            if len(channels) > 1:
-                ax.legend(loc="upper left", bbox_to_anchor=(0, 1.02), ncols=min(3, len(channels)), frameon=False, fontsize=9)
-        else:
-            ax.text(.5, .5, "Select sensor channels" if self.frame is not None else "Open a recording with numeric sensor channels",
-                    ha="center", transform=ax.transAxes)
+            usable = times is not None and times.notna().all()
+            xs = times if usable else np.arange(len(self.frame))
+            flags = [c for c in channels if binary_indicator(self.frame[c], c)]
+            signals = [c for c in channels if c not in flags]
+            groups = ([signals] if signals else []) + [[flag] for flag in flags]
+            first_axes = None
+            for index, group in enumerate(groups):
+                ax = style_axes(self.data_figure, position=(len(groups), 1, index + 1), sharex=first_axes)
+                if first_axes is None:
+                    first_axes = ax
+                for channel in group:
+                    if channel in flags:
+                        plot_states(ax, xs, self.frame[channel].to_numpy(dtype=float, na_value=np.nan), self._channel_colors[channel], label=str(channel))
+                        ax.set_title(str(channel), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
+                    else:
+                        step = max(1, int(np.ceil(len(self.frame) / 20000)))
+                        plot_signal(ax, xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
+                                    self.frame[channel].iloc[::step], self._channel_colors[channel], label=str(channel))
+                        ax.set_ylabel(str(group[0]) if len(group) == 1 else "Sensor values (file units)")
+                if len(group) > 1:
+                    ax.legend(loc="upper right", ncols=min(3, len(group)), frameon=True, facecolor="white",
+                              edgecolor="#E0E7EF", framealpha=.95, fontsize=9)
+                if usable and pd.api.types.is_datetime64_any_dtype(times.dtype):
+                    timezone = times.dt.tz
+                    locator = dates.AutoDateLocator(tz=timezone)
+                    ax.xaxis.set_major_locator(locator)
+                    ax.xaxis.set_major_formatter(dates.ConciseDateFormatter(locator, tz=timezone))
+                ax.set_xlabel(time_label if usable else "Sample position")
+                ax.tick_params(axis="x", labelbottom=index == len(groups) - 1)
+                ax.xaxis.label.set_visible(index == len(groups) - 1)
+                ax.xaxis.offsetText.set_visible(index == len(groups) - 1)
         self.data_toolbar.refresh()
         self.data_canvas.draw_idle()
 
@@ -1009,6 +1016,8 @@ class MainWindow(QMainWindow):
         self.detail_controls.setVisible(detailed)
         self.csv_button.setVisible(detailed)
         self.context_controls.setVisible(detailed)
+        self.dataset_field.setVisible(index == 2)
+        self.selection_note.setVisible(index == 2)
 
     def build_result_overview(self):
         while self.overview_layout.count():
@@ -1109,6 +1118,16 @@ class MainWindow(QMainWindow):
     def selected_result_series(self):
         return [key for key, item in self._series_items.items() if item.checkState(0) == Qt.Checked]
 
+    def select_plot_series(self, item, previous=None):
+        key = item.data(0, Qt.UserRole) if item is not None else None
+        if key is None:
+            return
+        name, metric = key
+        self.dataset.setCurrentText(name)
+        self.y_column.blockSignals(True)
+        self.y_column.setCurrentIndex(self.y_column.findData(metric))
+        self.y_column.blockSignals(False)
+
     def analyzed(self, results):
         self.results = results
         if self.current_run is None:
@@ -1131,10 +1150,13 @@ class MainWindow(QMainWindow):
         if self.active_run is not None:
             self.active_run["_results"] = results
             self.active_run["_provenance"] = dict(self.provenance)
+        self.clock_input.set_clock(self.display_clock)
         self.clock_input.setText(self.display_clock["origin"] if self.display_clock else "")
+        self.time_from.set_clock(self.display_clock)
+        self.time_to.set_clock(self.display_clock)
         self.time_from.clear()
         self.time_to.clear()
-        self._detail_filters, self._detail_selections = {}, {}
+        self._detail_selections = {}
         self.tables = detail_tables(results)
         self._timings = {name: detail_timing(results, name, frame) for name, frame in self.tables.items()}
         for name, timing in self._timings.items():
@@ -1142,29 +1164,11 @@ class MainWindow(QMainWindow):
         self.results_source.setText(Path(self.provenance.get("source", self.source)).name or "Current analysis")
         self.build_result_overview()
         self.populate_result_series()
-        for widget in (self.participant, self.segment):
-            widget.blockSignals(True)
-            widget.clear()
-        self.participant.addItem("All participants", None)
-        self.segment.addItem("All sections", None)
-        participants, sections = [], []
-        for frame in self.tables.values():
-            column = next((c for c in PARTICIPANT_COLUMNS if c in frame), None)
-            if column:
-                participants.extend(frame[column].dropna().unique())
-            if "file_key" in frame:
-                sections.extend(frame.file_key.dropna().unique())
-        for value in dict.fromkeys(participants):
-            self.participant.addItem(str(value), value)
-        for value in dict.fromkeys(sections):
-            self.segment.addItem(str(value), value)
-        self.participant.setEnabled(bool(participants))
-        self.segment.setEnabled(bool(sections))
-        self.participant_field.setVisible(bool(participants))
-        self.segment_field.setVisible(bool(sections))
-        self.participant.setToolTip("Filters existing identifiers across detailed outputs." if participants else "This run has no participant identifiers.")
-        for widget in (self.participant, self.segment):
-            widget.blockSignals(False)
+        times = np.concatenate([t["Timeline time (s)"].to_numpy() for t in self._timings.values()]) if self._timings else np.array([])
+        finite = times[np.isfinite(times)]
+        if len(finite):
+            self.time_from.set_default(float(finite.min()))
+            self.time_to.set_default(float(finite.max()))
         self.dataset.blockSignals(True)
         self.dataset.clear()
         self.dataset.addItems(self.tables)
@@ -1198,11 +1202,7 @@ class MainWindow(QMainWindow):
         self.context_button.setEnabled(False)
         self.context_hint.setText("Select a result row" if self.result_source_frame is not None else "Original sensor data unavailable")
         self.y_column.blockSignals(True)
-        self.filter_column.blockSignals(True)
         self.y_column.clear()
-        self.filter_column.clear()
-        self.filter_column.addItem("Choose a column", None)
-        self.participant_column = None
         if frame is not None:
             for column in plot_metrics(name, frame):
                 self.y_column.addItem(str(column), column)
@@ -1210,59 +1210,43 @@ class MainWindow(QMainWindow):
                              preferred_metric(name, frame))
             if preferred is not None:
                 self.y_column.setCurrentIndex(self.y_column.findData(preferred))
-            for column in frame:
-                self.filter_column.addItem(str(column), column)
-            self.participant_column = next((c for c in PARTICIPANT_COLUMNS if c in frame), None)
-        saved = self._detail_filters.get(name, {})
-        self.filter_column.setCurrentIndex(max(0, self.filter_column.findData(saved.get("column"))))
-        self.filter_value.setText(saved.get("text", ""))
-        self.filter_min.setText(saved.get("minimum", ""))
-        self.filter_max.setText(saved.get("maximum", ""))
         self.y_column.blockSignals(False)
-        self.filter_column.blockSignals(False)
         self.apply_filters()
-        if not any(dataset == name for dataset, metric in self.selected_result_series()):
+        if self.result_tabs.currentIndex() != 1 and not any(dataset == name for dataset, metric in self.selected_result_series()):
             item = self._series_items.get((name, self.y_column.currentData()))
             if item is not None:
                 item.setCheckState(0, Qt.Checked)
 
     def apply_filters(self, *_):
         name = self.dataset.currentText()
-        current_filter = {"column": self.filter_column.currentData(), "text": self.filter_value.text().strip(),
-                          "minimum": self.filter_min.text().strip(), "maximum": self.filter_max.text().strip()}
         try:
             clock = self.display_clock
             entered = self.clock_input.text().strip()
             if entered:
-                candidate = normalise_clock({"origin": entered, "source": "User supplied"})
+                candidate = normalise_clock({"origin": entered, "source": "User supplied",
+                    "timezone": clock.get("timezone") if clock else None})
                 if clock is None or pd.Timestamp(clock["origin"]) != pd.Timestamp(candidate["origin"]):
                     clock = candidate
             else:
                 clock = None
-            low, high = time_bound(self.time_from.text(), clock), time_bound(self.time_to.text(), clock)
+            # Removing the origin keeps the selected interval in elapsed seconds.
+            bound_clock = clock if clock is not None else self.display_clock
+            low, high = time_bound(self.time_from.text(), bound_clock), time_bound(self.time_to.text(), bound_clock)
             if low is not None and high is not None and low > high:
                 raise ValueError("The time minimum cannot exceed the maximum.")
             selections = {}
             for key, frame in self.tables.items():
-                column = next((c for c in PARTICIPANT_COLUMNS if c in frame), None)
-                filtering = current_filter if key == name else self._detail_filters.get(key, {})
-                selected, positions = select_rows(frame, participant_column=column,
-                    participant=self.participant.currentData() if column else None,
-                    segment=self.segment.currentData() if "file_key" in frame else None, **filtering)
-                mask = np.ones(len(selected), dtype=bool)
-                if self.participant.currentData() is not None and column is None:
-                    mask[:] = False
-                if self.segment.currentData() is not None and "file_key" not in frame:
-                    mask[:] = False
-                times = self._timings[key]["Timeline time (s)"].to_numpy()[positions]
+                times = self._timings[key]["Timeline time (s)"].to_numpy()
+                mask = np.ones(len(frame), dtype=bool)
                 if low is not None:
                     mask &= times >= low
                 if high is not None:
                     mask &= times <= high
-                positions = positions[mask]
+                positions = np.flatnonzero(mask)
                 selections[key] = frame.iloc[positions], positions
         except (ValueError, TypeError, OverflowError) as exc:
             self.filter_status.setText(str(exc))
+            self.filter_status.show()
             return
         clock_changed = clock != self.display_clock
         self.display_clock = clock
@@ -1274,13 +1258,17 @@ class MainWindow(QMainWindow):
             self.current_run["_provenance"] = dict(self.provenance)
         if clock_changed:
             self.build_result_overview()
-        self._detail_filters[name] = current_filter
+        self.clock_input.set_clock(clock)
+        for control in (self.time_from, self.time_to):
+            control.set_clock(clock)
+        self.time_zone.setText("Calendar times: " + (clock.get("timezone") or "timezone unspecified") if clock
+                              else "Elapsed seconds · Set a recording time origin to use calendar dates")
         self._detail_selections = selections
         self.active_frame, self.active_positions = selections.get(name, (None, np.array([], dtype=int)))
-        self.active_selection = {"participant": self.participant.currentData(), "section": self.segment.currentData(),
-                                 "time_from": self.time_from.text(), "time_to": self.time_to.text(), **current_filter}
+        self.active_selection = {"time_from": self.time_from.text(), "time_to": self.time_to.text()}
         self.refresh_detail_table()
         self.filter_status.clear()
+        self.filter_status.hide()
         self.plot()
 
     def refresh_detail_table(self):
@@ -1318,13 +1306,8 @@ class MainWindow(QMainWindow):
                                     + (" · Gait positions estimated within segments" if estimated else ""))
 
     def reset_filters(self):
-        for widget in (self.participant, self.segment, self.filter_column):
-            widget.blockSignals(True)
-            widget.setCurrentIndex(0)
-            widget.blockSignals(False)
-        for widget in (self.filter_value, self.filter_min, self.filter_max, self.time_from, self.time_to):
-            widget.clear()
-        self._detail_filters = {}
+        self.time_from.clear()
+        self.time_to.clear()
         self.apply_filters()
 
     def update_metric(self, *_):
@@ -1347,6 +1330,7 @@ class MainWindow(QMainWindow):
             ax = style_axes(self.figure)
             ax.text(.5, .5, "Select detailed metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
         first_axes = None
+        colors = {key: GRAPH_COLORS[index % len(GRAPH_COLORS)] for index, key in enumerate(self._series_items)}
         for index, (name, metric) in enumerate(chosen):
             ax = style_axes(self.figure, position=(len(chosen), 1, index + 1), sharex=first_axes)
             if first_axes is None:
@@ -1355,7 +1339,8 @@ class MainWindow(QMainWindow):
             ax._paradigma_metric = metric
             selected, positions = self._detail_selections.get(name, (self.tables[name].iloc[:0], np.array([], dtype=int)))
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            step = max(1, int(np.ceil(len(selected) / 20000)))
+            binary = binary_indicator(self.tables[name][metric], metric)
+            step = 1 if binary else max(1, int(np.ceil(len(selected) / 20000)))
             sample = selected.iloc[::step]
             xs = clock_times(times[::step], self.display_clock)
             ys = sample[metric].to_numpy(dtype=float, na_value=np.nan)
@@ -1366,17 +1351,22 @@ class MainWindow(QMainWindow):
                 xs = np.asarray(dates.date2num(xs.to_pydatetime()), dtype=float)
             else:
                 xs = np.asarray(xs, dtype=float)
-            if "file_key" in sample and not points_only:
+            if "file_key" in sample and not points_only and not binary:
                 boundaries = np.flatnonzero(sample.file_key.ne(sample.file_key.shift()).fillna(True).to_numpy(dtype=bool))[1:]
                 xs, ys = np.insert(xs, boundaries, np.nan), np.insert(ys, boundaries, np.nan)
             if len(sample) and np.isfinite(xs).any():
-                color = colormaps["tab10"].colors[index % 10]
-                ax.plot(xs, ys, color=color, linewidth=0 if points_only else 1.1,
-                        marker="o" if points_only or len(sample) < 120 else None, markersize=3)
+                color = colors[(name, metric)]
+                if binary:
+                    plot_states(ax, xs, ys, color)
+                else:
+                    plot_signal(ax, xs, ys, color, points_only=points_only, sparse=len(sample) < 120)
             else:
                 ax.text(.5, .5, "No timed rows in the current selection", ha="center", transform=ax.transAxes, color="#68778c")
-            ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
-            ax.set_title(output_label(name) + (" · Estimated gait positions" if estimated else ""), fontsize=10, loc="left")
+            if not binary:
+                ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
+            metric_title = str(metric).replace("_", " ").capitalize()
+            ax.set_title(output_label(name) + "  ·  " + metric_title + (" · Estimated positions" if estimated else ""),
+                         fontsize=10, fontweight="semibold", color="#243C57", pad=13, loc="left")
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
@@ -1386,7 +1376,10 @@ class MainWindow(QMainWindow):
                 ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime("%d %b %Y %H:%M:%S")
             else:
                 ax.set_xlabel("Elapsed analysis time (s)")
-            ax.tick_params(axis="x", labelbottom=True)
+            bottom = index == len(chosen) - 1
+            ax.tick_params(axis="x", labelbottom=bottom)
+            ax.xaxis.label.set_visible(bottom)
+            ax.xaxis.offsetText.set_visible(bottom)
         self.plot_toolbar.refresh()
         self.canvas.draw_idle()
 
@@ -1488,7 +1481,12 @@ class MainWindow(QMainWindow):
         column = self.sensor_channel.currentData()
         if self.sensor_frame is not None and column in self.sensor_frame and len(self.sensor_frame):
             step = max(1, int(np.ceil(len(self.sensor_frame) / 20000)))
-            ax.plot(clock_times(self.sensor_times[::step], self.display_clock), self.sensor_frame[column].iloc[::step], color="#bc601f", linewidth=1)
+            xs = clock_times(self.sensor_times[::step], self.display_clock)
+            if binary_indicator(self.sensor_frame[column], column):
+                plot_states(ax, clock_times(self.sensor_times, self.display_clock), self.sensor_frame[column].to_numpy(dtype=float, na_value=np.nan), GRAPH_COLORS[1])
+                ax.set_title(str(column), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
+            else:
+                plot_signal(ax, xs, self.sensor_frame[column].iloc[::step], GRAPH_COLORS[1])
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
@@ -1497,7 +1495,8 @@ class MainWindow(QMainWindow):
                 ax.set_xlabel("Recording date/time")
             else:
                 ax.set_xlabel("Analysis time (s)")
-            ax.set_ylabel(str(column))
+            if not getattr(ax, "_paradigma_binary", False):
+                ax.set_ylabel(str(column))
         else:
             ax.text(.5, .5, "No original samples in this context", ha="center", transform=ax.transAxes)
         self.sensor_toolbar.refresh()
@@ -1628,11 +1627,28 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, "time_fields"):
+            self.arrange_time_fields()
         if hasattr(self, "data_details"):
             orientation = Qt.Horizontal if self.width() >= 1280 else Qt.Vertical
             if self.data_details.orientation() != orientation:
                 self.data_details.setOrientation(orientation)
                 self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
+
+    def arrange_time_fields(self):
+        compact = self.width() < 1280
+        if compact == self._time_fields_compact:
+            return
+        self._time_fields_compact = compact
+        for widget in self.time_fields:
+            self.time_grid.removeWidget(widget)
+        if compact:
+            self.time_grid.addWidget(self.time_fields[0], 0, 0, 1, 2)
+            self.time_grid.addWidget(self.time_fields[1], 1, 0)
+            self.time_grid.addWidget(self.time_fields[2], 1, 1)
+        else:
+            for column, widget in enumerate(self.time_fields):
+                self.time_grid.addWidget(widget, 0, column)
 
 
 def main():

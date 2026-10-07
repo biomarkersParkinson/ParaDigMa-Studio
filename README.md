@@ -26,6 +26,7 @@ A verified signing identity must be configured before the signed workflow can pr
 3. **Results:** Overview shows module aggregates and metadata. Graphs compares
    selected metrics from multiple modules across recording time; Tables shows
    detailed classifications and measurements using the same filters.
+   Choose metrics in **Plot series** and dates/times in **Filters**.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
 4. **Runs:** Review parameters, warnings, logs and export locations.
 
@@ -75,5 +76,5 @@ pipeline publications. **About & citations** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.3.1**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.3.2**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

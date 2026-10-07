@@ -7,7 +7,7 @@ PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject",
 
 
 def measurement_columns(frame):
-    return [column for column in frame.select_dtypes(include="number").columns
+    return [column for column in frame.select_dtypes(include=["number", "bool"]).columns
             if column != "time" and column not in PARTICIPANT_COLUMNS
             and not str(column).endswith(("_id", "_nr"))]
 

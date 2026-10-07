@@ -33,6 +33,8 @@ publisher setup.
   selection, context, timing and presentation summaries.
 - `history.py`: run metadata and JSON reopening.
 - `theme.py`, `plot_controls.py`, `plot_cache.py`: styling, figure controls and cache handling.
+- `plotting.py`: shared signal/state rendering and canvas scrolling;
+  `time_controls.py`: calendar/clock and elapsed-time fields.
 - `startup.py`, `smoke.py`: probes that must run inside the packaged executable.
 
 ## Review and cleanup

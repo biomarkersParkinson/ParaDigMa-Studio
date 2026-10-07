@@ -54,7 +54,7 @@ QPushButton#helpInfo { padding: 0; min-height: 0; border-radius: 11px;
 QPushButton#helpInfo:hover, QPushButton#helpInfo:checked { background: #d8e8f8; }
 QLabel#fieldHelp { color: #33465d; background: #f0f5fb; padding: 10px; border-radius: 6px; }
 QPushButton#module:checked { background: #eef5ff; border: 2px solid #2563a5; }
-QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox { background: white;
+QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox, QDateTimeEdit { background: white;
     color: #22324a; border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px;
     selection-background-color: #2563a5; selection-color: white; }
 QTextBrowser { background: white; color: #22324a; border: 1px solid #d7dfe9;
@@ -62,10 +62,15 @@ QTextBrowser { background: white; color: #22324a; border: 1px solid #d7dfe9;
 QComboBox { min-height: 22px; padding: 8px 30px 8px 10px; combobox-popup: 0; }
 QComboBoxPrivateContainer { background: white; border: 1px solid #d7dfe9; }
 QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border-color: #2563a5; }
-QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right;
+QComboBox::drop-down, QDateTimeEdit::drop-down { subcontrol-origin: padding; subcontrol-position: top right;
     width: 24px; border: none; }
-QComboBox::down-arrow { image: url("__DROPDOWN_ICON__"); width: 12px; height: 8px; }
-QLineEdit:disabled, QComboBox:disabled, QDoubleSpinBox:disabled { background: #f4f6f9; color: #68778c; }
+QComboBox::down-arrow, QDateTimeEdit::down-arrow { image: url("__DROPDOWN_ICON__"); width: 12px; height: 8px; }
+QLineEdit:disabled, QComboBox:disabled, QDoubleSpinBox:disabled, QDateTimeEdit:disabled { background: #f4f6f9; color: #68778c; }
+QCalendarWidget QWidget { background: white; color: #22324a; }
+QCalendarWidget QWidget#qt_calendar_navigationbar { background: #edf3fa; }
+QCalendarWidget QAbstractItemView { selection-background-color: #2563a5; selection-color: white; }
+QCalendarWidget QHeaderView::section { padding: 2px; }
+QCalendarWidget QTableView::item { padding: 2px; }
 QComboBox QAbstractItemView { background: white; color: #22324a;
     selection-background-color: #2563a5; selection-color: white;
     border: 1px solid #d7dfe9; outline: none; }
@@ -122,10 +127,20 @@ def style_axes(figure, position=(1, 1, 1), sharex=None):
     figure.set_facecolor("white")
     ax = figure.add_subplot(*position, sharex=sharex)
     ax.set_facecolor("white")
-    ax.tick_params(colors="#68778c", labelsize=9)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors="#60728A", labelsize=9, length=0, pad=7)
+    ax.xaxis.label.set_color("#465B73")
+    ax.yaxis.label.set_color("#465B73")
+    ax.xaxis.label.set_size(10)
+    ax.yaxis.label.set_size(10)
+    ax.xaxis.labelpad = 10
+    ax.yaxis.labelpad = 10
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     for side in ("bottom", "left"):
-        ax.spines[side].set_color("#d7dfe9")
-    ax.grid(alpha=0.15)
+        ax.spines[side].set_color("#DFE6EF")
+        ax.spines[side].set_linewidth(.7)
+    ax.grid(axis="y", color="#DAE3ED", linewidth=.7, alpha=.7)
+    ax.grid(axis="x", color="#DFE6EF", linewidth=.5, alpha=.45, linestyle=":")
+    ax.margins(x=.025, y=.12)
     return ax

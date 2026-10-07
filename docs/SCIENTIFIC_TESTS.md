@@ -141,6 +141,11 @@ and daylight-saving transitions, preserving named timezones in exported provenan
 classification/quantification graph clicks, and clearly labeled gait estimates
 computed before filtering. Estimated positions do not claim clinical event timing
 and are never inserted into the official scientific result tables.
+Graph-workspace tests verify exact binary timestamps, missing states and isolated
+positive detections beyond the continuous display limit, alongside unchanged
+continuous values. They also exercise real Qt wheel/touchpad events, calendar
+selection, source-clock precision, named-zone daylight-saving transitions and
+removal of an origin without changing the selected elapsed-time interval.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

@@ -8,7 +8,7 @@ Overview shows sample counts and separates sensor-channel descriptives from time
 
 ![Data workspace](screenshots/data.png)
 
-Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Display sampling remains limited to 20,000 points per selected channel while Tables and exports retain all samples.
+Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Continuous displays are limited to 20,000 points per channel; binary indicators retain every timestamp in separate presence/absence rows. Tables and exports retain all samples.
 
 ![Original sensor graphs](screenshots/data-graphs.png)
 
@@ -43,8 +43,21 @@ series tree supports multiple modules and metrics simultaneously, with verticall
 aligned plots sharing recording date/time. Dates come from source timestamps or
 metadata; files with only elapsed time can use a user-supplied time origin.
 Gait points are estimated within explicit segment boundaries and labeled as estimates.
+Plot series is the sole graph selector. Graphs use a consistent palette, subtle
+grids and shared bottom time labels; scrolling works over the graph canvas.
+Binary outputs use presence/absence marks at their observed timestamps.
+
+Filters contains only Time origin and From/Until. Calendar and clock selectors
+use the recording timezone when known. Recordings without dates use elapsed
+seconds until a time origin is supplied.
 
 ![Interactive result graphs](screenshots/graphs.png)
+
+![Calendar and time filters](screenshots/results-filters.png)
+
+The [calendar popup](screenshots/calendar.png) has readable day headings. In
+[compact windows](screenshots/results-filters-compact.png), the time fields wrap
+onto two rows.
 
 Tables retain official values alongside recording timestamps and gait timing annotations.
 

@@ -18,11 +18,12 @@ def smoke_test(report_path):
         from importlib.resources import files
         from PySide6.QtWidgets import QApplication
         from PySide6.QtGui import QPixmap
-        from PySide6.QtCore import QEventLoop, QTimer
+        from PySide6.QtCore import QEventLoop, QTimer, Qt
         from paradigma.classification import ClassifierPackage
 
         from .app import MainWindow
         from .core import analyze, export_results, load_sensor_file
+        from .plotting import binary_indicator
 
         # These bundled models import sklearn classes dynamically via pickle.
         models = []
@@ -127,8 +128,7 @@ def smoke_test(report_path):
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("Result plot was not rendered")
-                window.filter_column.setCurrentText("time")
-                window.filter_min.setText("60")
+                window.time_from.setText("60")
                 window.apply_filters()
                 selected = quantified.loc[quantified["time"] >= 60]
                 if window.result_table.model().rowCount() != len(selected) or len(selected) == len(quantified):
@@ -136,6 +136,24 @@ def smoke_test(report_path):
                 if not np.array_equal(window.figure.axes[0].lines[0].get_ydata(), selected[window.y_column.currentData()].to_numpy()):
                     raise RuntimeError("Graph and table did not use the same result selection")
                 window.reset_filters()
+                classification = results["classifications"]["tremor"]
+                state = next(column for column in classification if binary_indicator(classification[column], column))
+                window.result_series.blockSignals(True)
+                for key, item in window._series_items.items():
+                    item.setCheckState(0, Qt.Checked if key == ("classifications/tremor", state) else Qt.Unchecked)
+                window.result_series.blockSignals(False)
+                window.plot()
+                window.canvas.draw()
+                state_axes = window.figure.axes[0]
+                valid = np.isfinite(classification[state].to_numpy(dtype=float))
+                if state_axes.lines or not np.array_equal(state_axes.collections[0].get_offsets()[:, 1], classification[state].to_numpy()[valid]):
+                    raise RuntimeError("Binary output did not preserve its states as a categorical raster")
+                window.result_tabs.setCurrentIndex(1)
+                if not window.dataset_field.isHidden() or not window.y_column.isHidden():
+                    raise RuntimeError("Graphs still have redundant output/metric selectors")
+                if not window.clock_input.calendar.calendarPopup():
+                    raise RuntimeError("The recording time origin has no calendar selector")
+                window.result_tabs.setCurrentIndex(0)
                 export = directory / "results.json"
                 export_results(export, results, {"source": source.name})
                 saved = json.loads(export.read_text(encoding="utf-8"))
@@ -246,6 +264,8 @@ def smoke_test(report_path):
                               absolute_recording_clock_verified=True,
                               estimated_gait_positions_verified=True,
                               linked_result_selection_verified=True,
+                              binary_state_raster_verified=True,
+                              calendar_time_controls_verified=True,
                               gait_sensor_context_verified=True,
                               run_history_reopened=True,
                               models_loaded=models, quantified_rows=len(quantified),

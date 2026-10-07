@@ -109,8 +109,7 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     assert set(window.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
     assert not window.detail_controls.isHidden()
-    window.filter_column.setCurrentText("range_of_motion")
-    window.filter_min.setText("30")
+    window.time_from.setText("10")
     window.apply_filters()
     assert window.overview_values[("gait", "Aggregates", ("unfiltered", "all", "median_range_of_motion"))].text() == "25"
     for module, table in results["quantifications"].items():

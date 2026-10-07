@@ -214,7 +214,7 @@ def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(w
     frame = pd.DataFrame({heading: [1., 2.], "short": [3., 4.]})
     window.loaded(("sensor.csv", frame))
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    for widget in window.findChildren(QTableView):
+    for widget in window.findChildren(desktop.ReadableTable):
         assert widget.horizontalHeader().defaultAlignment() & Qt.AlignLeft
         assert widget.horizontalHeader().textElideMode() == Qt.ElideNone
         if widget.model() is not None:
@@ -235,10 +235,12 @@ def test_metric_and_filter_changes_leave_official_overview_aggregates_unchanged(
     assert not hasattr(window, "summary_table")
     window.y_column.setCurrentText("other_metric")
     np.testing.assert_array_equal(window.figure.axes[0].lines[0].get_ydata(), frame.other_metric)
-    window.participant.setCurrentIndex(window.participant.findData("a"))
+    window.time_from.setText("2")
+    window.time_to.setText("4")
+    window.apply_filters()
     assert window.overview_values[("test", "Aggregates", ("median_metric",))] is aggregate
     assert aggregate.text() == "12.5"
-    pd.testing.assert_frame_equal(window.active_frame, frame.iloc[[0, 2, 4]])
+    pd.testing.assert_frame_equal(window.active_frame, frame.iloc[[2, 3, 4]])
     window.clear_results()
     assert window.overview_values == {}
     assert window.result_table.model() is None
@@ -325,11 +327,8 @@ def test_one_selection_drives_detailed_graph_table_and_csv(window, tmp_path, mon
     frame = output()
     original = frame.copy()
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    window.participant.setCurrentText("a")
-    window.segment.setCurrentText("segment_2")
-    window.filter_column.setCurrentText("metric")
-    window.filter_min.setText("14")
-    window.filter_max.setText("14")
+    window.time_from.setText("4")
+    window.time_to.setText("4")
     window.apply_filters()
     assert window.active_positions.tolist() == [4]
     pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame.iloc[[4]])
@@ -349,14 +348,13 @@ def test_one_selection_drives_detailed_graph_table_and_csv(window, tmp_path, mon
 
 def test_invalid_filter_retains_selection_and_empty_filter_clears_graph(window):
     window.analyzed({"quantifications": {"test": output()}, "errors": []})
-    window.filter_column.setCurrentText("metric")
-    window.filter_min.setText("15")
-    window.filter_max.setText("10")
+    window.time_from.setText("5")
+    window.time_to.setText("1")
     window.apply_filters()
     assert "minimum" in window.filter_status.text()
     assert len(window.active_frame) == window.result_table.model().rowCount() == 6
-    window.filter_max.setText("20")
-    window.filter_min.setText("19")
+    window.time_from.setText("9")
+    window.time_to.setText("10")
     window.apply_filters()
     assert window.active_frame.empty
     assert window.result_table.model().rowCount() == 0
@@ -366,7 +364,8 @@ def test_invalid_filter_retains_selection_and_empty_filter_clears_graph(window):
 
 def test_graph_click_selects_nearest_row_within_active_selection(window):
     window.analyzed({"quantifications": {"test": output()}, "errors": []})
-    window.participant.setCurrentText("b")
+    window.time_from.setText("2")
+    window.apply_filters()
     window.graph_clicked(SimpleNamespace(inaxes=window.figure.axes[0], xdata=3.1))
     assert window.result_table.currentIndex().row() == 1
     assert window.active_frame.iloc[1]["time"] == 3.
@@ -396,11 +395,10 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
 
 
-def test_missing_participant_and_original_recording_are_explicit(window):
+def test_time_only_filters_and_missing_original_recording_are_explicit(window):
     window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [1., 2.], "power": [1., 2.]})}, "errors": []})
-    assert not window.participant.isEnabled()
-    assert window.participant_field.isHidden()
-    assert "no participant" in window.participant.toolTip()
+    assert not hasattr(window, "participant")
+    assert not hasattr(window, "filter_column")
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not window.context_button.isEnabled()
     assert window.context_hint.text() == "Original sensor data unavailable"

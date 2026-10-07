@@ -172,6 +172,8 @@ class GraphSettings(QFrame):
     def apply_visibility(self):
         for ax in self.canvas.figure.axes:
             ax.grid(self.grid.isChecked())
+            if getattr(ax, "_paradigma_binary", False):
+                ax.grid(False, axis="y")
             legend = ax.get_legend()
             if legend is not None:
                 legend.set_visible(self.legend.isChecked())
@@ -208,7 +210,11 @@ class GraphSettings(QFrame):
         for axis, bounds in limits.items():
             if bounds is None:
                 getattr(ax, f"set_autoscale{axis}_on")(True)
-                ax.autoscale_view(scalex=axis == "x", scaley=axis == "y")
+                if axis == "y" and getattr(ax, "_paradigma_binary", False):
+                    ax.set_ylim(-.5, 1.5)
+                    ax.set_autoscaley_on(True)
+                else:
+                    ax.autoscale_view(scalex=axis == "x", scaley=axis == "y")
             else:
                 getattr(ax, f"set_{axis}lim")(*bounds)
         self.apply_visibility()

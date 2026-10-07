@@ -75,17 +75,21 @@ of Overview. Detail filters do not recompute or alter official aggregates.
 Results **Graphs** and **Tables** contain only classifications and quantifications.
 Check **Plot series** to compare metrics from several modules on vertically aligned
 plots with a shared time axis. Different quantities keep their own vertical scales.
-Choose a detailed output for its table, CSV export or column filter. Participant,
-recording-section and time filters apply across outputs; column/text/numeric filters
-apply to the chosen output and remain attached to that output when switching tables.
+The Plot series tree is the graph selector; choose a detailed output separately
+on Tables for its table and CSV export. Only the shared From/Until time range
+and Time origin appear in Filters. Mouse-wheel and touchpad scrolling work while
+the pointer is over result graphs.
 
 Absolute dates come from the source recording's datetime channel, absolute numeric
 timestamps or start metadata, aligned to the analysis timeline. Known timezones
 are preserved; unzoned timestamps are marked **timezone unspecified**. Relative-only
-recordings display elapsed seconds. To display dates, enter **Time origin** in
-Filters: the ISO date/time corresponding to analysis second zero. This is recorded
-as user supplied and changes presentation only. From/Until accepts full ISO dates
-or elapsed seconds. Include a timezone offset for ambiguous local times.
+recordings display elapsed seconds. To display dates, enable **Time origin** in
+Filters and use the calendar and clock to set the date/time corresponding to
+timeline second zero. This is recorded as user supplied and changes presentation
+only. From/Until uses calendar and clock selectors when a recording clock is
+available, and seconds otherwise. Each checkbox enables or clears that field.
+Known timezones and daylight-saving offsets are retained; unzoned recordings
+remain unzoned. Removing the origin preserves the selected range in seconds.
 
 Combined workflows can have different internal time origins after excluding
 missing samples. The display aligns each workflow to the same source clock.
@@ -113,8 +117,12 @@ For multiple result plots, click the graph whose labels or vertical limits you
 want to edit. Shared horizontal limits, grid and legend settings apply across
 plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
 
-Plots display at most 20,000 samples per series for responsiveness. Tables and
-exports retain all selected rows. Result lines do not join separate sections;
+Continuous plots display at most 20,000 samples per series for responsiveness.
+Binary indicators use separate **Present · 1** and **Absent · 0** rows, with square
+marks at every observed output timestamp. Missing states stay blank; no durations
+or transitions are inferred. These indicators are not subsampled, so isolated
+detections remain visible. Tables and exports retain all selected rows.
+Result lines do not join separate sections;
 multiple participants display as points. Filtered and unfiltered gait outputs
 remain separate datasets.
 

@@ -386,11 +386,14 @@ def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded
         window.dataset.setCurrentText("quantifications/gait/unfiltered")
         window.y_column.setCurrentText("range_of_motion")
         reference = expected["quantifications"]["gait"]["unfiltered"]
-        low = float(reference.range_of_motion.median())
-        window.filter_column.setCurrentText("range_of_motion")
-        window.filter_min.setText(repr(low))
+        reference_times = np.full(len(reference), np.nan)
+        for number, rows in reference.groupby("gait_segment_nr", sort=False).indices.items():
+            meta = expected["metadata"]["gait"]["unfiltered"]["per_segment"][number]
+            reference_times[rows] = float(meta["start_s"]) + (np.arange(len(rows)) + .5) / len(rows) * (float(meta["end_s"]) - float(meta["start_s"]))
+        low = float(np.nanmedian(reference_times))
+        window.time_from.setText(repr(low))
         window.apply_filters()
-        positions = np.flatnonzero(reference.range_of_motion.ge(low).to_numpy())
+        positions = np.flatnonzero(reference_times >= low)
         selected = reference.iloc[positions]
         assert len(selected) > 0 and len(selected) < len(reference)
         np.testing.assert_array_equal(window.active_positions, positions)
@@ -399,10 +402,6 @@ def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded
         line = axes.lines[0]
         # Positions are estimates for presentation, computed before filtering
         # from independent official segment metadata; measurements stay exact.
-        reference_times = np.full(len(reference), np.nan)
-        for number, rows in reference.groupby("gait_segment_nr", sort=False).indices.items():
-            meta = expected["metadata"]["gait"]["unfiltered"]["per_segment"][number]
-            reference_times[rows] = float(meta["start_s"]) + (np.arange(len(rows)) + .5) / len(rows) * (float(meta["end_s"]) - float(meta["start_s"]))
         np.testing.assert_allclose(line.get_xdata(), reference_times[positions], rtol=RTOL, atol=ATOL)
         np.testing.assert_array_equal(line.get_ydata(), selected.range_of_motion.to_numpy())
         for key, value in expected["aggregations"]["gait"]["unfiltered"].items():
