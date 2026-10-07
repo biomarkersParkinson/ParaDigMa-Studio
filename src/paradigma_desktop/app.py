@@ -444,6 +444,18 @@ class MainWindow(QMainWindow):
 
     def _build_results(self):
         layout = self.page()
+        # Results must remain usable when native font metrics need wider fields
+        # or the available window height cannot fit filters and graphs together.
+        self.results_scroll = QScrollArea()
+        self.results_scroll.setWidgetResizable(True)
+        self.results_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        results_body = QWidget()
+        layout.addWidget(self.results_scroll)
+        self.results_scroll.setWidget(results_body)
+        layout = QVBoxLayout(results_body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        layout.setSizeConstraint(QLayout.SetMinimumSize)
         header = QHBoxLayout()
         self.results_source = label("No analysis results", "muted")
         header.addWidget(self.results_source, 1)
@@ -482,7 +494,7 @@ class MainWindow(QMainWindow):
                             (("Time origin", self.clock_input), ("From", self.time_from), ("Until", self.time_to))]
         for widget in self.time_fields:
             widget.setMinimumHeight(64)
-        self._time_fields_compact = None
+        self._time_field_columns = None
         self.arrange_time_fields()
         filters.addLayout(self.time_grid)
         self.time_zone = label("", "muted")
@@ -504,6 +516,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.detail_controls)
         self.result_tabs = QTabWidget()
         self.result_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        self.result_tabs.setMinimumHeight(200)
         self.overview_scroll = QScrollArea()
         self.overview_scroll.setWidgetResizable(True)
         self.overview_content = QWidget()
@@ -622,6 +635,7 @@ class MainWindow(QMainWindow):
 
     def _connect(self):
         self.filters_toggle.toggled.connect(self.filters_panel.setVisible)
+        self.filters_toggle.toggled.connect(lambda _checked: self.arrange_time_fields())
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
         self.drop_missing.toggled.connect(self.preparation_changed)
@@ -670,6 +684,7 @@ class MainWindow(QMainWindow):
             item.setText(str(i + 1) if compact else f"{i + 1}    {self.SECTIONS[i]}")
         self.collapse_button.setText("›" if compact else "‹  Collapse")
         self.collapse_button.setAccessibleName("Expand navigation" if compact else "Collapse navigation")
+        self.arrange_time_fields()
 
     def show_notice(self, message):
         self.notice.setText(message)
@@ -1638,19 +1653,34 @@ class MainWindow(QMainWindow):
                 self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
 
     def arrange_time_fields(self):
-        compact = self.width() < 1280
-        if compact == self._time_fields_compact:
+        # Use actual control hints, including Windows font metrics and the
+        # hidden elapsed-seconds editor, rather than a fixed window breakpoint.
+        available = self.width() - self.sidebar.width() - 44 - 38 - 24
+        for widget in self.time_fields:
+            widget.ensurePolished()
+        widths = [widget.minimumSizeHint().width() for widget in self.time_fields]
+        spacing = max(12, self.time_grid.horizontalSpacing())
+        if sum(widths) + spacing * 2 <= available:
+            columns = 3
+        elif max(widths[0], widths[1] + widths[2] + spacing) <= available:
+            columns = 2
+        else:
+            columns = 1
+        if columns == self._time_field_columns:
             return
-        self._time_fields_compact = compact
+        self._time_field_columns = columns
         for widget in self.time_fields:
             self.time_grid.removeWidget(widget)
-        if compact:
+        if columns == 2:
             self.time_grid.addWidget(self.time_fields[0], 0, 0, 1, 2)
             self.time_grid.addWidget(self.time_fields[1], 1, 0)
             self.time_grid.addWidget(self.time_fields[2], 1, 1)
-        else:
+        elif columns == 3:
             for column, widget in enumerate(self.time_fields):
                 self.time_grid.addWidget(widget, 0, column)
+        else:
+            for row, widget in enumerate(self.time_fields):
+                self.time_grid.addWidget(widget, row, 0)
 
 
 def main():

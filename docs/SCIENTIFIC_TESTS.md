@@ -146,6 +146,9 @@ positive detections beyond the continuous display limit, alongside unchanged
 continuous values. They also exercise real Qt wheel/touchpad events, calendar
 selection, source-clock precision, named-zone daylight-saving transitions and
 removal of an origin without changing the selected elapsed-time interval.
+The compact-filter regression also forces wider native editor sizes to reproduce
+Windows clipping, and requires the entire fields and Apply/Reset buttons to remain
+visible. Results uses adaptive columns and scrolling rather than relaxing that check.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

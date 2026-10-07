@@ -90,6 +90,8 @@ only. From/Until uses calendar and clock selectors when a recording clock is
 available, and seconds otherwise. Each checkbox enables or clears that field.
 Known timezones and daylight-saving offsets are retained; unzoned recordings
 remain unzoned. Removing the origin preserves the selected range in seconds.
+Time fields wrap according to their actual size, including native Windows font
+metrics. Results scrolls vertically when filters and graphs cannot fit together.
 
 Combined workflows can have different internal time origins after excluding
 missing samples. The display aligns each workflow to the same source clock.

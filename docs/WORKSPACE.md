@@ -57,7 +57,8 @@ seconds until a time origin is supplied.
 
 The [calendar popup](screenshots/calendar.png) has readable day headings. In
 [compact windows](screenshots/results-filters-compact.png), the time fields wrap
-onto two rows.
+onto two rows, or one field per row when wider native controls require it.
+The Results workspace scrolls when its controls and graphs exceed the window height.
 
 Tables retain official values alongside recording timestamps and gait timing annotations.
 

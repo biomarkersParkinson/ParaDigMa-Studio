@@ -155,18 +155,25 @@ def test_result_canvas_accepts_mouse_wheel_and_touchpad_scrolling(window):
     assert bar.value() == 0
 
 
-def test_calendar_fields_remain_readable_in_compact_results(window):
+@pytest.mark.parametrize("editor_minimum_width", [0, 382])
+def test_calendar_fields_remain_readable_in_compact_results(window, editor_minimum_width):
+    # Reproduce Windows-sized control hints independently of the host OS.
+    for field in (window.clock_input, window.time_from, window.time_to):
+        field.calendar.setMinimumWidth(editor_minimum_width)
+        field.seconds.setMinimumWidth(editor_minimum_width)
     window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
     window.result_tabs.setCurrentIndex(1)
     window.filters_toggle.setChecked(True)
     window.show_notice("Analysis warning: review the partial results in Runs.")
     window.resize(960, 720)
     QTest.qWait(50)  # Let nested layout/paint requests settle on Windows too.
-    assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[0])) == (0, 0, 1, 2)
+    assert window._time_field_columns in (1, 2)
+    if editor_minimum_width:
+        assert window._time_field_columns == 1
     for field in (window.clock_input, window.time_from, window.time_to):
         assert field.editors.currentWidget().height() >= 38
         assert field.editors.currentWidget().width() >= field.editors.currentWidget().minimumSizeHint().width()
-        assert field.visibleRegion().boundingRect().height() == field.height()
+        assert field.visibleRegion().boundingRect().contains(field.rect())
     origin, lower, upper = window.time_fields
     assert origin.geometry().bottom() < lower.geometry().top()
     assert lower.geometry().bottom() < window.time_zone.geometry().top()
@@ -178,6 +185,7 @@ def test_calendar_fields_remain_readable_in_compact_results(window):
             f"screen={window.screen().geometry()}"
         )
     assert window.filters_panel.mapTo(window, QPoint(0, window.filters_panel.height())).y() <= window.result_tabs.mapTo(window, QPoint(0, 0)).y()
-    window.resize(1450, 920)
+    window.resize(1800, 920)
     QTest.qWait(50)
+    assert window._time_field_columns == 3
     assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[2])) == (0, 2, 1, 1)
