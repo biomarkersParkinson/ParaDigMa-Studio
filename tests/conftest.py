@@ -4,6 +4,19 @@ from pathlib import Path
 import pytest
 
 
+def wait_for_previews(window):
+    """Process Qt delivery while read-only recording previews finish in workers."""
+    import time
+    from PySide6.QtWidgets import QApplication
+    previews = (window._origin_preview, window._time_preview, window._sensor_preview)
+    deadline = time.monotonic() + 10
+    while any(preview.pending for preview in previews) and time.monotonic() < deadline:
+        QApplication.instance().processEvents()
+        time.sleep(.01)  # Let Python imports/scans in the executor acquire the GIL.
+    assert not any(preview.pending for preview in previews), "Recording previews did not finish"
+    QApplication.instance().processEvents()
+
+
 # Qt's default offscreen screen is 800x800, smaller than the app's minimum
 # width. On Windows this can clip a button's visible region at the screen edge.
 # Qt separates platform options at colons, so a Windows drive letter cannot

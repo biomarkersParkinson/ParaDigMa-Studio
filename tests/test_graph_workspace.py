@@ -1,5 +1,5 @@
 """Shared recording clocks, categorical rasters and actual Qt wheel delivery."""
-from conftest import bar_values, bar_starts, bar_centers
+from conftest import bar_values, bar_starts, bar_centers, wait_for_previews
 import os
 from copy import deepcopy
 from types import SimpleNamespace
@@ -121,6 +121,7 @@ def test_analyze_calendar_default_preserves_source_precision_and_results(window)
     start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
     raw = pd.DataFrame({"time": [0., 1., 2.], "time_dt": start + pd.to_timedelta([0., 1., 2.], unit="s")})
     window.loaded(("sensor.csv", raw))
+    wait_for_previews(window)
     assert window.clock_input.text() == start.isoformat()
     assert window.clock_input.calendar.calendarPopup()
     window.provenance = {"settings": {"skip_preparation": True}}

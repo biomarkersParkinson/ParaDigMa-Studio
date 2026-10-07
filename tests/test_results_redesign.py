@@ -20,7 +20,7 @@ from paradigma_desktop.history import load_result_export
 from paradigma_desktop.overview import recording_summary
 from paradigma_desktop.plotting import plot_bars
 from paradigma_desktop.time_axis import RecordingTimeFormatter
-from conftest import bar_values, bar_starts, bar_centers
+from conftest import bar_values, bar_starts, bar_centers, wait_for_previews
 
 
 @pytest.fixture
@@ -218,6 +218,7 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
         **{f"gyroscope_{axis}": [1., 2., 3.] for axis in "xyz"}})
     window.set_modules(["tremor"])
     window.loaded(("sensor.csv", original))
+    wait_for_previews(window)
     derived_origin = window.clock_input.text()
     assert pd.Timestamp(derived_origin) == original.time_dt.iloc[0]
     window.clock_input.setText("2020-01-01T08:00:00+02:00")

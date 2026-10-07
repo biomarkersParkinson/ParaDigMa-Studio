@@ -1,4 +1,4 @@
-from conftest import bar_values, bar_starts, bar_centers
+from conftest import bar_values, bar_starts, bar_centers, wait_for_previews
 """Behavioral checks for navigation, linked exploration and previous runs."""
 import json
 import os
@@ -314,6 +314,7 @@ def test_data_time_units_are_explicit_and_do_not_change_analysis_parameters(wind
     window.loaded(("milliseconds.csv", pd.DataFrame({"device_ticks": [0., 10., 20.], "gyroscope_x": [1., 2., 3.]})))
     window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("device_ticks"))
     window.data_time_unit.setCurrentText("relative_ms")
+    wait_for_previews(window)
     assert window.time.currentText() == "relative_s"
     stats = window.time_table.model().frame.set_index("Statistic")
     assert stats.loc["Estimated sampling rate (Hz)", "Value"] == pytest.approx(100)

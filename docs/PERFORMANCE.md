@@ -111,6 +111,52 @@ cases, with one Windows-only signing check skipped on Linux. The rebuilt Linux
 bundle passed its runtime and startup checks. Native Windows validation runs in
 GitHub Actions.
 
+## Analyze controls and Data statistics in 0.5.3
+
+Changing Analyze settings previously recalculated full recording-clock alignment
+on the UI thread. Accelerometer/gyroscope-unit and split-recording changes also
+triggered the same clock calculation even when they could not affect the clock. Time-unit changes updated
+Data statistics synchronously. The alignment helpers additionally copied every
+sensor column when renaming columns for a time-channel lookup.
+
+Clock, sensor-descriptive and time-descriptive previews now run in background
+workers. Each preview keeps one running calculation and the latest pending
+request, debounces rapid changes, and caches up to 16 settings combinations.
+Only results matching the latest recording and settings are displayed. Loading
+new input invalidates the caches; custom origins are preserved; closing a window
+does not wait for a preview. The relevant readout is disabled while its new value
+is calculated. Other controls and Run Analysis remain available. Automatic run
+timing continues to derive from the actual run's inputs and settings, independently
+of these previews.
+
+Clock alignment still calls the existing helpers and official ParaDigMa time
+conversion. Column-name lookups now share the source data instead of copying all
+sensor columns; those lookups are read-only. Data statistics retain the same
+formulas and source samples. Hidden Data graphs are rebuilt when opened rather
+than when a descriptive selection changes.
+
+A Linux/offscreen profile used three recordings with 750,000 samples each, six
+sensor channels, numeric time and datetime columns. Each measurement applied six
+control changes synchronously, excluding painting and deferred calculations:
+
+| UI handlers for six changes | Before | After |
+| --- | ---: | ---: |
+| Accelerometer units | 2.25 s | 0.31 ms |
+| Split recordings | 2.83 s | 0.31 ms |
+| Selected modules | 2.29 s | 0.40 ms |
+| Time units | 4.13 s | 0.62 ms |
+
+These single measurements demonstrate removal of blocking work, not a change
+in scientific processing speed or native Windows timings. Background calculations
+still take time. Regression tests check GUI event delivery during a blocked
+preview, execution outside the GUI thread, stale-result suppression, cache
+invalidation, resets, custom run parameters, failures and nonblocking close.
+
+Version 0.5.3 passed 270 source tests, including all 31 scientific-equivalence
+cases, with one Windows-only signing check skipped locally. The rebuilt Linux
+bundle passed its runtime and startup checks; Windows validation runs in GitHub
+Actions.
+
 ## Verification and Windows measurements
 
 For the 0.2.2 startup changes, **139 tests passed**, with one Windows-only test skipped locally. This included

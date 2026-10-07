@@ -1,4 +1,5 @@
 """Multiple same-subject recordings, pooled outputs and source-safe exploration."""
+from conftest import wait_for_previews
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -61,6 +62,7 @@ def output():
 
 def load(window, sources, frames):
     window.loaded_recordings((sources, frames, {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}))
+    wait_for_previews(window)
     window.provenance = {"source": next(iter(sources.values())), "sources": sources,
                          "settings": {"pipelines": ["tremor"], "skip_preparation": True}}
 

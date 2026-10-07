@@ -199,7 +199,7 @@ def recording_clock(frame, settings, timeline=None):
         return None
     try:
         timeline = source_timeline(frame, settings) if timeline is None else timeline
-        mapped = frame.rename(columns=settings.get("column_mapping", {}))
+        mapped = frame.rename(columns=settings.get("column_mapping", {}), copy=False)
         candidates = [column for column in frame if str(column).lower() in ("time_dt", "datetime", "timestamp")
                       or pd.api.types.is_datetime64_any_dtype(frame[column].dtype)]
         for column in candidates:

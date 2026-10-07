@@ -47,6 +47,7 @@ from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_
 from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
 from .availability import availability_views
+from .previews import CachedPreview
 from .overview import recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
 from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, label, button, card, table, readout, field
@@ -128,6 +129,15 @@ class MainWindow(QMainWindow):
         self._plot_signature = None
         self.display_clock = None
         self._origin_override = False
+        self._origin_preview = CachedPreview(self)
+        self._origin_preview.value_ready.connect(self.apply_origin_preview)
+        self._origin_preview.failed.connect(self.append_log)
+        self._time_preview = CachedPreview(self)
+        self._time_preview.value_ready.connect(self.apply_time_preview)
+        self._time_preview.failed.connect(self.append_log)
+        self._sensor_preview = CachedPreview(self)
+        self._sensor_preview.value_ready.connect(self.apply_sensor_preview)
+        self._sensor_preview.failed.connect(self.append_log)
         self._data_plot_dirty = False
         self._source_timelines, self._display_offsets = {}, {}
         self.active_frame = None
@@ -1018,6 +1028,9 @@ class MainWindow(QMainWindow):
             key = next(iter(recordings))
             self.loaded((sources[key], recordings[key], descriptions[key]))
             return
+        self._origin_preview.clear()
+        self._time_preview.clear()
+        self._sensor_preview.clear()
         self.input_recording.blockSignals(True)
         self.input_recording.clear()
         for key, path in sources.items():
@@ -1044,6 +1057,9 @@ class MainWindow(QMainWindow):
         self.analysis_input_detail.setText(f"{sum(len(frame) for frame in self.recordings.values()):,} samples")
 
     def loaded(self, payload):
+        self._origin_preview.clear()
+        self._time_preview.clear()
+        self._sensor_preview.clear()
         self.source, self.frame = payload[:2]
         self._origin_override = False
         self.sources, self.recordings = {"recording_001": self.source}, {}
@@ -1065,6 +1081,10 @@ class MainWindow(QMainWindow):
 
     def display_input_recording(self, description, *, new_selection):
         """Refresh inspection only; changing the viewed file never realigns the batch."""
+        self._time_preview.cancel_pending()
+        self.time_table.setEnabled(True)
+        self._sensor_preview.cancel_pending()
+        self.channel_table.setEnabled(True)
         channels = None if new_selection else self.selected_input_channels()
         if new_selection:
             self.data_tabs.setCurrentIndex(0)
@@ -1109,19 +1129,35 @@ class MainWindow(QMainWindow):
 
     def refresh_data_descriptives(self, *_):
         if self.frame is not None:
-            column = self.data_time_channel.currentData()
-            self.channel_table.setModel(FrameModel(sensor_descriptives(self.frame, column), compact=True))
+            frame, column = self.frame, self.data_time_channel.currentData()
+            self.channel_table.setEnabled(False)
+            self._sensor_preview.request((self.source, column), lambda: sensor_descriptives(frame, column))
             self.populate_input_channels(self.selected_input_channels())
             self.update_time_statistics()
-            self.plot_input()
+            if self.data_tabs.currentIndex() == 1:
+                self.plot_input()
+            else:
+                self._data_plot_dirty = True
+
+    def apply_sensor_preview(self, description):
+        self.channel_table.setModel(FrameModel(description, compact=True) if description is not None else None)
+        self.channel_table.setEnabled(True)
 
     def update_time_statistics(self, *_):
         column = self.data_time_channel.currentData()
         if self.frame is not None and column in self.frame:
-            self.time_table.setModel(FrameModel(time_descriptives(self.frame[column], self.data_time_unit.currentText()), compact=True))
+            frame, unit = self.frame, self.data_time_unit.currentText()
+            self.time_table.setEnabled(False)
+            self._time_preview.request((self.source, column, unit), lambda: time_descriptives(frame[column], unit))
         else:
+            self._time_preview.cancel_pending()
             self.time_table.setModel(None)
+            self.time_table.setEnabled(True)
         self.update_time_unit_control()
+
+    def apply_time_preview(self, description):
+        self.time_table.setModel(FrameModel(description, compact=True) if description is not None else None)
+        self.time_table.setEnabled(True)
 
     def selected_input_channels(self):
         return [self.data_channels.item(i).data(Qt.UserRole) for i in range(self.data_channels.count())
@@ -1211,6 +1247,8 @@ class MainWindow(QMainWindow):
 
     def origin_edited(self):
         self._origin_override = True
+        self._origin_preview.cancel_pending()
+        self.clock_input.setEnabled(True)
 
     def reset_origin(self):
         self._origin_override = False
@@ -1223,16 +1261,26 @@ class MainWindow(QMainWindow):
             settings = {"time_input_unit": self.time.currentText(), "skip_preparation": self.prepared.isChecked(),
                         "column_mapping": validate_column_mapping(json.loads(self.mapping.toPlainText())),
                         "pipelines": self.selected_modules(), "drop_missing_samples": self.drop_missing.isChecked()}
-            if self.recordings:
-                clock = align_recordings(self.recordings, settings, {})[3]
-            else:
-                timeline = analysis_alignment(self.frame, settings, {})[0]
-                clock = recording_clock(self.frame, settings, timeline)
-            self.clock_input.set_clock(clock)
-            self.clock_input.setText(clock["origin"] if clock else "")
         except (ValueError, TypeError, KeyError, OverflowError):
-            self.clock_input.set_clock(None)
-            self.clock_input.clear()
+            self._origin_preview.cancel_pending()
+            self.apply_origin_preview(None)
+            return
+        frame, recordings = self.frame, self.recordings
+        key = json.dumps(settings, sort_keys=True)
+        def preview():
+            if recordings:
+                return align_recordings(recordings, settings, {})[3]
+            timeline = analysis_alignment(frame, settings, {})[0]
+            return recording_clock(frame, settings, timeline)
+        self.clock_input.setEnabled(False)
+        self._origin_preview.request(key, preview)
+
+    def apply_origin_preview(self, clock):
+        if self._origin_override:
+            return
+        self.clock_input.set_clock(clock)
+        self.clock_input.setText(clock["origin"] if clock else "")
+        self.clock_input.setEnabled(True)
 
     def origin_setting(self):
         if not self._origin_override:
@@ -2140,6 +2188,8 @@ class MainWindow(QMainWindow):
         self.min_segment.setValue(settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS) or DEFAULT_MIN_SECTION_SECONDS)
         origin = settings.get("plot_time_origin", {"mode": "automatic"})
         self._origin_override = origin.get("mode") != "automatic"
+        if self._origin_override:
+            self.origin_edited()
         if origin.get("mode") == "custom":
             self.clock_input.set_clock(origin["clock"])
             self.clock_input.setText(origin["clock"]["origin"])
@@ -2217,6 +2267,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Processing in progress", "Wait for processing to finish before closing.")
             event.ignore()
         else:
+            self._origin_preview.shutdown()
+            self._time_preview.shutdown()
+            self._sensor_preview.shutdown()
             if getattr(self, "_acknowledgements_dialog", None) is not None:
                 self._acknowledgements_dialog.close()
             event.accept()

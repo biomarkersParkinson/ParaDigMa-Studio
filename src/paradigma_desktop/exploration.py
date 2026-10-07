@@ -75,7 +75,7 @@ def source_timeline(frame, settings):
     """
     from paradigma.util import transform_time_array
 
-    mapped = frame.rename(columns=settings.get("column_mapping", {}))
+    mapped = frame.rename(columns=settings.get("column_mapping", {}), copy=False)
     if "time" not in mapped or not mapped.columns.is_unique:
         raise ValueError("The original recording has no unambiguous time channel.")
     times = pd.to_numeric(mapped["time"], errors="raise").astype(float).reset_index(drop=True)
