@@ -37,7 +37,7 @@ from .recordings import load_recordings, align_recordings, source_key, timeline_
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import GraphToolbar, add_graph_controls
-from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars
+from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
@@ -1826,6 +1826,18 @@ class MainWindow(QMainWindow):
         if self._plot_signature == signature and self.figure.axes:
             self.highlight_result_row()
             return
+        changed = set(signature).symmetric_difference(self._plot_signature or ())
+        coverage_only = (self._plot_signature is not None and bool(changed)
+                         and bool(set(signature).intersection(self._plot_signature))
+                         and all(name.startswith("preparation/") for name, metric in changed))
+        viewport = None
+        previous_y = {}
+        if coverage_only and self.figure.axes:
+            source = self.figure.axes[0]
+            viewport = source.get_xlim(), source.get_autoscalex_on()
+            previous_y = {(ax._paradigma_dataset, ax._paradigma_metric):
+                          (ax.get_ylim(), ax.get_autoscaley_on())
+                          for ax in self.figure.axes if hasattr(ax, "_paradigma_dataset")}
         self._plot_signature = signature
         self.result_overlay.invalidate()
         self.figure.clear()
@@ -1881,8 +1893,24 @@ class MainWindow(QMainWindow):
             ax.tick_params(axis="x", labelbottom=False)
             ax.xaxis.label.set_visible(False)
             ax.xaxis.offsetText.set_visible(False)
+        # Shared X limits settle only after every series has been added.
+        # Fit each automatic Y range against that final shared view.
+        for ax in self.figure.axes:
+            autoscale_bars(ax)
         self.time_axis.bind(first_axes)
         self.plot_toolbar.refresh()
+        if viewport is not None and first_axes is not None:
+            # Keep Home as the full extent, while coverage toggles retain the
+            # user's current view instead of making outcomes appear to change.
+            self.plot_toolbar.push_current()
+            limits, automatic_x = viewport
+            first_axes.set_xlim(*limits, auto=automatic_x)
+            for ax in self.figure.axes:
+                previous = previous_y.get((ax._paradigma_dataset, ax._paradigma_metric))
+                if previous is not None and not previous[1]:
+                    ax.set_ylim(*previous[0], auto=False)
+                autoscale_bars(ax)
+            self.plot_toolbar.push_current()
         self.highlight_result_row()
         self.canvas.draw_idle()
 

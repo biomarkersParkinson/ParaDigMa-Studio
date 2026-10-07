@@ -268,3 +268,14 @@ reported a median first paint of 0.975 s and launch-to-report of 1.186 s, with
 scientific imports still deferred. The Linux bundle is 539.4 MiB in regular files;
 startup and size remain broadly consistent with the previous optimized build.
 Windows CI supplies the native platform validation and measurements.
+
+## Availability graph view stability (0.5.5)
+
+Toggling input availability previously rebuilt the shared time axis and reset the
+viewport, making unchanged outcomes look different. Coverage toggles now preserve
+the time range, zoom and manual Y limits of existing plots; automatic Y ranges
+are fitted after the shared time range settles. Home still exposes the full range.
+Regression checks confirm identical outcome values and bar timestamps across
+repeated toggles, with both absolute and elapsed time. The source suite passed
+282 tests, including 31 scientific-equivalence cases; one Windows-only check was
+skipped locally.
