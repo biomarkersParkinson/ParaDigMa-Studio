@@ -11,7 +11,7 @@ import pytest
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton, QTableView
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 
 from paradigma_desktop import app as desktop
 from paradigma_desktop.app import MainWindow
@@ -123,7 +123,7 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
 
 
 @pytest.mark.parametrize("control_minimum_height, larger_surrounding_controls", [(0, False), (40, False), (44, False), (44, True)])
-def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window, control_minimum_height, larger_surrounding_controls):
+def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes(window, control_minimum_height, larger_surrounding_controls):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
     # Larger native Windows control hints overflowed the previous layout even
@@ -144,29 +144,46 @@ def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling
             if control.objectName() != "helpInfo":
                 control.setMinimumHeight(44)
     window.navigate(1)
-    window.resize(960, 650)
+    window.resize(1200, 900)
     window.show()
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
-    if larger_surrounding_controls:
-        # Keep a real sizing buffer: native Windows font metrics previously
-        # left this case four pixels too tall despite the other cases fitting.
-        minimum_height = window.analysis_scroll.widget().minimumSizeHint().height()
-        available_height = window.analysis_scroll.viewport().height()
-        assert minimum_height + 16 <= available_height, (minimum_height, available_height)
-    for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
-                    window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared,
-                    *window.section_reset_buttons.values()):
+    controls = (window.side, window.acc, window.gyro, window.time, window.orientation,
+                window.drop_missing, window.gaps, window.max_gap, window.min_segment,
+                window.mapping, window.prepared, *window.section_reset_buttons.values())
+    for control in controls:
         assert control.visibleRegion().boundingRect().contains(control.rect())
+    for previous, following in zip((window.side, window.acc, window.gyro), (window.acc, window.gyro, window.time)):
+        bottom = previous.mapTo(window.settings_panel, QPoint(0, previous.height())).y()
+        top = following.mapTo(window.settings_panel, QPoint(0, 0)).y()
+        assert top - bottom >= 8, "Parameter rows must retain comfortable separation"
     help_buttons = [info for info, description in window.analysis_help.values()]
     assert {(info.width(), info.height()) for info in help_buttons} == {(22, 22)}
     assert all(info.objectName() == "helpInfo" and info.isCheckable() for info in help_buttons)
+    # Small windows may scroll rather than compressing controls and whitespace.
+    # Every field remains reachable and the action stays outside the scroll area.
+    window.resize(960, 650)
+    QTest.qWait(30)
+    small_scroll_maximum = window.analysis_scroll.verticalScrollBar().maximum()
+    if larger_surrounding_controls:
+        assert small_scroll_maximum > 0
+    for control in controls:
+        # Text editors' ensureWidgetVisible follows their cursor rectangle;
+        # scroll the whole control into view to check complete accessibility.
+        center = control.mapTo(window.analysis_scroll.widget(), control.rect().center())
+        window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, control.height() // 2 + 8)
+        QApplication.instance().processEvents()
+        assert control.visibleRegion().boundingRect().contains(control.rect())
+        assert window.run_button.visibleRegion().boundingRect().contains(window.run_button.rect())
     for info in help_buttons:
         info.click()
     QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() > 0
+    assert window.analysis_scroll.verticalScrollBar().maximum() > small_scroll_maximum
     for info in help_buttons:
         info.click()
+    QTest.qWait(30)
+    assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
+    window.resize(1200, 900)
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
 

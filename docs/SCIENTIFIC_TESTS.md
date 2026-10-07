@@ -165,10 +165,11 @@ removal of an origin without changing the selected elapsed-time interval.
 The compact-filter regression also forces wider native editor sizes to reproduce
 Windows clipping, and requires the entire fields and Apply/Reset buttons to remain
 visible. Results uses adaptive columns and scrolling rather than relaxing that check.
-Analyze is also checked at 960 × 650 with larger input controls, labels,
-checkboxes and buttons. All fields and uniform help buttons must remain visible
-without scrolling while help is closed, with at least 16 pixels of spare height
-in the larger-controls case; expanded guidance can scroll.
+Analyze is checked with larger native controls, labels, checkboxes and buttons.
+At 1200 × 900 every parameter must fit without scrolling and rows must retain
+comfortable separation. At 960 × 650 every control must be fully reachable by
+scrolling while Run Analysis stays visible. Uniform help buttons expand guidance;
+closing help and enlarging the window must restore the original layout.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

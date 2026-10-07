@@ -334,7 +334,7 @@ class MainWindow(QMainWindow):
 
     def _build_analyze(self):
         layout = self.page()
-        layout.setSpacing(4)
+        layout.setSpacing(12)
         scroll = self.analysis_scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -342,9 +342,9 @@ class MainWindow(QMainWindow):
         body.setObjectName("analysisBody")
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
-        content.setSpacing(4)
+        content.setSpacing(16)
         panel, input_layout = card()
-        input_layout.setContentsMargins(12, 4, 12, 4)
+        input_layout.setContentsMargins(18, 14, 18, 14)
         input_row = QHBoxLayout()
         input_row.addWidget(label("Selected input", "muted"))
         self.analysis_input = label("No recording loaded", "sectionTitle")
@@ -357,7 +357,7 @@ class MainWindow(QMainWindow):
         self.analysis_controls = QWidget()
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(4)
+        controls.setSpacing(16)
         self.analysis_help = {}
         modules = QHBoxLayout()
         modules.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
@@ -374,8 +374,8 @@ class MainWindow(QMainWindow):
         self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
         self.settings_panel, parameters = card()
-        parameters.setContentsMargins(12, 4, 12, 4)
-        parameters.setSpacing(2)
+        parameters.setContentsMargins(18, 16, 18, 16)
+        parameters.setSpacing(14)
         parameter_header = QHBoxLayout()
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
@@ -387,7 +387,8 @@ class MainWindow(QMainWindow):
         for form in (left, right):
             form.setRowWrapPolicy(QFormLayout.WrapLongRows)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            form.setSpacing(4)
+            form.setHorizontalSpacing(10)
+            form.setVerticalSpacing(12)
         self.side = self.combo(["left", "right"])
         self.acc = self.combo(["g", "m/s^2"])
         self.gyro = self.combo(["deg/s", "rad/s"])
@@ -410,7 +411,8 @@ class MainWindow(QMainWindow):
         sections.setContentsMargins(0, 0, 0, 0)
         sections.setRowWrapPolicy(QFormLayout.WrapLongRows)
         sections.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        sections.setSpacing(4)
+        sections.setHorizontalSpacing(10)
+        sections.setVerticalSpacing(12)
         sections.addRow(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True))
         self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
         self.section_reset_buttons = {}
@@ -436,16 +438,16 @@ class MainWindow(QMainWindow):
         parameters.addLayout(columns)
         self.mapping = QPlainTextEdit("{}")
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
-        self.mapping.setFixedHeight(42)
-        # Share the last row instead of making device axes a fifth tall native
-        # control row. Preserve room for Windows label and checkbox size hints.
+        self.mapping.setFixedHeight(60)
+        # Keep channel configuration together, with room to read mappings.
         input_fields = QHBoxLayout()
         input_fields.setSpacing(20)
         axes_form, mapping_form = QFormLayout(), QFormLayout()
         for form in (axes_form, mapping_form):
-            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setRowWrapPolicy(QFormLayout.DontWrapRows)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            form.setSpacing(4)
+            form.setHorizontalSpacing(10)
+            form.setVerticalSpacing(12)
         self.analysis_field("Device axes", self.orientation, form=axes_form)
         self.analysis_field("Column mapping (JSON)", self.mapping, form=mapping_form)
         input_fields.addLayout(axes_form, 1)

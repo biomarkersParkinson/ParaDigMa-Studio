@@ -40,13 +40,13 @@ These multi-file examples split the bundled recorded IMU fixture into two files,
 using its documented UTC start. Real recording clocks share one date/time axis;
 files without comparable clocks use an explicitly labeled file-order timeline.
 
-Select any combination of gait, tremor and pulse rate. All settings are in one compact Analysis parameters panel, with uniform circular **i** buttons for inline documented guidance. Default controls fit without scrolling at the minimum window size; expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
+Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel with comfortable spacing and uniform circular **i** buttons for inline documented guidance. Parameters fit together at normal window sizes; smaller windows and expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
 
 Gap splitting, maximum gap and minimum section duration are grouped together. Splitting defaults to off; both thresholds default to 1.5 seconds, matching the official package, and each has a **Default** button. **Already prepared** is the last field.
 
 ![Analysis workspace](screenshots/analyze.png)
 
-![All default parameters in a compact window](screenshots/analyze-compact.png)
+![A smaller window preserves spacing and allows scrolling](screenshots/analyze-compact.png)
 
 ![Inline guidance for device axes and column mapping](screenshots/analyze-help.png)
 

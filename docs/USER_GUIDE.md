@@ -30,6 +30,9 @@ Set processing options in **Analysis parameters**. Each field's **i** button exp
 inline guidance with a reference to the official ParaDigMa documentation.
 The axes example explains the direction of each signed mapping; column-mapping
 examples rename your file's columns to the required toolbox names.
+The page preserves comfortable spacing. Parameters fit together at normal window
+sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
+visible below the settings.
 
 When pulse rate is selected alongside gait or tremor, the desktop runs the
 official orchestrator twice in the background and combines their returned outputs.
