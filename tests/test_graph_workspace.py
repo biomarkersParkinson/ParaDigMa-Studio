@@ -1,6 +1,7 @@
 """Time-only selection, categorical rasters and actual Qt wheel delivery."""
 import os
 from copy import deepcopy
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QWidget, QStyle, QStyleOptionButton
 
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.plotting import binary_indicator
+from paradigma_desktop.results_view import clock_times
 from paradigma_desktop.time_controls import TimeField
 
 
@@ -53,7 +55,7 @@ def test_plot_tree_is_graph_selector_and_table_dataset_selection_remains(window)
     assert not hasattr(window, "filter_column") and not hasattr(window, "participant")
 
 
-def test_binary_raster_preserves_timestamps_states_missingness_and_rare_events(window):
+def test_binary_raster_shows_only_presence_without_losing_time_range_or_rare_events(window):
     t = np.arange(20002, dtype=float)
     values = np.zeros(len(t)); values[1] = 1.; values[2] = np.nan
     frame = pd.DataFrame({"time": t, "pred_event": values})
@@ -61,14 +63,17 @@ def test_binary_raster_preserves_timestamps_states_missingness_and_rare_events(w
     window.analyzed({"quantifications": {"tremor": frame}})
     axes = window.figure.axes[0]
     assert not axes.lines
-    assert [v.get_text() for v in axes.get_yticklabels()] == ["Absent · 0", "Present · 1"]
+    assert [v.get_text() for v in axes.get_yticklabels()] == ["Present · 1"]
     offsets = axes.collections[0].get_offsets()
-    valid = np.isfinite(values)
-    np.testing.assert_array_equal(offsets[:, 0], t[valid])
-    np.testing.assert_array_equal(offsets[:, 1], values[valid])
-    assert offsets[1].tolist() == [1., 1.]
+    np.testing.assert_array_equal(offsets, [[1., 1.]])
+    assert axes.get_xlim()[0] <= t[0] and axes.get_xlim()[1] >= t[-1]
     window.time_from.setText("1"); window.time_to.setText("3"); window.apply_filters()
-    np.testing.assert_array_equal(window.figure.axes[0].collections[0].get_offsets(), [[1., 1.], [3., 0.]])
+    np.testing.assert_array_equal(window.figure.axes[0].collections[0].get_offsets(), [[1., 1.]])
+    window.time_from.setText("3"); window.time_to.setText("9"); window.apply_filters()
+    axes = window.figure.axes[0]
+    assert axes.collections[0].get_offsets().shape == (0, 2)
+    assert axes.get_xlim()[0] <= 3. and axes.get_xlim()[1] >= 9.
+    assert window.result_table.model().frame.pred_event.eq(0.).all()
     pd.testing.assert_frame_equal(frame, original)
     assert not binary_indicator(pd.Series([0., 1.]), "pred_event_proba")
     assert not binary_indicator(pd.Series([0., 1.]), "gyroscope_x")
@@ -82,7 +87,8 @@ def test_raw_graphs_separate_states_and_signals_without_changing_values(window):
     signal, states = window.data_figure.axes
     np.testing.assert_array_equal(signal.lines[0].get_ydata(), raw.gyroscope_x)
     assert not states.lines
-    np.testing.assert_array_equal(states.collections[0].get_offsets(), [[0., 0.], [1., 1.], [2., 0.]])
+    np.testing.assert_array_equal(states.collections[0].get_offsets(), [[1., 1.]])
+    assert states.get_xlim()[0] <= 0. and states.get_xlim()[1] >= 2.
 
 
 def test_calendar_filter_preserves_source_precision_and_filters_all_outputs(window):
@@ -325,7 +331,7 @@ def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window
 
 def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks_zoom(window):
     from matplotlib import dates
-    start = pd.Timestamp("2026-10-07T12:00:00+02:00")
+    start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1., 2.], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s")})))
     window.provenance = {"settings": {"skip_preparation": True}}
     frame = pd.DataFrame({"time": [0., 1., 2.], **{f"metric_{i}": [2., 3., 4.] for i in range(8)}})
@@ -404,18 +410,94 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(module_color("tremor"))
 
 
-def test_binary_display_uses_larger_marks_and_compact_bands_without_losing_observations(window):
+def test_binary_display_uses_large_presence_marks_and_one_compact_band(window):
     frame = pd.DataFrame({"time": [0., 1., 2., 3.], "pred_event": [0., 1., np.nan, 0.]})
     window.analyzed({"classifications": {"tremor": frame}})
     item = window._series_items[("classifications/tremor", "pred_event")]
     item.setCheckState(0, Qt.Checked)
     axes = window.figure.axes[0]
-    assert axes.collections[0].get_sizes().tolist() == [48, 64, 48]
-    np.testing.assert_array_equal(axes.collections[0].get_offsets(), [[0., 0.], [1., 1.], [3., 0.]])
-    assert axes.get_ylim() == pytest.approx((-.32, 1.32))
+    assert axes.collections[0].get_sizes().tolist() == [64]
+    np.testing.assert_array_equal(axes.collections[0].get_offsets(), [[1., 1.]])
+    assert axes.get_ylim() == pytest.approx((.65, 1.35))
     assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 140
     for band in axes.patches:
         assert band.get_height() == pytest.approx(.22)
+    window.plot_toolbar.settings.reset()
+    assert axes.get_ylim() == pytest.approx((.65, 1.35))
+
+
+def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(window):
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
+    window.result_tabs.setCurrentIndex(1)
+    QTest.qWait(50)
+    for width in (1050, 1450, 960):
+        window.resize(width, 720)
+        QTest.qWait(30)
+        toolbar = window.plot_toolbar
+        controls = window.context_controls
+        assert window.figure_actions.isAncestorOf(controls)
+        toolbar_center = toolbar.mapTo(window, toolbar.rect().center()).y()
+        top = controls.mapTo(window, QPoint(0, 0)).y()
+        assert top <= toolbar_center <= top + controls.height()
+        assert controls.visibleRegion().contains(controls.rect())
+        assert controls.mapTo(window, QPoint(0, 0)).x() > toolbar.mapTo(window, QPoint(toolbar.width(), 0)).x()
+        body = window._result_view_layouts[1]
+        assert body.itemAt(body.count() - 1).widget() is window.graphs_workspace
+        graph_bottom = window.graph_scroll.mapTo(window, QPoint(0, window.graph_scroll.height())).y()
+        axis_top = window.time_axis.mapTo(window, QPoint(0, 0)).y()
+        assert 0 <= axis_top - graph_bottom <= 40
+    window.result_tabs.setCurrentIndex(2)
+    QTest.qWait(30)
+    assert window.detail_controls.isAncestorOf(window.context_controls)
+    assert window.context_controls.isVisible()
+    window.result_tabs.setCurrentIndex(1)
+    assert window.figure_actions.isAncestorOf(window.context_controls)
+
+
+def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_data(window):
+    from matplotlib import dates
+    start = pd.Timestamp("2026-10-07T12:00:00+02:00")
+    raw = pd.DataFrame({"time": np.arange(4.), "time_dt": start + pd.to_timedelta(np.arange(4.), unit="s"),
+                        "gyroscope_x": np.arange(4.)})
+    window.loaded(("sensor.csv", raw))
+    window.provenance = {"settings": {"skip_preparation": True}}
+    states = pd.DataFrame({"time": np.arange(4.), "pred_tremor": [0., 1., np.nan, 0.]})
+    window.analyzed({"classifications": {"tremor": states}, "quantifications": {
+        module: pd.DataFrame({"time": np.arange(4.), "power": [2., 3., 4., 5.]})
+        for module in ("tremor", "pulse_rate")}})
+    window._series_items[("classifications/tremor", "pred_tremor")].setCheckState(0, Qt.Checked)
+    window.dataset.setCurrentText("classifications/tremor")
+    window.result_tabs.setCurrentIndex(1)
+    x = dates.date2num(clock_times([1.], window.display_clock))[0]
+    axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "classifications/tremor")
+    axes.set_xlim(x - .5 / 86400., x + 1.5 / 86400.)
+    limits = [(ax.get_xlim(), ax.get_ylim()) for ax in window.figure.axes]
+    window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=x))
+    assert window.result_table.currentIndex().row() == 1
+    assert window.context_button.isEnabled()
+    for ax in window.figure.axes:
+        marker = next(line for line in ax.lines if line.get_gid() == "selected-result-time")
+        assert marker.get_xdata() == pytest.approx([x, x])
+    point = next(line for line in axes.lines if line.get_gid() == "selected-result-point")
+    assert point.get_ydata() == [1.]
+    assert [(ax.get_xlim(), ax.get_ylim()) for ax in window.figure.axes] == limits
+    assert window.time_axis.selection_marker.get_visible()
+    assert "Row 2" in window.time_axis.selection_label.get_text()
+    assert "07 Oct 2026 12:00:01" in window.time_axis.selection_label.get_text()
+    axes.set_xlim(x + 2. / 86400., x + 3. / 86400.)
+    assert not window.time_axis.selection_marker.get_visible()
+    assert window.time_axis.selection_label.get_visible()
+    axes.set_xlim(*limits[0][0])
+    assert window.time_axis.selection_marker.get_visible()
+    window.plot()  # Changing graph presentation retains the linked selection.
+    assert all(any(line.get_gid() == "selected-result-time" for line in ax.lines) for ax in window.figure.axes)
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    assert not any(line.get_gid() == "selected-result-point" for ax in window.figure.axes for line in ax.lines)
+    window.time_from.setText("2"); window.apply_filters()
+    assert not window._result_selection_artists
+    assert not window.time_axis.selection_marker.get_visible()
+    assert not window.context_button.isEnabled()
+    np.testing.assert_array_equal(states.pred_tremor, [0., 1., np.nan, 0.])
 
 
 def test_exported_results_figure_retains_its_time_axis_and_restores_pinned_display(window, tmp_path):

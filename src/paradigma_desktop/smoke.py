@@ -160,12 +160,22 @@ def smoke_test(report_path):
                 window.plot()
                 window.canvas.draw()
                 state_axes = window.figure.axes[0]
-                valid = np.isfinite(classification[state].to_numpy(dtype=float))
-                if state_axes.lines or not np.array_equal(state_axes.collections[0].get_offsets()[:, 1], classification[state].to_numpy()[valid]):
-                    raise RuntimeError("Binary output did not preserve its states as a categorical raster")
+                present = classification[state].to_numpy(dtype=float) == 1.
+                if state_axes.lines or not np.array_equal(state_axes.collections[0].get_offsets()[:, 1], classification[state].to_numpy()[present]):
+                    raise RuntimeError("Binary output did not show only positive detections")
                 window.result_tabs.setCurrentIndex(1)
                 if not window.dataset_field.isHidden() or not window.y_column.isHidden():
                     raise RuntimeError("Graphs still have redundant output/metric selectors")
+                if not window.figure_actions.isAncestorOf(window.context_controls):
+                    raise RuntimeError("Sensor context controls are not in the figure toolbar row")
+                window.dataset.setCurrentText("classifications/tremor")
+                row = int(np.flatnonzero(present)[0]) if present.any() else 0
+                window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
+                window.canvas.draw()
+                if (not any(line.get_gid() == "selected-result-time" for line in window.figure.axes[0].lines)
+                        or not window.time_axis.selection_marker.get_visible()
+                        or f"Row {row + 1}" not in window.time_axis.selection_label.get_text()):
+                    raise RuntimeError("The selected result time is not marked in the graph and pinned axis")
                 if not window.clock_input.calendar.calendarPopup():
                     raise RuntimeError("The recording time origin has no calendar selector")
                 window.result_tabs.setCurrentIndex(0)
@@ -280,6 +290,9 @@ def smoke_test(report_path):
                               estimated_gait_positions_verified=True,
                               linked_result_selection_verified=True,
                               binary_state_raster_verified=True,
+                              presence_only_verified=True,
+                              context_toolbar_verified=True,
+                              selected_result_marker_verified=True,
                               calendar_time_controls_verified=True,
                               gait_sensor_context_verified=True,
                               run_history_reopened=True,

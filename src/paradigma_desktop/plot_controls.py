@@ -211,7 +211,7 @@ class GraphSettings(QFrame):
             if bounds is None:
                 getattr(ax, f"set_autoscale{axis}_on")(True)
                 if axis == "y" and getattr(ax, "_paradigma_binary", False):
-                    ax.set_ylim(-.32, 1.32)
+                    ax.set_ylim(.65, 1.35)
                     ax.set_autoscaley_on(True)
                 else:
                     ax.autoscale_view(scalex=axis == "x", scaley=axis == "y")

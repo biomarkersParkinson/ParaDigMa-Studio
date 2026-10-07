@@ -2,6 +2,7 @@
 from matplotlib import dates, ticker
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint
 
 
@@ -23,10 +24,18 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.xaxis.label.set_size(10)
         self._source = None
         self._date_timezone = None
+        self.selection_marker = Line2D([], [], marker="v", markersize=6, color="#465B73",
+                                       linestyle="none", transform=self.axes.get_xaxis_transform(), clip_on=False, zorder=5)
+        self.axes.add_artist(self.selection_marker)
+        self.selection_label = self.axes.text(1, 1.8, "", transform=self.axes.transAxes,
+                                              ha="right", va="top", fontsize=8.5, color="#465B73")
+        self._selected_x = None
+        self.set_selection(None)
         source_canvas.mpl_connect("draw_event", self.synchronize)
 
     def bind(self, source):
         self._source = source
+        self.set_selection(None)
         self.axes.set_visible(source is not None)
         if source is not None:
             source.callbacks.connect("xlim_changed", self.synchronize)
@@ -42,6 +51,20 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
         self.synchronize()
 
+    def set_selection(self, x, label=""):
+        self._selected_x = x
+        visible = x is not None and self._source is not None
+        self._update_selection_visibility()
+        self.selection_label.set_visible(visible)
+        self.selection_marker.set_data([] if x is None else [x], [] if x is None else [0])
+        self.selection_label.set_text(label)
+        self.draw_idle()
+
+    def _update_selection_visibility(self):
+        low, high = sorted(self.axes.get_xlim())
+        visible = self._source is not None and self._selected_x is not None and low <= self._selected_x <= high
+        self.selection_marker.set_visible(visible)
+
     def synchronize(self, *_):
         if self._source is None or self.source_canvas.exporting_time_axis:
             self.draw_idle()
@@ -54,6 +77,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         right = (origin + bounds.x1 * self.source_canvas.width()) / width
         self.axes.set_position((left, .78, max(.01, right - left), .1))
         self.axes.set_xlim(source.get_xlim(), emit=False)
+        self._update_selection_visibility()
         label = self.label_source()
         self.axes.set_xlabel(label.get_xlabel() if label is not None else source.get_xlabel(), labelpad=8)
         self.draw_idle()

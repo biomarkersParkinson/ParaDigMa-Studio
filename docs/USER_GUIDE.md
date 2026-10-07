@@ -120,16 +120,20 @@ want to edit. Shared horizontal limits, grid and legend settings apply across
 plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
 
 Continuous plots display at most 20,000 samples per series for responsiveness.
-Binary indicators use separate **Present · 1** and **Absent · 0** rows, with square
-marks at every observed output timestamp. Missing states stay blank; no durations
-or transitions are inferred. These indicators are not subsampled, so isolated
-detections remain visible. Tables and exports retain all selected rows.
+Binary indicators show **Present · 1** only, with square marks at every positive
+output timestamp. Zero and missing states stay blank; no durations or transitions
+are inferred. These indicators are not subsampled, so isolated detections remain
+visible. The full selected time range stays visible, including selections without
+detections. Tables and exports retain all selected rows, including zero and missing states.
 Result lines do not join separate sections;
 multiple participants display as points. Filtered and unfiltered gait outputs
 remain separate datasets.
 
 Select a result row or click a time-based graph point to inspect original samples
-in **Sensor context**. Gait outputs without timestamps can open explicit
+using **Inspect sensor context** at the right of the figure toolbar. A vertical
+marker links the selected time across plots; the selected point is highlighted,
+and the pinned time axis identifies the row and time. The radius sets how many
+seconds of original samples to show on either side. Gait outputs without timestamps can open explicit
 start/end intervals supplied by the toolbox. This requires the original data
 retained in the same session and usable timing metadata.
 

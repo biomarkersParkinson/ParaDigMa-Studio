@@ -403,7 +403,7 @@ def test_time_only_filters_and_missing_original_recording_are_explicit(window):
     assert not hasattr(window, "filter_column")
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not window.context_button.isEnabled()
-    assert window.context_hint.text() == "Original sensor data unavailable"
+    assert window.context_button.toolTip() == "Original sensor data unavailable"
 
 
 def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata(window):
@@ -419,6 +419,7 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()
     assert window.context_button.text() == "Inspect gait segment"
+    assert "Estimated" in window.time_axis.selection_label.get_text()
     window.inspect_sensor_context()
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, raw.iloc[10:20])
     assert "using toolbox metadata" in window.sensor_note.text()

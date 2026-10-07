@@ -77,17 +77,21 @@ def time_coordinates(values):
 
 
 def plot_states(ax, xs, ys, color, *, label=None):
-    """A categorical raster at observed timestamps, without inferred coverage."""
+    """Presence at observed timestamps; blank space does not infer absence."""
     xs, ys = time_coordinates(xs), np.asarray(ys, dtype=float)
-    valid = np.isfinite(xs) & np.isfinite(ys) & np.isin(ys, [0., 1.])
+    finite_time = np.isfinite(xs)
+    present = finite_time & (ys == 1.)
     ax._paradigma_binary = True
-    ax.axhspan(-.11, .11, facecolor="#F0F3F7", edgecolor="none", zorder=0)
     ax.axhspan(.89, 1.11, facecolor=color, alpha=.07, edgecolor="none", zorder=0)
-    colors = np.where(ys[valid] == 1., color, "#9CAABC")
-    ax.scatter(xs[valid], ys[valid], c=colors, marker="s", s=np.where(ys[valid] == 1., 64, 48),
+    ax.scatter(xs[present], ys[present], color=color, marker="s", s=64,
                edgecolors="white", linewidths=.45, zorder=3, label=label, rasterized=len(xs) > 2000)
-    ax.set_yticks([0., 1.], ["Absent · 0", "Present · 1"])
-    ax.set_ylim(-.32, 1.32)
+    # Keep the recording extent, including zero/missing-state timestamps, even
+    # when this selection has no detections. Do not invent continuous intervals.
+    if finite_time.any():
+        ax.update_datalim([(xs[finite_time].min(), 1.), (xs[finite_time].max(), 1.)])
+        ax.autoscale_view(scaley=False)
+    ax.set_yticks([1.], ["Present · 1"])
+    ax.set_ylim(.65, 1.35)
     ax.set_ylabel("")
     ax.grid(False, axis="y")
     ax.margins(x=.025)

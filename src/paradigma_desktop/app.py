@@ -24,6 +24,7 @@ PLOT_CACHE_DIRECTORY = configure_plot_cache(QStandardPaths.writableLocation(QSta
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from matplotlib import colormaps, dates
 
 from .core import (
@@ -33,7 +34,7 @@ from .core import (
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
-from .plot_controls import add_graph_controls
+from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, detail_tables, detail_timing, flat_values, analysis_alignment,
@@ -109,6 +110,7 @@ class MainWindow(QMainWindow):
         self.source = ""
         self.tables, self.provenance = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
+        self._result_selection_artists = []
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
         self.active_frame = None
@@ -513,6 +515,7 @@ class MainWindow(QMainWindow):
         controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         settings = QHBoxLayout()
+        self.table_actions_layout = settings
         self.dataset = self.combo()
         self.dataset.setMinimumWidth(180)
         self.dataset_field = field("Detailed output", self.dataset)
@@ -576,7 +579,14 @@ class MainWindow(QMainWindow):
         self.figure = Figure(layout="constrained")
         self.canvas = ScrollableFigureCanvas(self.figure)
         self.canvas.pinned_time_axis = True
-        self.plot_toolbar = add_graph_controls(plots, self.canvas, self)
+        self.figure_actions = QWidget()
+        self.figure_actions_layout = QHBoxLayout(self.figure_actions)
+        self.figure_actions_layout.setContentsMargins(0, 0, 0, 0)
+        self.plot_toolbar = GraphToolbar(self.canvas, self)
+        self.figure_actions_layout.addWidget(self.plot_toolbar)
+        self.figure_actions_layout.addStretch()
+        graph_body.addWidget(self.figure_actions)
+        graph_body.addWidget(self.plot_toolbar.settings)
         graph_scroll = QScrollArea()
         graph_scroll.setWidgetResizable(True)
         graph_scroll.setWidget(self.canvas)
@@ -622,19 +632,20 @@ class MainWindow(QMainWindow):
         self.sensor_tab_index = 3
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)
         context = QHBoxLayout()
+        context.setContentsMargins(0, 0, 0, 0)
         self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
         self.context_button.setEnabled(False)
+        self.context_button.setToolTip("Select a result row or click a graph point")
         context.addWidget(self.context_button)
         self.context_radius = QDoubleSpinBox()
         self.context_radius.setRange(0.1, 120)
         self.context_radius.setValue(2)
         self.context_radius.setSuffix(" s")
-        self.context_radius.setMaximumWidth(100)
+        self.context_radius.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.context_radius.setAccessibleName("Sensor context radius")
         self.context_radius.setToolTip("Original samples within this radius of the selected time; not an analysis window.")
         context.addWidget(label("±", "muted"))
         context.addWidget(self.context_radius)
-        self.context_hint = label("Select a result row", "muted")
-        context.addWidget(self.context_hint, 1)
         self.context_controls = QWidget()
         self.context_controls.setLayout(context)
         self.result_tabs.currentChanged.connect(self.results_tab_changed)
@@ -1099,12 +1110,15 @@ class MainWindow(QMainWindow):
         body = self._result_view_layouts[index]
         # The tab bar stays outside every view's scrolling content. Shared
         # controls move below it rather than changing the navigation position.
-        for widget in (self.results_header, self.detail_controls, self.context_controls):
+        for widget in (self.results_header, self.detail_controls):
             for previous in self._result_view_layouts:
                 previous.removeWidget(widget)
         body.insertWidget(0, self.results_header)
         body.insertWidget(1, self.detail_controls)
-        body.addWidget(self.context_controls)
+        self.figure_actions_layout.removeWidget(self.context_controls)
+        self.table_actions_layout.removeWidget(self.context_controls)
+        actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
+        actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
         self.results_scroll = self._result_view_scrolls[index]
         detailed = index in (1, 2)
         self.results_header.show()
@@ -1316,7 +1330,7 @@ class MainWindow(QMainWindow):
         frame = self.tables.get(name)
         self.hide_sensor_context()
         self.context_button.setEnabled(False)
-        self.context_hint.setText("Select a result row" if self.result_source_frame is not None else "Original sensor data unavailable")
+        self.context_button.setToolTip("Select a result row or click a graph point" if self.result_source_frame is not None else "Original sensor data unavailable")
         self.y_column.blockSignals(True)
         self.y_column.clear()
         if frame is not None:
@@ -1388,6 +1402,8 @@ class MainWindow(QMainWindow):
         self.plot()
 
     def refresh_detail_table(self):
+        self.context_button.setEnabled(False)
+        self.context_button.setToolTip("Select a result row or click a graph point" if self.result_source_frame is not None else "Original sensor data unavailable")
         frame = self.active_frame
         if frame is None:
             self.display_frame = None
@@ -1413,7 +1429,6 @@ class MainWindow(QMainWindow):
         self.display_frame = view
         self.result_table.setModel(FrameModel(view))
         self.result_table.selectionModel().currentRowChanged.connect(self.result_row_changed)
-        self.context_button.setEnabled(False)
         self.csv_button.setEnabled(self.worker is None)
         clock_note = (f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
                       if self.display_clock else "Elapsed time · Set a time origin in Filters to display dates")
@@ -1440,6 +1455,7 @@ class MainWindow(QMainWindow):
 
     def plot(self, *_):
         self.figure.clear()
+        self._result_selection_artists = []
         chosen = self.selected_result_series()
         binaries = [binary_indicator(self.tables[name][metric], metric) for name, metric in chosen]
         compact_states = bool(binaries) and all(binaries)
@@ -1502,6 +1518,7 @@ class MainWindow(QMainWindow):
             ax.xaxis.offsetText.set_visible(False)
         self.time_axis.bind(first_axes)
         self.plot_toolbar.refresh()
+        self.highlight_result_row()
         self.canvas.draw_idle()
 
     def result_row_changed(self, current, previous):
@@ -1514,10 +1531,62 @@ class MainWindow(QMainWindow):
         self.context_button.setEnabled(bool(usable))
         self.context_radius.setEnabled(bool(timestamp))
         self.context_button.setText("Inspect gait segment" if segment is not None and not timestamp else "Inspect sensor context")
+        if valid_row:
+            self.context_button.setToolTip("Inspect original samples for the selected result row")
         if valid_row and not timestamp and segment is None:
-            self.context_hint.setText("No sensor timing available")
+            self.context_button.setToolTip("No sensor timing available")
         if self.result_source_frame is None:
-            self.context_hint.setText("Original sensor data unavailable")
+            self.context_button.setToolTip("Original sensor data unavailable")
+        self.highlight_result_row()
+
+    def highlight_result_row(self):
+        """Link a table row to all plots without changing their data or limits."""
+        for artist in self._result_selection_artists:
+            artist.remove()
+        self._result_selection_artists = []
+        self.time_axis.set_selection(None)
+        name, frame = self.dataset.currentText(), self.active_frame
+        current = self.result_table.currentIndex()
+        if frame is None or not current.isValid() or name not in self._timings:
+            self.canvas.draw_idle()
+            return
+        row = current.row()
+        position = self.active_positions[row]
+        timing = self._timings[name].iloc[position]
+        seconds = float(timing["Timeline time (s)"])
+        if not np.isfinite(seconds):
+            self.canvas.draw_idle()
+            return
+        if self.display_clock is not None:
+            timestamp = clock_times([seconds], self.display_clock)[0]
+            x = float(dates.date2num(timestamp.to_pydatetime(warn=False)))
+            label = timestamp.strftime("%d %b %Y %H:%M:%S.%f").rstrip("0").rstrip(".")
+        else:
+            x, label = seconds, f"{seconds:.6g} s"
+        estimated = "Estimated" in str(timing["Time basis"])
+        label = f"Row {row + 1} · {label}" + (" · Estimated" if estimated else "")
+        self.time_axis.set_selection(x, label)
+        for ax in self.figure.axes:
+            if not hasattr(ax, "_paradigma_dataset"):
+                continue
+            line = Line2D([x, x], [0, 1], transform=ax.get_xaxis_transform(),
+                          color="#465B73", linewidth=1.1, linestyle=(0, (3, 3)), alpha=.75, zorder=7)
+            line.set_gid("selected-result-time")
+            ax.add_artist(line)
+            self._result_selection_artists.append(line)
+            if ax._paradigma_dataset != name:
+                continue
+            value = frame[ax._paradigma_metric].iloc[row]
+            if (pd.isna(value) or not np.isfinite(float(value))
+                    or getattr(ax, "_paradigma_binary", False) and float(value) != 1.):
+                continue
+            point = Line2D([x], [float(value)], linestyle="none", marker="o", markersize=9,
+                           markerfacecolor="white", markeredgecolor=module_color(name.split("/")[1]),
+                           markeredgewidth=2, zorder=8)
+            point.set_gid("selected-result-point")
+            ax.add_artist(point)
+            self._result_selection_artists.append(point)
+        self.canvas.draw_idle()
 
     def graph_clicked(self, event):
         if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
@@ -1546,7 +1615,6 @@ class MainWindow(QMainWindow):
         self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
         self.result_table.selectRow(row)
         self.result_table.scrollTo(self.result_table.currentIndex())
-        self.context_hint.setText(f"Selected result at {times[row]:.4g} s. Inspect original sensor context.")
         self.plot_toolbar.active_axes = next((ax for ax in self.figure.axes
             if getattr(ax, "_paradigma_dataset", None) == name and getattr(ax, "_paradigma_metric", None) == metric), None)
         if self.plot_toolbar.settings_action.isChecked():
@@ -1590,7 +1658,9 @@ class MainWindow(QMainWindow):
             self.result_tabs.setTabVisible(self.sensor_tab_index, True)
             self.result_tabs.setCurrentIndex(self.sensor_tab_index)
         except (ValueError, TypeError, KeyError, IndexError) as exc:
-            self.context_hint.setText(f"Sensor context unavailable: {exc}")
+            message = f"Sensor context unavailable: {exc}"
+            self.context_button.setToolTip(message)
+            self.status.setText(message)
 
     def hide_sensor_context(self):
         if self.result_tabs.currentIndex() == self.sensor_tab_index:

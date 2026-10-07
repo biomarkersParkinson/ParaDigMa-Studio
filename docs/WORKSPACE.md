@@ -8,7 +8,7 @@ Overview shows sample counts and separates sensor-channel descriptives from time
 
 ![Data workspace](screenshots/data.png)
 
-Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Continuous displays are limited to 20,000 points per channel; binary indicators retain every timestamp in separate presence/absence rows. Tables and exports retain all samples.
+Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Continuous displays are limited to 20,000 points per channel; binary indicators show every positive detection at its original timestamp. Tables and exports retain all samples.
 
 ![Original sensor graphs](screenshots/data-graphs.png)
 
@@ -47,7 +47,9 @@ metadata; files with only elapsed time can use a user-supplied time origin.
 Gait points are estimated within explicit segment boundaries and labeled as estimates.
 Plot series is the sole graph selector. Graphs use a consistent palette, subtle
 grids and shared bottom time labels; scrolling works over the graph canvas.
-Binary outputs use larger presence/absence marks at their observed timestamps, narrow shaded bands and compact rows. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+Binary outputs show presence only, with larger marks at observed timestamps, a narrow shaded band and compact rows. Zero and missing states stay blank; tables and exports retain them. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+
+**Inspect sensor context** and its radius sit at the right of the figure toolbar, leaving the space above the time axis for graphs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
 
 Filters contains only Time origin and From/Until. Calendar and clock selectors
 use the recording timezone when known. Recordings without dates use elapsed
