@@ -2,12 +2,32 @@
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal
-from PySide6.QtGui import QFont, QPalette
+from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QWidget,
+    QPushButton, QTableView, QVBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle,
 )
-from .theme import light_palette
+from .theme import light_palette, module_color
+
+
+class ModuleTabBar(QTabBar):
+    """Keep module text and selected underline in the same module colors."""
+    def paintEvent(self, event):
+        painter = QStylePainter(self)
+        for index in range(self.count()):
+            option = QStyleOptionTab()
+            self.initStyleOption(option, index)
+            text = option.text
+            option.text = ""
+            painter.drawControl(QStyle.CE_TabBarTabShape, option)
+            color = QColor(module_color(self.tabData(index))) if self.isTabEnabled(index) else QColor("#99A4B4")
+            font = self.font()
+            font.setBold(index == self.currentIndex())
+            painter.setFont(font)
+            painter.setPen(color)
+            painter.drawText(option.rect, Qt.AlignCenter, text)
+            if index == self.currentIndex():
+                painter.fillRect(option.rect.adjusted(0, option.rect.height() - 2, 0, 0), color)
 
 
 class HoverSidebar(QFrame):

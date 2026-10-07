@@ -1,3 +1,4 @@
+from conftest import bar_values, bar_starts, bar_centers
 """Behavioral checks for navigation, linked exploration and previous runs."""
 import json
 import os
@@ -344,13 +345,11 @@ def test_metric_and_filter_changes_leave_official_overview_aggregates_unchanged(
     assert aggregate.text() == "12.5"
     assert not hasattr(window, "summary_table")
     window.y_column.setCurrentText("other_metric")
-    np.testing.assert_array_equal(window.figure.axes[0].lines[0].get_ydata(), frame.other_metric)
-    window.time_from.setText("2")
-    window.time_to.setText("4")
-    window.apply_filters()
+    np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.other_metric)
+    window.figure.axes[0].set_xlim(2., 4.)
     assert window.overview_values[("test", "Aggregates", ("median_metric",))] is aggregate
     assert aggregate.text() == "12.5"
-    pd.testing.assert_frame_equal(window.active_frame, frame.iloc[[2, 3, 4]])
+    pd.testing.assert_frame_equal(window.active_frame, frame)
     window.clear_results()
     assert window.overview_values == {}
     assert window.result_table.model() is None
@@ -376,6 +375,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
         captured.append(settings)
         return {"quantifications": {"test": output()}, "errors": []}
     monkeypatch.setattr(desktop, "analyze", analyze)
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.run_analysis()
     wait_for_job(window)
     expected = dict(pipelines=["gait", "tremor"], watch_side="right", accelerometer_units="m/s^2",
@@ -383,7 +383,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
         column_mapping={"device_time": "time"}, skip_preparation=False, split_by_gaps=True,
         drop_missing_samples=False, max_gap_seconds=2.5, min_segment_seconds=4.)
     assert captured == [expected]
-    assert window.runs[0]["settings"] == expected
+    assert window.runs[0]["settings"] == {**expected, "plot_time_origin": {"mode": "automatic"}}
     window.set_modules(["pulse_rate"])
     window.gyro.setCurrentText("deg/s")
     window.use_run_parameters()
@@ -434,53 +434,37 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
         app.setPalette(previous)
 
 
-def test_one_selection_drives_detailed_graph_table_and_csv(window, tmp_path, monkeypatch):
+def test_graph_zoom_preserves_full_official_table_and_csv(window, tmp_path, monkeypatch):
     window.timing_toggle.setChecked(True)
     frame = output()
-    original = frame.copy()
-    window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    window.time_from.setText("4")
-    window.time_to.setText("4")
-    window.apply_filters()
-    assert window.active_positions.tolist() == [4]
-    pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame.iloc[[4]])
-    assert list(window.figure.axes[0].lines[0].get_xdata()) == [4.]
-    assert list(window.figure.axes[0].lines[0].get_ydata()) == [14.]
-    assert "1 / 6 rows" in window.selection_note.text()
-    assert window.result_table.model().frame["Analysis time (s)"].tolist() == [4.]
-    path = tmp_path / "selection.csv"
+    window.analyzed({"quantifications": {"test": frame}})
+    window.figure.axes[0].set_xlim(4., 5.)
+    np.testing.assert_array_equal(window.active_positions, np.arange(len(frame)))
+    pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
+    np.testing.assert_allclose(bar_starts(window.figure.axes[0]), frame.time, atol=1e-12)
+    np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.metric)
+    path = tmp_path / "full.csv"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
-    assert pd.read_csv(path)["metric"].tolist() == [14.]
-    window.reset_filters()
-    assert len(window.active_frame) == 6
-    assert window.result_table.model().rowCount() == 6
-    pd.testing.assert_frame_equal(frame, original)
+    pd.testing.assert_frame_equal(pd.read_csv(path)[frame.columns], frame)
 
 
-def test_invalid_filter_retains_selection_and_empty_filter_clears_graph(window):
-    window.analyzed({"quantifications": {"test": output()}, "errors": []})
-    window.time_from.setText("5")
-    window.time_to.setText("1")
-    window.apply_filters()
-    assert "minimum" in window.filter_status.text()
-    assert len(window.active_frame) == window.result_table.model().rowCount() == 6
-    window.time_from.setText("9")
-    window.time_to.setText("10")
-    window.apply_filters()
-    assert window.active_frame.empty
-    assert window.result_table.model().rowCount() == 0
-    assert not window.figure.axes[0].lines
-    assert "0 / 6 rows" in window.selection_note.text()
+
+def test_results_have_no_time_filters_and_zoom_does_not_remove_rows(window):
+    frame = output()
+    window.analyzed({"quantifications": {"test": frame}})
+    assert not hasattr(window, "time_from") and not hasattr(window, "filters_toggle")
+    window.figure.axes[0].set_xlim(9., 10.)
+    pd.testing.assert_frame_equal(window.active_frame, frame)
+    assert len(bar_values(window.figure.axes[0])) == len(frame)
+
 
 
 def test_graph_click_selects_nearest_row_within_active_selection(window):
     window.analyzed({"quantifications": {"test": output()}, "errors": []})
-    window.time_from.setText("2")
-    window.apply_filters()
     window.graph_clicked(SimpleNamespace(inaxes=window.figure.axes[0], xdata=3.1))
-    assert window.result_table.currentIndex().row() == 1
-    assert window.active_frame.iloc[1]["time"] == 3.
+    assert window.result_table.currentIndex().row() == 3
+    assert window.active_frame.iloc[3]["time"] == 3.
 
 
 def test_context_drills_into_original_mapped_sensor_values(window):
@@ -544,7 +528,8 @@ def test_nullable_result_values_plot_without_losing_rows(window):
     frame = pd.DataFrame({"time": [0., 1., 2.], "power": pd.Series([1., pd.NA, 3.], dtype="Float64")})
     window.analyzed({"quantifications": {"tremor": frame}, "errors": []})
     assert window.result_table.model().rowCount() == 3
-    assert np.isnan(window.figure.axes[0].lines[0].get_ydata()[1])
+    np.testing.assert_array_equal(bar_values(window.figure.axes[0]), [1., 3.])
+    np.testing.assert_allclose(bar_starts(window.figure.axes[0]), [0., 2.], atol=1e-12)
 
 
 def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window, monkeypatch):
@@ -555,6 +540,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
         logger.warning("Example quality warning")
         return {"quantifications": {"tremor": output()}, "errors": []}
     monkeypatch.setattr(desktop, "analyze", analyze)
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.run_analysis()
     window.navigate(3)  # Navigation stays available while analysis runs.
     wait_for_job(window)
@@ -568,6 +554,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     def fail(*args, **kwargs):
         raise ValueError("Sensor validation failed")
     monkeypatch.setattr(desktop, "analyze", fail)
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.loaded(("second.csv", frame.copy()))
     window.run_analysis()
     wait_for_job(window)
@@ -591,6 +578,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
 def test_exported_json_can_reopen_after_restart_without_loading_pickle(window, tmp_path, monkeypatch):
     window.loaded((str(tmp_path / "trusted.pkl"), pd.DataFrame({"time": [0., 1.]})))
     monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"tremor": output()}, "errors": []})
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.set_modules(["tremor"])
     window.run_analysis()
     wait_for_job(window)
@@ -634,6 +622,7 @@ def test_export_protects_result_source_and_current_input(window, tmp_path, monke
 def test_history_write_failure_keeps_result_available(window, monkeypatch):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
     monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"test": output()}, "errors": []})
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     def cannot_save(record):
         raise OSError("disk is read-only")
     monkeypatch.setattr(window.history, "save", cannot_save)
@@ -696,6 +685,7 @@ def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_f
             {"pipelines": ["pulse_rate"], "stage": "desktop_execution", "error": "ValueError: No pulse signal"}]}
 
     monkeypatch.setattr(desktop, "analyze", partial)
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.run_analysis()
     wait_for_job(window)
     record = window.runs[0]
@@ -717,6 +707,7 @@ def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_f
 def test_no_quantified_windows_is_a_warning_without_processing_errors(window, monkeypatch):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
     monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"tremor": pd.DataFrame()}, "errors": []})
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.run_analysis()
     wait_for_job(window)
     record = window.runs[0]

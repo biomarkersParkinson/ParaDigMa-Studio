@@ -10,6 +10,7 @@ from .theme import light_palette
 
 class TimeField(QWidget):
     returnPressed = Signal()
+    valueEdited = Signal()
 
     def __init__(self, title, *, origin=False):
         super().__init__()
@@ -64,6 +65,7 @@ class TimeField(QWidget):
                     self._edited()
             else:
                 self.clear()
+                self.valueEdited.emit()
 
     def _edited(self, *_):
         if self._changing or not self.use.isChecked():
@@ -73,6 +75,7 @@ class TimeField(QWidget):
         else:
             format = Qt.ISODateWithMs if self._clock and self._clock.get("timezone") else "yyyy-MM-ddTHH:mm:ss.zzz"
             self._text = self.calendar.dateTime().toString(format)
+        self.valueEdited.emit()
 
     def setText(self, text):
         # The exact ISO value remains unchanged until the user edits a field;

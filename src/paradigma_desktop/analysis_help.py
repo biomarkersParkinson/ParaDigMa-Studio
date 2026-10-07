@@ -11,6 +11,10 @@ DEFAULT_MAX_GAP_SECONDS = 1.5
 DEFAULT_MIN_SECTION_SECONDS = 1.5
 
 FIELD_HELP = {
+    "Time origin": (
+        "Calendar date and time corresponding to analysis time zero. The default comes from the file's "
+        "timestamps or recording metadata when available. Use Default to restore it. Uncheck to show "
+        "elapsed seconds. This desktop display setting does not change the sensor times or scientific analysis.", "util.py"),
     "Analysis modules": (
         "Select any combination. Gait needs time, accelerometer_x/y/z and gyroscope_x/y/z; "
         "tremor needs time and gyroscope_x/y/z. Raw pulse-rate analysis needs time, green (raw PPG) "
@@ -33,12 +37,14 @@ FIELD_HELP = {
         "difference_s / difference_ms: time increments between samples (0, 0.01, 0.01 / 0, 10, 10). "
         "These options require numeric values, not date strings. ParaDigMa converts time to relative seconds.", "util.py"),
     "Device axes": (
-        "Enter three comma-separated signed source axes, in the order of toolbox X, Y, Z. "
-        "x,y,z leaves axes unchanged. Example -y,x,z means toolbox X = minus sensor Y; "
-        "toolbox Y = sensor X; toolbox Z = sensor Z. This applies to accelerometer and gyroscope "
-        "after column renaming. Use each source axis once. Confirm the device's physical axis directions "
-        "against the ParaDigMa orientation; the app cannot infer them from channel names. "
-        "Watch-side correction is a separate pipeline step.", "prepare_data.py#L169"),
+        "Compare your device manual's X/Y/Z arrows with ParaDigMa's reference figure below. "
+        "Enter the sensor axis that should become ParaDigMa X first, then Y, then Z; "
+        "add a minus sign when an arrow points in the opposite direction. "
+        "x,y,z is correct only when all three directions already match. "
+        "Example -y,x,z: toolbox X = minus sensor Y; toolbox Y = sensor X; toolbox Z = sensor Z. "
+        "Use each source axis once. The same mapping applies to acceleration and gyroscope after column renaming. "
+        "Correct orientation is especially important for gait. Set Watch side separately.",
+        "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html"),
     "Already prepared": (
         "Skip the wrapper's unit and device-axis conversions only when data already uses relative seconds, "
         "acceleration in g and gyroscope values in deg/s, with axes in ParaDigMa orientation. "

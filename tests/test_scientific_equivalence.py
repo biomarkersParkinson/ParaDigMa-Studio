@@ -5,6 +5,7 @@ generators are adapted with a fixed random seed; fixtures and exact source
 revision are described in data/paradigma/README.md. Scientific functions are
 never stubbed: observers call the originals and return their outputs unchanged.
 """
+from conftest import bar_values, bar_starts, bar_centers
 from copy import deepcopy
 from functools import wraps
 from importlib.metadata import version
@@ -180,7 +181,7 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
     assert_equivalent(app_stages, reference_stages, "intermediate stages")
     for name in ("quantifications", "aggregations", "classifications", "errors"):
         assert_equivalent(actual[name], expected[name], name)
-    metadata = {key: value for key, value in actual["metadata"].items() if key not in ("desktop_preparation", "desktop_recordings")}
+    metadata = {key: value for key, value in actual["metadata"].items() if key not in ("desktop_preparation", "desktop_recordings", "desktop_availability")}
     assert_equivalent(metadata, expected["metadata"], "scientific metadata")
     if isinstance(frame, dict):
         assert frame.keys() == original.keys()
@@ -248,7 +249,7 @@ def test_all_three_modules_equal_independent_official_workflows(tmp_path):
     assert_equivalent(actual_stages, stages, "combined scientific stages")
     for key in ("quantifications", "classifications", "aggregations"):
         assert_equivalent(actual[key], expected[key], key)
-    assert_equivalent({k: v for k, v in actual["metadata"].items() if k != "desktop_preparation"},
+    assert_equivalent({k: v for k, v in actual["metadata"].items() if k not in ("desktop_preparation", "desktop_availability")},
                       expected["metadata"], "combined scientific metadata")
     assert actual["metadata"]["desktop_preparation"]["analysis_groups"] == [["gait", "tremor"], ["pulse_rate"]]
     pd.testing.assert_frame_equal(frame, original, check_exact=True)
@@ -320,14 +321,13 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
                 row = window.result_table.currentIndex().row()
                 assert window.active_frame.time.iloc[row] == start
             pd.testing.assert_frame_equal(window.result_table.model().frame, reference, check_exact=True)
-            window.time_from.setText(repr(float(reference.time.median())))
-            window.apply_filters()
+            window.figure.axes[0].set_xlim(float(reference.time.median()), float(reference.time.max()) + cadence)
             bars = window.figure.axes[0].collections[0].get_paths()
-            retained = positive & reference.time.ge(reference.time.median())
+            retained = positive
             np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[retained, "time"])
             pd.testing.assert_frame_equal(actual["classifications"]["gait"][stage], reference, check_exact=True)
             assert indicator not in actual["classifications"]["gait"][stage]
-            window.reset_filters()
+            window.apply_filters()
     finally:
         window.close()
         application.processEvents()
@@ -369,9 +369,8 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
         window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
         pd.testing.assert_frame_equal(window.result_table.model().frame, actual["classifications"]["tremor"], check_exact=True)
         np.testing.assert_array_equal(actual["classifications"]["tremor"].pred_tremor_checked, reference.pred_tremor_checked)
-        window.time_from.setText(repr(float(reference.time.median())))
-        window.apply_filters()
-        retained = positive & reference.time.ge(reference.time.median())
+        axes.set_xlim(float(reference.time.median()), float(reference.time.max()) + 4.)
+        retained = positive
         checked_axes = next(ax for ax in window.figure.axes
                             if ax._paradigma_dataset == "classifications/tremor"
                             and ax._paradigma_metric == "pred_tremor_checked")
@@ -469,7 +468,9 @@ def test_recorded_ppg_quality_and_pulse_rate_equivalence(configured, tmp_path):
     path = tmp_path / "pulse-results.json"
     export_results(path, actual, {"paradigma_version": version("paradigma")})
     _, restored = load_result_export(path)
-    assert_equivalent(restored, expected, "PPG JSON round trip", roundtrip=True)
+    assert_equivalent(restored, actual, "PPG complete desktop JSON round trip", roundtrip=True)
+    scientific = {**restored, "metadata": {key: value for key, value in restored["metadata"].items() if not key.startswith("desktop_")}}
+    assert_equivalent(scientific, expected, "PPG JSON round trip", roundtrip=True)
 
 
 def test_real_results_json_and_csv_preserve_official_values(recorded_results, tmp_path):
@@ -478,7 +479,9 @@ def test_real_results_json_and_csv_preserve_official_values(recorded_results, tm
     export_results(path, actual, {"paradigma_version": version("paradigma")})
     provenance, restored = load_result_export(path)
     assert provenance["paradigma_version"] == "1.1.2"
-    assert_equivalent(restored, expected, "JSON round trip", roundtrip=True)
+    assert_equivalent(restored, actual, "Complete desktop JSON round trip", roundtrip=True)
+    scientific = {**restored, "metadata": {key: value for key, value in restored["metadata"].items() if not key.startswith("desktop_")}}
+    assert_equivalent(scientific, expected, "JSON round trip", roundtrip=True)
     for branch, frame in expected["quantifications"]["gait"].items():
         path = tmp_path / f"gait-{branch}.csv"
         export_table_csv(path, actual["quantifications"]["gait"][branch])
@@ -490,7 +493,7 @@ def test_real_results_json_and_csv_preserve_official_values(recorded_results, tm
                       expected["quantifications"]["tremor"], "CSV/tremor")
 
 
-def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded_results, tmp_path):
+def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_results, tmp_path):
     actual, expected, _, _ = recorded_results
     originals = deepcopy(actual)
     application = QApplication.instance() or QApplication([])
@@ -505,24 +508,22 @@ def test_real_result_filters_graphs_and_tables_preserve_official_values(recorded
             meta = expected["metadata"]["gait"]["unfiltered"]["per_segment"][number]
             reference_times[rows] = float(meta["start_s"]) + (np.arange(len(rows)) + .5) / len(rows) * (float(meta["end_s"]) - float(meta["start_s"]))
         low = float(np.nanmedian(reference_times))
-        window.time_from.setText(repr(low))
-        window.apply_filters()
-        positions = np.flatnonzero(reference_times >= low)
+        positions = np.arange(len(reference))
         selected = reference.iloc[positions]
-        assert len(selected) > 0 and len(selected) < len(reference)
+        assert len(selected) == len(reference) > 0
         np.testing.assert_array_equal(window.active_positions, positions)
         assert_equivalent(window.result_table.model().frame[selected.columns], selected, "visible scientific table columns")
         axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/gait/unfiltered")
-        line = axes.lines[0]
-        # Positions are estimates for presentation, computed before filtering
+        axes.set_xlim(low, float(np.nanmax(reference_times)))
+        # Positions are estimates for presentation, computed over the complete recording
         # from independent official segment metadata; measurements stay exact.
-        np.testing.assert_allclose(line.get_xdata(), reference_times[positions], rtol=RTOL, atol=ATOL)
-        np.testing.assert_array_equal(line.get_ydata(), selected.range_of_motion.to_numpy())
+        np.testing.assert_allclose(bar_centers(axes), reference_times[positions], rtol=RTOL, atol=ATOL)
+        np.testing.assert_array_equal(bar_values(axes), selected.range_of_motion.to_numpy())
         for key, value in expected["aggregations"]["gait"]["unfiltered"].items():
             if isinstance(value, (int, float)):
                 shown = window.overview_values[("gait", "Aggregates", ("unfiltered", key))]
                 assert float(shown.toolTip()) == value
-        window.reset_filters()
+        window.apply_filters()
         assert_equivalent(window.active_frame, reference, "reset selection")
         assert_equivalent(actual, originals, "unaltered scientific results")
     finally:

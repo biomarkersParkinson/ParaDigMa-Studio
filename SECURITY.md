@@ -100,3 +100,20 @@ Version 0.1.4 adds an Empatica IMU adapter that reads Avro with the same Apache 
 - Exports can include recording paths, metadata and original text. Handle patient recordings and exported results according to their confidentiality requirements. Do not submit private recordings to public malware-analysis services.
 
 Use the latest successful build containing these changes for testing. A security review cannot retroactively change an executable already downloaded.
+
+## Version 0.5.0 run controls and exports
+
+Analysis runs in an owned child process. Stop terminates that process, rather than
+Qt's thread or unrelated programs. The parent owns a unique temporary directory and
+removes it after success, failure or cancellation. Internal pickle files transfer
+only the already-loaded frames and results between those processes; these are
+private generated files, not automatically opened user recordings.
+
+Delete Run requires explicit confirmation and deletes the history entry and exact
+associated export paths. It does not traverse directories. Source recordings, TSDF
+companion binaries, filesystem aliases of those inputs, and exports shared with
+other history entries are protected. Running jobs cannot be deleted.
+
+Selective JSON/CSV/ZIP exports use the existing atomic-write and source-protection
+rules. CSV contents retain formula neutralization; ZIP member names are generated
+from fixed table keys with safe characters, never used as extraction paths.

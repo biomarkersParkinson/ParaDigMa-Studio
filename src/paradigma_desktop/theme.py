@@ -11,6 +11,8 @@ MODULE_PALETTE = {
 
 
 def module_color(module):
+    if module == "preparation":
+        return "#74869B"
     return MODULE_PALETTE.get(module, MODULE_PALETTE["gait"])["accent"]
 
 
@@ -23,6 +25,7 @@ def light_palette():
         QPalette.ButtonText: "#22324a", QPalette.Highlight: "#2563a5",
         QPalette.HighlightedText: "#ffffff", QPalette.PlaceholderText: "#68778c",
         QPalette.ToolTipBase: "#ffffff", QPalette.ToolTipText: "#22324a",
+        QPalette.Link: "#1e609e", QPalette.LinkVisited: "#1e609e",
     }
     for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
         for role, color in colors.items():
@@ -33,6 +36,9 @@ def light_palette():
 
 STYLESHEET = """
 QWidget { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 13px; color: #22324a; }
+QDialog, QMessageBox { background: #f4f6fa; color: #22324a; }
+QMessageBox QLabel, QDialog QLabel { color: #22324a; background: transparent; }
+QMessageBox QTextEdit { color: #22324a; background: white; }
 QMainWindow, QWidget#workspace { background: #f4f6fa; }
 QFrame#sidebar { background: #17263c; border: none; }
 QFrame#sidebar QLabel { color: #adbbce; background: transparent; }

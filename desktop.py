@@ -2,6 +2,8 @@ import sys
 import time
 
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
     if len(sys.argv) == 3 and sys.argv[1] == "--startup-test":
         started = time.perf_counter()
         from paradigma_desktop.startup import startup_test

@@ -1,10 +1,12 @@
 """Exercise startup and analysis inside the packaged executable."""
 import json
+import logging
 import os
 import tempfile
 import traceback
 from importlib.metadata import version
 from pathlib import Path
+from threading import Event
 
 
 def smoke_test(report_path):
@@ -26,6 +28,7 @@ def smoke_test(report_path):
         from .plotting import binary_indicator
         from .inspection import inspect_recording
         from .recordings import load_recordings
+        from .analysis_process import run_isolated_analysis
 
         # These bundled models import sklearn classes dynamically via pickle.
         models = []
@@ -48,6 +51,8 @@ def smoke_test(report_path):
                 raise RuntimeError("Bundled dropdown indicator could not be rendered")
             if QPixmap(str(files("paradigma_desktop") / "data" / "checkmark.svg")).isNull():
                 raise RuntimeError("Bundled checkbox indicator could not be rendered")
+            if QPixmap(str(files("paradigma_desktop") / "data" / "directions_axes.png")).isNull():
+                raise RuntimeError("Bundled ParaDigMa device-axis reference figure could not be rendered")
             window.about_button.click()
             attribution = window._acknowledgements_dialog
             if "10.5281/zenodo.13838392" not in attribution.acknowledgement.toPlainText():
@@ -70,7 +75,7 @@ def smoke_test(report_path):
                 source = directory / "sensor.csv"
                 frame.to_csv(source, index=False)
                 loaded = load_sensor_file(source)
-                results = analyze(loaded, pipelines=["tremor"], output_dir=directory / "logs")
+                results = run_isolated_analysis(loaded, {"pipelines": ["tremor"]}, logging.getLogger("paradigma-smoke"), Event())
                 if results.get("errors"):
                     raise RuntimeError(f"Tremor analysis failed: {results['errors']}")
                 quantified = results["quantifications"]["tremor"]
@@ -151,16 +156,16 @@ def smoke_test(report_path):
                                 or not np.allclose(window.time_axis.axes.get_xlim(), window.figure.axes[0].get_xlim())):
                             raise RuntimeError("Pinned recording time axis is missing or misaligned")
                 window.canvas.draw()
-                if len(window.figure.axes[0].lines) != 1:
-                    raise RuntimeError("Result plot was not rendered")
-                window.time_from.setText("60")
-                window.apply_filters()
-                selected = quantified.loc[quantified["time"] >= 60]
-                if window.result_table.model().rowCount() != len(selected) or len(selected) == len(quantified):
-                    raise RuntimeError("Shared result filtering did not change the table")
-                if not np.array_equal(window.figure.axes[0].lines[0].get_ydata(), selected[window.y_column.currentData()].to_numpy()):
-                    raise RuntimeError("Graph and table did not use the same result selection")
-                window.reset_filters()
+                axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/tremor")
+                bars = axes.collections[0].get_paths()
+                values = quantified[window.y_column.currentData()].to_numpy()
+                finite = np.isfinite(values)
+                if not np.array_equal([bar.vertices[1, 1] for bar in bars], values[finite]):
+                    raise RuntimeError("Result bars differ from the original output")
+                if not any(name.startswith("preparation/") for name in window._plot_tables):
+                    raise RuntimeError("Prepared-input availability is missing")
+                if hasattr(window, "filters_toggle"):
+                    raise RuntimeError("Removed Results time filters are still present")
                 classification = results["classifications"]["tremor"]
                 state = next(column for column in classification if binary_indicator(classification[column], column))
                 window.result_series.blockSignals(True)
@@ -197,7 +202,7 @@ def smoke_test(report_path):
                 pd.testing.assert_frame_equal(window.result_table.model().frame, classification, check_exact=True)
                 window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
                 aggregates = window.aggregation_table.model().frame.set_index("measure")["value"].to_dict()
-                if aggregates != results["aggregations"]["tremor"] or not window.filters_toggle.isHidden():
+                if aggregates != results["aggregations"]["tremor"]:
                     raise RuntimeError("The separate full-run aggregation table differs from official output")
                 window.result_tabs.setCurrentIndex(0)
                 export = directory / "results.json"
@@ -238,7 +243,8 @@ def smoke_test(report_path):
                 window.dataset.setCurrentText("quantifications/gait/unfiltered")
                 app.processEvents()
                 window.canvas.draw()
-                if len(window.figure.axes[0].lines) != 1:
+                gait_axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/gait/unfiltered")
+                if not gait_axes.collections[0].get_paths() or not getattr(gait_axes, "_paradigma_bars", False):
                     raise RuntimeError("CWA result plot was not rendered")
                 window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
                 if not window.context_button.isEnabled():

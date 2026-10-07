@@ -7,6 +7,11 @@ and contributors. The desktop provides the Windows interface, import adaptation,
 orchestration and result presentation; it is a separate wrapper application.
 Its name and acknowledgement do not imply endorsement by the upstream project.
 
+The device-orientation reference figure (`directions_axes.png`) is reproduced
+unchanged from ParaDigMa's [Coordinate System guide](https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html),
+source revision `4735d6d21b2a62b764a0bc7e0f677577e6ce1668`,
+`docs/source/_static/img/directions_axes.png`, under the upstream Apache 2.0 licence.
+
 [Official source](https://github.com/biomarkersParkinson/paradigma) ·
 [Official documentation](https://biomarkersparkinson.github.io/paradigma/)
 

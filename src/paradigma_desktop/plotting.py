@@ -66,7 +66,7 @@ def binary_indicator(series, metric):
     observed = values[np.isfinite(values)]
     if not len(observed) or not np.isin(observed, [0., 1.]).all():
         return False
-    labelled = name.startswith(("pred_", "is_", "has_")) or any(word in name for word in ("flag", "indicator", "detected"))
+    labelled = name == "available" or name.startswith(("pred_", "is_", "has_")) or any(word in name for word in ("flag", "indicator", "detected"))
     return pd.api.types.is_bool_dtype(series.dtype) or labelled or len(np.unique(observed)) == 2
 
 
@@ -111,3 +111,39 @@ def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=Fals
     return ax.plot(xs, ys, color=color, label=label, linewidth=0 if points_only else 1.35,
                    alpha=.9, marker="o" if points_only or sparse else None, markersize=3.5,
                    markeredgewidth=0, solid_capstyle="round", solid_joinstyle="round", zorder=3)
+
+
+def plot_bars(ax, starts, ends, values, color):
+    """One bar per finite output: missing estimates leave real gaps."""
+    from matplotlib.collections import PolyCollection, LineCollection
+    starts, ends = time_coordinates(starts), time_coordinates(ends)
+    values = np.asarray(values, dtype=float)
+    valid = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (ends > starts)
+    left, right, heights = starts[valid], ends[valid], values[valid]
+    inset = (right - left) * .08
+    left, right = left + inset, right - inset
+    vertices = np.zeros((len(left), 4, 2))
+    vertices[:, :, 0] = np.column_stack((left, left, right, right))
+    vertices[:, :, 1] = np.column_stack((np.zeros(len(left)), heights, heights, np.zeros(len(left))))
+    collection = PolyCollection(vertices, facecolors=color, edgecolors="none", alpha=.85,
+                                rasterized=len(left) > 2000, zorder=3)
+    ax.add_collection(collection)
+    zero = heights == 0
+    if zero.any():
+        segments = np.stack((np.column_stack((left[zero], heights[zero])), np.column_stack((right[zero], heights[zero]))), axis=1)
+        ax.add_collection(LineCollection(segments, colors=color, linewidths=1, zorder=3))
+    isolated = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (ends == starts)
+    if isolated.any():
+        # No known cadence: retain the value at its timestamp without inventing
+        # a scientific duration or joining it to another recording.
+        ax.scatter(starts[isolated], values[isolated], color=color, marker="s", s=18, zorder=3)
+    if valid.any():
+        ax.update_datalim(np.column_stack((starts[valid], values[valid])))
+        ax.update_datalim(np.column_stack((ends[valid], np.zeros(valid.sum()))))
+        ax.autoscale_view()
+    timed = np.isfinite(starts) & np.isfinite(ends)
+    if timed.any():
+        ax.update_datalim([(starts[timed].min(), 0.), (ends[timed].max(), 0.)])
+        ax.autoscale_view()
+    ax._paradigma_bars = True
+    return collection

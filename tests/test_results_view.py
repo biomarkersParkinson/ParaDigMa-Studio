@@ -1,4 +1,5 @@
 """Overview provenance, estimated gait timing and shared scientific selections."""
+from conftest import bar_values, bar_starts, bar_centers
 import os
 from copy import deepcopy
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import dates
+from paradigma_desktop.time_axis import RecordingTimeFormatter
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -48,7 +50,7 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     for axes in window.figure.axes:
         module = axes._paradigma_dataset.split("/")[1]
         expected_start = start if module == early else start + pd.Timedelta(seconds=2)
-        assert axes.lines[0].get_xdata()[0] == pytest.approx(dates.date2num(expected_start.to_pydatetime()))
+        assert bar_starts(axes)[0] == pytest.approx(dates.date2num(expected_start.to_pydatetime()))
     exported = tmp_path / "aligned.json"
     export_results(exported, output, window.provenance)
     provenance, saved = load_result_export(exported)
@@ -99,7 +101,7 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     original = deepcopy(results)
     setup(window, results)
     assert window.result_tabs.currentIndex() == 0
-    assert window.detail_controls.isHidden() and window.csv_button.isHidden()
+    assert window.detail_controls.isHidden() and not window.export_button.isHidden()
     assert window.overview_values[("gait", "Aggregates", ("unfiltered", "all", "median_range_of_motion"))].text() == "25"
     assert window.overview_values[("tremor", "Aggregates", ("tremor_time_percent",))].text() == "42"
     assert window.overview_values[("tremor", "Metadata", ("recorded_windows",))].text() == "4"
@@ -109,12 +111,8 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     assert all(key.startswith(("classifications/", "quantifications/")) for key in window.tables)
     assert set(window.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
-    assert not window.filters_toggle.isHidden()
-    assert window.detail_controls.isHidden()  # No empty controls above the graph.
-    window.filters_toggle.setChecked(True)
-    assert not window.detail_controls.isHidden()
-    window.time_from.setText("10")
-    window.apply_filters()
+    assert window.detail_controls.isHidden()
+    window.figure.axes[0].set_xlim(10., 14.)
     assert window.overview_values[("gait", "Aggregates", ("unfiltered", "all", "median_range_of_motion"))].text() == "25"
     for module, table in results["quantifications"].items():
         if isinstance(table, pd.DataFrame):
@@ -139,15 +137,13 @@ def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(wind
     assert [window.table_dataset.itemText(i) for i in range(3)] == ["Classification", "Quantification", "Aggregation"]
     window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"])
-    window.time_from.setText("8"); window.apply_filters()
-    pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"].iloc[2:])
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"])
     window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
     assert window.table_stack.currentWidget() is window.aggregation_table
     expected = pd.DataFrame({"measure": ["tremor_time_percent"], "value": pd.Series([42.], dtype=object)})
     pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
-    assert window.filters_toggle.isHidden() and window.filters_panel.isHidden()
     assert window.context_controls.isHidden() and window.timing_toggle.isHidden()
-    assert window.csv_button.isEnabled() and window.csv_button.isVisible()
+    assert window.export_button.isEnabled() and window.export_button.isVisible()
     path = tmp_path / "aggregates.csv"
     from paradigma_desktop import app as desktop
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
@@ -155,7 +151,7 @@ def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(wind
     pd.testing.assert_frame_equal(pd.read_csv(path), expected.astype({"value": float}))
     window.table_module_tabs.setCurrentIndex(0)
     assert window.table_dataset.currentData() == "quantifications/gait/unfiltered"
-    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"].iloc[2:])
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"])
     window.table_module_tabs.setCurrentIndex(1)
     assert window.table_dataset.currentData() == "aggregations/tremor"
     pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
@@ -186,7 +182,7 @@ def test_module_tabs_support_aggregation_only_modules(window):
     assert window.table_dataset.currentData() == "aggregations/pulse_rate"
     assert window.aggregation_table.model().frame.value.tolist() == [72.]
     assert window.selected_export_table()[0] == "aggregations/pulse_rate"
-    assert not window.filters_toggle.isVisible()
+    assert not hasattr(window, "filters_toggle")
     window.table_module_tabs.setCurrentIndex(0)
     pd.testing.assert_frame_equal(window.result_table.model().frame, classification)
 
@@ -224,27 +220,23 @@ def test_multiple_modules_share_absolute_time_axes_filters_tables_and_csv(window
                                                    ("quantifications/tremor", "tremor_power")}
     axes = window.figure.axes
     assert len(axes) == 2 and axes[0].get_shared_x_axes().joined(*axes)
-    assert all(isinstance(ax.xaxis.get_major_formatter(), dates.ConciseDateFormatter) for ax in axes)
-    assert all("Recording date/time" in ax.get_xlabel() for ax in axes)
-    np.testing.assert_allclose(axes[0].lines[0].get_xdata(), dates.date2num(clock_times([1., 3., 11., 13.], window.display_clock)))
-    np.testing.assert_array_equal(axes[0].lines[0].get_ydata(), [10., 20., 30., 40.])
-    window.time_from.setText("2026-10-08T00:00:00+02:00")
-    window.time_to.setText("2026-10-08T00:00:08+02:00")
-    window.apply_filters()
-    assert window.active_positions.tolist() == [2, 3]
-    assert window.result_table.model().frame["Analysis time (s)"].tolist() == [11., 13.]
-    assert window.result_table.model().frame["Time basis"].eq("Estimated within gait segment").all()
-    assert window._detail_selections["quantifications/tremor"][1].tolist() == [2, 3]
-    np.testing.assert_array_equal(window.figure.axes[0].lines[0].get_ydata(), [30., 40.])
-    np.testing.assert_array_equal(window.figure.axes[1].lines[0].get_ydata(), [3., 4.])
-    assert window.result_table.model().frame["Recording date/time"].iloc[0].day == 8
+    assert all(isinstance(ax.xaxis.get_major_formatter(), RecordingTimeFormatter) for ax in axes)
+    assert all("Recording time" in ax.get_xlabel() for ax in axes)
+    np.testing.assert_allclose(bar_centers(axes[0]), dates.date2num(clock_times([1., 3., 11., 13.], window.display_clock)))
+    np.testing.assert_array_equal(bar_values(axes[0]), [10., 20., 30., 40.])
+    low = dates.date2num(clock_times([5.], window.display_clock))[0]
+    axes[0].set_xlim(low, low + 8. / 86400)
+    assert window.active_positions.tolist() == [0, 1, 2, 3]
+    assert window._detail_selections["quantifications/tremor"][1].tolist() == [0, 1, 2, 3]
+    np.testing.assert_array_equal(bar_values(window.figure.axes[0]), [10., 20., 30., 40.])
+    np.testing.assert_array_equal(bar_values(window.figure.axes[1]), [1., 2., 3., 4.])
     path = tmp_path / "selection.csv"
     from paradigma_desktop import app as desktop
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
     exported = pd.read_csv(path)
-    assert exported.range_of_motion.tolist() == [30., 40.]
-    assert exported["Analysis time (s)"].tolist() == [11., 13.]
+    assert exported.range_of_motion.tolist() == [10., 20., 30., 40.]
+    assert exported["Analysis time (s)"].tolist() == [1., 3., 11., 13.]
     assert exported["Time basis"].eq("Estimated within gait segment").all()
 
 
@@ -254,7 +246,7 @@ def test_classifications_can_plot_alongside_quantifications_and_click_selects_co
     window._series_items[key].setCheckState(0, Qt.Checked)
     assert len(window.figure.axes) == 3
     ax = next(ax for ax in window.figure.axes if ax._paradigma_dataset == key[0])
-    np.testing.assert_array_equal(ax.lines[0].get_ydata(), [.1, .8, .4, .9])
+    np.testing.assert_array_equal(bar_values(ax), [.1, .8, .4, .9])
     click = dates.date2num(clock_times([8.], window.display_clock))[0]
     window.graph_clicked(SimpleNamespace(inaxes=ax, xdata=click))
     assert window.dataset.currentText() == key[0]
@@ -283,7 +275,9 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     assert "Recording date/time" not in window.result_table.model().frame
     window.timing_toggle.setChecked(True)
     window.clock_input.setText("2026-10-07T12:00:00+02:00")
-    window.apply_filters()
+    window.origin_edited()
+    window.provenance["settings"]["plot_time_origin"] = window.origin_setting()
+    window.analyzed(results)
     assert window.display_clock["source"] == "User supplied"
     assert "Recording date/time" in window.result_table.model().frame
     path = tmp_path / "results.json"
@@ -297,20 +291,17 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     pd.testing.assert_frame_equal(restored["quantifications"]["gait"]["unfiltered"], results["quantifications"]["gait"]["unfiltered"])
 
 
-def test_invalid_clock_and_time_filters_keep_previous_scientific_selection(window, results):
+def test_invalid_analyze_clock_does_not_change_existing_results(window, results):
     setup(window, results)
     original = window.active_frame.copy()
     provenance = deepcopy(window.provenance)
-    for origin, lower, upper in (("today", "", ""), ("invalid", "", ""),
-                                 (window.display_clock["origin"], "20", "10"),
-                                 (window.display_clock["origin"], "nan", "")):
-        window.clock_input.setText(origin)
-        window.time_from.setText(lower)
-        window.time_to.setText(upper)
-        window.apply_filters()
-        assert window.filter_status.text()
-        pd.testing.assert_frame_equal(window.active_frame, original)
-        assert window.provenance == provenance
+    window.clock_input.setText("invalid")
+    window.origin_edited()
+    with pytest.raises(ValueError):
+        window.origin_setting()
+    pd.testing.assert_frame_equal(window.active_frame, original)
+    assert window.provenance == provenance
+
 
 
 @pytest.mark.parametrize("unit", ["absolute_s", "absolute_ms"])

@@ -2,6 +2,7 @@
 import json
 from html import escape
 import logging
+from threading import Event
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -9,8 +10,8 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths
-from PySide6.QtGui import QAction, QIcon, QColor
+from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths, QUrl
+from PySide6.QtGui import QAction, QIcon, QColor, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QDoubleSpinBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -36,7 +37,7 @@ from .recordings import load_recordings, align_recordings, source_key, timeline_
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import GraphToolbar, add_graph_controls
-from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
+from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states, plot_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key, tremor_window_counts,
@@ -44,8 +45,11 @@ from .results_view import (
 from .theme import STYLESHEET, light_palette, style_axes, module_color
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from .time_controls import TimeField
-from .time_axis import PinnedTimeAxis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
+from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
+from .availability import availability_views
+from .overview import recording_summary
+from .analysis_process import AnalysisCancelled, run_isolated_analysis
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -72,6 +76,7 @@ class Worker(QThread):
     message = Signal(str)
     warning = Signal(str)
     error = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, operation):
         super().__init__()
@@ -87,6 +92,8 @@ class Worker(QThread):
         package_logger.addHandler(handler)
         try:
             self.completed.emit(self.operation(logger))
+        except AnalysisCancelled:
+            self.cancelled.emit()
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
         finally:
@@ -119,6 +126,7 @@ class MainWindow(QMainWindow):
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self.display_clock = None
+        self._origin_override = False
         self._source_timelines, self._display_offsets = {}, {}
         self.active_frame = None
         self.active_positions = np.array([], dtype=int)
@@ -360,7 +368,10 @@ class MainWindow(QMainWindow):
         controls.setSpacing(16)
         self.analysis_help = {}
         modules = QHBoxLayout()
-        modules.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
+        module_heading = self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True)
+        module_description = self.analysis_help["Analysis modules"][1]
+        module_heading.layout().removeWidget(module_description)
+        modules.addWidget(module_heading)
         self.module_requirements = label("", "muted")
         self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.module_buttons = {}
@@ -373,6 +384,7 @@ class MainWindow(QMainWindow):
             modules.addWidget(item, 1)
         self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
+        controls.addWidget(module_description)
         self.settings_panel, parameters = card()
         parameters.setContentsMargins(18, 16, 18, 16)
         parameters.setSpacing(14)
@@ -407,13 +419,13 @@ class MainWindow(QMainWindow):
             widget.setPalette(light_palette())
         right.addRow(self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True))
         self.segmentation_controls = QWidget()
-        sections = QFormLayout(self.segmentation_controls)
+        sections = QGridLayout(self.segmentation_controls)
+        sections.setSizeConstraint(QLayout.SetMinimumSize)
         sections.setContentsMargins(0, 0, 0, 0)
-        sections.setRowWrapPolicy(QFormLayout.WrapLongRows)
-        sections.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        sections.setColumnStretch(1, 1)
         sections.setHorizontalSpacing(10)
         sections.setVerticalSpacing(12)
-        sections.addRow(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True))
+        sections.addWidget(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True), 0, 0, 1, 2)
         self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
         self.section_reset_buttons = {}
         for title, widget, default in (("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),
@@ -439,20 +451,23 @@ class MainWindow(QMainWindow):
         self.mapping = QPlainTextEdit("{}")
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
         self.mapping.setFixedHeight(60)
-        # Keep channel configuration together, with room to read mappings.
-        input_fields = QHBoxLayout()
-        input_fields.setSpacing(20)
-        axes_form, mapping_form = QFormLayout(), QFormLayout()
-        for form in (axes_form, mapping_form):
-            form.setRowWrapPolicy(QFormLayout.DontWrapRows)
-            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            form.setHorizontalSpacing(10)
-            form.setVerticalSpacing(12)
-        self.analysis_field("Device axes", self.orientation, form=axes_form)
-        self.analysis_field("Column mapping (JSON)", self.mapping, form=mapping_form)
-        input_fields.addLayout(axes_form, 1)
-        input_fields.addLayout(mapping_form, 1)
-        parameters.addLayout(input_fields)
+        # Each column flows independently, so short fields use available space.
+        self.analysis_field("Device axes", self.orientation, form=left)
+        self.analysis_field("Column mapping (JSON)", self.mapping, form=sections)
+        left.setFormAlignment(Qt.AlignTop)
+        right.setFormAlignment(Qt.AlignTop)
+        sections.setAlignment(Qt.AlignTop)
+        self.clock_input = TimeField("Time origin", origin=True)
+        self.origin_reset = button("Default", self.reset_origin)
+        origin_row = QWidget()
+        origin_layout = QHBoxLayout(origin_row)
+        origin_layout.setContentsMargins(0, 0, 0, 0)
+        origin_layout.addWidget(self.clock_input, 1)
+        origin_layout.addWidget(self.origin_reset)
+        origin_form = QFormLayout()
+        origin_form.setRowWrapPolicy(QFormLayout.DontWrapRows)
+        self.analysis_field("Time origin", origin_row, form=origin_form)
+        parameters.addLayout(origin_form)
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         controls.addWidget(self.settings_panel)
         content.addWidget(self.analysis_controls)
@@ -463,7 +478,15 @@ class MainWindow(QMainWindow):
         self.run_button.setShortcut("Ctrl+Return")
         self.run_button.setEnabled(False)
         self.run_button.setMinimumWidth(170)
+        self.stop_button = button("Stop Analysis", self.stop_analysis)
+        self.stop_button.setEnabled(False)
+        row.addWidget(self.stop_button)
         row.addWidget(self.run_button)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        bar = scroll.verticalScrollBar()
+        bar.rangeChanged.connect(lambda low, high: bar.setStyleSheet(
+            "QScrollBar::handle:vertical { background: transparent; }" if high == low else ""))
+        bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         layout.addLayout(row)
@@ -476,8 +499,18 @@ class MainWindow(QMainWindow):
         info.setFixedSize(22, 22)
         info.setCheckable(True)
         info.setAccessibleName(f"Information: {title}")
-        description = QLabel(f'{escape(text)}<br><a href="{SOURCE}{reference}">ParaDigMa documentation</a>')
+        url = reference if reference.startswith("https://") else SOURCE + reference
+        visual = ""
+        link_title = "ParaDigMa documentation"
+        if title == "Device axes":
+            image = QUrl.fromLocalFile(str(Path(__file__).with_name("data") / "directions_axes.png")).toString()
+            visual = (f'<p><img src="{image}" width="260" height="247"></p>'
+                      '<p>Reference figure: ParaDigMa Coordinate System guide.</p>')
+            link_title = "ParaDigMa documentation · Coordinate System guide"
+        description = QLabel(f'{escape(text)}{visual}<br><a style="color: #1E609E; text-decoration: underline;" '
+                             f'href="{url}">{link_title}</a>')
         description.setWordWrap(True)
+        description.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         description.setTextFormat(Qt.RichText)
         description.setOpenExternalLinks(True)
         description.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -501,10 +534,16 @@ class MainWindow(QMainWindow):
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(4)
+        content.setSizeConstraint(QLayout.SetMinimumSize)
         if form is not None:
             content.addWidget(control)
             content.addWidget(description)
-            form.addRow(heading, body)
+            if isinstance(form, QGridLayout):
+                index = form.rowCount()
+                form.addWidget(heading, index, 0, Qt.AlignTop)
+                form.addWidget(body, index, 1)
+            else:
+                form.addRow(heading, body)
         else:
             content.addWidget(heading)
             if not inline:
@@ -551,16 +590,10 @@ class MainWindow(QMainWindow):
         actions = QWidget()
         action_layout = QHBoxLayout(actions)
         action_layout.setContentsMargins(12, 0, 0, 0)
-        self.filters_toggle = button("Filters")
-        self.filters_toggle.setCheckable(True)
-        self.csv_button = button("Export CSV…", self.export_csv)
-        self.csv_button.setAccessibleName("Export selection CSV")
-        self.export_button = button("Export JSON…", self.export)
-        self.export_button.setAccessibleName("Export all results JSON")
-        self.csv_button.setEnabled(False)
+        self.export_button = button("Export…", self.choose_export)
+        self.export_button.setAccessibleName("Export results")
         self.export_button.setEnabled(False)
-        for item in (self.filters_toggle, self.csv_button, self.export_button):
-            action_layout.addWidget(item)
+        action_layout.addWidget(self.export_button)
         self.result_tabs.setCornerWidget(actions, Qt.TopRightCorner)
         self.detail_controls = QWidget()
         controls_layout = QVBoxLayout(self.detail_controls)
@@ -585,35 +618,9 @@ class MainWindow(QMainWindow):
         self.y_column.hide()
         settings.addStretch()
         controls_layout.addLayout(settings)
-        self.filters_panel, filters = card()
-        filters.setSizeConstraint(QLayout.SetMinimumSize)
-        self.time_grid = QGridLayout()
-        self.clock_input = TimeField("Time origin", origin=True)
-        self.time_from, self.time_to = TimeField("From"), TimeField("Until")
-        self.time_fields = [field(title, control) for title, control in
-                            (("Time origin", self.clock_input), ("From", self.time_from), ("Until", self.time_to))]
-        for widget in self.time_fields:
-            widget.setMinimumHeight(64)
-        self._time_field_columns = None
-        self.arrange_time_fields()
-        filters.addLayout(self.time_grid)
-        self.time_zone = label("", "muted")
-        filters.addWidget(self.time_zone)
-        row = QHBoxLayout()
-        row.addStretch()
-        self.filter_apply = button("Apply", self.apply_filters, primary=True)
-        self.filter_reset = button("Reset", self.reset_filters)
-        row.addWidget(self.filter_apply, alignment=Qt.AlignBottom)
-        row.addWidget(self.filter_reset, alignment=Qt.AlignBottom)
-        filters.addLayout(row)
-        self.filter_status = label("", "muted")
-        self.filter_status.hide()
-        filters.addWidget(self.filter_status)
-        controls_layout.addWidget(self.filters_panel)
-        self.filters_panel.hide()
         self.selection_note = label("No detailed output", "muted")
         controls_layout.addWidget(self.selection_note)
-        self.table_module_tabs = QTabBar()
+        self.table_module_tabs = ModuleTabBar()
         self.table_module_tabs.setExpanding(False)
         for title in MODULE_NAMES.values():
             self.table_module_tabs.addTab(title)
@@ -731,6 +738,11 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.open_run_button)
         actions.addWidget(self.use_parameters_button)
         actions.addStretch()
+        self.delete_run_button = button("Delete Run…", self.delete_run)
+        actions.addWidget(self.delete_run_button)
+        self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
+        self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        self.delete_run_shortcut.activated.connect(self.delete_run)
         content.addLayout(actions)
         split.addWidget(panel)
         panel, content = card()
@@ -757,9 +769,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.history_location)
 
     def _connect(self):
-        self.filters_toggle.toggled.connect(self.filters_panel.setVisible)
-        self.filters_toggle.toggled.connect(lambda _checked: self.arrange_time_fields())
-        self.filters_toggle.toggled.connect(lambda _checked: self.results_tab_changed(self.result_tabs.currentIndex()))
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
         self.drop_missing.toggled.connect(self.preparation_changed)
@@ -778,8 +787,12 @@ class MainWindow(QMainWindow):
         self.y_column.currentIndexChanged.connect(self.update_metric)
         self.result_series.itemChanged.connect(self.plot)
         self.result_series.currentItemChanged.connect(self.select_plot_series)
-        for edit in (self.time_from, self.time_to, self.clock_input):
-            edit.returnPressed.connect(self.apply_filters)
+        self.clock_input.valueEdited.connect(self.origin_edited)
+        self.mapping.textChanged.connect(self.update_origin_default)
+        for control in (self.time,):
+            control.currentTextChanged.connect(self.update_origin_default)
+        for control in (self.prepared, self.drop_missing):
+            control.toggled.connect(self.update_origin_default)
         self.sensor_channel.currentIndexChanged.connect(self.plot_sensor)
         self.canvas.mpl_connect("button_press_event", self.graph_clicked)
         self.modules_changed()
@@ -840,6 +853,7 @@ class MainWindow(QMainWindow):
         text = ", ".join(requirements)
         self.module_requirements.setText(text[0].upper() + text[1:] + " required." if text else "Select an analysis module.")
         self.run_button.setEnabled(self.frame is not None and bool(selected) and self.worker is None)
+        self.update_origin_default()
 
     def preparation_changed(self, *_):
         prepared = self.prepared.isChecked()
@@ -853,7 +867,7 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             return
         for widget in (self.open_button, self.run_button, self.settings_panel, self.analysis_controls,
-                       self.export_button, self.csv_button, self.open_run_button, self.use_parameters_button,
+                       self.export_button, self.open_run_button, self.use_parameters_button, self.delete_run_button,
                        self.data_time_channel, self.data_time_unit, self.input_recording):
             widget.setEnabled(False)
         self.progress.setRange(0, 0)
@@ -861,6 +875,7 @@ class MainWindow(QMainWindow):
         self.worker = Worker(operation)
         self.worker.completed.connect(completed)
         self.worker.failed.connect(self.failure)
+        self.worker.cancelled.connect(self.analysis_cancelled)
         self.worker.message.connect(self.append_log)
         self.worker.warning.connect(self.capture_warning)
         self.worker.error.connect(self.capture_error)
@@ -879,7 +894,8 @@ class MainWindow(QMainWindow):
         self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
-        self.csv_button.setEnabled(self.selected_export_table()[1] is not None)
+        self.stop_button.setEnabled(False)
+        self._analysis_stop = None
         self.progress.hide()
         if worker is not None:
             worker.deleteLater()
@@ -946,7 +962,6 @@ class MainWindow(QMainWindow):
         self.results, self.active_frame = None, None
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
-        self.clock_input.clear()
         self.tables = {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
@@ -961,7 +976,6 @@ class MainWindow(QMainWindow):
         self.sync_table_outputs()
         self.build_result_overview()
         self.export_button.setEnabled(False)
-        self.csv_button.setEnabled(False)
         self.hide_sensor_context()
         self.context_button.setEnabled(False)
         self.figure.clear()
@@ -1006,7 +1020,9 @@ class MainWindow(QMainWindow):
         self.input_recording.blockSignals(False)
         self.sources, self.recordings = sources, recordings
         self._input_descriptions = descriptions
+        self._origin_override = False
         self.inspect_input_recording()
+        self.update_origin_default()
         self.status.setText(f"{len(recordings)} recordings loaded for one subject.")
 
     def inspect_input_recording(self, *_):
@@ -1014,7 +1030,12 @@ class MainWindow(QMainWindow):
         if key not in self.recordings:
             return
         sources, recordings, descriptions = self.sources, self.recordings, self._input_descriptions
+        origin_override, origin_text, origin_clock = self._origin_override, self.clock_input.text(), self.clock_input._clock
         self.loaded((sources[key], recordings[key], descriptions[key]))
+        self._origin_override = origin_override
+        if origin_override:
+            self.clock_input.set_clock(origin_clock)
+            self.clock_input.setText(origin_text)
         self.sources, self.recordings = sources, recordings
         self._input_descriptions = descriptions
         self.input_recording.show()
@@ -1022,9 +1043,11 @@ class MainWindow(QMainWindow):
         self.file_label.setToolTip("\n".join(sources.values()))
         self.analysis_input.setText(f"{len(recordings)} recordings · One subject")
         self.analysis_input_detail.setText(f"{sum(len(frame) for frame in recordings.values()):,} samples")
+        self.update_origin_default()
 
     def loaded(self, payload):
         self.source, self.frame = payload[:2]
+        self._origin_override = False
         self.sources, self.recordings = {"recording_001": self.source}, {}
         self._input_descriptions = {}
         self.input_recording.hide()
@@ -1054,6 +1077,7 @@ class MainWindow(QMainWindow):
         self.plot_input()
         self.continue_button.setEnabled(True)
         self.modules_changed()
+        self.update_origin_default()
         self.show_notice("")
         self.navigate(0)
         if self.frame.attrs.get("source_format") == "empatica" and not any(f"gyroscope_{axis}" in self.frame for axis in "xyz"):
@@ -1165,13 +1189,61 @@ class MainWindow(QMainWindow):
                     timezone = times.dt.tz
                     locator = dates.AutoDateLocator(tz=timezone)
                     ax.xaxis.set_major_locator(locator)
-                    ax.xaxis.set_major_formatter(dates.ConciseDateFormatter(locator, tz=timezone))
+                    ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
                 ax.set_xlabel(time_label if usable else "Sample position")
                 ax.tick_params(axis="x", labelbottom=index == len(groups) - 1)
                 ax.xaxis.label.set_visible(index == len(groups) - 1)
                 ax.xaxis.offsetText.set_visible(index == len(groups) - 1)
         self.data_toolbar.refresh()
         self.data_canvas.draw_idle()
+
+    def origin_edited(self):
+        self._origin_override = True
+
+    def reset_origin(self):
+        self._origin_override = False
+        self.update_origin_default()
+
+    def update_origin_default(self, *_):
+        if self._origin_override or self.frame is None:
+            return
+        try:
+            settings = {"time_input_unit": self.time.currentText(), "skip_preparation": self.prepared.isChecked(),
+                        "column_mapping": validate_column_mapping(json.loads(self.mapping.toPlainText())),
+                        "pipelines": self.selected_modules(), "drop_missing_samples": self.drop_missing.isChecked()}
+            if self.recordings:
+                clock = align_recordings(self.recordings, settings, {})[3]
+            else:
+                timeline = analysis_alignment(self.frame, settings, {})[0]
+                clock = recording_clock(self.frame, settings, timeline)
+            self.clock_input.set_clock(clock)
+            self.clock_input.setText(clock["origin"] if clock else "")
+        except (ValueError, TypeError, KeyError, OverflowError):
+            self.clock_input.set_clock(None)
+            self.clock_input.clear()
+
+    def origin_setting(self):
+        if not self._origin_override:
+            return {"mode": "automatic"}
+        entered = self.clock_input.text().strip()
+        if not entered:
+            return {"mode": "elapsed"}
+        clock = self.clock_input._clock
+        return {"mode": "custom", "clock": normalise_clock({"origin": entered, "source": "User supplied",
+                        "timezone": clock.get("timezone") if clock else None})}
+
+    def stop_analysis(self):
+        cancel = getattr(self, "_analysis_stop", None)
+        if self.worker is not None and cancel is not None:
+            cancel.set()
+            self.stop_button.setEnabled(False)
+            self.status.setText("Stopping analysis…")
+
+    def analysis_cancelled(self):
+        self.append_log("Analysis stopped by the user.")
+        self.finish_run("Cancelled")
+        self.status.setText("Analysis cancelled.")
+        self.show_notice("")
 
     def run_analysis(self):
         if self.worker is not None:
@@ -1195,6 +1267,7 @@ class MainWindow(QMainWindow):
                             column_mapping=mapping, skip_preparation=self.prepared.isChecked(),
                             split_by_gaps=self.gaps.isChecked(), drop_missing_samples=self.drop_missing.isChecked(),
                             max_gap_seconds=self.max_gap.value(), min_segment_seconds=self.min_segment.value())
+            settings["plot_time_origin"] = self.origin_setting()
             if self.prepared.isChecked():
                 settings.update(accelerometer_units="g", gyroscope_units="deg/s", time_input_unit="relative_s", split_by_gaps=False)
         except (ValueError, KeyError) as exc:
@@ -1220,7 +1293,12 @@ class MainWindow(QMainWindow):
         self.navigate(1)
         if self.recordings:
             self.provenance["sources"] = dict(self.sources)
-        self.start_job(lambda logger: analyze(frame, logger=logger, **settings), self.analyzed)
+        core_settings = dict(settings)
+        core_settings.pop("plot_time_origin", None)
+        self._analysis_stop = Event()
+        cancel = self._analysis_stop
+        self.start_job(lambda logger: run_isolated_analysis(frame, core_settings, logger, cancel), self.analyzed)
+        self.stop_button.setEnabled(self.worker is not None)
 
     def results_tab_changed(self, index):
         if index < 0:
@@ -1241,16 +1319,12 @@ class MainWindow(QMainWindow):
         aggregation = index == 2 and self.table_dataset.currentData() in self.aggregation_tables
         detailed = index in (1, 2) and not aggregation
         self.results_header.show()
-        self.detail_controls.setVisible(index == 2 or index == 1 and self.filters_toggle.isChecked())
-        self.filters_toggle.setVisible(detailed)
-        self.filters_panel.setVisible(detailed and self.filters_toggle.isChecked())
-        self.csv_button.setVisible(index in (1, 2))
+        self.detail_controls.setVisible(index == 2)
         self.context_controls.setVisible(detailed)
         self.dataset_field.setVisible(index == 2)
         self.table_module_tabs.setVisible(index == 2)
         self.timing_toggle.setVisible(index == 2 and not aggregation)
         self.selection_note.setVisible(index == 2)
-        self.csv_button.setEnabled(self.worker is None and self.selected_export_table()[1] is not None)
 
     def sync_table_outputs(self, force_detail=False):
         names = [*self.tables, *self.aggregation_tables]
@@ -1272,6 +1346,7 @@ class MainWindow(QMainWindow):
                 self.table_module_tabs.setTabData(index, module)
         for index, module in enumerate(modules):
             self.table_module_tabs.setTabEnabled(index, available[module])
+            self.table_module_tabs.setTabTextColor(index, QColor(module_color(module)))
         index = modules.index(current)
         self.table_module_tabs.setCurrentIndex(index)
         self.table_module_tabs.blockSignals(previous)
@@ -1340,17 +1415,26 @@ class MainWindow(QMainWindow):
         self.overview_values = {}
         self.overview_module_cards = {}
         results = self.results or {}
-        if self.display_clock is not None:
+        entries = recording_summary(results, self.provenance, self.display_clock)
+        if entries:
             panel, content = card()
-            content.addWidget(label("Recording", "sectionTitle"))
-            stamp = clock_origin(self.display_clock)
-            timezone = self.display_clock.get("timezone") or "timezone unspecified"
-            content.addWidget(label(f"Analysis time zero: {stamp.strftime('%d %b %Y, %H:%M:%S')} ({timezone})", "muted"))
-            content.addWidget(label(f"Clock source: {self.display_clock['source']}", "muted"))
+            content.addWidget(label("Recording & preparation", "sectionTitle"))
+            grid = QGridLayout()
+            grid.setSpacing(10)
+            for index, (title, value) in enumerate(entries):
+                box, inside = card()
+                inside.addWidget(label(title, "muted"))
+                display = label(str(value), "metricValue")
+                display.setWordWrap(True)
+                inside.addWidget(display)
+                grid.addWidget(box, index // 3, index % 3)
+            content.addLayout(grid)
             self.overview_layout.addWidget(panel)
         modules = list(dict.fromkeys([*results.get("aggregations", {}), *results.get("metadata", {}),
                                      *results.get("quantifications", {}), *results.get("classifications", {})]))
-        modules = [name for name in modules if name != "desktop_preparation"]
+        modules = [name for name in modules if name in MODULE_NAMES or
+                   not name.startswith("desktop_") and any(name in results.get(stage, {}) for stage in
+                   ("classifications", "quantifications", "aggregations"))]
         if not modules:
             self.overview_layout.addWidget(label("Run an analysis to see module aggregates.", "muted"))
         for module in modules:
@@ -1383,7 +1467,7 @@ class MainWindow(QMainWindow):
                     box.setToolTip(" / ".join(path))
                     if module == "tremor" and path == ("perc_windows_tremor",):
                         box.setToolTip("Checked tremor-positive windows ÷ resting/stable windows × 100. "
-                                       "This full-run aggregate is not recalculated by graph/table time filters.")
+                                       "This aggregate uses all resting/stable windows in the run.")
                     inside.addWidget(label(title, "muted"))
                     if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
                         text = "—"
@@ -1398,15 +1482,6 @@ class MainWindow(QMainWindow):
                     grid.addWidget(box, index // 3, index % 3)
                 content.addLayout(grid)
             self.overview_layout.addWidget(panel)
-        preparation = results.get("metadata", {}).get("desktop_preparation", {})
-        if preparation:
-            panel, content = card()
-            content.addWidget(label("Input preparation", "sectionTitle"))
-            for path, value in flat_values(preparation):
-                if "by_recording" in path:
-                    continue
-                content.addWidget(label(f"{' · '.join(path).replace('_', ' ')}: {value}", "muted"))
-            self.overview_layout.addWidget(panel)
         self.overview_layout.addStretch()
 
     def populate_result_series(self):
@@ -1415,14 +1490,14 @@ class MainWindow(QMainWindow):
         self._series_items = {}
         roots, default_modules = {}, set()
         for name, frame in self._plot_tables.items():
-            module = name.split("/")[1]
+            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             if module not in roots:
-                root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, module.title())])
+                root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, "Data preparation" if module == "preparation" else module.title())])
                 root.setForeground(0, QColor(module_color(module)))
                 root.setExpanded(True)
                 roots[module] = root
-            stage = QTreeWidgetItem(roots[module], [output_label(name).split(" · ", 1)[-1]])
-            stage.setExpanded(name.startswith("quantifications/") and len(frame) > 0)
+            stage = roots[module] if module == "preparation" else QTreeWidgetItem(roots[module], [output_label(name).split(" · ", 1)[-1]])
+            stage.setExpanded((name.startswith("quantifications/") or name.startswith("preparation/")) and len(frame) > 0)
             metrics = plot_metrics(name, frame)
             default = preferred_metric(name, frame)
             # Favor unfiltered gait and quantified outputs for initial plots.
@@ -1433,9 +1508,10 @@ class MainWindow(QMainWindow):
                 item = QTreeWidgetItem(stage, [title])
                 item.setData(0, Qt.UserRole, (name, metric))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(0, Qt.Checked if choose and metric == default else Qt.Unchecked)
-                item.setToolTip(0, f"{name}\n{metric}" if (name, metric) not in self._plot_labels else
-                                title + "\nDerived from each window probability using the bundled model threshold; not the final merged sample labels.")
+                item.setCheckState(0, Qt.Checked if name.startswith("preparation/") or choose and metric == default else Qt.Unchecked)
+                item.setToolTip(0, title + "\nCoverage of the prepared samples supplied to these pipelines." if module == "preparation" else
+                               f"{name}\n{metric}" if (name, metric) not in self._plot_labels else
+                               title + "\nDerived from each window probability using the bundled model threshold; not the final merged sample labels.")
                 self._series_items[(name, metric)] = item
             if choose and default is not None:
                 default_modules.add(module)
@@ -1446,7 +1522,7 @@ class MainWindow(QMainWindow):
 
     def select_plot_series(self, item, previous=None):
         key = item.data(0, Qt.UserRole) if item is not None else None
-        if key is None:
+        if key is None or key[0] not in self.tables:
             return
         name, metric = key
         self.dataset.setCurrentText(name)
@@ -1479,17 +1555,16 @@ class MainWindow(QMainWindow):
         if self.display_clock is None:
             self.display_clock = (batch_clock if isinstance(self.result_source_frame, dict) else
                                   recording_clock(self.result_source_frame, settings, self.result_timeline))
+        origin = settings.get("plot_time_origin", {})
+        if not self.provenance.get("display_clock") and origin.get("mode") == "custom":
+            self.display_clock = normalise_clock(origin["clock"])
+        elif origin.get("mode") == "elapsed":
+            self.display_clock = None
         if self.display_clock is not None:
             self.provenance["display_clock"] = dict(self.display_clock)
         if self.active_run is not None:
             self.active_run["_results"] = results
             self.active_run["_provenance"] = dict(self.provenance)
-        self.clock_input.set_clock(self.display_clock)
-        self.clock_input.setText(self.display_clock["origin"] if self.display_clock else "")
-        self.time_from.set_clock(self.display_clock)
-        self.time_to.set_clock(self.display_clock)
-        self.time_from.clear()
-        self.time_to.clear()
         self._detail_selections = {}
         self.tables = detail_tables(results)
         self._plot_tables, self._plot_labels = plot_tables(self.tables)
@@ -1499,16 +1574,34 @@ class MainWindow(QMainWindow):
             timing["Timeline time (s)"] = timing["Analysis time (s)"] + timeline_offsets(name, self.tables[name], self._display_offsets)
         self._interval_ends = {name: binary_interval_ends(name, self.tables[name], timing["Timeline time (s)"])
                                for name, timing in self._timings.items()}
+        self._bar_bounds = {}
+        for name, timing in self._timings.items():
+            starts = timing["Timeline time (s)"].to_numpy().copy()
+            ends = self._interval_ends[name].copy()
+            gaps = np.diff(np.unique(starts[np.isfinite(starts)]))
+            if len(gaps):
+                # Isolated participant/file groups can still use the observed
+                # output cadence; values must not disappear from bar plots.
+                ends = np.where(ends > starts, ends, starts + np.median(gaps))
+            if name.startswith("quantifications/gait/") and "time" not in self.tables[name]:
+                frame = self.tables[name]
+                keys = [key for key in ("file_key", "gait_segment_nr") if key in frame]
+                counts = frame.groupby(keys, dropna=False)[keys[0]].transform("size").to_numpy() if keys else np.full(len(frame), len(frame))
+                width = (timing["Segment end (s)"].to_numpy() - timing["Segment start (s)"].to_numpy()) / np.maximum(counts, 1)
+                starts -= width / 2
+                ends = starts + width
+            self._bar_bounds[name] = starts, ends
+        coverage, labels = availability_views(results, self._display_offsets)
+        self._plot_tables.update(coverage)
+        self._plot_labels.update(labels)
+        for name, frame in coverage.items():
+            self._timings[name] = pd.DataFrame({"Timeline time (s)": frame.time})
+            self._interval_ends[name] = frame.end.to_numpy()
         sources = self.provenance.get("sources", {})
         self.results_source.setText(f"{len(sources)} recordings · One subject" if len(sources) > 1 else
                                     Path(self.provenance.get("source", self.source)).name or "Current analysis")
         self.build_result_overview()
         self.populate_result_series()
-        times = np.concatenate([t["Timeline time (s)"].to_numpy() for t in self._timings.values()]) if self._timings else np.array([])
-        finite = times[np.isfinite(times)]
-        if len(finite):
-            self.time_from.set_default(float(finite.min()))
-            self.time_to.set_default(float(finite.max()))
         self.dataset.blockSignals(True)
         self.dataset.clear()
         self.dataset.addItems(self.tables)
@@ -1575,57 +1668,11 @@ class MainWindow(QMainWindow):
                 item.setCheckState(0, Qt.Checked)
 
     def apply_filters(self, *_):
-        name = self.dataset.currentText()
-        try:
-            clock = self.display_clock
-            entered = self.clock_input.text().strip()
-            if entered:
-                candidate = normalise_clock({"origin": entered, "source": "User supplied",
-                    "timezone": clock.get("timezone") if clock else None})
-                if clock is None or pd.Timestamp(clock["origin"]) != pd.Timestamp(candidate["origin"]):
-                    clock = candidate
-            else:
-                clock = None
-            # Removing the origin keeps the selected interval in elapsed seconds.
-            bound_clock = clock if clock is not None else self.display_clock
-            low, high = time_bound(self.time_from.text(), bound_clock), time_bound(self.time_to.text(), bound_clock)
-            if low is not None and high is not None and low > high:
-                raise ValueError("The time minimum cannot exceed the maximum.")
-            selections = {}
-            for key, frame in self.tables.items():
-                times = self._timings[key]["Timeline time (s)"].to_numpy()
-                mask = np.ones(len(frame), dtype=bool)
-                if low is not None:
-                    mask &= times >= low
-                if high is not None:
-                    mask &= times <= high
-                positions = np.flatnonzero(mask)
-                selections[key] = frame.iloc[positions], positions
-        except (ValueError, TypeError, OverflowError) as exc:
-            self.filter_status.setText(str(exc))
-            self.filter_status.show()
-            return
-        clock_changed = clock != self.display_clock
-        self.display_clock = clock
-        if clock is not None:
-            self.provenance["display_clock"] = dict(clock)
-        else:
-            self.provenance.pop("display_clock", None)
-        if self.current_run is not None:
-            self.current_run["_provenance"] = dict(self.provenance)
-        if clock_changed:
-            self.build_result_overview()
-        self.clock_input.set_clock(clock)
-        for control in (self.time_from, self.time_to):
-            control.set_clock(clock)
-        self.time_zone.setText("Calendar times: " + (clock.get("timezone") or "timezone unspecified") if clock
-                              else "Elapsed seconds · Set a recording time origin to use calendar dates")
-        self._detail_selections = selections
-        self.active_frame, self.active_positions = selections.get(name, (None, np.array([], dtype=int)))
-        self.active_selection = {"time_from": self.time_from.text(), "time_to": self.time_to.text()}
+        # All official output rows are available; zooming changes only the plot.
+        self._detail_selections = {key: (self.tables.get(key, frame), np.arange(len(frame))) for key, frame in self._plot_tables.items()}
+        self.active_frame, self.active_positions = self._detail_selections.get(self.dataset.currentText(), (None, np.array([], dtype=int)))
+        self.active_selection = {}
         self.refresh_detail_table()
-        self.filter_status.clear()
-        self.filter_status.hide()
         self.plot()
 
     def refresh_detail_table(self):
@@ -1635,7 +1682,6 @@ class MainWindow(QMainWindow):
         if frame is None:
             self.display_frame = None
             self.result_table.setModel(None)
-            self.csv_button.setEnabled(False)
             self.selection_note.setText("No detailed outputs returned.")
             return
         name = self.dataset.currentText()
@@ -1657,7 +1703,6 @@ class MainWindow(QMainWindow):
         self.display_frame = view
         self.result_table.setModel(FrameModel(view))
         self.result_table.selectionModel().currentRowChanged.connect(self.result_row_changed)
-        self.csv_button.setEnabled(self.worker is None and self.selected_export_table()[1] is not None)
         self.update_detail_note()
 
     def update_detail_note(self):
@@ -1665,7 +1710,7 @@ class MainWindow(QMainWindow):
         if frame is None:
             return
         clock_note = (f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
-                      if self.display_clock else "Elapsed time · Set a time origin in Filters to display dates")
+                      if self.display_clock else "Elapsed time · Set a time origin in Analyze to display dates")
         if self.display_clock is None and len(self.provenance.get("sources", {})) > 1:
             clock_note = "File-order timeline · Recording clocks unavailable"
         estimated = name.startswith("quantifications/gait/") and "time" not in frame
@@ -1675,11 +1720,6 @@ class MainWindow(QMainWindow):
             self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows")
         if self.table_dataset.currentData() in self.aggregation_tables:
             self.selection_note.setText("Full-run aggregates")
-
-    def reset_filters(self):
-        self.time_from.clear()
-        self.time_to.clear()
-        self.apply_filters()
 
     def update_metric(self, *_):
         key = self.dataset.currentText(), self.y_column.currentData()
@@ -1714,43 +1754,29 @@ class MainWindow(QMainWindow):
                 first_axes = ax
             ax._paradigma_dataset = name
             ax._paradigma_metric = metric
-            selected, positions = self._detail_selections.get(name, (self.tables[name].iloc[:0], np.array([], dtype=int)))
+            selected, positions = self._detail_selections.get(name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int)))
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
             binary = binary_indicator(self._plot_tables[name][metric], metric)
-            step = 1 if binary else max(1, int(np.ceil(len(selected) / 20000)))
-            sample = selected.iloc[::step]
-            xs = clock_times(times[::step], self.display_clock)
-            ys = self._plot_tables[name][metric].iloc[positions[::step]].to_numpy(dtype=float, na_value=np.nan)
-            estimated = name.startswith("quantifications/gait/") and "time" not in sample
-            participant_column = next((c for c in PARTICIPANT_COLUMNS if c in sample), None)
-            points_only = estimated or participant_column is not None and sample[participant_column].nunique() > 1
-            if self.display_clock is not None:
-                xs = np.asarray(dates.date2num(xs.to_pydatetime()), dtype=float)
-            else:
-                xs = np.asarray(xs, dtype=float)
-            if "file_key" in sample and not points_only and not binary:
-                boundaries = np.flatnonzero(sample.file_key.ne(sample.file_key.shift()).fillna(True).to_numpy(dtype=bool))[1:]
-                xs, ys = np.insert(xs, boundaries, np.nan), np.insert(ys, boundaries, np.nan)
-            if len(sample) and np.isfinite(xs).any():
-                color = module_color(name.split("/")[1])
+            ys = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+            estimated = name.startswith("quantifications/gait/") and "time" not in selected
+            xs = clock_times(times, self.display_clock)
+            if len(selected) and np.isfinite(times).any():
+                color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
                 if binary:
-                    stops = self._interval_ends[name][positions]
-                    until = time_bound(self.active_selection.get("time_to", ""), self.display_clock)
-                    if until is not None:
-                        stops = np.minimum(stops, until)
-                    stops = clock_times(stops, self.display_clock)
+                    stops = clock_times(self._interval_ends[name][positions], self.display_clock)
                     plot_states(ax, xs, ys, color, ends=stops)
                     counts = tremor_window_counts(selected) if metric == "pred_tremor_checked" else None
                     if counts is not None:
                         numerator, denominator, percentage = counts
                         text = f"{numerator:,} / {denominator:,} resting windows"
                         text += f" · {percentage:.2f}%" if percentage is not None else " · No resting windows"
-                        ax.text(.01, .95, text + " · Selection", transform=ax.transAxes, va="top",
-                                fontsize=8.5, color="#465B73")
+                        ax.text(.01, .95, text, transform=ax.transAxes, va="top", fontsize=8.5, color="#465B73")
                 else:
-                    plot_signal(ax, xs, ys, color, points_only=points_only, sparse=len(sample) < 120)
+                    starts, ends = self._bar_bounds[name]
+                    plot_bars(ax, clock_times(starts[positions], self.display_clock),
+                              clock_times(ends[positions], self.display_clock), ys, color)
             else:
-                ax.text(.5, .5, "No timed rows in the current selection", ha="center", transform=ax.transAxes, color="#68778c")
+                ax.text(.5, .5, "No timed outputs", ha="center", transform=ax.transAxes, color="#68778c")
             if not binary:
                 ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
             metric_title = self._plot_labels.get((name, metric), str(metric).replace("_", " ").capitalize())
@@ -1760,8 +1786,8 @@ class MainWindow(QMainWindow):
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
                 ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(dates.ConciseDateFormatter(locator, tz=timezone))
-                ax.set_xlabel(f"Recording date/time ({self.display_clock.get('timezone') or 'timezone unspecified'})")
+                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
+                ax.set_xlabel(f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})")
                 ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime("%d %b %Y %H:%M:%S")
             else:
                 ax.set_xlabel("File-order timeline (s)" if len(self.provenance.get("sources", {})) > 1 else "Elapsed analysis time (s)")
@@ -1849,6 +1875,12 @@ class MainWindow(QMainWindow):
         anchor = float(event.xdata)
         if self.display_clock is not None:
             anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"])))*86400
+            # Matplotlib stores dates as floats in days; recover exact nearby
+            # output anchors before choosing the interval that contains a click.
+            all_times = self._timings[name]["Timeline time (s)"].to_numpy()
+            close = np.flatnonzero(np.isfinite(all_times) & (np.abs(all_times - anchor) < 1e-5))
+            if len(close):
+                anchor = float(all_times[close[0]])
         self.dataset.setCurrentText(name)
         self.sync_table_outputs(force_detail=True)
         metric = getattr(event.inaxes, "_paradigma_metric", None)
@@ -1865,9 +1897,13 @@ class MainWindow(QMainWindow):
         if not finite.any():
             return
         row = int(np.argmin(np.where(finite, distances, np.inf)))
-        if getattr(event.inaxes, "_paradigma_binary", False) and metric in self._plot_tables[name]:
+        if (getattr(event.inaxes, "_paradigma_binary", False) or getattr(event.inaxes, "_paradigma_bars", False)) and metric in self._plot_tables[name]:
             ends = self._interval_ends[name][self.active_positions]
             present = self._plot_tables[name][metric].iloc[self.active_positions].eq(1).fillna(False).to_numpy(dtype=bool)
+            if getattr(event.inaxes, "_paradigma_bars", False):
+                starts, all_ends = self._bar_bounds[name]
+                times, ends = starts[self.active_positions], all_ends[self.active_positions]
+                present = self._plot_tables[name][metric].iloc[self.active_positions].notna().to_numpy()
             covering = np.flatnonzero(present & (times <= anchor) & (anchor < ends))
             if len(covering):
                 row = int(covering[-1])
@@ -1956,7 +1992,7 @@ class MainWindow(QMainWindow):
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
                 ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(dates.ConciseDateFormatter(locator, tz=timezone))
+                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
                 ax.set_xlabel("Recording date/time")
             else:
                 ax.set_xlabel("Analysis time (s)")
@@ -2011,6 +2047,44 @@ class MainWindow(QMainWindow):
         available = record is not None and ("_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"]))
         self.open_run_button.setEnabled(bool(available) and self.worker is None)
         self.use_parameters_button.setEnabled(record is not None and self.worker is None)
+        self.delete_run_button.setEnabled(record is not None and self.worker is None)
+
+    def delete_run(self):
+        record = self.selected_run
+        if record is None or self.worker is not None:
+            return
+        protected = [self.source, *self.sources.values(), *self.provenance.get("sources", {}).values()]
+        try:
+            files = self.history.removal_files(record, self.runs, protected)
+            warning = QMessageBox(self)
+            warning.setPalette(light_palette())
+            warning.setStyleSheet(STYLESHEET)
+            warning.setIcon(QMessageBox.Warning)
+            warning.setWindowTitle("Delete run")
+            warning.setText("Delete this run and its associated exports?")
+            warning.setInformativeText(f"The history entry and {len(files)} export file(s) will be permanently deleted. "
+                                      "Original sensor files and exports shared with other runs are kept.")
+            warning.setDetailedText("\n".join(str(path) for path in files) or "No associated export files exist.")
+            warning.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+            warning.setDefaultButton(QMessageBox.Cancel)
+            warning.button(QMessageBox.Yes).setText("Delete run")
+            if warning.exec() != QMessageBox.Yes:
+                return
+            self.history.remove(record, self.runs, protected)
+            self.runs.remove(record)
+            self.selected_run = None
+            if self.current_run is record:
+                self.current_run = None
+                self.clear_results()
+            self.refresh_runs()
+            if not self.runs:
+                self.run_heading.setText("Select a run")
+                self.run_summary.clear()
+                for view in (self.run_details, self.run_warnings, self.run_errors, self.run_outputs, self.log):
+                    view.clear()
+            self.status.setText("Run and associated exports deleted.")
+        except (OSError, ValueError) as exc:
+            self.show_notice(f"Could not delete the run: {exc}", "error")
 
     def open_run(self):
         record = self.selected_run
@@ -2051,6 +2125,15 @@ class MainWindow(QMainWindow):
         self.drop_missing.setChecked(settings.get("drop_missing_samples", False))
         self.max_gap.setValue(settings.get("max_gap_seconds", DEFAULT_MAX_GAP_SECONDS) or DEFAULT_MAX_GAP_SECONDS)
         self.min_segment.setValue(settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS) or DEFAULT_MIN_SECTION_SECONDS)
+        origin = settings.get("plot_time_origin", {"mode": "automatic"})
+        self._origin_override = origin.get("mode") != "automatic"
+        if origin.get("mode") == "custom":
+            self.clock_input.set_clock(origin["clock"])
+            self.clock_input.setText(origin["clock"]["origin"])
+        elif origin.get("mode") == "elapsed":
+            self.clock_input.clear()
+        else:
+            self.update_origin_default()
         self.preparation_changed()
         self.navigate(1)
         self.status.setText("Run parameters restored. Check the selected input before running.")
@@ -2078,6 +2161,31 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 self.failure(str(exc))
 
+    def choose_export(self):
+        if self.results is None or self.worker is not None:
+            return
+        from .exports import ExportDialog, export_selection
+        dialog = ExportDialog(self.results, self)
+        if not dialog.exec():
+            return
+        extension = dialog.extension()
+        path, _ = QFileDialog.getSaveFileName(self, "Export results", f"paradigma-results.{extension}",
+                                             f"{extension.upper()} (*.{extension})")
+        if not path:
+            return
+        try:
+            selected = dialog.selected()
+            export_selection(path, self.results, self.provenance, selected, dialog.format.currentText(),
+                             protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
+            if self.current_run is not None:
+                self.current_run["outputs"].append({"kind": dialog.format.currentText(), "path": str(Path(path).resolve()),
+                                                    "saved": now(), "selected": selected})
+                self.persist_run(self.current_run)
+                self.refresh_runs()
+            self.status.setText(f"Results exported to {path}")
+        except Exception as exc:
+            self.failure(str(exc))
+
     def export_csv(self):
         name, frame = self.selected_export_table()
         if frame is None or self.worker is not None:
@@ -2102,43 +2210,12 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, "time_fields"):
-            self.arrange_time_fields()
         if hasattr(self, "data_details"):
             orientation = Qt.Horizontal if self.width() >= 1280 else Qt.Vertical
             if self.data_details.orientation() != orientation:
                 self.data_details.setOrientation(orientation)
                 self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
 
-    def arrange_time_fields(self):
-        # Use actual control hints, including Windows font metrics and the
-        # hidden elapsed-seconds editor, rather than a fixed window breakpoint.
-        available = self.width() - self.sidebar.rail_width - 44 - 38 - 24 - 24
-        for widget in self.time_fields:
-            widget.ensurePolished()
-        widths = [widget.minimumSizeHint().width() for widget in self.time_fields]
-        spacing = max(12, self.time_grid.horizontalSpacing())
-        if sum(widths) + spacing * 2 <= available:
-            columns = 3
-        elif max(widths[0], widths[1] + widths[2] + spacing) <= available:
-            columns = 2
-        else:
-            columns = 1
-        if columns == self._time_field_columns:
-            return
-        self._time_field_columns = columns
-        for widget in self.time_fields:
-            self.time_grid.removeWidget(widget)
-        if columns == 2:
-            self.time_grid.addWidget(self.time_fields[0], 0, 0, 1, 2)
-            self.time_grid.addWidget(self.time_fields[1], 1, 0)
-            self.time_grid.addWidget(self.time_fields[2], 1, 1)
-        elif columns == 3:
-            for column, widget in enumerate(self.time_fields):
-                self.time_grid.addWidget(widget, 0, column)
-        else:
-            for row, widget in enumerate(self.time_fields):
-                self.time_grid.addWidget(widget, row, 0)
 
 
 def main():

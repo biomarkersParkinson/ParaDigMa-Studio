@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .availability import prepared_availability
 from .empatica import load_empatica_imu
 
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
@@ -133,6 +134,8 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
                 previous = combined["metadata"].get("desktop_recordings", {})
                 combined["metadata"]["desktop_recordings"] = {**recording_details,
                     "sections": {**previous.get("sections", {}), **recording_details["sections"]}}
+            coverage = metadata.pop("desktop_availability", {})
+            combined["metadata"].setdefault("desktop_availability", {}).update(coverage)
             combined["metadata"].update(metadata)
             combined["errors"].extend(output.get("errors", []))
         combined["metadata"]["desktop_preparation"] = {"analysis_groups": groups, "by_module": preparation}
@@ -165,6 +168,9 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
     else:
         inputs, exclusion, analyzed_samples = _prepare_recording(frame, pipelines, column_mapping, logger,
                                                                  drop_missing_samples, settings)
+        exclusion = exclusion or {"input_samples": len(frame), "excluded_samples": 0}
+
+    coverage = prepared_availability(inputs, pipelines)
 
     def run(output_dir):
         # Retain the official classification exports that 1.1.2 computes but
@@ -222,6 +228,7 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
                 }
             if recordings is not None:
                 results.setdefault("metadata", {})["desktop_recordings"] = recordings
+            results.setdefault("metadata", {})["desktop_availability"] = coverage
             return results
         finally:
             for target in loggers:
@@ -411,7 +418,7 @@ def json_value(value):
     return str(value)
 
 
-def _write_export(path, writer, *, source=None, protected_sources=()):
+def _write_export(path, writer, *, source=None, protected_sources=(), binary=False):
     target = Path(path)
     for protected in [source, *protected_sources]:
         if not protected:
@@ -431,7 +438,8 @@ def _write_export(path, writer, *, source=None, protected_sources=()):
     # leaves any existing file intact and does not leave a partial output behind.
     fd, temporary = tempfile.mkstemp(prefix=".paradigma-export-", suffix=".tmp", dir=target.parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+        options = {} if binary else {"encoding": "utf-8", "newline": ""}
+        with os.fdopen(fd, "wb" if binary else "w", **options) as stream:
             writer(stream)
         os.replace(temporary, target)
     finally:

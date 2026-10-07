@@ -28,7 +28,8 @@ affected recording; processing errors retain available partial pipeline outputs.
 Choose any combination of gait, tremor and pulse rate in **Analysis modules**.
 Set processing options in **Analysis parameters**. Each field's **i** button expands
 inline guidance with a reference to the official ParaDigMa documentation.
-The axes example explains the direction of each signed mapping; column-mapping
+Device axes includes ParaDigMa's original reference figure and a direct link to its
+Coordinate System guide. The example explains each signed mapping; column-mapping
 examples rename your file's columns to the required toolbox names.
 The page preserves comfortable spacing. Parameters fit together at normal window
 sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
@@ -87,134 +88,100 @@ Data **Overview** separates sensor and time statistics:
 Data **Graphs** overlays checked channels with stable colors and a legend.
 Values retain their file units. Data **Tables** shows original samples.
 
-Results **Overview** shows all returned official aggregates and relevant metadata
-in module cards. Gait metadata is summarized by branch: segment count and total,
-median, IQR and range of segment durations. Individual segment records stay out
-of Overview. Detail filters do not recompute or alter official aggregates.
+Results **Overview** shows official aggregates and relevant pipeline metadata in
+module cards. **Recording & preparation** groups recording information and input
+preparation counts without duplicating identical workflows. Gait segment metadata
+is summarized by counts and duration distributions; individual segment records
+remain in the metadata export.
 
-Results **Graphs** contain classifications and quantifications. **Tables** has
-Gait, Tremor and Pulse rate tabs. Within each module, choose its classification,
-quantification or aggregation table in **Output table**. Tabs without outputs are
-disabled; each module remembers its selected table. Classification and quantification tables show the
-original columns and values by default. Aggregation dictionaries appear as ordered
-**measure/value** tables with their original keys and values. These aggregates
-always cover the full run, regardless of the graph/table time filter.
-Check **Plot series** to compare metrics from several modules on vertically aligned
-plots with a shared time axis. Different quantities keep their own vertical scales.
-Tremor's arm-rest and checked-tremor predictors appear only under Classification
-in Plot series; Quantification lists derived measurements. Raw tables retain
-the original columns in both outputs.
-Gait Classification also offers **Gait window presence** and **No other arm
-activity window** alongside the probabilities. These display-only indicators
-use `probability ≥ threshold` from the bundled gait detection/filtering models;
-the threshold appears in the plot label. They describe individual windows.
-ParaDigMa averages overlapping probabilities before applying the threshold to
-its final sample-level segmentation, so these plots do not reproduce that
-segmentation. Raw tables and exports retain the official probability columns.
-The Plot series tree is the graph selector; choose a detailed output separately
-on Tables for its table and CSV export. Only the shared From/Until time range
-and Time origin appear in Filters. Mouse-wheel and touchpad scrolling work while
-the pointer is over result graphs.
+Results **Graphs** compares classifications and quantifications across modules.
+Check metrics in **Plot series**. Aligned plots share one time axis, with time and
+date on separate lines. The axis stays visible while scrolling and follows pan
+and zoom. Dates come from the original recording when available. **Time origin**
+in Analyze provides a calendar and clock for overriding analysis time zero;
+**Default** restores the derived value. Uncheck it to show elapsed seconds.
+This setting affects presentation only and is saved with run parameters. Known
+timezones, clock precision and daylight-saving offsets are retained.
 
-Absolute dates come from the source recording's datetime channel, absolute numeric
-timestamps or start metadata, aligned to the analysis timeline. Known timezones
-are preserved; unzoned timestamps are marked **timezone unspecified**. Relative-only
-recordings display elapsed seconds. Multiple recordings use their actual relative
-clock offsets when all files have comparable clocks. Otherwise the graph is
-labeled **File-order timeline**: each file follows the preceding file, without
-inferring dates or gaps between recordings. Local scientific timestamps remain
-unchanged in the tables. To display dates, enable **Time origin** in
-Filters and use the calendar and clock to set the date/time corresponding to
-timeline second zero. This is recorded as user supplied and changes presentation
-only. From/Until uses calendar and clock selectors when a recording clock is
-available, and seconds otherwise. Each checkbox enables or clears that field.
-Known timezones and daylight-saving offsets are retained; unzoned recordings
-remain unzoned. Removing the origin preserves the selected range in seconds.
-ParaDigMa's tremor `nr_valid_days` uses its internal quantification timestamps,
-not the display clock. Files with local relative timestamps can therefore count
-as one day even when their source dates differ; the app retains the official value.
-Time fields wrap according to their actual size, including native Windows font
-metrics. A recording-time axis stays fixed below the graphs while either scrolling area moves; pan and zoom keep it synchronized. Saved figures include a time axis. Each Results view scrolls vertically while Overview, Graphs and Tables stay in place. Export and Filters are alongside the tabs.
+Multiple recordings use actual clock offsets when all clocks are comparable.
+Otherwise plots use a labeled **File-order timeline**, without inventing dates or
+between-file gaps. Scientific timestamps remain unchanged. ParaDigMa's internal
+`nr_valid_days` uses its own quantification timestamps, independently of the display clock.
 
-Combined workflows can have different internal time origins after excluding
-missing samples. The display aligns each workflow to the same source clock.
-Enable **Timing details** to add display-only annotations: **Analysis time (s)**
-retains the original module time; **Timeline time (s)** appears when alignment
-offsets are needed. CSV follows the visible table, including annotations only
-when enabled. Aggregation CSV exports the selected full-run aggregate table, and
-JSON preserves the offsets so reopened results use the same dates.
+Continuous outputs use individual bars at the output update cadence, with gaps for
+missing or non-finite measurements. Actual zero values remain visible at the baseline.
+No interpolation connects values across missing outputs or recording sections.
+Gait arm-swing positions are evenly spaced bin midpoints within the official segment
+start/end, with bars confined to those bins. They are explicitly labeled **Estimated**;
+unknown segment boundaries leave timing unavailable. Values and aggregates stay exact.
 
-Gait arm-swing measurements lack individual timestamps. Their display positions
-are evenly spaced bin midpoints within each official segment's start/end interval,
-computed before filtering. They are labeled **Estimated within gait segment** and
-drawn as points. **Timing details** adds their time basis and segment boundaries to tables. Missing or
-invalid segment metadata leaves timing unavailable; sample positions are not used
-as invented time labels. Scientific outputs and aggregate calculations are unchanged.
+Binary predictors show slim filled spans only when present. Spans run to the next
+output update, capped at the module's cadence (4 seconds for default tremor), rather
+than the full overlapping feature-window length. Zero and missing states remain blank;
+all output rows remain in tables. For `pred_tremor_checked`, the graph reports the
+full-run checked/resting-window count and percentage, matching the official
+`perc_windows_tremor` denominator. Tremor's duplicate arm-rest and checked-tremor
+predictors appear only under Classification in Plot series.
 
-The app retains the toolbox's official classification Parquet exports because
-ParaDigMa 1.1.2 omits these tables from its orchestrator return value. Classification
-is not rerun and predictions are not reconstructed from quantified measurements.
+**Data preparation** tracks show coverage of the actual prepared samples handed to
+the pipelines, reflecting excluded rows and discarded sections. Identical workflows
+share a track; differing IMU and PPG coverage is shown separately. A sample is displayed
+for one nominal sample interval; gaps exceeding 1.5 times the median positive interval
+stay blank. An isolated sample with unknown cadence appears as a tick. These tracks
+are display metadata, not classifications or inferred physiological states.
 
-All graphs share one inline **Graph settings** panel for title, axis labels and
-limits, grid and legend. Expand **Axis limits** to set automatic or explicit bounds; date axes
-accept ISO timestamps. **Apply** changes presentation; **Reset** restores the
-current graph's labels and automatic limits. Choosing a different metric or
-channel refreshes labels and limits. Grid and legend preferences persist.
-For multiple result plots, click the graph whose labels or vertical limits you
-want to edit. Shared horizontal limits, grid and legend settings apply across
-plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
+Gait Classification offers **Gait window presence** and **No other arm activity
+window** alongside probabilities. These use the bundled model's `probability ≥ threshold`.
+They describe individual windows; ParaDigMa's final sample segmentation additionally
+averages overlapping probabilities. Raw tables retain the official probability columns.
 
-Continuous plots display at most 20,000 samples per series for responsiveness.
-Binary predictors use slim filled bars for positive output intervals, without a
-redundant vertical-axis label. Each label extends to the next output update, capped
-at the module's update cadence (4 seconds for default tremor). Overlapping feature
-windows are displayed at their update cadence, rather than extending every label
-across the full feature-window length. Recording sections, gaps, zero and missing
-states are not joined. Intervals are determined before filtering and clipped at
-the selected end time; a single selected timestamp remains visible as a tick.
-These intervals present window labels, not exact physiological onset/offset times.
-Binary indicators are not subsampled, so isolated detections remain visible.
-Tables and exports retain all selected rows, including zero and missing states.
-For `pred_tremor_checked`, the plot shows checked/resting-window counts and the
-percentage for the current selection. ParaDigMa's `perc_windows_tremor` is
-`100 × checked tremor windows / resting-or-stable windows`, not a percentage
-of all recording windows. The Overview and Aggregation table retain its full-run
-value. `pred_tremor_logreg` is the earlier classifier label, before the extra
-frequency and arm-rest checks.
-Result lines do not join separate sections;
-multiple participants display as points. Filtered and unfiltered gait outputs
-remain separate datasets.
+Results **Tables** uses module-colored Gait, Tremor and Pulse rate tabs. Select the
+classification, quantification or aggregation table using **Output table**. Original
+columns and values are the default. **Timing details** adds display-only clock and
+gait annotations. Aggregation dictionaries are ordered measure/value tables.
+Zooming never filters table rows or recalculates aggregates.
 
-Select a result row or click a time-based graph point to inspect original samples
-using **Inspect sensor context** at the right of the figure toolbar. A vertical
-marker links the selected time across plots; the selected point is highlighted,
-and the pinned time axis identifies the row and time. The radius sets how many
-seconds of original samples to show on either side. Gait outputs without timestamps can open explicit
-start/end intervals supplied by the toolbox. This requires the original data
-retained in the same session and usable timing metadata.
+**Inspect sensor context**, beside the figure buttons, links a selected row or
+clicked bar to original samples. A vertical marker and the pinned axis identify the
+selected time. Gait measurements open the complete official segment rather than
+treating their estimated positions as observed event timestamps. Sensor context
+requires the original recording to remain available in the session.
+
+Each graph has one inline **Graph settings** panel for title, axis labels, limits,
+grid and legend. Date limits accept ISO timestamps. Click a graph to edit its
+vertical settings; horizontal limits apply to all aligned plots. Pan, zoom, reset
+and figure saving remain on the toolbar. Saved figures include the time axis.
+Raw sensor plots retain continuous signal lines and limit display to 20,000 samples
+per channel; result bars and binary indicators retain every output.
 
 ## Exports and run history
 
-- **CSV:** exports selected rows with their displayed timing annotations, including
-  the estimated gait time basis; formula-like text is neutralized.
-- **JSON:** exports all outputs, source, toolbox version and settings, independently
-  of exploration filters. Scientific tables keep their original columns; display
-  clock metadata is saved with the analysis provenance. JSON converts non-finite
-  scalars to null. Absolute plots can be restored without reopening the recording.
-- **Runs:** saves status, parameters, separate warnings and errors, log and export locations in
-  `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows. Recordings are not copied there.
-  Full result tables remain in memory until exported.
+**Export…** appears on every Results tab. Choose a format and check which original
+tables or metadata groups to include:
 
-Export JSON to reopen results after restarting. Reopening JSON does not reload
-the sensor file. Loading another recording leaves previous results available.
+- **JSON:** one structured file containing selected outputs and analysis provenance.
+  Non-finite values become null. Full JSON exports reopen after restarting without
+  loading the sensor recording. Select all outputs/metadata to preserve all drill-down
+  timing information.
+- **CSV:** one table exports as CSV. Multiple tables or metadata selections export as
+  a ZIP containing separate CSV files, selected metadata JSON and analysis provenance.
+  Scientific tables retain their original columns; formula-like text is neutralized.
+- **Runs:** stores status, parameters, separate warnings and errors, logs and export
+  locations in `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows. Full results remain
+  in memory until exported; original recordings are not copied there.
+
+**Stop Analysis** remains available below Analyze settings while a run is active.
+Cancellation stops the owned analysis process, removes its temporary files and records
+**Cancelled** in Runs without treating cancellation as an analysis error.
+
+Select a completed or cancelled run and choose **Delete Run…**, or press **Delete**
+while the run list has focus. A confirmation lists the associated exports to be
+permanently removed with the history entry. Original sensor files, TSDF companions
+and exports referenced by another run are protected. Running jobs cannot be deleted.
 Reused parameters apply to the currently selected input; check it before running.
-Exports protect source files and TSDF companion binaries from overwriting.
 
-Default toolbox diagnostic files use a temporary directory deleted after analysis;
-the processing log remains in local history.
-
-Shortcuts: **Ctrl+O** opens a recording, **Ctrl+Enter** runs from Analyze,
-and **Alt+1–4** switches pages.
+Shortcuts: **Ctrl+O** opens recordings, **Ctrl+Enter** runs analysis, **Alt+1–4** switches
+pages, **Delete** deletes a selected run after confirmation, and **F1** opens About.
 
 ## Common issues
 

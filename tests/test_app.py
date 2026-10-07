@@ -1,3 +1,4 @@
+from conftest import bar_values, bar_starts, bar_centers
 import os
 import time
 from importlib.resources import files
@@ -26,7 +27,8 @@ def test_window_results_and_plot(tmp_path):
     window.show()
     app.processEvents()
     assert window.result_table.model().rowCount() == 3
-    assert len(window.figure.axes[0].lines) == 1
+    assert len(window.figure.axes[0].collections[0].get_paths()) == 3
+    assert not window.figure.axes[0].lines
     assert window.export_button.isEnabled()
     window.canvas.draw()
     window.close()
@@ -64,8 +66,8 @@ def test_time_plot_handles_numeric_metric_names_without_using_row_numbers_as_tim
     frame = pd.DataFrame({"time": [10., 20., 30.], 0: [1., 2., 3.], "Row number": [100., 200., 300.]}, index=["a", "b", "c"])
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
     window.y_column.setCurrentIndex(window.y_column.findData(0))
-    assert list(window.figure.axes[0].lines[0].get_xdata()) == [10., 20., 30.]
-    assert list(window.figure.axes[0].lines[0].get_ydata()) == [1., 2., 3.]
+    assert list(bar_starts(window.figure.axes[0])) == [10., 20., 30.]
+    assert list(bar_values(window.figure.axes[0])) == [1., 2., 3.]
     pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
     window.close()
 

@@ -84,6 +84,7 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(wi
         captured.append((deepcopy(recordings), settings))
         return output()
     monkeypatch.setattr(desktop, "analyze", analyze)
+    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
     window.set_modules(["tremor"])
     window.prepared.setChecked(True)
     window.run_analysis()
@@ -108,9 +109,7 @@ def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path,
     name = "quantifications/tremor"
     np.testing.assert_array_equal(window._timings[name]["Timeline time (s)"], [0., 1., 86400., 86401.])
     assert window.display_clock["origin"] == "2026-10-07T13:00:00+02:00"
-    window.time_from.setText("86400")
-    window.apply_filters()
-    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["tremor"].iloc[2:])
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["tremor"])
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
     for key, item in window._series_items.items():
@@ -119,7 +118,7 @@ def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path,
     window.plot()
     axis = window.figure.axes[0]
     anchor = dates.date2num(pd.Timestamp("2026-10-08T13:00:00+02:00"))
-    np.testing.assert_allclose(axis.collections[0].get_paths()[0].vertices[:, 0].min(), anchor)
+    np.testing.assert_allclose(axis.collections[0].get_paths()[-1].vertices[:, 0].min(), anchor)
     window.graph_clicked(SimpleNamespace(inaxes=axis, xdata=anchor + .5 / 86400))
     assert window.active_frame.file_key.iloc[window.result_table.currentIndex().row()] == "recording_002"
     window.inspect_sensor_context()

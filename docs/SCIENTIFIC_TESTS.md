@@ -68,7 +68,7 @@ Comparisons cover:
 - All quantification rows/columns, both gait branches and tremor power.
 - Every returned official aggregation and scientific metadata value.
 - Exact row counts, order, column names, timestamps and missing-value masks.
-- Real-result Qt filters, scientific table values and plotted measurements, plus
+- Real-result Qt zoom, scientific table values and plotted measurements, plus
   independently derived gait display positions and unchanged official aggregate cards.
 - Checked-tremor interval starts at exactly the positive official timestamps,
   extending at the official output update cadence without joining recording gaps; plotted
@@ -77,7 +77,7 @@ Comparisons cover:
   tables retain full-run values when the detailed time selection changes or users switch module tabs.
 - Gait display-only window indicators match the saved probabilities compared with
   each bundled model's threshold, including equality at the threshold and missing
-  values. Recorded-output plots, time filters and clicks preserve the raw tables.
+  values. Recorded-output plots, zoom and clicks preserve the raw tables.
   These indicators are distinct from the pipeline's merged sample-level labels.
 - JSON export/reopening and CSV exports, including missing tremor measurements.
 
@@ -96,9 +96,12 @@ while checking the restored scientific values. CSV is read with pandas'
 
 The wrapper adds missing-sample provenance under
 `metadata.desktop_preparation`. It is checked separately against the known
-excluded sample count, analyzed sample count and section count; it is the only
-metadata excluded from the official metadata comparison. Overview retains official
-aggregates regardless of detail filters. Gait-segment summaries and display-only
+excluded sample count, analyzed sample count and section count. Recording identifiers
+and prepared-input coverage are also desktop metadata, tested separately from official
+scientific metadata. Coverage is checked against the exact prepared frames received
+by the orchestrator, including missing rows and discarded short sections. Complete
+JSON round trips check both scientific and desktop metadata. Overview retains official
+aggregates regardless of plot zoom. Gait-segment summaries and display-only
 time estimates do not modify the scientific tables.
 
 The combined three-module test compares every scientific stage, classification,
@@ -110,7 +113,7 @@ Multiple recordings of one subject are also compared against a direct official
 dictionary-of-recordings workflow. The recorded IMU cases have unequal lengths;
 classifications, both gait branches, unique gait-segment metadata and pooled
 tremor aggregates must match. UI tests cover original-file inspection, shared
-settings, per-file dates, time filters, source-correct sensor context, JSON
+settings, per-file dates, shared plot limits, source-correct sensor context, JSON
 reopening, file-order fallbacks and protection of all source files during export.
 
 ## Positive and empty-output cases
@@ -152,19 +155,20 @@ The fixture manifest requires ParaDigMa 1.1.2; upgrading the toolbox requires
 explicit review of these references and settings. They cover representative
 recordings and supported preparation choices, not every device or recording.
 
-Presentation tests additionally cover shared multi-module time filters, midnight
-and daylight-saving transitions, preserving named timezones in exported provenance,
-classification/quantification graph clicks, and clearly labeled gait estimates
-computed before filtering. Estimated positions do not claim clinical event timing
-and are never inserted into the official scientific result tables.
-Graph-workspace tests verify exact binary timestamps, missing states and isolated
-positive detections beyond the continuous display limit, alongside unchanged
-continuous values. They also exercise real Qt wheel/touchpad events, calendar
-selection, source-clock precision, named-zone daylight-saving transitions and
-removal of an origin without changing the selected elapsed-time interval.
-The compact-filter regression also forces wider native editor sizes to reproduce
-Windows clipping, and requires the entire fields and Apply/Reset buttons to remain
-visible. Results uses adaptive columns and scrolling rather than relaxing that check.
+Presentation tests cover aligned multi-module bar charts, midnight and daylight-saving
+transitions, named timezones in exported provenance, classifications/quantifications,
+bar clicks and clearly labeled gait estimates. Original values and missingness are
+checked against the official output; no lines interpolate across missing estimates.
+Estimated gait positions stay within their official segments and are never inserted
+into scientific result tables. Plot zoom leaves the complete raw tables unchanged.
+Binary tests verify positive spans, actual timestamps, gaps, missing states and
+isolated detections. Prepared-input availability comes from the exact pipeline inputs.
+Other tests exercise real Qt wheel/touchpad events, the pinned time axis, source-clock
+precision and Analyze's calendar defaults, including wider Windows-sized editors.
+Selective JSON/CSV/ZIP tests retain native columns, metadata and integer precision,
+neutralize spreadsheet formulas and protect every original input from overwriting.
+Cancellation tests stop an actual owned child process and verify cleanup. Run-deletion
+tests require confirmation and protect original inputs, TSDF companions and shared exports.
 Analyze is checked with larger native controls, labels, checkboxes and buttons.
 At 1200 × 900 every parameter must fit without scrolling and rows must retain
 comfortable separation. At 960 × 650 every control must be fully reachable by

@@ -28,9 +28,10 @@ A verified signing identity must be configured before the signed workflow can pr
 3. **Results:** Overview shows module aggregates and metadata. Graphs compares
    selected metrics from multiple modules across recording time; Tables shows
    module tabs with each module's classification, quantification and aggregation tables.
-   Choose metrics in **Plot series** and dates/times in **Filters**.
+   Choose metrics in **Plot series**; zoom to inspect a time interval.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
-4. **Runs:** Review parameters, warnings, logs and export locations.
+4. **Runs:** Review parameters, warnings, logs and export locations. Delete a run
+   with **Delete Run** or the Delete key, after confirmation.
 
 Multiple files share the selected analysis settings. ParaDigMa processes them
 independently, combines their detailed outputs with file identifiers, and computes
@@ -42,12 +43,15 @@ Keep preparation enabled for raw recordings. Missing-sample exclusion is a deskt
 option enabled by default. Gap splitting defaults to off, matching ParaDigMa;
 its thresholds are 1.5 seconds, with **Default** buttons to restore them.
 
-Export the visible table as **CSV**, or all results and analysis settings as **JSON**.
+Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
+**CSV**. Multiple CSV tables are packaged in a ZIP.
 Export JSON to reopen results after restarting. Run history alone does not save
 full result tables. [See the workspace screenshots](docs/WORKSPACE.md).
 
-Gait points use clearly marked estimated positions within recorded segment boundaries.
-Files without recording dates use elapsed time until you supply a time origin.
+Continuous results use bars; missing values leave gaps. Gait bar positions are
+marked as estimates within recorded segments. A prepared-input availability track
+shows recording coverage. Set **Time origin** in Analyze to display calendar dates;
+the default is derived from the file when available. **Stop Analysis** cancels a run.
 
 ## Supported input
 
@@ -83,5 +87,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.4.3**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.0**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

@@ -6,6 +6,48 @@ from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint
 
 
+class RecordingTimeFormatter(ticker.Formatter):
+    """Time on the first line; date at the first visible tick and day changes."""
+    def __init__(self, timezone=None):
+        self.timezone = timezone
+        self._dates = {}
+        self._offset_ticks = set()
+        self._subsecond = False
+
+    def set_locs(self, locs):
+        super().set_locs(locs)
+        low, high = sorted(self.axis.get_view_interval())
+        previous = None
+        self._dates = {}
+        visible = {}
+        for value in locs:
+            if low <= value <= high:
+                stamp = dates.num2date(value, tz=self.timezone)
+                visible[float(value)] = stamp
+                day = stamp.date()
+                self._dates[float(value)] = stamp.strftime("%d %b %Y") if day != previous else ""
+                previous = day
+        offsets = {}
+        for stamp in visible.values():
+            offsets.setdefault(stamp.strftime("%Y-%m-%d %H:%M"), set()).add(stamp.utcoffset())
+        ticks = sorted(visible)
+        self._subsecond = any(0 < (second - first) * 86400 < .999
+                              for first, second in zip(ticks, ticks[1:]))
+        self._offset_ticks = {value for value, stamp in visible.items()
+                              if len(offsets[stamp.strftime("%Y-%m-%d %H:%M")]) > 1}
+
+    def __call__(self, value, pos=None):
+        span = abs(self.axis.get_view_interval()[1] - self.axis.get_view_interval()[0]) * 86400
+        stamp = dates.num2date(value, tz=self.timezone)
+        time = stamp.strftime("%H:%M:%S" if span < 120 else "%H:%M")
+        if span < 2 or self._subsecond:
+            time += stamp.strftime(".%f")[:4]
+        # Offset distinguishes repeated local times at a daylight-saving change.
+        if float(value) in self._offset_ticks:
+            time += stamp.strftime(" %z")
+        return time + "\n" + self._dates.get(float(value), "")
+
+
 class PinnedTimeAxis(FigureCanvasQTAgg):
     def __init__(self, source_canvas, label_source):
         super().__init__(Figure(figsize=(8, .82)))
@@ -44,9 +86,11 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 self._date_timezone = locator.tz
                 locator = dates.AutoDateLocator(tz=locator.tz, minticks=3, maxticks=7)
                 self.axes.xaxis.set_major_locator(locator)
-                self.axes.xaxis.set_major_formatter(dates.ConciseDateFormatter(locator, tz=locator.tz))
+                self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
+                self.setFixedHeight(102)
             else:
                 self._date_timezone = None
+                self.setFixedHeight(82)
                 self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
         self.synchronize()

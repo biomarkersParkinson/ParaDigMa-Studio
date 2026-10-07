@@ -1,4 +1,5 @@
-"""Time-only selection, categorical rasters and actual Qt wheel delivery."""
+"""Shared recording clocks, categorical rasters and actual Qt wheel delivery."""
+from conftest import bar_values, bar_starts, bar_centers
 import os
 from copy import deepcopy
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget, QStyle, QStyleOptionButton
 
+from paradigma_desktop.time_axis import RecordingTimeFormatter
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.plotting import binary_indicator
 from paradigma_desktop.results_view import clock_times
@@ -92,16 +94,13 @@ def test_binary_raster_shows_only_presence_without_losing_time_range_or_rare_eve
     assert len(paths) == 1
     assert (paths[0].vertices[:, 0].min(), paths[0].vertices[:, 0].max()) == (1., 2.)
     assert axes.get_xlim()[0] <= t[0] and axes.get_xlim()[1] >= t[-1]
-    window.time_from.setText("1"); window.time_to.setText("3"); window.apply_filters()
-    assert len(window.figure.axes[0].collections[0].get_paths()) == 1
-    window.time_from.setText("3"); window.time_to.setText("9"); window.apply_filters()
-    axes = window.figure.axes[0]
-    assert not axes.collections[0].get_paths()
-    assert axes.get_xlim()[0] <= 3. and axes.get_xlim()[1] >= 9.
-    assert window.result_table.model().frame.pred_event.eq(0.).all()
+    axes.set_xlim(3., 9.)
+    window.canvas.draw()
+    assert len(axes.collections[0].get_paths()) == 1
+    assert len(window.active_frame) == len(frame)
     pd.testing.assert_frame_equal(frame, original)
-    window.time_from.setText("1"); window.time_to.setText("1"); window.apply_filters()
-    np.testing.assert_array_equal(window.figure.axes[0].collections[-1].get_offsets(), [[1., 1.]])
+    axes.set_xlim(1.2, 1.8)
+    assert paths[0].contains_point((1.5, 1.))
     assert not binary_indicator(pd.Series([0., 1.]), "pred_event_proba")
     assert not binary_indicator(pd.Series([0., 1.]), "gyroscope_x")
     assert binary_indicator(pd.Series([1., 1.]), "pred_event")
@@ -118,35 +117,23 @@ def test_raw_graphs_separate_states_and_signals_without_changing_values(window):
     assert states.get_xlim()[0] <= 0. and states.get_xlim()[1] >= 2.
 
 
-def test_calendar_filter_preserves_source_precision_and_filters_all_outputs(window):
+def test_analyze_calendar_default_preserves_source_precision_and_results(window):
     start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
     raw = pd.DataFrame({"time": [0., 1., 2.], "time_dt": start + pd.to_timedelta([0., 1., 2.], unit="s")})
     window.loaded(("sensor.csv", raw))
+    assert window.clock_input.text() == start.isoformat()
+    assert window.clock_input.calendar.calendarPopup()
     window.provenance = {"settings": {"skip_preparation": True}}
-    result = {"quantifications": {name: pd.DataFrame({"time": [0., 1., 2.], "metric": [4., 5., 6.]})
-                                for name in ("tremor", "pulse_rate")}}
+    result = {"quantifications": {name: pd.DataFrame({"time": [0., 1., 2.], "metric": [4., 5., 6.]}) for name in ("tremor", "pulse_rate")}}
     window.analyzed(result)
     original = deepcopy(window.display_clock)
-    window.apply_filters()
+    window.clock_input.calendar.setDateTime(window.clock_input.calendar.dateTime().addMSecs(1500))
+    assert window.origin_setting()["mode"] == "custom"
     assert window.display_clock == original
-    assert window.clock_input.text() == start.isoformat()
-    assert window.time_from.calendar.calendarPopup()
-    window.time_to.use.setChecked(True)
-    window.apply_filters()
     assert all(positions.tolist() == [0, 1, 2] for _, positions in window._detail_selections.values())
-    window.time_to.clear()
-    window.time_from.use.setChecked(True)
-    window.time_from.calendar.setDateTime(window.time_from.calendar.dateTime().addMSecs(1500))
-    window.apply_filters()
-    assert all(positions.tolist() == [2] for _, positions in window._detail_selections.values())
-    assert not window.filter_status.text()
-    assert "Calendar times" in window.time_zone.text()
-    window.clock_input.clear()
-    window.apply_filters()
-    assert window.display_clock is None
-    assert all(positions.tolist() == [2] for _, positions in window._detail_selections.values())
-    assert window.time_from.editors.currentWidget() is window.time_from.seconds
-    assert not window.filter_status.text()
+    window.origin_reset.click()
+    assert window.clock_input.text() == start.isoformat()
+
 
 
 def test_calendar_clock_preserves_named_timezone_across_dst():
@@ -189,49 +176,21 @@ def test_result_canvas_accepts_mouse_wheel_and_touchpad_scrolling(window):
 
 
 @pytest.mark.parametrize("editor_minimum_width", [0, 382])
-def test_calendar_fields_remain_readable_in_compact_results(window, editor_minimum_width):
-    # Reproduce Windows-sized control hints independently of the host OS.
-    for field in (window.clock_input, window.time_from, window.time_to):
-        field.calendar.setMinimumWidth(editor_minimum_width)
-        field.seconds.setMinimumWidth(editor_minimum_width)
-    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
-    window.result_tabs.setCurrentIndex(1)
-    window.filters_toggle.setChecked(True)
-    window.show_notice("Analysis warning: review the partial results in Runs.")
+def test_analyze_origin_calendar_remains_readable_at_windows_control_widths(window, editor_minimum_width):
+    field = window.clock_input
+    field.calendar.setMinimumWidth(editor_minimum_width)
+    field.seconds.setMinimumWidth(editor_minimum_width)
+    window.navigate(1)
     window.resize(960, 720)
-    QTest.qWait(50)  # Let nested layout/paint requests settle on Windows too.
-    assert window._time_field_columns in (1, 2, 3)
-    if editor_minimum_width:
-        assert window._time_field_columns == 1
-    for field in (window.clock_input, window.time_from, window.time_to):
-        assert field.editors.currentWidget().height() >= 38
-        assert field.editors.currentWidget().width() >= field.editors.currentWidget().minimumSizeHint().width()
-        window.results_scroll.ensureWidgetVisible(field, 0, 0)
-        QTest.qWait(20)
-        assert field.visibleRegion().boundingRect().contains(field.rect())
-    origin, lower, upper = window.time_fields
-    if window._time_field_columns < 3:
-        assert origin.geometry().bottom() < lower.geometry().top()
-    else:
-        assert origin.geometry().top() == lower.geometry().top() == upper.geometry().top()
-    assert lower.geometry().bottom() < window.time_zone.geometry().top()
-    for child in (window.time_zone, window.filter_apply, window.filter_reset):
-        window.results_scroll.ensureWidgetVisible(child, 0, 0)
-        QTest.qWait(20)
-        assert child.isVisible(), f"{child.objectName() or type(child).__name__} is hidden"
-        assert child.visibleRegion().boundingRect().contains(child.rect()), (
-            f"Filter control is clipped: {child.objectName() or type(child).__name__}, "
-            f"geometry={child.geometry()}, visible={child.visibleRegion().boundingRect()}, "
-            f"screen={window.screen().geometry()}"
-        )
-    window.results_scroll.verticalScrollBar().setValue(0)
-    QTest.qWait(20)
-    tab_bar = window.result_tabs.tabBar()
-    assert tab_bar.mapTo(window, QPoint(0, tab_bar.height())).y() <= window.filters_panel.mapTo(window, QPoint(0, 0)).y()
-    window.resize(1800, 920)
     QTest.qWait(50)
-    assert window._time_field_columns == 3
-    assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[2])) == (0, 2, 1, 1)
+    window.analysis_scroll.ensureWidgetVisible(field, 0, 0)
+    QTest.qWait(20)
+    assert field.editors.currentWidget().height() >= 38
+    assert field.editors.currentWidget().width() >= field.editors.currentWidget().minimumSizeHint().width()
+    assert field.visibleRegion().boundingRect().contains(field.rect())
+    assert window.analysis_scroll.isAncestorOf(field)
+    assert not window.result_tabs.isAncestorOf(field)
+
 
 
 def test_results_tabs_stay_anchored_across_views_filters_and_scrolling(window):
@@ -244,23 +203,17 @@ def test_results_tabs_stay_anchored_across_views_filters_and_scrolling(window):
     QTest.qWait(30)
     original = positions()
     assert original[0].y() < 125
-    for filters in (False, True):
-        window.filters_toggle.setChecked(filters)
-        for index in (1, 2, 0, 2, 1):
-            window.result_tabs.setCurrentIndex(index)
-            QTest.qWait(30)
-            assert positions() == original
-            export_center = window.export_button.mapTo(window, window.export_button.rect().center()).y()
-            assert bar.mapTo(window, QPoint(0, 0)).y() <= export_center <= bar.mapTo(window, QPoint(0, bar.height())).y()
-            window.results_scroll.verticalScrollBar().setValue(window.results_scroll.verticalScrollBar().maximum())
-            QTest.qWait(20)
-            assert positions() == original
-    assert window.dataset_field.isHidden()
-    assert not window.filters_toggle.isHidden()
-    assert not window.csv_button.isHidden()
-    window.result_tabs.setCurrentIndex(0)
-    assert window.filters_toggle.isHidden() and window.csv_button.isHidden()
-    assert not window.export_button.isHidden()
+    for index in (1, 2, 0, 2, 1):
+        window.result_tabs.setCurrentIndex(index)
+        QTest.qWait(30)
+        assert positions() == original
+        export_center = window.export_button.mapTo(window, window.export_button.rect().center()).y()
+        assert bar.mapTo(window, QPoint(0, 0)).y() <= export_center <= bar.mapTo(window, QPoint(0, bar.height())).y()
+        window.results_scroll.verticalScrollBar().setValue(window.results_scroll.verticalScrollBar().maximum())
+        QTest.qWait(20)
+        assert positions() == original
+        assert window.export_button.isVisible()
+    assert not hasattr(window, "filters_toggle") and not hasattr(window, "csv_button")
 
 
 def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(window):
@@ -335,12 +288,9 @@ def test_sidebar_text_anchors_stay_fixed_through_animation(window, caption_font_
 
 
 def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window):
-    for field in (window.clock_input, window.time_from, window.time_to):
-        field.calendar.setMinimumWidth(382)
-        field.seconds.setMinimumWidth(382)
     window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
     window.result_tabs.setCurrentIndex(1)
-    window.filters_toggle.setChecked(True)
+    window.results_header.setMinimumHeight(350)
     window.resize(960, 650)
     QTest.qWait(50)
     inner = window.graph_scroll.verticalScrollBar()
@@ -368,11 +318,8 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
-    for field in (window.clock_input, window.time_from, window.time_to):
-        field.calendar.setMinimumWidth(382)
-        field.seconds.setMinimumWidth(382)
+    window.results_header.setMinimumHeight(350)
     window.result_tabs.setCurrentIndex(1)
-    window.filters_toggle.setChecked(True)
     window.resize(960, 720)
     QTest.qWait(50)
     window.canvas.draw()
@@ -380,8 +327,8 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
     assert window.graph_view.isAncestorOf(window.time_axis)
     assert not window.results_scroll.isAncestorOf(window.time_axis)
     assert not window.graph_scroll.isAncestorOf(window.time_axis)
-    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), dates.ConciseDateFormatter)
-    assert "Recording date/time" in window.time_axis.axes.get_xlabel()
+    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingTimeFormatter)
+    assert "Recording time" in window.time_axis.axes.get_xlabel()
     for bar in (window.results_scroll.verticalScrollBar(), window.graph_scroll.verticalScrollBar()):
         assert bar.maximum() > 100
         for position in (bar.maximum() // 2, bar.maximum(), 0):
@@ -425,7 +372,7 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
         assert image.pixelColor(int(20 * ratio), int(5 * ratio)).name().upper() == MODULE_PALETTE[module]["tint"]
     for axes in window.figure.axes:
         module = axes._paradigma_dataset.split("/")[1]
-        assert to_rgba(axes.lines[0].get_color()) == to_rgba(module_color(module))
+        assert tuple(axes.collections[0].get_facecolor()[0][:3]) == to_rgba(module_color(module))[:3]
     window.dataset.setCurrentText("quantifications/tremor")
     window.result_tabs.setTabVisible(window.sensor_tab_index, True)
     window.result_tabs.setCurrentIndex(window.sensor_tab_index)
@@ -471,11 +418,10 @@ def test_binary_intervals_respect_gaps_recordings_filters_and_clicks_inside_bars
     assert axes.collections[0].get_paths()[0].contains_point((2., 1.))
     window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=3.5))
     assert window.result_table.currentIndex().row() == 0
-    window.time_from.setText("8"); window.time_to.setText("9"); window.apply_filters()
-    axes = window.figure.axes[0]
-    paths = axes.collections[0].get_paths()
-    assert len(paths) == 1
-    assert (paths[0].vertices[:, 0].min(), paths[0].vertices[:, 0].max()) == (8., 9.)
+    axes.set_xlim(8., 9.)
+    window.canvas.draw()
+    assert axes.collections[0].get_paths()[1].contains_point((8.5, 1.))
+    assert len(window.active_frame) == len(frame)
     pd.testing.assert_frame_equal(frame, original)
 
 
@@ -546,7 +492,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
     assert all(any(line.get_gid() == "selected-result-time" for line in ax.lines) for ax in window.figure.axes)
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not any(line.get_gid() == "selected-result-point" for ax in window.figure.axes for line in ax.lines)
-    window.time_from.setText("2"); window.apply_filters()
+    window.apply_filters()
     assert not window._result_selection_artists
     assert not window.time_axis.selection_marker.get_visible()
     assert not window.context_button.isEnabled()

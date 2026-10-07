@@ -156,6 +156,41 @@ class RunHistory:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
+    def removal_files(self, record, records, protected_sources=()):
+        """Exports owned only by this run; never original inputs or directories."""
+        if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
+            raise ValueError("Invalid run identifier.")
+        sources = list(protected_sources)
+        for run in records:
+            sources.extend([run["source"], *run.get("sources", {}).values()])
+        protected = []
+        for source in sources:
+            if not source:
+                continue
+            path = Path(source)
+            protected.append(path)
+            if path.suffix.lower() == ".json":
+                prefix = path.stem.replace("_meta", "")
+                protected.extend(path.parent / f"{prefix}_{suffix}.bin" for suffix in ("time", "values"))
+        shared = [Path(item["path"]) for run in records if run is not record for item in run["outputs"]]
+
+        def same(first, second):
+            return first.resolve() == second.resolve() or first.exists() and second.exists() and first.samefile(second)
+
+        files = []
+        for output in record["outputs"]:
+            path = Path(output["path"])
+            if (path.is_file() or path.is_symlink()) and not any(same(path, keep) for keep in [*protected, *shared, *files]):
+                files.append(path)
+        return files
+
+    def remove(self, record, records, protected_sources=()):
+        files = self.removal_files(record, records, protected_sources)
+        for path in files:
+            path.unlink(missing_ok=True)
+        (self.directory / f"{record['id']}.json").unlink(missing_ok=True)
+        return files
+
 
 def load_result_export(path):
     """Read the wrapper's JSON export, never pickle or original sensor files."""

@@ -137,6 +137,8 @@ def aggregation_tables(results):
 
 
 def output_label(name):
+    if name.startswith("preparation/"):
+        return "Data preparation"
     parts = name.split("/")
     module = MODULE_NAMES.get(parts[1], parts[1].replace("_", " ").title()) if len(parts) > 1 else name
     stage = {"classifications": "Classification", "quantifications": "Quantification",
@@ -146,6 +148,8 @@ def output_label(name):
 
 
 def plot_metrics(name, frame):
+    if name.startswith("preparation/"):
+        return ["available"]
     metrics = measurement_columns(frame)
     if name.startswith("quantifications/tremor"):
         metrics = [column for column in metrics if column not in ("pred_arm_at_rest", "pred_tremor_checked")]
