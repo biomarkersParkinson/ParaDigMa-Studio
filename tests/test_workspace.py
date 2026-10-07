@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QComboBox, QTableView
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton, QTableView
 from PySide6.QtCore import Qt
 
 from paradigma_desktop import app as desktop
@@ -122,8 +122,8 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
 
 
-@pytest.mark.parametrize("control_minimum_height", [0, 40, 44])
-def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window, control_minimum_height):
+@pytest.mark.parametrize("control_minimum_height, larger_surrounding_controls", [(0, False), (40, False), (44, False), (44, True)])
+def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window, control_minimum_height, larger_surrounding_controls):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
     # Larger native Windows control hints overflowed the previous layout even
@@ -131,6 +131,18 @@ def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling
     for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
                     window.max_gap, window.min_segment):
         control.setMinimumHeight(control_minimum_height)
+    if larger_surrounding_controls:
+        # Input controls alone did not reproduce the Windows overflow. Native
+        # labels, checkboxes and action buttons also consume vertical space.
+        body = window.analysis_scroll.widget()
+        for control in body.findChildren(QLabel):
+            if control.objectName() != "fieldHelp":
+                control.setMinimumHeight(28)
+        for control in body.findChildren(QCheckBox):
+            control.setMinimumHeight(36)
+        for control in body.findChildren(QPushButton):
+            if control.objectName() != "helpInfo":
+                control.setMinimumHeight(44)
     window.navigate(1)
     window.resize(960, 650)
     window.show()

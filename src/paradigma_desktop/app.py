@@ -342,7 +342,7 @@ class MainWindow(QMainWindow):
         body.setObjectName("analysisBody")
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
-        content.setSpacing(6)
+        content.setSpacing(4)
         panel, input_layout = card()
         input_layout.setContentsMargins(12, 8, 12, 8)
         input_row = QHBoxLayout()
@@ -357,15 +357,12 @@ class MainWindow(QMainWindow):
         self.analysis_controls = QWidget()
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(6)
+        controls.setSpacing(4)
         self.analysis_help = {}
-        module_header = QHBoxLayout()
-        module_header.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
+        modules = QHBoxLayout()
+        modules.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
         self.module_requirements = label("", "muted")
         self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        module_header.addWidget(self.module_requirements, 1)
-        controls.addLayout(module_header)
-        modules = QHBoxLayout()
         self.module_buttons = {}
         for name in ("Gait", "Tremor", "Pulse rate"):
             item = button(name)
@@ -378,8 +375,11 @@ class MainWindow(QMainWindow):
         controls.addLayout(modules)
         self.settings_panel, parameters = card()
         parameters.setContentsMargins(12, 8, 12, 8)
-        parameters.setSpacing(6)
-        parameters.addWidget(label("Analysis parameters", "sectionTitle"))
+        parameters.setSpacing(4)
+        parameter_header = QHBoxLayout()
+        parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
+        parameter_header.addWidget(self.module_requirements, 1)
+        parameters.addLayout(parameter_header)
         columns = QHBoxLayout()
         columns.setSpacing(20)
         left = QFormLayout()
@@ -396,8 +396,7 @@ class MainWindow(QMainWindow):
             widget.setMinimumWidth(160)
         self.orientation = QLineEdit("x,y,z")
         for title, widget in (("Watch side", self.side), ("Acceleration units", self.acc),
-                              ("Gyroscope units", self.gyro), ("Time units", self.time),
-                              ("Device axes", self.orientation)):
+                              ("Gyroscope units", self.gyro), ("Time units", self.time)):
             self.analysis_field(title, widget, form=left)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
@@ -438,11 +437,20 @@ class MainWindow(QMainWindow):
         self.mapping = QPlainTextEdit("{}")
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
         self.mapping.setFixedHeight(42)
-        mapping_form = QFormLayout()
-        mapping_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
-        mapping_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        # Share the last row instead of making device axes a fifth tall native
+        # control row. Preserve room for Windows label and checkbox size hints.
+        input_fields = QHBoxLayout()
+        input_fields.setSpacing(20)
+        axes_form, mapping_form = QFormLayout(), QFormLayout()
+        for form in (axes_form, mapping_form):
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            form.setSpacing(4)
+        self.analysis_field("Device axes", self.orientation, form=axes_form)
         self.analysis_field("Column mapping (JSON)", self.mapping, form=mapping_form)
-        parameters.addLayout(mapping_form)
+        input_fields.addLayout(axes_form, 1)
+        input_fields.addLayout(mapping_form, 1)
+        parameters.addLayout(input_fields)
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         controls.addWidget(self.settings_panel)
         content.addWidget(self.analysis_controls)
