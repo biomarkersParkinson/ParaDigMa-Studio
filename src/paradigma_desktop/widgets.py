@@ -20,6 +20,10 @@ class HoverSidebar(QFrame):
         super().__init__(parent)
         self.expanded = False
         self.setFixedWidth(self.rail_width)
+        # Animate the clipping frame, never the layout inside it. Text and
+        # navigation anchors keep their expanded geometry at every width.
+        self.content = QWidget(self)
+        self.content.setFixedWidth(self.expanded_width)
         self.animation = QVariantAnimation(self)
         self.animation.setDuration(120)
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
@@ -29,6 +33,7 @@ class HoverSidebar(QFrame):
     def _resize(self, width):
         self.setFixedWidth(int(width))
         self.setGeometry(0, 0, int(width), self.parentWidget().height())
+        self.content.setGeometry(0, 0, self.expanded_width, self.height())
         self.raise_()
 
     def setExpanded(self, expanded, animated=True):

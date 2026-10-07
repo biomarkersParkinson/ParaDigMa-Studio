@@ -9,7 +9,7 @@ import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QWidget, QStyle, QStyleOptionButton
 
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.plotting import binary_indicator
@@ -248,11 +248,49 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     assert window.about_button.text() == "About"
     assert window.sidebar.isAncestorOf(window.about_button)
     assert window.about_button.geometry().bottom() > window.sidebar.height() - 70
-    assert window.about_button.visibleRegion().boundingRect().contains(window.about_button.rect())
+    option = QStyleOptionButton()
+    window.about_button.initStyleOption(option)
+    contents = window.about_button.style().subElementRect(QStyle.SE_PushButtonContents, option, window.about_button)
+    text = window.about_button.fontMetrics().boundingRect(contents, Qt.AlignLeft | Qt.AlignVCenter, "About")
+    assert window.about_button.visibleRegion().contains(text)
     assert not hasattr(window, "local_label") and not hasattr(window, "collapse_button")
     window.about_button.click()
     assert window._acknowledgements_dialog.isVisible()
     window._acknowledgements_dialog.close()
+
+
+def test_sidebar_text_anchors_stay_fixed_through_animation(window):
+    QTest.mouseMove(window.pages, QPoint(300, 100))
+    QTest.qWait(150)
+    sidebar = window.sidebar
+    sidebar.setExpanded(False, animated=False)
+    QApplication.instance().processEvents()
+    controls = [*window.nav_buttons, window.about_button, window.brand_icon, window.brand, window.brand_caption]
+    positions = [(widget.mapTo(window, QPoint(0, 0)), widget.size()) for widget in controls]
+
+    def text_box(widget, text):
+        option = QStyleOptionButton()
+        widget.initStyleOption(option)
+        contents = widget.style().subElementRect(QStyle.SE_PushButtonContents, option, widget)
+        return widget.fontMetrics().boundingRect(contents, Qt.AlignLeft | Qt.AlignVCenter, text)
+
+    anchors = [widget.mapTo(window, text_box(widget, text).topLeft())
+               for widget, text in zip([*window.nav_buttons, window.about_button], ["1", "2", "3", "4", "About"])]
+    assert len({point.x() for point in anchors}) == 1  # About shares the number alignment.
+    assert window.about_button.visibleRegion().contains(text_box(window.about_button, "About"))
+    for expanded in (True, False):
+        sidebar.setExpanded(expanded)
+        for elapsed in (0, 20, 40, 60, 90, 120):
+            sidebar.animation.setCurrentTime(elapsed)
+            QApplication.instance().processEvents()
+            assert [(widget.mapTo(window, QPoint(0, 0)), widget.size()) for widget in controls] == positions
+            assert not window.brand_caption.wordWrap() and not window.brand.wordWrap()
+            assert window.brand_caption.height() == window.brand_caption.sizeHint().height()
+            assert window.brand_caption.fontMetrics().horizontalAdvance(window.brand_caption.text()) <= window.brand_caption.width()
+            current = [widget.mapTo(window, text_box(widget, text).topLeft())
+                       for widget, text in zip([*window.nav_buttons, window.about_button], ["1", "2", "3", "4", "About"])]
+            assert current == anchors
+            assert window.about_button.visibleRegion().contains(text_box(window.about_button, "About"))
 
 
 def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window):
@@ -275,3 +313,116 @@ def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window
         QApplication.sendEvent(window.canvas, event)
         assert event.isAccepted() and outer.value() == expected
         assert window.result_tabs.tabBar().mapTo(window, QPoint(0, 0)) == tab_position
+
+
+def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks_zoom(window):
+    from matplotlib import dates
+    start = pd.Timestamp("2026-10-07T12:00:00+02:00")
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1., 2.], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s")})))
+    window.provenance = {"settings": {"skip_preparation": True}}
+    frame = pd.DataFrame({"time": [0., 1., 2.], **{f"metric_{i}": [2., 3., 4.] for i in range(8)}})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_series.blockSignals(True)
+    for item in window._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_series.blockSignals(False)
+    window.plot()
+    for field in (window.clock_input, window.time_from, window.time_to):
+        field.calendar.setMinimumWidth(382)
+        field.seconds.setMinimumWidth(382)
+    window.result_tabs.setCurrentIndex(1)
+    window.filters_toggle.setChecked(True)
+    window.resize(960, 720)
+    QTest.qWait(50)
+    window.canvas.draw()
+    anchor = window.time_axis.mapTo(window, QPoint(0, 0))
+    assert window.graph_view.isAncestorOf(window.time_axis)
+    assert not window.results_scroll.isAncestorOf(window.time_axis)
+    assert not window.graph_scroll.isAncestorOf(window.time_axis)
+    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), dates.ConciseDateFormatter)
+    assert "Recording date/time" in window.time_axis.axes.get_xlabel()
+    for bar in (window.results_scroll.verticalScrollBar(), window.graph_scroll.verticalScrollBar()):
+        assert bar.maximum() > 100
+        for position in (bar.maximum() // 2, bar.maximum(), 0):
+            bar.setValue(position)
+            QTest.qWait(20)
+            assert window.time_axis.mapTo(window, QPoint(0, 0)) == anchor
+            assert window.time_axis.visibleRegion().contains(window.time_axis.rect())
+            assert window.time_axis.axes.get_xlim() == pytest.approx(window.figure.axes[0].get_xlim())
+    low, high = window.figure.axes[0].get_xlim()
+    window.figure.axes[-1].set_xlim(low + (high - low) * .25, high - (high - low) * .25)
+    window.canvas.draw()
+    assert window.time_axis.axes.get_xlim() == pytest.approx(window.figure.axes[-1].get_xlim())
+    # The ruler aligns horizontally with the plotted data, including its tree
+    # selector and the margin needed for y labels.
+    source = window.figure.axes[0]
+    plot_left = window.canvas.mapToGlobal(QPoint(0, 0)).x() + source.get_position().x0 * window.canvas.width()
+    ruler_left = window.time_axis.mapToGlobal(QPoint(0, 0)).x() + window.time_axis.axes.get_position().x0 * window.time_axis.width()
+    assert ruler_left == pytest.approx(plot_left, abs=1)
+
+
+def test_module_colors_match_analysis_overview_and_graphs(window):
+    from matplotlib.colors import to_rgba
+    from paradigma_desktop.theme import MODULE_PALETTE, module_color
+    frame = pd.DataFrame({"time": [0., 1., 2.], "power": [2., 3., 4.]})
+    window.analyzed({"quantifications": {"gait": {"unfiltered": frame}, "tremor": frame, "pulse_rate": frame},
+                     "aggregations": {module: {"median": 3.} for module in MODULE_PALETTE}})
+    window.set_modules(list(MODULE_PALETTE))
+    window.navigate(1)
+    QTest.qWait(30)
+    for title, module in window.MODULES.items():
+        control = window.module_buttons[title]
+        assert control.property("analysisModule") == module
+        image = control.grab().toImage()
+        ratio = image.devicePixelRatio()
+        assert image.pixelColor(int(20 * ratio), int(5 * ratio)).name().upper() == MODULE_PALETTE[module]["tint"]
+    window.navigate(2)
+    for module, panel in window.overview_module_cards.items():
+        assert panel.property("analysisModule") == module
+        image = panel.grab().toImage()
+        ratio = image.devicePixelRatio()
+        assert image.pixelColor(int(20 * ratio), int(5 * ratio)).name().upper() == MODULE_PALETTE[module]["tint"]
+    for axes in window.figure.axes:
+        module = axes._paradigma_dataset.split("/")[1]
+        assert to_rgba(axes.lines[0].get_color()) == to_rgba(module_color(module))
+    window.dataset.setCurrentText("quantifications/tremor")
+    window.result_tabs.setTabVisible(window.sensor_tab_index, True)
+    window.result_tabs.setCurrentIndex(window.sensor_tab_index)
+    QTest.qWait(30)
+    window.sensor_frame = pd.DataFrame({"gyroscope_x": [1., 2., 3.]})
+    window.sensor_times = np.array([0., 1., 2.])
+    window.sensor_channel.addItem("gyroscope_x", "gyroscope_x")
+    window.plot_sensor()
+    assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(module_color("tremor"))
+
+
+def test_binary_display_uses_larger_marks_and_compact_bands_without_losing_observations(window):
+    frame = pd.DataFrame({"time": [0., 1., 2., 3.], "pred_event": [0., 1., np.nan, 0.]})
+    window.analyzed({"classifications": {"tremor": frame}})
+    item = window._series_items[("classifications/tremor", "pred_event")]
+    item.setCheckState(0, Qt.Checked)
+    axes = window.figure.axes[0]
+    assert axes.collections[0].get_sizes().tolist() == [48, 64, 48]
+    np.testing.assert_array_equal(axes.collections[0].get_offsets(), [[0., 0.], [1., 1.], [3., 0.]])
+    assert axes.get_ylim() == pytest.approx((-.32, 1.32))
+    assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 140
+    for band in axes.patches:
+        assert band.get_height() == pytest.approx(.22)
+
+
+def test_exported_results_figure_retains_its_time_axis_and_restores_pinned_display(window, tmp_path):
+    frame = pd.DataFrame({"time": [0., 1., 2.], "power": [2., 3., 4.]})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    seen = []
+    window.canvas.mpl_connect("draw_event", lambda event: seen.append((window.canvas.exporting_time_axis,
+                                               window.figure.axes[-1].xaxis.label.get_visible())))
+    destination = tmp_path / "results.png"
+    window.figure.savefig(destination)
+    assert destination.stat().st_size > 1000
+    assert (True, True) in seen
+    assert not window.canvas.exporting_time_axis
+    assert not window.figure.axes[-1].xaxis.label.get_visible()
+    window.canvas.draw()
+    assert window.time_axis.axes.get_xlabel() == window.figure.axes[0].get_xlabel()
+    window.clear_results()
+    assert not window.time_axis.axes.get_visible()

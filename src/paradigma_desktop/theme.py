@@ -3,6 +3,17 @@ from pathlib import Path
 from PySide6.QtGui import QColor, QPalette
 
 
+MODULE_PALETTE = {
+    "gait": {"accent": "#477DA3", "tint": "#F1F6FA", "border": "#CFDFEB"},
+    "tremor": {"accent": "#8B709F", "tint": "#F7F3FA", "border": "#DDD2E7"},
+    "pulse_rate": {"accent": "#468D80", "tint": "#F0F7F5", "border": "#CDDFDA"},
+}
+
+
+def module_color(module):
+    return MODULE_PALETTE.get(module, MODULE_PALETTE["gait"])["accent"]
+
+
 def light_palette():
     palette = QPalette()
     colors = {
@@ -30,7 +41,6 @@ QFrame#sidebar QPushButton { background: transparent; color: #c4cfde; border: no
     border-radius: 7px; text-align: left; padding: 12px; font-weight: 600; }
 QFrame#sidebar QPushButton:hover { background: #253950; }
 QFrame#sidebar QPushButton:checked { background: #344960; color: white; }
-QFrame#sidebar QPushButton#about { padding: 12px 2px; text-align: center; }
 QLabel#pageTitle { font-size: 27px; font-weight: 600; color: #16253a; }
 QLabel#sectionTitle { font-size: 16px; font-weight: 600; }
 QLabel#muted { color: #68778c; }
@@ -122,6 +132,14 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }
 """.replace("__DROPDOWN_ICON__", (Path(__file__).with_name("data") / "chevron-down.svg").as_posix())
 STYLESHEET = STYLESHEET.replace("__CHECKMARK_ICON__", (Path(__file__).with_name("data") / "checkmark.svg").as_posix())
+for module, colors in MODULE_PALETTE.items():
+    STYLESHEET += f'''
+QPushButton#module[analysisModule="{module}"] {{ background: white; border: 1px solid {colors['border']}; border-left: 3px solid {colors['accent']}; }}
+QPushButton#module[analysisModule="{module}"]:hover {{ background: {colors['tint']}; }}
+QPushButton#module[analysisModule="{module}"]:checked {{ background: {colors['tint']}; border: 2px solid {colors['accent']}; }}
+QFrame#card[analysisModule="{module}"] {{ background: {colors['tint']}; border-color: {colors['border']}; }}
+QLabel#pageTitle[analysisModule="{module}"] {{ color: {colors['accent']}; }}
+'''
 
 
 def style_axes(figure, position=(1, 1, 1), sharex=None):

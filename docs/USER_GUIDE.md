@@ -91,7 +91,7 @@ available, and seconds otherwise. Each checkbox enables or clears that field.
 Known timezones and daylight-saving offsets are retained; unzoned recordings
 remain unzoned. Removing the origin preserves the selected range in seconds.
 Time fields wrap according to their actual size, including native Windows font
-metrics. Each Results view scrolls vertically while Overview, Graphs and Tables stay in place. Export and Filters are alongside the tabs.
+metrics. A recording-time axis stays fixed below the graphs while either scrolling area moves; pan and zoom keep it synchronized. Saved figures include a time axis. Each Results view scrolls vertically while Overview, Graphs and Tables stay in place. Export and Filters are alongside the tabs.
 
 Combined workflows can have different internal time origins after excluding
 missing samples. The display aligns each workflow to the same source clock.

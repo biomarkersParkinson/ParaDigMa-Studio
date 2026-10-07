@@ -134,6 +134,12 @@ def smoke_test(report_path):
                     app.processEvents()
                     if [tab_bar.mapTo(window, tab_bar.tabRect(i).topLeft()) for i in range(3)] != positions:
                         raise RuntimeError("Results tabs move between views")
+                    if index == 1:
+                        window.canvas.draw()
+                        if (not window.time_axis.isVisible()
+                                or window.graph_scroll.isAncestorOf(window.time_axis)
+                                or not np.allclose(window.time_axis.axes.get_xlim(), window.figure.axes[0].get_xlim())):
+                            raise RuntimeError("Pinned recording time axis is missing or misaligned")
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("Result plot was not rendered")

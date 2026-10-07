@@ -14,8 +14,8 @@ Graphs supports checkboxes for multiple channels, Select all/Clear, stable disti
 
 Each graph has one inline **Graph settings** panel for title, axis labels,
 grid and legend. Expand **Axis limits** for manual bounds. Pan, zoom, reset
-view and figure saving stay on the toolbar; the two generic figure dialogs
-have been removed.
+view and figure saving stay on the toolbar. Saved figures retain their own time axis.
+The two generic figure dialogs have been removed.
 
 ![Integrated graph settings](screenshots/graph-settings.png)
 
@@ -42,12 +42,12 @@ do not replace the official aggregate values with selection statistics.
 
 Graphs and Tables contain classifications and quantifications only. The Plot
 series tree supports multiple modules and metrics simultaneously, with vertically
-aligned plots sharing recording date/time. Dates come from source timestamps or
+aligned plots sharing recording date/time. A pinned time axis stays at the bottom while graphs or filters scroll and follows pan, zoom and time selections. Dates come from source timestamps or
 metadata; files with only elapsed time can use a user-supplied time origin.
 Gait points are estimated within explicit segment boundaries and labeled as estimates.
 Plot series is the sole graph selector. Graphs use a consistent palette, subtle
 grids and shared bottom time labels; scrolling works over the graph canvas.
-Binary outputs use presence/absence marks at their observed timestamps.
+Binary outputs use larger presence/absence marks at their observed timestamps, narrow shaded bands and compact rows. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
 
 Filters contains only Time origin and From/Until. Calendar and clock selectors
 use the recording timezone when known. Recordings without dates use elapsed
@@ -90,7 +90,7 @@ upstream licence. Attribution files also accompany the executable.
 
 ## Compact layout
 
-The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Controls are integrated into each page, and settings persist while navigating.
+The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Navigation numbers, brand text and the left-aligned About button keep fixed positions throughout the animation; the subtitle stays on one line. Controls are integrated into each page, and settings persist while navigating.
 
 [Sidebar expanded on hover](screenshots/sidebar-expanded.png)
 

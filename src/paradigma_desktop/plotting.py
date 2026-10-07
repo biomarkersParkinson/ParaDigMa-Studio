@@ -13,6 +13,8 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
     """Qt canvas wheel events scroll the enclosing Results workspace."""
     scroll_area = None
     outer_scroll_area = None
+    pinned_time_axis = False
+    exporting_time_axis = False
     _wheel_remainder = 0.
 
     def wheelEvent(self, event):
@@ -32,6 +34,25 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
             event.accept()
         else:
             event.ignore()
+
+    def print_figure(self, *args, **kwargs):
+        # The workspace has a separate, pinned axis. Saved figures must remain
+        # self-contained and include that axis within the exported image.
+        if not self.pinned_time_axis or not self.figure.axes:
+            return super().print_figure(*args, **kwargs)
+        axis = self.figure.axes[-1]
+        self.exporting_time_axis = True
+        axis.tick_params(axis="x", labelbottom=True)
+        axis.xaxis.label.set_visible(True)
+        axis.xaxis.offsetText.set_visible(True)
+        try:
+            return super().print_figure(*args, **kwargs)
+        finally:
+            axis.tick_params(axis="x", labelbottom=False)
+            axis.xaxis.label.set_visible(False)
+            axis.xaxis.offsetText.set_visible(False)
+            self.exporting_time_axis = False
+            self.draw_idle()
 
 
 def binary_indicator(series, metric):
@@ -60,13 +81,13 @@ def plot_states(ax, xs, ys, color, *, label=None):
     xs, ys = time_coordinates(xs), np.asarray(ys, dtype=float)
     valid = np.isfinite(xs) & np.isfinite(ys) & np.isin(ys, [0., 1.])
     ax._paradigma_binary = True
-    ax.axhspan(-.25, .25, facecolor="#F0F3F7", edgecolor="none", zorder=0)
-    ax.axhspan(.75, 1.25, facecolor=color, alpha=.07, edgecolor="none", zorder=0)
+    ax.axhspan(-.11, .11, facecolor="#F0F3F7", edgecolor="none", zorder=0)
+    ax.axhspan(.89, 1.11, facecolor=color, alpha=.07, edgecolor="none", zorder=0)
     colors = np.where(ys[valid] == 1., color, "#9CAABC")
-    ax.scatter(xs[valid], ys[valid], c=colors, marker="s", s=30,
-               edgecolors="white", linewidths=.35, zorder=3, label=label, rasterized=len(xs) > 2000)
+    ax.scatter(xs[valid], ys[valid], c=colors, marker="s", s=np.where(ys[valid] == 1., 64, 48),
+               edgecolors="white", linewidths=.45, zorder=3, label=label, rasterized=len(xs) > 2000)
     ax.set_yticks([0., 1.], ["Absent · 0", "Present · 1"])
-    ax.set_ylim(-.5, 1.5)
+    ax.set_ylim(-.32, 1.32)
     ax.set_ylabel("")
     ax.grid(False, axis="y")
     ax.margins(x=.025)

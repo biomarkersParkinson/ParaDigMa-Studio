@@ -10,7 +10,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QDoubleSpinBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
@@ -39,9 +39,10 @@ from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
 )
-from .theme import STYLESHEET, light_palette, style_axes
+from .theme import STYLESHEET, light_palette, style_axes, module_color
 from .analysis_help import FIELD_HELP, SOURCE
 from .time_controls import TimeField
+from .time_axis import PinnedTimeAxis
 from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
 
 
@@ -157,18 +158,25 @@ class MainWindow(QMainWindow):
         shell.setSpacing(0)
         self.sidebar = HoverSidebar(root)
         self.sidebar.setObjectName("sidebar")
-        navigation = QVBoxLayout(self.sidebar)
+        navigation = QVBoxLayout(self.sidebar.content)
         navigation.setContentsMargins(12, 20, 12, 18)
         navigation.setSpacing(8)
         brand_row = QHBoxLayout()
         self.brand_icon = label()
         self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
+        self.brand_icon.setFixedSize(28, 28)
         self.brand_icon.setToolTip("ParaDigMa")
         brand_row.addWidget(self.brand_icon)
         self.brand = label("ParaDigMa", "brand")
+        self.brand.setWordWrap(False)
         brand_row.addWidget(self.brand, 1)
         navigation.addLayout(brand_row)
         self.brand_caption = label("SENSOR ANALYSIS", "muted")
+        self.brand_caption.setWordWrap(False)
+        for widget in (self.brand, self.brand_caption):
+            policy = widget.sizePolicy()
+            policy.setRetainSizeWhenHidden(True)
+            widget.setSizePolicy(policy)
         navigation.addWidget(self.brand_caption)
         navigation.addSpacing(24)
         self.nav_buttons = []
@@ -337,6 +345,7 @@ class MainWindow(QMainWindow):
         for name in ("Gait", "Tremor", "Pulse rate"):
             item = button(name)
             item.setObjectName("module")
+            item.setProperty("analysisModule", self.MODULES[name])
             item.setCheckable(True)
             self.module_buttons[name] = item
             modules.addWidget(item, 1)
@@ -456,7 +465,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.result_tabs, 1)
         self._result_view_layouts, self._result_view_scrolls = [], []
 
-        def view(title):
+        def view(title, pinned=False):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -466,7 +475,15 @@ class MainWindow(QMainWindow):
             body_layout.setSpacing(12)
             body_layout.setSizeConstraint(QLayout.SetMinimumSize)
             scroll.setWidget(body)
-            self.result_tabs.addTab(scroll, title)
+            if pinned:
+                self.graph_view = QWidget()
+                self.graph_view_layout = QVBoxLayout(self.graph_view)
+                self.graph_view_layout.setContentsMargins(0, 0, 0, 0)
+                self.graph_view_layout.setSpacing(0)
+                self.graph_view_layout.addWidget(scroll, 1)
+                self.result_tabs.addTab(self.graph_view, title)
+            else:
+                self.result_tabs.addTab(scroll, title)
             self._result_view_layouts.append(body_layout)
             self._result_view_scrolls.append(scroll)
             return scroll, body_layout
@@ -540,7 +557,7 @@ class MainWindow(QMainWindow):
         self.overview_layout.setContentsMargins(0, 0, 0, 0)
         self.overview_layout.setSpacing(16)
         overview_body.addWidget(self.overview_content, 1)
-        _, graph_body = view("Graphs")
+        _, graph_body = view("Graphs", pinned=True)
         graphs = QWidget()
         graph_layout = QHBoxLayout(graphs)
         self.result_series = QTreeWidget()
@@ -557,6 +574,7 @@ class MainWindow(QMainWindow):
         plots.setContentsMargins(0, 0, 0, 0)
         self.figure = Figure(layout="constrained")
         self.canvas = ScrollableFigureCanvas(self.figure)
+        self.canvas.pinned_time_axis = True
         self.plot_toolbar = add_graph_controls(plots, self.canvas, self)
         graph_scroll = QScrollArea()
         graph_scroll.setWidgetResizable(True)
@@ -567,8 +585,13 @@ class MainWindow(QMainWindow):
         plots.addWidget(graph_scroll, 1)
         graph_layout.addWidget(graph, 1)
         self.canvas.setToolTip("Click a point to select its detailed output row.")
-        graphs.setMinimumHeight(260)
+        graphs.setMinimumHeight(310)
+        self.graphs_workspace = graphs
         graph_body.addWidget(graphs, 1)
+        self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
+        self.graph_view_layout.addWidget(self.time_axis)
+        self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
+        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         _, table_body = view("Tables")
         self.result_table = table()
         self.result_table.setMinimumHeight(200)
@@ -851,6 +874,7 @@ class MainWindow(QMainWindow):
         self.hide_sensor_context()
         self.context_button.setEnabled(False)
         self.figure.clear()
+        self.time_axis.bind(None)
         self.canvas.draw_idle()
 
     def open_file(self):
@@ -994,8 +1018,9 @@ class MainWindow(QMainWindow):
             signals = [c for c in channels if c not in flags]
             groups = ([signals] if signals else []) + [[flag] for flag in flags]
             first_axes = None
+            grid = self.data_figure.add_gridspec(len(groups), 1, height_ratios=[.55 if group[0] in flags else 1 for group in groups])
             for index, group in enumerate(groups):
-                ax = style_axes(self.data_figure, position=(len(groups), 1, index + 1), sharex=first_axes)
+                ax = style_axes(self.data_figure, position=(grid[index],), sharex=first_axes)
                 if first_axes is None:
                     first_axes = ax
                 for channel in group:
@@ -1095,6 +1120,7 @@ class MainWindow(QMainWindow):
             if item.widget() is not None:
                 item.widget().deleteLater()
         self.overview_values = {}
+        self.overview_module_cards = {}
         results = self.results or {}
         if self.display_clock is not None:
             panel, content = card()
@@ -1111,7 +1137,11 @@ class MainWindow(QMainWindow):
             self.overview_layout.addWidget(label("Run an analysis to see module aggregates.", "muted"))
         for module in modules:
             panel, content = card()
-            content.addWidget(label(MODULE_NAMES.get(module, module.replace("_", " ").title()), "pageTitle"))
+            panel.setProperty("analysisModule", module)
+            self.overview_module_cards[module] = panel
+            heading = label(MODULE_NAMES.get(module, module.replace("_", " ").title()), "pageTitle")
+            heading.setProperty("analysisModule", module)
+            content.addWidget(heading)
             for error in results.get("errors", []):
                 if isinstance(error, dict) and (error.get("pipeline") == module or module in error.get("pipelines", [])):
                     content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
@@ -1165,6 +1195,7 @@ class MainWindow(QMainWindow):
             module = name.split("/")[1]
             if module not in roots:
                 root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, module.title())])
+                root.setForeground(0, QColor(module_color(module)))
                 root.setExpanded(True)
                 roots[module] = root
             stage = QTreeWidgetItem(roots[module], [output_label(name).split(" · ", 1)[-1]])
@@ -1409,14 +1440,19 @@ class MainWindow(QMainWindow):
     def plot(self, *_):
         self.figure.clear()
         chosen = self.selected_result_series()
-        self.canvas.setMinimumHeight(max(220, 190 * len(chosen)))
+        binaries = [binary_indicator(self.tables[name][metric], metric) for name, metric in chosen]
+        compact_states = bool(binaries) and all(binaries)
+        height = max(140 if compact_states else 220, sum(105 if binary else 190 for binary in binaries))
+        self.canvas.setMinimumHeight(height)
+        self.canvas.setMaximumHeight(height if compact_states else 16777215)
+        self.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
         if not chosen:
             ax = style_axes(self.figure)
             ax.text(.5, .5, "Select detailed metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
         first_axes = None
-        colors = {key: GRAPH_COLORS[index % len(GRAPH_COLORS)] for index, key in enumerate(self._series_items)}
+        grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.55 if binary else 1 for binary in binaries]) if chosen else None
         for index, (name, metric) in enumerate(chosen):
-            ax = style_axes(self.figure, position=(len(chosen), 1, index + 1), sharex=first_axes)
+            ax = style_axes(self.figure, position=(grid[index],), sharex=first_axes)
             if first_axes is None:
                 first_axes = ax
             ax._paradigma_dataset = name
@@ -1439,7 +1475,7 @@ class MainWindow(QMainWindow):
                 boundaries = np.flatnonzero(sample.file_key.ne(sample.file_key.shift()).fillna(True).to_numpy(dtype=bool))[1:]
                 xs, ys = np.insert(xs, boundaries, np.nan), np.insert(ys, boundaries, np.nan)
             if len(sample) and np.isfinite(xs).any():
-                color = colors[(name, metric)]
+                color = module_color(name.split("/")[1])
                 if binary:
                     plot_states(ax, xs, ys, color)
                 else:
@@ -1460,10 +1496,10 @@ class MainWindow(QMainWindow):
                 ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime("%d %b %Y %H:%M:%S")
             else:
                 ax.set_xlabel("Elapsed analysis time (s)")
-            bottom = index == len(chosen) - 1
-            ax.tick_params(axis="x", labelbottom=bottom)
-            ax.xaxis.label.set_visible(bottom)
-            ax.xaxis.offsetText.set_visible(bottom)
+            ax.tick_params(axis="x", labelbottom=False)
+            ax.xaxis.label.set_visible(False)
+            ax.xaxis.offsetText.set_visible(False)
+        self.time_axis.bind(first_axes)
         self.plot_toolbar.refresh()
         self.canvas.draw_idle()
 
@@ -1523,7 +1559,8 @@ class MainWindow(QMainWindow):
             if self.result_timeline is None:
                 self.result_timeline = source_timeline(self.result_source_frame, self.provenance.get("settings", {}))
             selected = self.active_frame.iloc[row]
-            module = self.dataset.currentText().split("/")[1]
+            parts = self.dataset.currentText().split("/")
+            module = parts[1] if len(parts) > 1 else ""
             module_timeline = self._source_timelines.get(module, self.result_timeline)
             segment = gait_context(self.results, self.dataset.currentText(), selected)
             if "time" in selected and pd.notna(selected["time"]):
@@ -1564,13 +1601,15 @@ class MainWindow(QMainWindow):
         ax = style_axes(self.sensor_figure)
         column = self.sensor_channel.currentData()
         if self.sensor_frame is not None and column in self.sensor_frame and len(self.sensor_frame):
+            module = self.dataset.currentText().split("/")[1]
+            color = module_color(module)
             step = max(1, int(np.ceil(len(self.sensor_frame) / 20000)))
             xs = clock_times(self.sensor_times[::step], self.display_clock)
             if binary_indicator(self.sensor_frame[column], column):
-                plot_states(ax, clock_times(self.sensor_times, self.display_clock), self.sensor_frame[column].to_numpy(dtype=float, na_value=np.nan), GRAPH_COLORS[1])
+                plot_states(ax, clock_times(self.sensor_times, self.display_clock), self.sensor_frame[column].to_numpy(dtype=float, na_value=np.nan), color)
                 ax.set_title(str(column), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
             else:
-                plot_signal(ax, xs, self.sensor_frame[column].iloc[::step], GRAPH_COLORS[1])
+                plot_signal(ax, xs, self.sensor_frame[column].iloc[::step], color)
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
