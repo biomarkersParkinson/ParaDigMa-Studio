@@ -70,6 +70,10 @@ Comparisons cover:
 - Exact row counts, order, column names, timestamps and missing-value masks.
 - Real-result Qt filters, scientific table values and plotted measurements, plus
   independently derived gait display positions and unchanged official aggregate cards.
+- Checked-tremor ticks at exactly the positive official timestamps; plotted
+  counts and checked/resting-window ratios reconcile with the official percentage.
+  Raw classification/quantification tables preserve all original columns; aggregate
+  tables retain full-run values when the detailed time selection changes.
 - JSON export/reopening and CSV exports, including missing tremor measurements.
 
 Discrete labels, identifiers and time columns must match exactly. Other floating

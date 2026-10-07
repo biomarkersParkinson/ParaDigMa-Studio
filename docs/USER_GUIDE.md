@@ -39,7 +39,10 @@ If one fails, the other workflow's successful outputs remain available, and fail
   values from analysis. Counts are logged and recorded in exported metadata.
   Uncheck it for strict rejection. Invalid timestamps still require correction.
 - **Split recordings at time gaps** runs continuous sections independently. The
-  default maximum gap and minimum section duration are both 1.5 seconds.
+  switch defaults to off, matching ParaDigMa. Maximum gap and minimum section
+  duration both default to 1.5 seconds, matching its preparation defaults.
+  Each **Default** button restores its field even when splitting or conversion
+  is disabled. Maximum gap is an interval between samples, not a feature window.
   Outputs identify multiple sections using `file_key`.
 
 The source recording remains unchanged. Difference-based time preserves elapsed
@@ -72,7 +75,12 @@ in module cards. Gait metadata is summarized by branch: segment count and total,
 median, IQR and range of segment durations. Individual segment records stay out
 of Overview. Detail filters do not recompute or alter official aggregates.
 
-Results **Graphs** and **Tables** contain only classifications and quantifications.
+Results **Graphs** contain classifications and quantifications. **Tables** has
+separate Classification, Quantification and Aggregation views. Choose the module
+or branch in **Output table**. Classification and quantification tables show the
+original columns and values by default. Aggregation dictionaries appear as ordered
+**measure/value** tables with their original keys and values. These aggregates
+always cover the full run, regardless of the graph/table time filter.
 Check **Plot series** to compare metrics from several modules on vertically aligned
 plots with a shared time axis. Different quantities keep their own vertical scales.
 The Plot series tree is the graph selector; choose a detailed output separately
@@ -95,14 +103,16 @@ metrics. A recording-time axis stays fixed below the graphs while either scrolli
 
 Combined workflows can have different internal time origins after excluding
 missing samples. The display aligns each workflow to the same source clock.
-**Analysis time (s)** retains the original module time; **Timeline time (s)** appears
-when alignment offsets are needed. CSV includes these display annotations, and
+Enable **Timing details** to add display-only annotations: **Analysis time (s)**
+retains the original module time; **Timeline time (s)** appears when alignment
+offsets are needed. CSV follows the visible table, including annotations only
+when enabled. Aggregation CSV exports the selected full-run aggregate table, and
 JSON preserves the offsets so reopened results use the same dates.
 
 Gait arm-swing measurements lack individual timestamps. Their display positions
 are evenly spaced bin midpoints within each official segment's start/end interval,
 computed before filtering. They are labeled **Estimated within gait segment** and
-drawn as points. Tables show their time basis and segment boundaries. Missing or
+drawn as points. **Timing details** adds their time basis and segment boundaries to tables. Missing or
 invalid segment metadata leaves timing unavailable; sample positions are not used
 as invented time labels. Scientific outputs and aggregate calculations are unchanged.
 
@@ -120,11 +130,19 @@ want to edit. Shared horizontal limits, grid and legend settings apply across
 plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
 
 Continuous plots display at most 20,000 samples per series for responsiveness.
-Binary indicators show **Present · 1** only, with square marks at every positive
+Binary indicators show **Present · 1** only, with slim ticks at every positive
 output timestamp. Zero and missing states stay blank; no durations or transitions
 are inferred. These indicators are not subsampled, so isolated detections remain
 visible. The full selected time range stays visible, including selections without
 detections. Tables and exports retain all selected rows, including zero and missing states.
+The ticks denote output timestamps, not continuous coverage or proportional duration;
+there is no full-width shaded band suggesting presence between detections.
+For `pred_tremor_checked`, the plot shows checked/resting-window counts and the
+percentage for the current selection. ParaDigMa's `perc_windows_tremor` is
+`100 × checked tremor windows / resting-or-stable windows`, not a percentage
+of all recording windows. The Overview and Aggregation table retain its full-run
+value. `pred_tremor_logreg` is the earlier classifier label, before the extra
+frequency and arm-rest checks.
 Result lines do not join separate sections;
 multiple participants display as points. Filtered and unfiltered gait outputs
 remain separate datasets.

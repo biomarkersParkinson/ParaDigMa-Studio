@@ -25,17 +25,18 @@ A verified signing identity must be configured before the signed workflow can pr
    field's **i** button for guidance, then click **Run Analysis**.
 3. **Results:** Overview shows module aggregates and metadata. Graphs compares
    selected metrics from multiple modules across recording time; Tables shows
-   detailed classifications and measurements using the same filters.
+   original classification, quantification and aggregation outputs separately.
    Choose metrics in **Plot series** and dates/times in **Filters**.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
 4. **Runs:** Review parameters, warnings, logs and export locations.
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
-Keep preparation enabled for raw recordings. Missing-sample exclusion and gap
-splitting are enabled by default; the original file is unchanged.
+Keep preparation enabled for raw recordings. Missing-sample exclusion is a desktop
+option enabled by default. Gap splitting defaults to off, matching ParaDigMa;
+its thresholds are 1.5 seconds, with **Default** buttons to restore them.
 
-Export selected rows as **CSV**, or all results and analysis settings as **JSON**.
+Export the visible table as **CSV**, or all results and analysis settings as **JSON**.
 Export JSON to reopen results after restarting. Run history alone does not save
 full result tables. [See the workspace screenshots](docs/WORKSPACE.md).
 
@@ -76,5 +77,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.3.7**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.3.8**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

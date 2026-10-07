@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
     QScrollArea, QSplitter, QStackedWidget, QListView,
-    QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
+    QTabBar, QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
 )
 from .plot_cache import configure_plot_cache
 
@@ -37,11 +37,11 @@ from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time
 from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
 from .results_view import (
-    MODULE_NAMES, clock_times, clock_origin, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
+    MODULE_NAMES, clock_times, clock_origin, aggregation_tables, detail_tables, detail_timing, flat_values, analysis_alignment,
+    output_label, plot_metrics, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key, tremor_window_counts,
 )
 from .theme import STYLESHEET, light_palette, style_axes, module_color
-from .analysis_help import FIELD_HELP, SOURCE
+from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis
 from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
         self.frame = self.results = self.worker = None
         self.source = ""
         self.tables, self.provenance = {}, {}
+        self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
         self._result_selection_artists = []
         self.display_clock = None
@@ -133,6 +134,7 @@ class MainWindow(QMainWindow):
         self.refresh_runs()
         self.navigate(0)
         self.build_result_overview()
+        self.sync_table_outputs()
         self.plot()
         if history_issues:
             self.show_notice("\n".join(history_issues))
@@ -379,22 +381,37 @@ class MainWindow(QMainWindow):
             self.analysis_field(title, widget, form=left)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
-        self.gaps.setChecked(True)
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(True)
-        for title, widget in (("Already prepared", self.prepared),
-                              ("Split recordings at time gaps", self.gaps),
-                              ("Exclude missing sensor samples", self.drop_missing)):
+        for widget in (self.prepared, self.gaps, self.drop_missing):
             widget.setPalette(light_palette())
-            right.addRow(self.analysis_field(title, widget, inline=True))
+        right.addRow(self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True))
+        self.segmentation_controls = QWidget()
+        sections = QFormLayout(self.segmentation_controls)
+        sections.setContentsMargins(0, 0, 0, 0)
+        sections.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        sections.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        sections.setSpacing(14)
+        sections.addRow(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True))
         self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
-        for widget in (self.max_gap, self.min_segment):
+        self.section_reset_buttons = {}
+        for title, widget, default in (("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),
+                                        ("Minimum section duration", self.min_segment, DEFAULT_MIN_SECTION_SECONDS)):
             widget.setRange(0.01, 86400)
-            widget.setValue(1.5)
+            widget.setValue(default)
             widget.setSuffix(" s")
             widget.setDecimals(2)
-        self.analysis_field("Maximum gap", self.max_gap, form=right)
-        self.analysis_field("Minimum section duration", self.min_segment, form=right)
+            widget.setAccessibleName(title)
+            reset = button("Default", lambda checked=False, spin=widget, value=default: spin.setValue(value))
+            reset.setAccessibleName(f"Reset {title.lower()} to the official default")
+            self.section_reset_buttons[title] = reset
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(widget, 1)
+            row_layout.addWidget(reset)
+            sections.addRow(self.analysis_field(title, row, inline=False))
+        right.addRow(self.segmentation_controls)
         columns.addLayout(left, 1)
         columns.addLayout(right, 1)
         parameters.addLayout(columns)
@@ -402,6 +419,7 @@ class MainWindow(QMainWindow):
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
         self.mapping.setFixedHeight(70)
         parameters.addWidget(self.analysis_field("Column mapping (JSON)", self.mapping))
+        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         controls.addWidget(self.settings_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
@@ -517,9 +535,15 @@ class MainWindow(QMainWindow):
         settings = QHBoxLayout()
         self.table_actions_layout = settings
         self.dataset = self.combo()
-        self.dataset.setMinimumWidth(180)
-        self.dataset_field = field("Detailed output", self.dataset)
+        self.dataset.setParent(self.detail_controls)
+        self.dataset.hide()  # Linked graph/table state; the visible selector is scoped by output type.
+        self.table_dataset = self.combo()
+        self.table_dataset.setMinimumWidth(180)
+        self.dataset_field = field("Output table", self.table_dataset)
         settings.addWidget(self.dataset_field, 2)
+        self.timing_toggle = QCheckBox("Timing details")
+        self.timing_toggle.setToolTip("Add display-only dates and gait timing estimates; original output columns stay unchanged.")
+        settings.addWidget(self.timing_toggle)
         self.y_column = self.combo()
         # Kept as internal metric state for linked table/graph inspection.
         # Plot series is the user-facing metric selector.
@@ -555,6 +579,12 @@ class MainWindow(QMainWindow):
         self.filters_panel.hide()
         self.selection_note = label("No detailed output", "muted")
         controls_layout.addWidget(self.selection_note)
+        self.table_output_tabs = QTabBar()
+        self.table_output_tabs.setExpanding(False)
+        for title in ("Classification", "Quantification", "Aggregation"):
+            self.table_output_tabs.addTab(title)
+        self.table_output_tabs.setCurrentIndex(1)
+        controls_layout.insertWidget(0, self.table_output_tabs)
         self.overview_scroll, overview_body = view("Overview")
         self.overview_content = QWidget()
         self.overview_layout = QVBoxLayout(self.overview_content)
@@ -606,7 +636,11 @@ class MainWindow(QMainWindow):
         _, table_body = view("Tables")
         self.result_table = table()
         self.result_table.setMinimumHeight(200)
-        table_body.addWidget(self.result_table, 1)
+        self.aggregation_table = table()
+        self.table_stack = QStackedWidget()
+        self.table_stack.addWidget(self.result_table)
+        self.table_stack.addWidget(self.aggregation_table)
+        table_body.addWidget(self.table_stack, 1)
         self.sensor_panel, sensor_layout = card()
         self.sensor_note = label("", "muted")
         sensor_header = QHBoxLayout()
@@ -704,6 +738,9 @@ class MainWindow(QMainWindow):
         self.time.currentTextChanged.connect(self.data_time_unit.setCurrentText)
         self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
         self.dataset.currentTextChanged.connect(self.select_dataset)
+        self.table_dataset.currentTextChanged.connect(self.select_output_table)
+        self.table_output_tabs.currentChanged.connect(self.table_output_changed)
+        self.timing_toggle.toggled.connect(self.table_timing_changed)
         self.y_column.currentIndexChanged.connect(self.update_metric)
         self.result_series.itemChanged.connect(self.plot)
         self.result_series.currentItemChanged.connect(self.select_plot_series)
@@ -805,7 +842,7 @@ class MainWindow(QMainWindow):
         self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
-        self.csv_button.setEnabled(self.active_frame is not None)
+        self.csv_button.setEnabled(self.selected_export_table()[1] is not None)
         self.progress.hide()
         if worker is not None:
             worker.deleteLater()
@@ -874,12 +911,15 @@ class MainWindow(QMainWindow):
         self._source_timelines, self._display_offsets = {}, {}
         self.clock_input.clear()
         self.tables = {}
+        self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
         self.result_series.blockSignals(True)
         self.result_series.clear()
         self.result_series.blockSignals(False)
         self.dataset.clear()
         self.result_table.setModel(None)
+        self.aggregation_table.setModel(None)
+        self.sync_table_outputs()
         self.build_result_overview()
         self.export_button.setEnabled(False)
         self.csv_button.setEnabled(False)
@@ -1120,14 +1160,85 @@ class MainWindow(QMainWindow):
         actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
         actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
         self.results_scroll = self._result_view_scrolls[index]
-        detailed = index in (1, 2)
+        aggregation = index == 2 and self.table_output_tabs.currentIndex() == 2
+        detailed = index in (1, 2) and not aggregation
         self.results_header.show()
         self.detail_controls.setVisible(index == 2 or index == 1 and self.filters_toggle.isChecked())
         self.filters_toggle.setVisible(detailed)
-        self.csv_button.setVisible(detailed)
+        self.filters_panel.setVisible(detailed and self.filters_toggle.isChecked())
+        self.csv_button.setVisible(index in (1, 2))
         self.context_controls.setVisible(detailed)
         self.dataset_field.setVisible(index == 2)
+        self.table_output_tabs.setVisible(index == 2)
+        self.timing_toggle.setVisible(index == 2 and not aggregation)
         self.selection_note.setVisible(index == 2)
+        self.csv_button.setEnabled(self.worker is None and self.selected_export_table()[1] is not None)
+
+    def sync_table_outputs(self, force_detail=False):
+        prefixes = ("classifications/", "quantifications/", "aggregations/")
+        choices = [any(name.startswith(prefix) for name in (*self.tables, *self.aggregation_tables))
+                   for prefix in prefixes]
+        index = self.table_output_tabs.currentIndex()
+        name = self.dataset.currentText()
+        if force_detail and name in self.tables:
+            index = 0 if name.startswith(prefixes[0]) else 1
+            self._table_choices[index] = name
+        elif index < 0 or not choices[index]:
+            index = next((i for i in (1, 0, 2) if choices[i]), 1)
+        previous = self.table_output_tabs.blockSignals(True)
+        for i, enabled in enumerate(choices):
+            self.table_output_tabs.setTabEnabled(i, enabled)
+        self.table_output_tabs.setCurrentIndex(index)
+        self.table_output_tabs.blockSignals(previous)
+        self.table_output_changed(index)
+
+    def table_output_changed(self, index):
+        if index < 0:
+            return
+        prefix = ("classifications/", "quantifications/", "aggregations/")[index]
+        tables = self.aggregation_tables if index == 2 else self.tables
+        names = [name for name in tables if name.startswith(prefix)]
+        preferred = self._table_choices.get(index, self.dataset.currentText())
+        previous = self.table_dataset.blockSignals(True)
+        self.table_dataset.clear()
+        self.table_dataset.addItems(names)
+        if preferred in names:
+            self.table_dataset.setCurrentText(preferred)
+        self.table_dataset.blockSignals(previous)
+        self.select_output_table(self.table_dataset.currentText())
+
+    def select_output_table(self, name):
+        index = self.table_output_tabs.currentIndex()
+        self._table_choices[index] = name
+        if index == 2:
+            frame = self.aggregation_tables.get(name)
+            self.aggregation_table.setModel(FrameModel(frame) if frame is not None else None)
+            self.table_stack.setCurrentIndex(1)
+            self.selection_note.setText("Full-run aggregates" if frame is not None else "No aggregation outputs")
+        else:
+            self.table_stack.setCurrentIndex(0)
+            if name in self.tables and name != self.dataset.currentText():
+                self.dataset.setCurrentText(name)
+            elif self.active_frame is None:
+                self.result_table.setModel(None)
+                self.selection_note.setText("No outputs for this category")
+            else:
+                self.update_detail_note()
+        self.results_tab_changed(self.result_tabs.currentIndex())
+
+    def table_timing_changed(self, _checked):
+        row = self.result_table.currentIndex().row()
+        self.refresh_detail_table()
+        if row >= 0 and self.active_frame is not None and row < len(self.active_frame):
+            self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
+            self.result_table.selectRow(row)
+        self.highlight_result_row()
+
+    def selected_export_table(self):
+        if self.result_tabs.currentIndex() == 2 and self.table_output_tabs.currentIndex() == 2:
+            name = self.table_dataset.currentText()
+            return name, self.aggregation_tables.get(name)
+        return self.dataset.currentText(), getattr(self, "display_frame", None)
 
     def build_result_overview(self):
         while self.overview_layout.count():
@@ -1178,6 +1289,9 @@ class MainWindow(QMainWindow):
                     box, inside = card()
                     title = " · ".join(readable_key(part) for part in path) or "Value"
                     box.setToolTip(" / ".join(path))
+                    if module == "tremor" and path == ("perc_windows_tremor",):
+                        box.setToolTip("Checked tremor-positive windows ÷ resting/stable windows × 100. "
+                                       "This full-run aggregate is not recalculated by graph/table time filters.")
                     inside.addWidget(label(title, "muted"))
                     if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
                         text = "—"
@@ -1274,6 +1388,7 @@ class MainWindow(QMainWindow):
         self.time_to.clear()
         self._detail_selections = {}
         self.tables = detail_tables(results)
+        self.aggregation_tables = aggregation_tables(results)
         self._timings = {name: detail_timing(results, name, frame) for name, frame in self.tables.items()}
         for name, timing in self._timings.items():
             timing["Timeline time (s)"] = timing["Analysis time (s)"] + self._display_offsets.get(name.split("/")[1], 0.)
@@ -1296,6 +1411,7 @@ class MainWindow(QMainWindow):
             self.dataset.setCurrentText(preferred)
         self.dataset.blockSignals(False)
         self.select_dataset(self.dataset.currentText())
+        self.sync_table_outputs()
         self.export_button.setEnabled(self.worker is None)
         errors = results.get("errors", [])
         if errors:
@@ -1342,6 +1458,7 @@ class MainWindow(QMainWindow):
                 self.y_column.setCurrentIndex(self.y_column.findData(preferred))
         self.y_column.blockSignals(False)
         self.apply_filters()
+        self.sync_table_outputs(force_detail=True)
         if self.result_tabs.currentIndex() != 1 and not any(dataset == name for dataset, metric in self.selected_result_series()):
             item = self._series_items.get((name, self.y_column.currentData()))
             if item is not None:
@@ -1413,28 +1530,39 @@ class MainWindow(QMainWindow):
             return
         name = self.dataset.currentText()
         view = frame.copy()
-        timing = self._timings[name].iloc[self.active_positions]
-        fields = {"Analysis time (s)": timing["Analysis time (s)"].to_numpy(),
-                  "Time basis": timing["Time basis"].to_numpy()}
-        if any(offset != 0. for offset in self._display_offsets.values()):
-            fields = {"Timeline time (s)": timing["Timeline time (s)"].to_numpy(), **fields}
-        if self.display_clock is not None:
-            fields = {"Recording date/time": clock_times(timing["Timeline time (s)"].to_numpy(), self.display_clock), **fields}
-        if name.startswith("quantifications/gait/"):
-            fields.update({"Segment start (s)": timing["Segment start (s)"].to_numpy(),
-                           "Segment end (s)": timing["Segment end (s)"].to_numpy()})
-        for key, values in reversed(list(fields.items())):
-            field_name = key if key not in view else f"Display · {key}"
-            view.insert(0, field_name, values)
+        if self.timing_toggle.isChecked():
+            timing = self._timings[name].iloc[self.active_positions]
+            fields = {"Analysis time (s)": timing["Analysis time (s)"].to_numpy(),
+                      "Time basis": timing["Time basis"].to_numpy()}
+            if any(offset != 0. for offset in self._display_offsets.values()):
+                fields = {"Timeline time (s)": timing["Timeline time (s)"].to_numpy(), **fields}
+            if self.display_clock is not None:
+                fields = {"Recording date/time": clock_times(timing["Timeline time (s)"].to_numpy(), self.display_clock), **fields}
+            if name.startswith("quantifications/gait/"):
+                fields.update({"Segment start (s)": timing["Segment start (s)"].to_numpy(),
+                               "Segment end (s)": timing["Segment end (s)"].to_numpy()})
+            for key, values in reversed(list(fields.items())):
+                field_name = key if key not in view else f"Display · {key}"
+                view.insert(0, field_name, values)
         self.display_frame = view
         self.result_table.setModel(FrameModel(view))
         self.result_table.selectionModel().currentRowChanged.connect(self.result_row_changed)
-        self.csv_button.setEnabled(self.worker is None)
+        self.csv_button.setEnabled(self.worker is None and self.selected_export_table()[1] is not None)
+        self.update_detail_note()
+
+    def update_detail_note(self):
+        name, frame = self.dataset.currentText(), self.active_frame
+        if frame is None:
+            return
         clock_note = (f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
                       if self.display_clock else "Elapsed time · Set a time origin in Filters to display dates")
         estimated = name.startswith("quantifications/gait/") and "time" not in frame
         self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows · {clock_note}"
                                     + (" · Gait positions estimated within segments" if estimated else ""))
+        if not self.timing_toggle.isChecked():
+            self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows")
+        if self.table_output_tabs.currentIndex() == 2:
+            self.selection_note.setText("Full-run aggregates")
 
     def reset_filters(self):
         self.time_from.clear()
@@ -1495,6 +1623,13 @@ class MainWindow(QMainWindow):
                 color = module_color(name.split("/")[1])
                 if binary:
                     plot_states(ax, xs, ys, color)
+                    counts = tremor_window_counts(selected) if metric == "pred_tremor_checked" else None
+                    if counts is not None:
+                        numerator, denominator, percentage = counts
+                        text = f"{numerator:,} / {denominator:,} resting windows"
+                        text += f" · {percentage:.2f}%" if percentage is not None else " · No resting windows"
+                        ax.text(.01, .95, text + " · Selection", transform=ax.transAxes, va="top",
+                                fontsize=8.5, color="#465B73")
                 else:
                     plot_signal(ax, xs, ys, color, points_only=points_only, sparse=len(sample) < 120)
             else:
@@ -1598,6 +1733,7 @@ class MainWindow(QMainWindow):
         if self.display_clock is not None:
             anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"])))*86400
         self.dataset.setCurrentText(name)
+        self.sync_table_outputs(force_detail=True)
         metric = getattr(event.inaxes, "_paradigma_metric", None)
         if metric is not None:
             self.y_column.blockSignals(True)
@@ -1778,17 +1914,20 @@ class MainWindow(QMainWindow):
         self.prepared.setChecked(settings.get("skip_preparation", False))
         self.gaps.setChecked(settings.get("split_by_gaps", False))
         self.drop_missing.setChecked(settings.get("drop_missing_samples", False))
-        self.max_gap.setValue(settings.get("max_gap_seconds", 1.5) or 1.5)
-        self.min_segment.setValue(settings.get("min_segment_seconds", 1.5) or 1.5)
+        self.max_gap.setValue(settings.get("max_gap_seconds", DEFAULT_MAX_GAP_SECONDS) or DEFAULT_MAX_GAP_SECONDS)
+        self.min_segment.setValue(settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS) or DEFAULT_MIN_SECTION_SECONDS)
         self.preparation_changed()
         self.navigate(1)
         self.status.setText("Run parameters restored. Check the selected input before running.")
 
     def record_output(self, path, kind):
         if self.current_run is not None:
-            self.current_run["outputs"].append({"kind": kind, "path": str(Path(path).resolve()), "saved": now(), "dataset": self.dataset.currentText() if kind == "CSV" else "all results"})
+            name, frame = self.selected_export_table()
+            self.current_run["outputs"].append({"kind": kind, "path": str(Path(path).resolve()), "saved": now(), "dataset": name if kind == "CSV" else "all results"})
             if kind == "CSV":
-                self.current_run["outputs"][-1].update(selected_rows=len(self.active_frame), selection=self.active_selection)
+                aggregation = name.startswith("aggregations/")
+                self.current_run["outputs"][-1].update(selected_rows=len(frame),
+                    selection={"scope": "Full run"} if aggregation else self.active_selection)
             self.persist_run(self.current_run)
             self.refresh_runs()
 
@@ -1805,14 +1944,15 @@ class MainWindow(QMainWindow):
                 self.failure(str(exc))
 
     def export_csv(self):
-        if self.active_frame is None or self.worker is not None:
+        name, frame = self.selected_export_table()
+        if frame is None or self.worker is not None:
             return
         path, _ = QFileDialog.getSaveFileName(self, "Export selected rows", "output.csv", "CSV (*.csv)")
         if path:
             try:
-                export_table_csv(path, self.display_frame, source=self.provenance.get("source", self.source), protected_sources=[self.source])
+                export_table_csv(path, frame, source=self.provenance.get("source", self.source), protected_sources=[self.source])
                 self.record_output(path, "CSV")
-                self.status.setText(f"{len(self.active_frame):,} selected rows exported to {path}")
+                self.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
             except Exception as exc:
                 self.failure(str(exc))
 

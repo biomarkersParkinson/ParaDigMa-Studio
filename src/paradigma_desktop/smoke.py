@@ -117,12 +117,20 @@ def smoke_test(report_path):
                     raise RuntimeError("Analysis parameters are not integrated into Analyze")
                 if not window.pages.widget(2).isAncestorOf(window.y_column):
                     raise RuntimeError("Result controls are not integrated into Results")
+                if window.gaps.isChecked() or window.max_gap.value() != 1.5 or window.min_segment.value() != 1.5:
+                    raise RuntimeError("Gap controls differ from the pinned official defaults")
+                for title, spin in (("Maximum gap", window.max_gap), ("Minimum section duration", window.min_segment)):
+                    spin.setValue(12)
+                    window.section_reset_buttons[title].click()
+                    if spin.value() != 1.5:
+                        raise RuntimeError("The official section default could not be restored")
                 window.analyzed(results)
                 if results["classifications"]["tremor"].empty or not window.overview_values:
                     raise RuntimeError("Official classification retention or aggregate overview failed")
                 if window.pages.currentIndex() != 2:
                     raise RuntimeError("Completed analysis did not open the Results workspace")
                 window.dataset.setCurrentText("quantifications/tremor")
+                pd.testing.assert_frame_equal(window.result_table.model().frame, quantified, check_exact=True)
                 window.show()
                 app.processEvents()
                 if window.about_button.text() != "About" or not window.sidebar.isAncestorOf(window.about_button):
@@ -163,6 +171,8 @@ def smoke_test(report_path):
                 present = classification[state].to_numpy(dtype=float) == 1.
                 if state_axes.lines or not np.array_equal(state_axes.collections[0].get_offsets()[:, 1], classification[state].to_numpy()[present]):
                     raise RuntimeError("Binary output did not show only positive detections")
+                if state_axes.patches:
+                    raise RuntimeError("Binary graph background implies continuous detection")
                 window.result_tabs.setCurrentIndex(1)
                 if not window.dataset_field.isHidden() or not window.y_column.isHidden():
                     raise RuntimeError("Graphs still have redundant output/metric selectors")
@@ -178,6 +188,15 @@ def smoke_test(report_path):
                     raise RuntimeError("The selected result time is not marked in the graph and pinned axis")
                 if not window.clock_input.calendar.calendarPopup():
                     raise RuntimeError("The recording time origin has no calendar selector")
+                window.result_tabs.setCurrentIndex(2)
+                window.table_output_tabs.setCurrentIndex(0)
+                window.table_dataset.setCurrentText("classifications/tremor")
+                pd.testing.assert_frame_equal(window.result_table.model().frame, classification, check_exact=True)
+                window.table_output_tabs.setCurrentIndex(2)
+                window.table_dataset.setCurrentText("aggregations/tremor")
+                aggregates = window.aggregation_table.model().frame.set_index("measure")["value"].to_dict()
+                if aggregates != results["aggregations"]["tremor"] or not window.filters_toggle.isHidden():
+                    raise RuntimeError("The separate full-run aggregation table differs from official output")
                 window.result_tabs.setCurrentIndex(0)
                 export = directory / "results.json"
                 export_results(export, results, {"source": source.name})
@@ -286,6 +305,9 @@ def smoke_test(report_path):
                               inline_analysis_help_verified=True,
                               paradigma_acknowledgement_verified=True,
                               aggregate_overview_verified=True,
+                              original_output_tables_verified=True,
+                              aggregation_tables_verified=True,
+                              official_gap_defaults_verified=True,
                               absolute_recording_clock_verified=True,
                               estimated_gait_positions_verified=True,
                               linked_result_selection_verified=True,

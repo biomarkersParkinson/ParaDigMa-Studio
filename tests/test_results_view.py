@@ -15,13 +15,14 @@ from paradigma_desktop.app import MainWindow
 from paradigma_desktop.core import export_results
 from paradigma_desktop.history import load_result_export
 from paradigma_desktop.results_view import (
-    analysis_alignment, clock_times, detail_tables, detail_timing, normalise_clock, recording_clock,
+    aggregation_tables, analysis_alignment, clock_times, detail_tables, detail_timing, normalise_clock, recording_clock,
     segment_summary, time_bound,
 )
 
 
 @pytest.mark.parametrize("missing", ["green", "gyroscope_x"])
 def test_independent_module_origins_align_to_source_clock_and_survive_reopening(window, tmp_path, missing):
+    window.timing_toggle.setChecked(True)
     start = pd.Timestamp("2026-10-07T10:00:00Z")
     raw = pd.DataFrame({"time": start.timestamp() + np.arange(10), "green": np.ones(10),
                        **{f"{sensor}_{axis}": np.ones(10) for sensor in ("accelerometer", "gyroscope") for axis in "xyz"}})
@@ -122,7 +123,71 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
             pd.testing.assert_frame_equal(table["unfiltered"], original["quantifications"][module]["unfiltered"])
 
 
+def test_tables_separate_original_outputs_and_export_full_run_aggregates(window, results, tmp_path, monkeypatch):
+    original = deepcopy(results)
+    setup(window, results)
+    window.show()
+    window.result_tabs.setCurrentIndex(2)
+    assert [window.table_output_tabs.tabText(i) for i in range(3)] == ["Classification", "Quantification", "Aggregation"]
+    assert not window.timing_toggle.isChecked()
+    assert window.table_output_tabs.currentIndex() == 1
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"])
+    window.table_output_tabs.setCurrentIndex(0)
+    assert all(window.table_dataset.itemText(i).startswith("classifications/") for i in range(window.table_dataset.count()))
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"])
+    window.time_from.setText("8"); window.apply_filters()
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"].iloc[2:])
+    window.table_output_tabs.setCurrentIndex(2)
+    window.table_dataset.setCurrentText("aggregations/tremor")
+    assert window.table_stack.currentWidget() is window.aggregation_table
+    expected = pd.DataFrame({"measure": ["tremor_time_percent"], "value": pd.Series([42.], dtype=object)})
+    pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
+    assert window.filters_toggle.isHidden() and window.filters_panel.isHidden()
+    assert window.context_controls.isHidden() and window.timing_toggle.isHidden()
+    assert window.csv_button.isEnabled() and window.csv_button.isVisible()
+    path = tmp_path / "aggregates.csv"
+    from paradigma_desktop import app as desktop
+    monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+    window.export_csv()
+    pd.testing.assert_frame_equal(pd.read_csv(path), expected.astype({"value": float}))
+    window.table_output_tabs.setCurrentIndex(1)
+    assert window.table_dataset.currentText() == "quantifications/gait/unfiltered"
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"].iloc[2:])
+    for category in ("classifications", "quantifications"):
+        for name, frame in results[category].items():
+            if isinstance(frame, pd.DataFrame):
+                pd.testing.assert_frame_equal(frame, original[category][name])
+    assert results["aggregations"] == original["aggregations"]
+
+
+def test_optional_timing_columns_preserve_original_data_and_linked_selection(window, results):
+    setup(window, results)
+    window.result_table.setCurrentIndex(window.result_table.model().index(1, 0))
+    assert window.context_button.isEnabled()
+    window.timing_toggle.setChecked(True)
+    frame = window.result_table.model().frame
+    assert frame["Time basis"].eq("Estimated within gait segment").all()
+    pd.testing.assert_frame_equal(frame[results["quantifications"]["gait"]["unfiltered"].columns],
+                                  results["quantifications"]["gait"]["unfiltered"])
+    assert window.result_table.currentIndex().row() == 1 and window.context_button.isEnabled()
+    window.timing_toggle.setChecked(False)
+    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"])
+    assert window.result_table.currentIndex().row() == 1
+    assert window.time_axis.selection_marker.get_visible()
+
+
+def test_aggregate_tables_preserve_large_integer_precision_empty_branches_and_key_order():
+    values = {"count": 2**60 + 1, "percent": 1.25, "missing": None, "not_finite": float("nan")}
+    tables = aggregation_tables({"aggregations": {"gait": {"unfiltered": {"all": values}, "filtered": {}}}})
+    frame = tables["aggregations/gait/unfiltered/all"]
+    assert frame.measure.tolist() == list(values)
+    assert isinstance(frame.value.iloc[0], int) and frame.value.iloc[0] == 2**60 + 1
+    assert frame.value.iloc[2] is None and np.isnan(frame.value.iloc[3])
+    assert tables["aggregations/gait/filtered"].empty
+
+
 def test_multiple_modules_share_absolute_time_axes_filters_tables_and_csv(window, results, tmp_path, monkeypatch):
+    window.timing_toggle.setChecked(True)
     setup(window, results)
     assert set(window.selected_result_series()) == {("quantifications/gait/unfiltered", "range_of_motion"),
                                                    ("quantifications/tremor", "tremor_power")}
@@ -185,6 +250,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     assert window.display_clock is None
     assert "Elapsed" in window.figure.axes[0].get_xlabel()
     assert "Recording date/time" not in window.result_table.model().frame
+    window.timing_toggle.setChecked(True)
     window.clock_input.setText("2026-10-07T12:00:00+02:00")
     window.apply_filters()
     assert window.display_clock["source"] == "User supplied"

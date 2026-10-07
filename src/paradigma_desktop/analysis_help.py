@@ -6,6 +6,10 @@ Desktop exclusion/combined execution options are identified as wrapper behavior.
 
 SOURCE = "https://github.com/biomarkersParkinson/paradigma/blob/4735d6d21b2a62b764a0bc7e0f677577e6ce1668/src/paradigma/"
 
+# Pinned 1.1.2 prepare_raw_data defaults; kept lightweight for desktop startup.
+DEFAULT_MAX_GAP_SECONDS = 1.5
+DEFAULT_MIN_SECTION_SECONDS = 1.5
+
 FIELD_HELP = {
     "Analysis modules": (
         "Select any combination. Gait needs time, accelerometer_x/y/z and gyroscope_x/y/z; "
@@ -43,7 +47,7 @@ FIELD_HELP = {
     "Split recordings at time gaps": (
         "Analyze continuous recording sections independently. A time interval larger than Maximum gap "
         "starts a new section; sections shorter than Minimum section duration are excluded. "
-        "This prevents interpolation across recording gaps. Multiple sections are identified by file_key.", "preprocessing.py"),
+        "Disabled by default, matching the official orchestrator. Multiple sections are identified by file_key.", "orchestrator.py"),
     "Exclude missing sensor samples": (
         "Desktop option: exclude rows with missing or non-finite channels required by the selected workflow, "
         "then analyze valid sections independently. Exclusion counts are saved in metadata. "
@@ -51,12 +55,13 @@ FIELD_HELP = {
         "the app does not invent sensor values. IMU and pulse-rate workflows check their own channels.", "prepare_data.py"),
     "Maximum gap": (
         "Maximum allowed interval between successive samples, in seconds. With gap splitting enabled, "
-        "a larger interval starts a new continuous section. The desktop default is 1.5 s. "
-        "Choose a threshold appropriate to your device's sampling interval and recording interruptions.", "preprocessing.py"),
+        "a larger interval starts a new continuous section. The official preparation default is 1.5 s; "
+        "Default restores this value. This is a gap between samples, not an analysis window length. "
+        "Choose a threshold appropriate to your device's sampling interval and recording interruptions.", "prepare_data.py"),
     "Minimum section duration": (
         "Minimum continuous section length in seconds when gap splitting is enabled for raw data. "
-        "Shorter sections are discarded. The desktop default is 1.5 s; individual algorithms may require "
-        "longer windows and can return no measurements for short sections.", "preprocessing.py"),
+        "Shorter sections are discarded. The official preparation default is 1.5 s; Default restores this value. "
+        "Individual algorithms may require longer windows and can return no measurements for short sections.", "prepare_data.py"),
     "Column mapping (JSON)": (
         'Map names as {"column_in_your_file": "ParaDigMa_column"}, not the reverse. Example: '
         '{"timestamp": "time", "ax": "accelerometer_x", "ay": "accelerometer_y", '

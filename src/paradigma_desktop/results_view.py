@@ -10,7 +10,19 @@ from .exploration import gait_context, measurement_columns, source_timeline
 MODULE_NAMES = {"gait": "Gait", "tremor": "Tremor", "pulse_rate": "Pulse rate"}
 
 
+def tremor_window_counts(frame):
+    """Display the official resting-window denominator for the selected rows."""
+    if not {"pred_tremor_checked", "pred_arm_at_rest"}.issubset(frame.columns):
+        return None
+    resting = frame.pred_arm_at_rest.eq(1).fillna(False)
+    checked = frame.pred_tremor_checked.eq(1).fillna(False)
+    count, denominator = int((checked & resting).sum()), int(resting.sum())
+    return count, denominator, count / denominator * 100 if denominator else None
+
+
 def readable_key(key):
+    if key == "perc_windows_tremor":
+        return "Checked tremor / resting windows (%)"
     match = re.fullmatch(r"(\d+)_(\d+|inf)", key)
     if match:
         low, high = match.groups()
@@ -27,10 +39,37 @@ def detail_tables(results):
             if isinstance(frame, pd.DataFrame)}
 
 
+def aggregation_tables(results):
+    """Present each original aggregate dictionary as an ordered key/value table.
+
+    Object-valued cells preserve integer precision and mixed scalar types;
+    aggregates remain separate from time-filtered classifications/measurements.
+    """
+    tables = {}
+
+    def collect(value, path):
+        if isinstance(value, pd.DataFrame):
+            tables[path] = value
+        elif isinstance(value, dict):
+            if any(isinstance(child, dict) for child in value.values()):
+                for key, child in value.items():
+                    collect(child, f"{path}/{key}")
+            else:
+                tables[path] = pd.DataFrame({"measure": list(value),
+                                             "value": pd.Series(list(value.values()), dtype=object)})
+        else:
+            tables.update(result_tables(value, path))
+
+    for module, value in results.get("aggregations", {}).items():
+        collect(value, f"aggregations/{module}")
+    return tables
+
+
 def output_label(name):
     parts = name.split("/")
     module = MODULE_NAMES.get(parts[1], parts[1].replace("_", " ").title()) if len(parts) > 1 else name
-    stage = "Classification" if parts[0] == "classifications" else "Quantification"
+    stage = {"classifications": "Classification", "quantifications": "Quantification",
+             "aggregations": "Aggregation"}.get(parts[0], parts[0].title())
     branch = " · " + " / ".join(part.replace("_", " ").title() for part in parts[2:]) if len(parts) > 2 else ""
     return f"{module} · {stage}{branch}"
 

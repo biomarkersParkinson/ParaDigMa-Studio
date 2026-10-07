@@ -74,6 +74,42 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
     assert window.gyro.currentText() == "rad/s"
 
 
+def test_segmentation_defaults_match_official_package_and_resets_remain_available(window):
+    from inspect import signature
+    from paradigma.orchestrator import run_paradigma
+    from paradigma.prepare_data import prepare_raw_data
+    from paradigma_desktop.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
+    defaults = signature(prepare_raw_data).parameters
+    assert window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS == defaults["max_segment_gap_s"].default
+    assert window.min_segment.value() == DEFAULT_MIN_SECTION_SECONDS == defaults["min_segment_length_s"].default
+    assert window.gaps.isChecked() == signature(run_paradigma).parameters["split_by_gaps"].default
+    assert window.acc.currentText() == signature(run_paradigma).parameters["accelerometer_units"].default
+    assert window.gyro.currentText() == signature(run_paradigma).parameters["gyroscope_units"].default
+    assert window.time.currentText() == signature(run_paradigma).parameters["time_input_unit"].default
+    assert window.orientation.text().split(",") == signature(run_paradigma).parameters["device_orientation"].default
+    assert window.prepared.isChecked() == signature(run_paradigma).parameters["skip_preparation"].default
+    window.navigate(1)
+    window.show()
+    QApplication.instance().processEvents()
+    for prepared in (False, True):
+        window.prepared.setChecked(prepared)
+        window.max_gap.setValue(4.)
+        window.min_segment.setValue(8.)
+        for title in ("Maximum gap", "Minimum section duration"):
+            reset = window.section_reset_buttons[title]
+            assert reset.isEnabled()
+            reset.click()
+        assert window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS
+        assert window.min_segment.value() == DEFAULT_MIN_SECTION_SECONDS
+    assert window.segmentation_controls.isAncestorOf(window.gaps)
+    assert window.segmentation_controls.isAncestorOf(window.max_gap)
+    assert window.segmentation_controls.isAncestorOf(window.min_segment)
+    from PySide6.QtCore import QPoint
+    ys = [item.mapTo(window.settings_panel, QPoint(0, 0)).y() for item in
+          (window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared)]
+    assert ys == sorted(ys)
+
+
 def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     app = QApplication.instance()
     window.navigate(1)
@@ -258,6 +294,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     window.time.setCurrentText("relative_ms")
     window.orientation.setText("-y,x,z")
     window.mapping.setPlainText('{"device_time": "time"}')
+    window.gaps.setChecked(True)
     window.max_gap.setValue(2.5)
     window.min_segment.setValue(4)
     window.drop_missing.setChecked(False)
@@ -326,6 +363,7 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
 
 
 def test_one_selection_drives_detailed_graph_table_and_csv(window, tmp_path, monkeypatch):
+    window.timing_toggle.setChecked(True)
     frame = output()
     original = frame.copy()
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
@@ -407,6 +445,7 @@ def test_time_only_filters_and_missing_original_recording_are_explicit(window):
 
 
 def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata(window):
+    window.timing_toggle.setChecked(True)
     raw = pd.DataFrame({"time": np.arange(40) / 10, "gyroscope_x": np.arange(40, dtype=float)})
     window.loaded(("sensor.csv", raw))
     quantified = pd.DataFrame({"gait_segment_nr": [3, 3], "range_of_motion": [20., 30.]})

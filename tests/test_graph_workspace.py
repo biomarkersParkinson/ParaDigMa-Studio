@@ -410,7 +410,7 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(module_color("tremor"))
 
 
-def test_binary_display_uses_large_presence_marks_and_one_compact_band(window):
+def test_binary_display_uses_slim_ticks_without_shading_the_whole_recording(window):
     frame = pd.DataFrame({"time": [0., 1., 2., 3.], "pred_event": [0., 1., np.nan, 0.]})
     window.analyzed({"classifications": {"tremor": frame}})
     item = window._series_items[("classifications/tremor", "pred_event")]
@@ -420,8 +420,8 @@ def test_binary_display_uses_large_presence_marks_and_one_compact_band(window):
     np.testing.assert_array_equal(axes.collections[0].get_offsets(), [[1., 1.]])
     assert axes.get_ylim() == pytest.approx((.65, 1.35))
     assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 140
-    for band in axes.patches:
-        assert band.get_height() == pytest.approx(.22)
+    assert not axes.patches
+    assert np.ptp(axes.collections[0].get_paths()[0].vertices[:, 0]) == 0
     window.plot_toolbar.settings.reset()
     assert axes.get_ylim() == pytest.approx((.65, 1.35))
 

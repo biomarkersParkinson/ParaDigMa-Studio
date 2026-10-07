@@ -82,9 +82,10 @@ def plot_states(ax, xs, ys, color, *, label=None):
     finite_time = np.isfinite(xs)
     present = finite_time & (ys == 1.)
     ax._paradigma_binary = True
-    ax.axhspan(.89, 1.11, facecolor=color, alpha=.07, edgecolor="none", zorder=0)
-    ax.scatter(xs[present], ys[present], color=color, marker="s", s=64,
-               edgecolors="white", linewidths=.45, zorder=3, label=label, rasterized=len(xs) > 2000)
+    # Fixed-width squares and a full-width tinted band suggest continuous
+    # presence on long recordings. Slim ticks denote timestamps, not duration.
+    ax.scatter(xs[present], ys[present], color=color, marker="|", s=64,
+               linewidths=.9, zorder=3, label=label, rasterized=len(xs) > 2000)
     # Keep the recording extent, including zero/missing-state timestamps, even
     # when this selection has no detections. Do not invent continuous intervals.
     if finite_time.any():
