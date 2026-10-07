@@ -29,6 +29,9 @@ class CachedPreview(QObject):
     def pending(self):
         return not self._closed and (self._future is not None or self._timer.isActive())
 
+    def is_requested(self, key):
+        return self._desired is not None and self._desired[0] == (self._generation, key)
+
     def request(self, key, operation):
         if self._closed:
             return

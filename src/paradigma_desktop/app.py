@@ -3,6 +3,7 @@ import json
 from html import escape
 import logging
 from threading import Event
+from collections import OrderedDict
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -23,7 +24,6 @@ from .plot_cache import configure_plot_cache
 
 PLOT_CACHE_DIRECTORY = configure_plot_cache(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation))
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib import colormaps, dates
@@ -37,7 +37,7 @@ from .recordings import load_recordings, align_recordings, source_key, timeline_
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import GraphToolbar, add_graph_controls
-from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states, plot_bars
+from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
@@ -127,6 +127,8 @@ class MainWindow(QMainWindow):
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self._plot_signature = None
+        self._table_views = OrderedDict()
+        self._result_layout_index = None
         self.display_clock = None
         self._origin_override = False
         self._origin_preview = CachedPreview(self)
@@ -340,7 +342,8 @@ class MainWindow(QMainWindow):
         graph = QWidget()
         graph_layout = QVBoxLayout(graph)
         self.data_figure = Figure(layout="constrained")
-        self.data_canvas = FigureCanvasQTAgg(self.data_figure)
+        self.data_canvas = ScrollableFigureCanvas(self.data_figure)
+        self.data_canvas.defer_when_hidden = True
         self.data_toolbar = add_graph_controls(graph_layout, self.data_canvas, self)
         graph_layout.addWidget(self.data_canvas, 1)
         preview_layout.addWidget(graph, 1)
@@ -663,6 +666,7 @@ class MainWindow(QMainWindow):
         self.figure = Figure(layout="constrained")
         self.canvas = ScrollableFigureCanvas(self.figure)
         self.canvas.defer_when_hidden = True
+        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
         self.canvas.pinned_time_axis = True
         self.figure_actions = QWidget()
         self.figure_actions_layout = QHBoxLayout(self.figure_actions)
@@ -709,7 +713,8 @@ class MainWindow(QMainWindow):
         sensor_graph = QWidget()
         graph_layout = QVBoxLayout(sensor_graph)
         self.sensor_figure = Figure(layout="constrained")
-        self.sensor_canvas = FigureCanvasQTAgg(self.sensor_figure)
+        self.sensor_canvas = ScrollableFigureCanvas(self.sensor_figure)
+        self.sensor_canvas.defer_when_hidden = True
         self.sensor_toolbar = add_graph_controls(graph_layout, self.sensor_canvas, self)
         graph_layout.addWidget(self.sensor_canvas, 1)
         sensor_tabs.addTab(sensor_graph, "Signal")
@@ -975,6 +980,8 @@ class MainWindow(QMainWindow):
 
     def clear_results(self):
         self._plot_signature = None
+        self._table_views.clear()
+        self.result_overlay.invalidate()
         self.results, self.active_frame = None, None
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
@@ -1267,6 +1274,8 @@ class MainWindow(QMainWindow):
             return
         frame, recordings = self.frame, self.recordings
         key = json.dumps(settings, sort_keys=True)
+        if self._origin_preview.is_requested(key):
+            return
         def preview():
             if recordings:
                 return align_recordings(recordings, settings, {})[3]
@@ -1366,15 +1375,17 @@ class MainWindow(QMainWindow):
         body = self._result_view_layouts[index]
         # The tab bar stays outside every view's scrolling content. Shared
         # controls move below it rather than changing the navigation position.
-        for widget in (self.results_header, self.detail_controls):
-            for previous in self._result_view_layouts:
-                previous.removeWidget(widget)
-        body.insertWidget(0, self.results_header)
-        body.insertWidget(1, self.detail_controls)
-        self.figure_actions_layout.removeWidget(self.context_controls)
-        self.table_actions_layout.removeWidget(self.context_controls)
-        actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
-        actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
+        if index != self._result_layout_index:
+            for widget in (self.results_header, self.detail_controls):
+                for previous in self._result_view_layouts:
+                    previous.removeWidget(widget)
+            body.insertWidget(0, self.results_header)
+            body.insertWidget(1, self.detail_controls)
+            self.figure_actions_layout.removeWidget(self.context_controls)
+            self.table_actions_layout.removeWidget(self.context_controls)
+            actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
+            actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
+            self._result_layout_index = index
         self.results_scroll = self._result_view_scrolls[index]
         aggregation = index == 2 and self.table_dataset.currentData() in self.aggregation_tables
         detailed = index in (1, 2) and not aggregation
@@ -1388,6 +1399,11 @@ class MainWindow(QMainWindow):
 
     def sync_table_outputs(self, force_detail=False):
         names = [*self.tables, *self.aggregation_tables]
+        name = self.dataset.currentText()
+        if (force_detail and name in self.tables and name == self.table_dataset.currentData()
+                and tuple(names) == getattr(self, "_table_output_names", None)):
+            return
+        self._table_output_names = tuple(names)
         modules = list(dict.fromkeys([*MODULE_NAMES, *(name.split("/")[1] for name in names)]))
         available = {module: any(name.split("/")[1] == module for name in names) for module in modules}
         current = self.table_module_tabs.tabData(self.table_module_tabs.currentIndex())
@@ -1592,6 +1608,8 @@ class MainWindow(QMainWindow):
 
     def analyzed(self, results):
         self._plot_signature = None
+        self._table_views.clear()
+        self._table_output_names = None
         self.results = results
         if self.current_run is None:
             self.result_source_frame = self.recordings if self.recordings else self.frame
@@ -1747,8 +1765,11 @@ class MainWindow(QMainWindow):
             self.selection_note.setText("No detailed outputs returned.")
             return
         name = self.dataset.currentText()
-        view = frame.copy()
-        if self.timing_toggle.isChecked():
+        key = name, self.timing_toggle.isChecked()
+        view = self._table_views.get(key)
+        if view is None:
+            view = frame.copy(deep=False)
+        if key not in self._table_views and self.timing_toggle.isChecked():
             timing = self._timings[name].iloc[self.active_positions]
             fields = {"Analysis time (s)": timing["Analysis time (s)"].to_numpy(),
                       "Time basis": timing["Time basis"].to_numpy()}
@@ -1759,9 +1780,13 @@ class MainWindow(QMainWindow):
             if name.startswith("quantifications/gait/"):
                 fields.update({"Segment start (s)": timing["Segment start (s)"].to_numpy(),
                                "Segment end (s)": timing["Segment end (s)"].to_numpy()})
-            for key, values in reversed(list(fields.items())):
-                field_name = key if key not in view else f"Display · {key}"
+            for field, values in reversed(list(fields.items())):
+                field_name = field if field not in view else f"Display · {field}"
                 view.insert(0, field_name, values)
+        self._table_views[key] = view
+        self._table_views.move_to_end(key)
+        while len(self._table_views) > 4:
+            self._table_views.popitem(last=False)
         self.display_frame = view
         self.result_table.setModel(FrameModel(view))
         self.result_table.selectionModel().currentRowChanged.connect(self.result_row_changed)
@@ -1802,6 +1827,7 @@ class MainWindow(QMainWindow):
             self.highlight_result_row()
             return
         self._plot_signature = signature
+        self.result_overlay.invalidate()
         self.figure.clear()
         self._result_selection_artists = []
         binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
@@ -1879,6 +1905,11 @@ class MainWindow(QMainWindow):
         self.highlight_result_row()
 
     def highlight_result_row(self):
+        with self.result_overlay.edit():
+            self.update_result_marker()
+        self.result_overlay.paint()
+
+    def update_result_marker(self):
         """Link a table row to all plots without changing their data or limits."""
         for artist in self._result_selection_artists:
             artist.remove()
@@ -1887,14 +1918,12 @@ class MainWindow(QMainWindow):
         name, frame = self.dataset.currentText(), self.active_frame
         current = self.result_table.currentIndex()
         if frame is None or not current.isValid() or name not in self._timings:
-            self.canvas.draw_idle()
             return
         row = current.row()
         position = self.active_positions[row]
         timing = self._timings[name].iloc[position]
         seconds = float(timing["Timeline time (s)"])
         if not np.isfinite(seconds):
-            self.canvas.draw_idle()
             return
         if self.display_clock is not None:
             timestamp = clock_times([seconds], self.display_clock)[0]
@@ -1911,6 +1940,7 @@ class MainWindow(QMainWindow):
             line = Line2D([x, x], [0, 1], transform=ax.get_xaxis_transform(),
                           color="#465B73", linewidth=1.1, linestyle=(0, (3, 3)), alpha=.75, zorder=7)
             line.set_gid("selected-result-time")
+            line.set_animated(self.canvas.supports_blit)
             ax.add_artist(line)
             self._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
@@ -1923,9 +1953,9 @@ class MainWindow(QMainWindow):
                            markerfacecolor="white", markeredgecolor=module_color(name.split("/")[1]),
                            markeredgewidth=2, zorder=8)
             point.set_gid("selected-result-point")
+            point.set_animated(self.canvas.supports_blit)
             ax.add_artist(point)
             self._result_selection_artists.append(point)
-        self.canvas.draw_idle()
 
     def graph_clicked(self, event):
         if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
@@ -2236,18 +2266,25 @@ class MainWindow(QMainWindow):
                                              f"{extension.upper()} (*.{extension})")
         if not path:
             return
-        try:
-            selected = dialog.selected()
-            export_selection(path, self.results, self.provenance, selected, dialog.format.currentText(),
-                             protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
-            if self.current_run is not None:
-                self.current_run["outputs"].append({"kind": dialog.format.currentText(), "path": str(Path(path).resolve()),
-                                                    "saved": now(), "selected": selected})
-                self.persist_run(self.current_run)
+        selected, format_name = dialog.selected(), dialog.format.currentText()
+        results, provenance, run = self.results, self.provenance, self.current_run
+        protected = [*self.sources.values(), *provenance.get("sources", {}).values()]
+
+        def write(logger):
+            export_selection(path, results, provenance, selected, format_name,
+                             protected_sources=protected)
+            return str(Path(path).resolve())
+
+        def completed(output_path):
+            if run is not None:
+                run["outputs"].append({"kind": format_name, "path": output_path,
+                                       "saved": now(), "selected": selected})
+                self.persist_run(run)
                 self.refresh_runs()
-            self.status.setText(f"Results exported to {path}")
-        except Exception as exc:
-            self.failure(str(exc))
+            self.status.setText(f"Results exported to {output_path}")
+
+        self.status.setText("Exporting results…")
+        self.start_job(write, completed)
 
     def export_csv(self):
         name, frame = self.selected_export_table()

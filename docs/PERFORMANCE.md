@@ -178,3 +178,93 @@ accidental eager scientific imports. To benchmark locally after building:
 The probe opens an empty window and exits without opening sensor data, running
 analyses or changing run history. Numerical reproducibility coverage and its
 limits remain documented in [SCIENTIFIC_TESTS.md](SCIENTIFIC_TESTS.md).
+
+## Whole-app review (0.5.4)
+
+The review covered startup and bundle contents, input inspection and recording
+switching, Analyze options, navigation, Results construction and interactions,
+exports, and run history. The scientific pipeline is still ParaDigMa 1.1.2 with
+the same inputs and defaults; no algorithm or result precision was changed.
+
+The remaining major UI bottleneck was repeated full rendering of Results bars
+when selecting a row, clicking a graph, switching the active table, or toggling
+timing columns. Selection markers now reuse the static plot image. Actual changes
+to limits, styles or data trigger a normal redraw. Cached highlights match full
+rendering pixel for pixel in regression tests, and image exports retain markers.
+The image cache has a 32 MiB limit and falls back to regular drawing for larger
+figures. Every original bar and interval remains available, including after zoom.
+
+Table views now share read-only native columns and retain at most four prepared
+views. Individual cells reuse their column arrays instead of repeatedly indexing
+the DataFrame. New results and model changes invalidate these caches. Unchanged
+clock requests and Results layouts also avoid repeated widget updates, and hidden
+Data/context graphs defer painting until shown.
+
+JSON export uses the fast standard encoder in 5,000-row batches, reducing temporary
+row objects and file size. The schema, numbers, timestamps and missing-value
+representation remain unchanged; whitespace is now compact. Exports still write
+a temporary file and replace the destination only on success. The export chooser
+uses a background worker, allowing navigation and result exploration while writing.
+
+A reproducible synthetic benchmark is provided in `scripts/benchmark_workflows.py`.
+Both Windows workflows include its report as `ui-performance.json`, alongside the
+existing packaged startup and bundle report. It runs the source app with native
+Qt, rather than the packaged executable, and uses only temporary test files and
+history. Timing is reported without hardware-dependent pass/fail limits.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_workflows.py --report ui-performance.json
+```
+
+Large full-range graphs still need to render their original bars when adding
+series or changing limits. Initial scientific imports, parsing large recordings,
+and official analysis remain real work; these run outside the GUI thread.
+Cancellation retains its isolated analysis process. Required native Qt, Arrow,
+SciPy and classifier libraries remain in the portable bundle: removing them would
+compromise supported formats or scientific processing. No dependency was removed
+or added by this review.
+
+### Before/after measurements
+
+Compared commit `38a2e2e` (0.5.3) with 0.5.4 on the same Linux environment,
+Python 3.12 and pinned dependencies, using Qt offscreen/Fusion at 1450 × 920.
+Scientific imports and OS caches were warm. Each value is the median of three
+workflow repetitions and includes queued Qt painting. Data had 250,000 sensor
+samples per recording and 30,000 rows per output table. These are **not native
+Windows timings**.
+
+| Workflow (total duration of the stated actions) | Before | After |
+| --- | ---: | ---: |
+| Input inspection UI, 250,000 samples | 0.095 s | 0.045 s |
+| Analyze options, 10 iterations | 0.011 s | 0.006 s |
+| Navigation, 12 switches | 0.068 s | 0.063 s |
+| Recording selection, 12 switches / 3 recordings | 0.469 s | 0.398 s |
+| Data channels, 4 changes | 0.267 s | 0.257 s |
+| Results load, 2 × 30,000 rows | 0.366 s | 0.250 s |
+| Show Graphs | 0.331 s | 0.316 s |
+| Select 3 plot series | 2.862 s | 1.832 s |
+| Select 10 result rows | 5.032 s | 0.227 s |
+| 10 graph clicks | 5.033 s | 0.238 s |
+| Toggle timing columns 4 times | 2.131 s | 0.159 s |
+| Switch active table 10 times | 5.040 s | 0.166 s |
+| Export 2 tables to JSON | 0.741 s | 0.247 s |
+| Export 2 tables to CSV ZIP | 0.145 s | 0.144 s |
+| Read 200 saved run records | 0.005 s | 0.004 s |
+| Refresh 200-run table | 0.026 s | 0.024 s |
+| Select 10 runs | 0.057 s | 0.050 s |
+
+Row selection and graph clicks improved by about 95%, active-table switching by
+97%, timing toggles by 93%, and JSON writing by 67%. Unchanged CSV/history
+operations and small navigation differences indicate normal measurement variation
+as well as shared table-painting improvements; they are not separate algorithm
+optimizations. Full-range initial rendering remains more expensive than selection.
+[Raw samples and environment details](performance-review-0.5.4.json) are retained
+for reproducibility.
+
+Version 0.5.4 passed **276 source tests**, including all **31 scientific-equivalence
+cases**; one Windows-only Authenticode check was skipped on Linux. The rebuilt
+portable app passed its runtime smoke checks. Five fresh-process startup checks
+reported a median first paint of 0.975 s and launch-to-report of 1.186 s, with
+scientific imports still deferred. The Linux bundle is 539.4 MiB in regular files;
+startup and size remain broadly consistent with the previous optimized build.
+Windows CI supplies the native platform validation and measurements.

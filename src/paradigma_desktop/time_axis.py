@@ -13,10 +13,17 @@ class RecordingTimeFormatter(ticker.Formatter):
         self._dates = {}
         self._offset_ticks = set()
         self._subsecond = False
+        self._layout_key = None
+        self._labels = {}
 
     def set_locs(self, locs):
         super().set_locs(locs)
         low, high = sorted(self.axis.get_view_interval())
+        key = tuple(locs), low, high
+        if key == self._layout_key:
+            return
+        self._layout_key = key
+        self._labels.clear()
         previous = None
         self._dates = {}
         visible = {}
@@ -37,6 +44,11 @@ class RecordingTimeFormatter(ticker.Formatter):
                               if len(offsets[stamp.strftime("%Y-%m-%d %H:%M")]) > 1}
 
     def __call__(self, value, pos=None):
+        low, high = sorted(self.axis.get_view_interval())
+        if self._layout_key is None or self._layout_key[1:] != (low, high):
+            self.set_locs(self.locs)
+        if float(value) in self._labels:
+            return self._labels[float(value)]
         span = abs(self.axis.get_view_interval()[1] - self.axis.get_view_interval()[0]) * 86400
         stamp = dates.num2date(value, tz=self.timezone)
         time = stamp.strftime("%H:%M:%S" if span < 120 else "%H:%M")
@@ -45,7 +57,9 @@ class RecordingTimeFormatter(ticker.Formatter):
         # Offset distinguishes repeated local times at a daylight-saving change.
         if float(value) in self._offset_ticks:
             time += stamp.strftime(" %z")
-        return time + "\n" + self._dates.get(float(value), "")
+        text = time + "\n" + self._dates.get(float(value), "")
+        self._labels[float(value)] = text
+        return text
 
 
 class PinnedTimeAxis(FigureCanvasQTAgg):
@@ -128,7 +142,14 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
             return
         source = self._source
         origin = self.mapFromGlobal(self.source_canvas.mapToGlobal(QPoint(0, 0))).x()
+        # get_position() reapplies aspect and marks an otherwise unchanged
+        # source figure stale. The pinned ruler is only reading its geometry.
+        old_bounds = source._position.bounds
+        axis_dirty, figure_dirty = source.stale, source.figure.stale
         bounds = source.get_position()
+        if old_bounds == bounds.bounds:
+            source.stale = axis_dirty
+            source.figure.stale = figure_dirty
         width = max(1, self.width())
         left = (origin + bounds.x0 * self.source_canvas.width()) / width
         right = (origin + bounds.x1 * self.source_canvas.width()) / width

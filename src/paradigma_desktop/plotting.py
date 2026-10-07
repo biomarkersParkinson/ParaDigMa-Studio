@@ -1,6 +1,7 @@
 """Scientific plot presentation: original values, exact state timestamps, scrolling."""
 import numpy as np
 import pandas as pd
+from contextlib import contextmanager
 from matplotlib import dates
 from matplotlib.artist import allow_rasterization
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -33,6 +34,56 @@ class ViewportPolyCollection(PolyCollection):
 
 GRAPH_COLORS = ("#2864A5", "#168B82", "#C78235", "#7D64AB", "#C05F74",
                 "#527E94", "#8C843C", "#A65D40", "#6474B1", "#498B64")
+
+
+class SelectionOverlay:
+    """Reuse the static plot image when only the linked row marker changes."""
+    def __init__(self, canvas, artists):
+        self.canvas, self.artists = canvas, artists
+        self.background = None
+        canvas.mpl_connect("draw_event", self.drawn)
+
+    def invalidate(self):
+        self.background = None
+
+    @contextmanager
+    def edit(self):
+        # Adding/removing an animated marker dirties Axes even though its
+        # static content is unchanged. Preserve pre-existing real changes.
+        figure = self.canvas.figure
+        dirty = figure.stale
+        axes_dirty = [(ax, ax.stale) for ax in figure.axes]
+        try:
+            yield
+        finally:
+            for ax, stale in axes_dirty:
+                ax.stale = stale
+            figure.stale = dirty
+
+    def drawn(self, event):
+        if event.canvas is not self.canvas or self.canvas.is_saving():
+            return
+        bounds = self.canvas.figure.bbox
+        if self.canvas.supports_blit and bounds.width * bounds.height * 4 <= 32 * 1024**2:
+            self.background = self.canvas.copy_from_bbox(bounds)
+        else:
+            self.background = None
+        # Animated artists are excluded from the base draw. They still need
+        # painting when the image exceeds the background memory budget.
+        self.paint(restore=False)
+
+    def paint(self, *, restore=True):
+        if restore and (self.background is None or self.canvas.figure.stale or not self.canvas.isVisible()):
+            self.canvas.draw_idle()
+            return
+        if restore:
+            self.canvas.restore_region(self.background)
+        for artist in self.artists():
+            artist.axes.draw_artist(artist)
+        if restore:
+            self.canvas.blit(self.canvas.figure.bbox)
+        # A normal draw already schedules Qt painting. Repainting inside its
+        # draw_event can recurse when Qt initiated that draw from paintEvent.
 
 
 class ScrollableFigureCanvas(FigureCanvasQTAgg):
@@ -112,7 +163,9 @@ def binary_indicator(series, metric):
 
 def time_coordinates(values):
     if isinstance(values, (pd.DatetimeIndex, pd.Series)) and pd.api.types.is_datetime64_any_dtype(values.dtype):
-        return np.asarray(dates.date2num(pd.DatetimeIndex(values).to_pydatetime()), dtype=float)
+        # NumPy datetime coordinates avoid a Python object for every sample;
+        # timezone-aware arrays convert to UTC while preserving nanoseconds.
+        return np.asarray(dates.date2num(pd.DatetimeIndex(values).to_numpy(dtype="datetime64[ns]")), dtype=float)
     return np.asarray(values, dtype=float)
 
 

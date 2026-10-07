@@ -68,11 +68,11 @@ def test_failed_export_preserves_existing_file(tmp_path, monkeypatch):
     target = tmp_path / "results.json"
     target.write_text("previous results", encoding="utf-8")
 
-    def fail_after_partial_write(value, stream, **kwargs):
+    def fail_after_partial_write(stream, value):
         stream.write("partial new results")
         raise OSError("simulated disk write failure")
 
-    monkeypatch.setattr(core.json, "dump", fail_after_partial_write)
+    monkeypatch.setattr(core, "_write_json", fail_after_partial_write)
     with pytest.raises(OSError, match="disk write"):
         core.export_results(target, {}, {})
     assert target.read_text() == "previous results"

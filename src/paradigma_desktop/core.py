@@ -5,6 +5,7 @@ import logging
 import re
 import os
 import tempfile
+import math
 from pathlib import Path
 
 import numpy as np
@@ -411,7 +412,7 @@ def json_value(value):
         return json_value(value.item())
     if value is pd.NA or value is pd.NaT:
         return None
-    if isinstance(value, float) and not np.isfinite(value):
+    if isinstance(value, float) and not math.isfinite(value):
         return None
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -446,10 +447,32 @@ def _write_export(path, writer, *, source=None, protected_sources=(), binary=Fal
         Path(temporary).unlink(missing_ok=True)
 
 
+def _write_json(stream, value):
+    """Lossless standard JSON, bounding temporary row objects to one table batch."""
+    encode = lambda child: json.dumps(child, allow_nan=False, separators=(",", ":"))
+    if isinstance(value, pd.DataFrame):
+        stream.write('{"columns":' + encode(json_value(list(value.columns))) + ',"data":[')
+        for start in range(0, len(value), 5000):
+            if start:
+                stream.write(",")
+            records = json_value(value.iloc[start:start + 5000].to_dict(orient="records"))
+            stream.write(encode(records)[1:-1])
+        stream.write("]}")
+    elif isinstance(value, dict):
+        stream.write("{")
+        for index, (key, child) in enumerate({str(key): child for key, child in value.items()}.items()):
+            if index:
+                stream.write(",")
+            stream.write(encode(str(key)) + ":")
+            _write_json(stream, child)
+        stream.write("}")
+    else:
+        stream.write(encode(json_value(value)))
+
+
 def export_results(path, results, provenance, *, protected_sources=()):
-    _write_export(path, lambda stream: json.dump(
-        {"analysis": provenance, "results": json_value(results)}, stream,
-        indent=2, allow_nan=False), source=provenance.get("source"), protected_sources=protected_sources)
+    _write_export(path, lambda stream: _write_json(stream,
+        {"analysis": provenance, "results": results}), source=provenance.get("source"), protected_sources=protected_sources)
 
 
 def _spreadsheet_text(value):

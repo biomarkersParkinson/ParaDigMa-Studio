@@ -100,6 +100,12 @@ class FrameModel(QAbstractTableModel):
         super().__init__()
         self.frame = frame
         self.compact = compact
+        self._column_values = {}
+        self.dataChanged.connect(self._forget_values)
+        self.modelReset.connect(self._forget_values)
+
+    def _forget_values(self, *_):
+        self._column_values.clear()
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.frame)
@@ -109,7 +115,10 @@ class FrameModel(QAbstractTableModel):
 
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
-            value = self.frame.iat[index.row(), index.column()]
+            column = index.column()
+            if column not in self._column_values:
+                self._column_values[column] = self.frame.iloc[:, column].array
+            value = self._column_values[column][index.row()]
             if self.compact and role == Qt.DisplayRole and (value is pd.NA or value is None
                     or isinstance(value, (float, np.floating)) and np.isnan(value)):
                 return "—"

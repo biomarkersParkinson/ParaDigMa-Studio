@@ -87,5 +87,7 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.3**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.4**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
+
+[Performance review and measurements](docs/PERFORMANCE.md).

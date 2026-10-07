@@ -33,6 +33,10 @@ jobs:
         run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
       - name: Measure Windows startup and bundle size
         run: python scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report dist/ParaDigMaDesktop/performance.json
+      - name: Measure Windows UI workflows
+        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaDesktop/ui-performance.json
+        env:
+          QT_QPA_PLATFORM: offscreen
       - name: Record package versions, audit and bundle checksums
         run: python scripts/write_build_manifest.py dist/ParaDigMaDesktop dependency-audit.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
