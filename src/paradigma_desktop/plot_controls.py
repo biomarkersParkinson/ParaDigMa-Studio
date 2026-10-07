@@ -68,6 +68,12 @@ class GraphToolbar(NavigationToolbar2QT):
         self._automatic_bar_y = [ax for ax in self.canvas.figure.axes
                                  if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()]
         super().press_pan(event)
+        # Keep the drag transform stable; fit the final Y range once on release.
+        if self._pan_info is not None:
+            for ax in self._automatic_bar_y:
+                ax.set_autoscaley_on(False)
+        else:
+            self._automatic_bar_y = []
 
     def release_pan(self, event):
         super().release_pan(event)

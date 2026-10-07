@@ -65,6 +65,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.xaxis.label.set_color("#465B73")
         self.axes.xaxis.label.set_size(10)
         self._source = None
+        self._source_connection = None
+        self._sync_state = None
+        self._selection_state = None
+        self._deferred_draw = False
         self._date_timezone = None
         self.selection_marker = Line2D([], [], marker="v", markersize=6, color="#465B73",
                                        linestyle="none", transform=self.axes.get_xaxis_transform(), clip_on=False, zorder=5)
@@ -76,11 +80,15 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         source_canvas.mpl_connect("draw_event", self.synchronize)
 
     def bind(self, source):
+        if self._source is not None and self._source_connection is not None:
+            self._source.callbacks.disconnect(self._source_connection)
         self._source = source
+        self._source_connection = None
+        self._sync_state = None
         self.set_selection(None)
         self.axes.set_visible(source is not None)
         if source is not None:
-            source.callbacks.connect("xlim_changed", self.synchronize)
+            self._source_connection = source.callbacks.connect("xlim_changed", self.synchronize)
             locator = source.xaxis.get_major_locator()
             if isinstance(locator, dates.DateLocator):
                 self._date_timezone = locator.tz
@@ -93,9 +101,15 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 self.setFixedHeight(82)
                 self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
+        else:
+            self.draw_idle()
         self.synchronize()
 
     def set_selection(self, x, label=""):
+        state = x, label, self._source is not None
+        if state == self._selection_state:
+            return
+        self._selection_state = state
         self._selected_x = x
         visible = x is not None and self._source is not None
         self._update_selection_visibility()
@@ -111,7 +125,6 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
 
     def synchronize(self, *_):
         if self._source is None or self.source_canvas.exporting_time_axis:
-            self.draw_idle()
             return
         source = self._source
         origin = self.mapFromGlobal(self.source_canvas.mapToGlobal(QPoint(0, 0))).x()
@@ -119,12 +132,30 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         width = max(1, self.width())
         left = (origin + bounds.x0 * self.source_canvas.width()) / width
         right = (origin + bounds.x1 * self.source_canvas.width()) / width
-        self.axes.set_position((left, .78, max(.01, right - left), .1))
-        self.axes.set_xlim(source.get_xlim(), emit=False)
-        self._update_selection_visibility()
+        limits = source.get_xlim()
         label = self.label_source()
-        self.axes.set_xlabel(label.get_xlabel() if label is not None else source.get_xlabel(), labelpad=8)
+        text = label.get_xlabel() if label is not None else source.get_xlabel()
+        state = left, right, width, self.height(), limits, text
+        if state == self._sync_state:
+            return
+        self._sync_state = state
+        self.axes.set_position((left, .78, max(.01, right - left), .1))
+        self.axes.set_xlim(limits, emit=False)
+        self._update_selection_visibility()
+        self.axes.set_xlabel(text, labelpad=8)
         self.draw_idle()
+
+    def draw_idle(self):
+        if not self.isVisible():
+            self._deferred_draw = True
+            return
+        super().draw_idle()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._deferred_draw:
+            self._deferred_draw = False
+            super().draw_idle()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -77,6 +77,40 @@ Version 0.5.1 passed 257 source tests, including all 31 scientific-equivalence
 cases, with one Windows-only signing check skipped on Linux. The rebuilt Linux
 bundle passed its analysis, graph, export and startup checks.
 
+## Graph interaction in 0.5.2
+
+A profile of a synthetic 20,000-row tremor result found unnecessary redraws of
+hidden graphs and bars outside the visible time range. Graphs now defer painting
+while Overview, Tables or another page is open. Changing the active table retains
+existing graph axes, zoom and presentation settings when the selected plot series
+remain the same; new results or changed series still rebuild the figure.
+
+Continuous bars and presence intervals send only rectangles intersecting the
+visible time range to the renderer. Every original rectangle, value and timestamp
+remains available for inspection and export, including intervals crossing a view
+boundary. This does not sample or average the data. Automatic Y scaling retains
+all visible extrema, caches repeated requests, and updates on pan release rather
+than repeatedly changing the transform during a drag. The pinned time ruler
+redraws only when its position, range, label or selection changes.
+
+Single profiled Linux/offscreen samples with the same dependencies and a
+1,450 × 920 window measured a zoomed graph redraw at **274 ms before** and
+**84 ms after**. A full-range redraw measured 306 ms before and 259 ms after;
+it still renders every visible bar. Processing the queued UI events on Overview
+fell from 321 ms to 5 ms because its hidden graph no longer paints. The first
+Graphs visit performs that deferred paint. These measurements include profiling
+overhead and do not establish native Windows performance or analysis speed.
+
+Regression checks cover rendering work, unchanged original values and intervals,
+restoration after a failed render, PDF/PNG exports, hidden/visible Qt transitions,
+graph reuse and fresh results, and ruler synchronization. The existing scientific
+equivalence tests continue to check the analysis against official ParaDigMa.
+
+Version 0.5.2 passed 263 source tests, including all 31 scientific-equivalence
+cases, with one Windows-only signing check skipped on Linux. The rebuilt Linux
+bundle passed its runtime and startup checks. Native Windows validation runs in
+GitHub Actions.
+
 ## Verification and Windows measurements
 
 For the 0.2.2 startup changes, **139 tests passed**, with one Windows-only test skipped locally. This included

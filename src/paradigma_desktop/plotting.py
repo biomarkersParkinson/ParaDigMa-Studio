@@ -2,7 +2,33 @@
 import numpy as np
 import pandas as pd
 from matplotlib import dates
+from matplotlib.artist import allow_rasterization
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+from matplotlib.collections import PolyCollection
+
+
+class ViewportPolyCollection(PolyCollection):
+    """Render visible rectangles while retaining every original interval and value."""
+    def __init__(self, vertices, **kwargs):
+        super().__init__(vertices, **kwargs)
+        vertices = np.asarray(vertices)
+        self._starts = vertices[:, :, 0].min(axis=1) if len(vertices) else np.array([])
+        self._ends = vertices[:, :, 0].max(axis=1) if len(vertices) else np.array([])
+
+    @allow_rasterization
+    def draw(self, renderer):
+        paths = self._paths
+        if self.axes is None or len(paths) < 512:
+            return super().draw(renderer)
+        low, high = sorted(self.axes.get_xlim())
+        visible = (self._ends >= low) & (self._starts <= high)
+        if visible.all():
+            return super().draw(renderer)
+        self._paths = [paths[index] for index in np.flatnonzero(visible)]
+        try:
+            return super().draw(renderer)
+        finally:
+            self._paths = paths
 
 
 GRAPH_COLORS = ("#2864A5", "#168B82", "#C78235", "#7D64AB", "#C05F74",
@@ -16,6 +42,20 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
     pinned_time_axis = False
     exporting_time_axis = False
     _wheel_remainder = 0.
+    defer_when_hidden = False
+    _deferred_draw = False
+
+    def draw_idle(self):
+        if self.defer_when_hidden and not self.isVisible():
+            self._deferred_draw = True
+            return
+        super().draw_idle()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._deferred_draw:
+            self._deferred_draw = False
+            super().draw_idle()
 
     def wheelEvent(self, event):
         if self.scroll_area is None:
@@ -88,9 +128,11 @@ def plot_states(ax, xs, ys, color, *, label=None, ends=None):
     else:
         ends = time_coordinates(ends)
         valid = present & np.isfinite(ends) & (ends > xs)
-        ax.broken_barh(list(zip(xs[valid], ends[valid] - xs[valid])), (.76, .48),
-                       facecolors=color, edgecolors="none", zorder=3, label=label,
-                       rasterized=len(xs) > 2000)
+        vertices = np.empty((valid.sum(), 4, 2))
+        vertices[:, :, 0] = np.column_stack((xs[valid], xs[valid], ends[valid], ends[valid]))
+        vertices[:, :, 1] = [.76, 1.24, 1.24, .76]
+        ax.add_collection(ViewportPolyCollection(vertices, facecolors=color, edgecolors="none",
+                                                zorder=3, label=label, rasterized=len(xs) > 2000))
         points = present & ~valid
         if points.any():
             ax.scatter(xs[points], ys[points], color=color, marker="|", s=64,
@@ -116,7 +158,7 @@ def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=Fals
 
 def plot_bars(ax, starts, ends, values, color):
     """One bar per finite output: missing estimates leave real gaps."""
-    from matplotlib.collections import PolyCollection, LineCollection
+    from matplotlib.collections import LineCollection
     starts, ends = time_coordinates(starts), time_coordinates(ends)
     values = np.asarray(values, dtype=float)
     valid = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (ends > starts)
@@ -126,7 +168,7 @@ def plot_bars(ax, starts, ends, values, color):
     vertices = np.zeros((len(left), 4, 2))
     vertices[:, :, 0] = np.column_stack((left, left, right, right))
     vertices[:, :, 1] = np.column_stack((np.zeros(len(left)), heights, heights, np.zeros(len(left))))
-    collection = PolyCollection(vertices, facecolors=color, edgecolors="none", alpha=.85,
+    collection = ViewportPolyCollection(vertices, facecolors=color, edgecolors="none", alpha=.85,
                                 rasterized=len(left) > 2000, zorder=3)
     ax.add_collection(collection)
     zero = heights == 0
@@ -148,6 +190,10 @@ def plot_bars(ax, starts, ends, values, color):
         ax.autoscale_view()
     ax._paradigma_bars = True
     ax._paradigma_bar_data = starts, ends, values
+    inset = (ends - starts) * .08
+    finite = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values)
+    ax._paradigma_bar_extents = starts + inset, ends - inset, finite & (ends > starts), finite & (ends == starts)
+    ax._paradigma_y_cache = None
     ax.callbacks.connect("xlim_changed", autoscale_bars)
     autoscale_bars(ax)
     return collection
@@ -159,15 +205,19 @@ def autoscale_bars(ax):
         return
     starts, ends, values = ax._paradigma_bar_data
     low, high = sorted(ax.get_xlim())
-    inset = (ends - starts) * .08
-    intervals = (ends > starts) & (ends - inset > low) & (starts + inset < high)
-    points = (ends == starts) & (starts >= low) & (starts <= high)
-    visible = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (intervals | points)
-    present = values[visible]
-    lower = min(0., float(present.min())) if len(present) else 0.
-    upper = max(0., float(present.max())) if len(present) else 0.
-    margin = (upper - lower) * .08
-    if margin == 0:
-        upper, margin = 1., 0.
-    ax.set_ylim(lower - margin if lower < 0 else lower,
-                upper + margin if upper > 0 else upper, auto=True, emit=False)
+    cached = ax._paradigma_y_cache
+    if cached is not None and cached[0] == (low, high):
+        limits = cached[1]
+    else:
+        left, right, intervals, points = ax._paradigma_bar_extents
+        visible = (intervals & (right > low) & (left < high)) | (points & (starts >= low) & (starts <= high))
+        present = values[visible]
+        lower = min(0., float(present.min())) if len(present) else 0.
+        upper = max(0., float(present.max())) if len(present) else 0.
+        margin = (upper - lower) * .08
+        if margin == 0:
+            upper, margin = 1., 0.
+        limits = lower - margin if lower < 0 else lower, upper + margin if upper > 0 else upper
+        ax._paradigma_y_cache = (low, high), limits
+    if ax.get_ylim() != limits:
+        ax.set_ylim(*limits, auto=True, emit=False)

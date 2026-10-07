@@ -125,6 +125,7 @@ class MainWindow(QMainWindow):
         self._interval_ends = {}
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
+        self._plot_signature = None
         self.display_clock = None
         self._origin_override = False
         self._data_plot_dirty = False
@@ -651,6 +652,7 @@ class MainWindow(QMainWindow):
         plots.setContentsMargins(0, 0, 0, 0)
         self.figure = Figure(layout="constrained")
         self.canvas = ScrollableFigureCanvas(self.figure)
+        self.canvas.defer_when_hidden = True
         self.canvas.pinned_time_axis = True
         self.figure_actions = QWidget()
         self.figure_actions_layout = QHBoxLayout(self.figure_actions)
@@ -962,6 +964,7 @@ class MainWindow(QMainWindow):
         self.finish_run("Failed", [message])
 
     def clear_results(self):
+        self._plot_signature = None
         self.results, self.active_frame = None, None
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
@@ -1540,6 +1543,7 @@ class MainWindow(QMainWindow):
         self.y_column.blockSignals(False)
 
     def analyzed(self, results):
+        self._plot_signature = None
         self.results = results
         if self.current_run is None:
             self.result_source_frame = self.recordings if self.recordings else self.frame
@@ -1678,7 +1682,8 @@ class MainWindow(QMainWindow):
 
     def apply_filters(self, *_):
         # All official output rows are available; zooming changes only the plot.
-        self._detail_selections = {key: (self.tables.get(key, frame), np.arange(len(frame))) for key, frame in self._plot_tables.items()}
+        if not self._detail_selections:
+            self._detail_selections = {key: (self.tables.get(key, frame), np.arange(len(frame))) for key, frame in self._plot_tables.items()}
         self.active_frame, self.active_positions = self._detail_selections.get(self.dataset.currentText(), (None, np.array([], dtype=int)))
         self.active_selection = {}
         self.refresh_detail_table()
@@ -1743,9 +1748,14 @@ class MainWindow(QMainWindow):
         self.plot()
 
     def plot(self, *_):
+        chosen = self.selected_result_series()
+        signature = tuple(chosen)
+        if self._plot_signature == signature and self.figure.axes:
+            self.highlight_result_row()
+            return
+        self._plot_signature = signature
         self.figure.clear()
         self._result_selection_artists = []
-        chosen = self.selected_result_series()
         binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
         compact_states = bool(binaries) and all(binaries)
         height = max(100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries))
