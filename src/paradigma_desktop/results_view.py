@@ -1,13 +1,84 @@
 """Presentation-only aggregate summaries and timelines for official results."""
 import re
+from functools import lru_cache
 import numpy as np
 import pandas as pd
 
 from .core import result_tables
-from .exploration import gait_context, measurement_columns, source_timeline
+from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
 
 
 MODULE_NAMES = {"gait": "Gait", "tremor": "Tremor", "pulse_rate": "Pulse rate"}
+
+
+@lru_cache(maxsize=2)
+def gait_model_threshold(stage):
+    from importlib.resources import files
+    from paradigma.classification import ClassifierPackage
+
+    asset = {"detection": "gait_detection_clf_package.pkl",
+             "arm_activity": "gait_filtering_clf_package.pkl"}[stage]
+    return float(ClassifierPackage.load(files("paradigma.assets") / asset).threshold)
+
+
+def plot_tables(tables):
+    """Add display-only gait window indicators; leave raw outputs untouched."""
+    plots, labels = dict(tables), {}
+    for stage, probability, indicator, title in (
+        ("detection", "pred_gait_proba", "pred_gait_window", "Gait window presence"),
+        ("arm_activity", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window", "No other arm activity window"),
+    ):
+        name = f"classifications/gait/{stage}"
+        frame = tables.get(name)
+        if frame is None or probability not in frame:
+            continue
+        threshold = gait_model_threshold(stage)
+        values = pd.to_numeric(frame[probability], errors="coerce")
+        view = frame.copy()
+        view[indicator] = values.ge(threshold).astype(float).where(np.isfinite(values))
+        plots[name] = view
+        labels[(name, indicator)] = f"{title} (≥ {threshold:.5g})"
+    return plots, labels
+
+
+def binary_interval_ends(name, frame, times):
+    """Display each prediction until the next output update, capped at cadence.
+
+    Use the complete output before filtering. Gaps and separate recordings do
+    not extend positive states; overlapping analysis windows are displayed at
+    their update cadence, rather than expanding every label to window length.
+    """
+    from paradigma.config import GaitConfig, PulseRateConfig, TremorConfig
+
+    module = name.split("/")[1]
+    if module == "tremor":
+        default_step = TremorConfig().window_step_length_s
+    elif module == "gait":
+        step = "arm_activity" if name.endswith("/arm_activity") else "gait"
+        default_step = GaitConfig(step=step).window_step_length_s
+    elif module == "pulse_rate":
+        default_step = PulseRateConfig().window_step_length_s
+    else:
+        default_step = None
+    times = np.asarray(times, dtype=float)
+    ends = times.copy()
+    keys = [column for column in (*PARTICIPANT_COLUMNS, "file_key", "data_segment_nr", "gait_segment_nr") if column in frame]
+    groups = frame.groupby(keys, sort=False, dropna=False).indices.values() if keys else [np.arange(len(frame))]
+    for positions in groups:
+        stamps = times[positions]
+        gaps = np.diff(stamps)
+        positive = gaps[np.isfinite(gaps) & (gaps > 0)]
+        step = float(np.median(positive)) if len(positive) else default_step
+        if step is None or not np.isfinite(step) or step <= 0:
+            continue
+        if default_step is not None:
+            step = min(step, default_step)
+        stops = stamps + step
+        following = stamps[1:]
+        stops[:-1] = np.where(np.isfinite(following) & (following > stamps[:-1]),
+                              np.minimum(stops[:-1], following), stops[:-1])
+        ends[positions] = stops
+    return ends
 
 
 def tremor_window_counts(frame):
@@ -76,6 +147,8 @@ def output_label(name):
 
 def plot_metrics(name, frame):
     metrics = measurement_columns(frame)
+    if name.startswith("quantifications/tremor"):
+        metrics = [column for column in metrics if column not in ("pred_arm_at_rest", "pred_tremor_checked")]
     if name.startswith("classifications/"):
         predictions = [column for column in metrics if str(column).startswith("pred_")
                        or "proba" in str(column) or "probability" in str(column)]

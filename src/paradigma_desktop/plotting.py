@@ -76,22 +76,31 @@ def time_coordinates(values):
     return np.asarray(values, dtype=float)
 
 
-def plot_states(ax, xs, ys, color, *, label=None):
+def plot_states(ax, xs, ys, color, *, label=None, ends=None):
     """Presence at observed timestamps; blank space does not infer absence."""
     xs, ys = time_coordinates(xs), np.asarray(ys, dtype=float)
     finite_time = np.isfinite(xs)
     present = finite_time & (ys == 1.)
     ax._paradigma_binary = True
-    # Fixed-width squares and a full-width tinted band suggest continuous
-    # presence on long recordings. Slim ticks denote timestamps, not duration.
-    ax.scatter(xs[present], ys[present], color=color, marker="|", s=64,
-               linewidths=.9, zorder=3, label=label, rasterized=len(xs) > 2000)
+    if ends is None:
+        ax.scatter(xs[present], ys[present], color=color, marker="|", s=64,
+                   linewidths=.9, zorder=3, label=label, rasterized=len(xs) > 2000)
+    else:
+        ends = time_coordinates(ends)
+        valid = present & np.isfinite(ends) & (ends > xs)
+        ax.broken_barh(list(zip(xs[valid], ends[valid] - xs[valid])), (.88, .24),
+                       facecolors=color, edgecolors="none", zorder=3, label=label,
+                       rasterized=len(xs) > 2000)
+        points = present & ~valid
+        if points.any():
+            ax.scatter(xs[points], ys[points], color=color, marker="|", s=64,
+                       linewidths=.9, zorder=3, rasterized=len(xs) > 2000)
     # Keep the recording extent, including zero/missing-state timestamps, even
     # when this selection has no detections. Do not invent continuous intervals.
     if finite_time.any():
         ax.update_datalim([(xs[finite_time].min(), 1.), (xs[finite_time].max(), 1.)])
         ax.autoscale_view(scaley=False)
-    ax.set_yticks([1.], ["Present · 1"])
+    ax.set_yticks([])
     ax.set_ylim(.65, 1.35)
     ax.set_ylabel("")
     ax.grid(False, axis="y")

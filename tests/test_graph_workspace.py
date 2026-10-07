@@ -18,6 +18,30 @@ from paradigma_desktop.results_view import clock_times
 from paradigma_desktop.time_controls import TimeField
 
 
+@pytest.mark.parametrize("dtype", ["float64", "Float64"])
+def test_gait_window_threshold_boundaries_preserve_probabilities_and_raw_tables(dtype):
+    from importlib.resources import files
+    from paradigma.classification import ClassifierPackage
+    from paradigma_desktop.results_view import plot_tables
+
+    for stage, asset, probability, indicator in (
+        ("detection", "gait_detection_clf_package.pkl", "pred_gait_proba", "pred_gait_window"),
+        ("arm_activity", "gait_filtering_clf_package.pkl", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window"),
+    ):
+        threshold = ClassifierPackage.load(files("paradigma.assets") / asset).threshold
+        values = [np.nextafter(threshold, -np.inf), threshold, np.nextafter(threshold, np.inf),
+                  np.nan, np.inf, -np.inf]
+        frame = pd.DataFrame({"time": np.arange(len(values)), probability: pd.Series(values, dtype=dtype)})
+        original = frame.copy(deep=True)
+        name = f"classifications/gait/{stage}"
+        plots, labels = plot_tables({name: frame})
+        np.testing.assert_array_equal(plots[name][indicator], [0., 1., 1., np.nan, np.nan, np.nan])
+        pd.testing.assert_series_equal(plots[name][probability], original[probability], check_exact=True)
+        pd.testing.assert_frame_equal(frame, original, check_exact=True)
+        assert "window" in labels[(name, indicator)].lower()
+        assert f"≥ {threshold:.5g}" in labels[(name, indicator)]
+
+
 @pytest.fixture
 def window(tmp_path):
     application = QApplication.instance() or QApplication([])
@@ -63,18 +87,21 @@ def test_binary_raster_shows_only_presence_without_losing_time_range_or_rare_eve
     window.analyzed({"quantifications": {"tremor": frame}})
     axes = window.figure.axes[0]
     assert not axes.lines
-    assert [v.get_text() for v in axes.get_yticklabels()] == ["Present · 1"]
-    offsets = axes.collections[0].get_offsets()
-    np.testing.assert_array_equal(offsets, [[1., 1.]])
+    assert not axes.get_yticks().size
+    paths = axes.collections[0].get_paths()
+    assert len(paths) == 1
+    assert (paths[0].vertices[:, 0].min(), paths[0].vertices[:, 0].max()) == (1., 2.)
     assert axes.get_xlim()[0] <= t[0] and axes.get_xlim()[1] >= t[-1]
     window.time_from.setText("1"); window.time_to.setText("3"); window.apply_filters()
-    np.testing.assert_array_equal(window.figure.axes[0].collections[0].get_offsets(), [[1., 1.]])
+    assert len(window.figure.axes[0].collections[0].get_paths()) == 1
     window.time_from.setText("3"); window.time_to.setText("9"); window.apply_filters()
     axes = window.figure.axes[0]
-    assert axes.collections[0].get_offsets().shape == (0, 2)
+    assert not axes.collections[0].get_paths()
     assert axes.get_xlim()[0] <= 3. and axes.get_xlim()[1] >= 9.
     assert window.result_table.model().frame.pred_event.eq(0.).all()
     pd.testing.assert_frame_equal(frame, original)
+    window.time_from.setText("1"); window.time_to.setText("1"); window.apply_filters()
+    np.testing.assert_array_equal(window.figure.axes[0].collections[-1].get_offsets(), [[1., 1.]])
     assert not binary_indicator(pd.Series([0., 1.]), "pred_event_proba")
     assert not binary_indicator(pd.Series([0., 1.]), "gyroscope_x")
     assert binary_indicator(pd.Series([1., 1.]), "pred_event")
@@ -410,20 +437,46 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(module_color("tremor"))
 
 
-def test_binary_display_uses_slim_ticks_without_shading_the_whole_recording(window):
+def test_binary_display_fills_positive_intervals_without_shading_missing_or_zero_states(window):
     frame = pd.DataFrame({"time": [0., 1., 2., 3.], "pred_event": [0., 1., np.nan, 0.]})
     window.analyzed({"classifications": {"tremor": frame}})
     item = window._series_items[("classifications/tremor", "pred_event")]
     item.setCheckState(0, Qt.Checked)
     axes = window.figure.axes[0]
-    assert axes.collections[0].get_sizes().tolist() == [64]
-    np.testing.assert_array_equal(axes.collections[0].get_offsets(), [[1., 1.]])
+    bars = axes.collections[0].get_paths()
+    assert len(bars) == 1
+    assert (bars[0].vertices[:, 0].min(), bars[0].vertices[:, 0].max()) == (1., 2.)
     assert axes.get_ylim() == pytest.approx((.65, 1.35))
     assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 140
     assert not axes.patches
-    assert np.ptp(axes.collections[0].get_paths()[0].vertices[:, 0]) == 0
+    axes.set_xlim(1.2, 1.8)
+    window.canvas.draw()
+    assert bars[0].contains_point((1.5, 1.))
+    assert not axes.get_yticks().size
     window.plot_toolbar.settings.reset()
     assert axes.get_ylim() == pytest.approx((.65, 1.35))
+
+
+def test_binary_intervals_respect_gaps_recordings_filters_and_clicks_inside_bars(window):
+    frame = pd.DataFrame({"time": [0., 4., 8., 100., 104., 108.],
+                          "file_key": ["first"] * 3 + ["second"] * 3,
+                          "pred_tremor_checked": [1., 0., 1., 1., np.nan, 0.]})
+    original = frame.copy(deep=True)
+    window.analyzed({"classifications": {"tremor": frame}})
+    axes = window.figure.axes[0]
+    intervals = [(bar.vertices[:, 0].min(), bar.vertices[:, 0].max()) for bar in axes.collections[0].get_paths()]
+    assert intervals == [(0., 4.), (8., 12.), (100., 104.)]
+    axes.set_xlim(1., 3.)
+    window.canvas.draw()
+    assert axes.collections[0].get_paths()[0].contains_point((2., 1.))
+    window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=3.5))
+    assert window.result_table.currentIndex().row() == 0
+    window.time_from.setText("8"); window.time_to.setText("9"); window.apply_filters()
+    axes = window.figure.axes[0]
+    paths = axes.collections[0].get_paths()
+    assert len(paths) == 1
+    assert (paths[0].vertices[:, 0].min(), paths[0].vertices[:, 0].max()) == (8., 9.)
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(window):

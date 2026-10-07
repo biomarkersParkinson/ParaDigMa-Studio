@@ -273,6 +273,61 @@ def test_recorded_gait_and_tremor_outputs_are_numerically_equivalent(recorded_re
         assert any(stage["stage"].endswith("/" + name) for stage in stages)
 
 
+def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs(recorded_results, tmp_path):
+    from types import SimpleNamespace
+    from paradigma.classification import ClassifierPackage
+
+    actual, expected, _, side = recorded_results
+    application = QApplication.instance() or QApplication([])
+    window = MainWindow(history_dir=tmp_path / "runs")
+    try:
+        window.analyzed(actual)
+        window.result_tabs.setCurrentIndex(1)
+        for stage, asset, probability, indicator, cadence in (
+            ("detection", "gait_detection_clf_package.pkl", "pred_gait_proba", "pred_gait_window", 1.),
+            ("arm_activity", "gait_filtering_clf_package.pkl", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window", .75),
+        ):
+            name = f"classifications/gait/{stage}"
+            reference = expected["classifications"]["gait"][stage]
+            threshold = ClassifierPackage.load(files("paradigma.assets") / asset).threshold
+            positive = reference[probability].ge(threshold)
+            if stage == "detection" or side == "right":
+                assert positive.any()
+            else:
+                assert not positive.any()  # Official left-side fixture has no clean-arm windows.
+            assert (name, probability) in window._series_items
+            assert (name, indicator) in window._series_items
+            window.result_series.blockSignals(True)
+            for key, item in window._series_items.items():
+                item.setCheckState(0, Qt.Checked if key == (name, indicator) else Qt.Unchecked)
+            window.result_series.blockSignals(False)
+            window.dataset.setCurrentText(name)
+            window.plot()
+            axes = window.figure.axes[0]
+            bars = axes.collections[0].get_paths()
+            np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[positive, "time"])
+            assert all(0 < np.ptp(bar.vertices[:, 0]) <= cadence for bar in bars)
+            assert "window" in axes.get_title(loc="left").lower()
+            assert f"≥ {threshold:.5g}" in axes.get_title(loc="left")
+            if positive.any():
+                start = float(reference.loc[positive, "time"].iloc[0])
+                window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=start + cadence * .8))
+                row = window.result_table.currentIndex().row()
+                assert window.active_frame.time.iloc[row] == start
+            pd.testing.assert_frame_equal(window.result_table.model().frame, reference, check_exact=True)
+            window.time_from.setText(repr(float(reference.time.median())))
+            window.apply_filters()
+            bars = window.figure.axes[0].collections[0].get_paths()
+            retained = positive & reference.time.ge(reference.time.median())
+            np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[retained, "time"])
+            pd.testing.assert_frame_equal(actual["classifications"]["gait"][stage], reference, check_exact=True)
+            assert indicator not in actual["classifications"]["gait"][stage]
+            window.reset_filters()
+    finally:
+        window.close()
+        application.processEvents()
+
+
 def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(recorded_results, tmp_path):
     actual, expected, _, _ = recorded_results
     reference = expected["quantifications"]["tremor"]
@@ -286,34 +341,37 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
     try:
         window.analyzed(actual)
         window.result_tabs.setCurrentIndex(2)
-        window.table_dataset.setCurrentText("quantifications/tremor")
+        window.table_module_tabs.setCurrentIndex(1)
+        window.table_dataset.setCurrentIndex(window.table_dataset.findData("quantifications/tremor"))
         assert not window.timing_toggle.isChecked()
         pd.testing.assert_frame_equal(window.result_table.model().frame, actual["quantifications"]["tremor"], check_exact=True)
+        for metric in ("pred_arm_at_rest", "pred_tremor_checked"):
+            assert ("quantifications/tremor", metric) not in window._series_items
+            assert ("classifications/tremor", metric) in window._series_items
         window.result_series.blockSignals(True)
         for key, item in window._series_items.items():
-            item.setCheckState(0, Qt.Checked if key == ("quantifications/tremor", "pred_tremor_checked") else Qt.Unchecked)
+            item.setCheckState(0, Qt.Checked if key == ("classifications/tremor", "pred_tremor_checked") else Qt.Unchecked)
         window.result_series.blockSignals(False)
         window.plot()
         axes = window.figure.axes[0]
-        points = axes.collections[0].get_offsets()
-        np.testing.assert_array_equal(points[:, 0], reference.loc[positive, "time"])
-        np.testing.assert_array_equal(points[:, 1], np.ones(int(positive.sum())))
-        assert not axes.patches  # No background implying detection between timestamps.
+        bars = axes.collections[0].get_paths()
+        np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[positive, "time"])
+        np.testing.assert_array_equal([bar.vertices[:, 0].max() for bar in bars], reference.loc[positive, "time"] + 4.)
+        assert not axes.get_yticks().size
+        assert not axes.patches  # No full-width background implying continuous detection.
         assert f"{int(positive.sum())} / {int(resting.sum())} resting windows" in axes.texts[0].get_text()
         assert f"{percentage:.2f}%" in axes.texts[0].get_text()
-        window.table_output_tabs.setCurrentIndex(0)
-        window.table_dataset.setCurrentText("classifications/tremor")
+        window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
         pd.testing.assert_frame_equal(window.result_table.model().frame, actual["classifications"]["tremor"], check_exact=True)
         np.testing.assert_array_equal(actual["classifications"]["tremor"].pred_tremor_checked, reference.pred_tremor_checked)
         window.time_from.setText(repr(float(reference.time.median())))
         window.apply_filters()
         retained = positive & reference.time.ge(reference.time.median())
         checked_axes = next(ax for ax in window.figure.axes
-                            if ax._paradigma_dataset == "quantifications/tremor"
+                            if ax._paradigma_dataset == "classifications/tremor"
                             and ax._paradigma_metric == "pred_tremor_checked")
-        np.testing.assert_array_equal(checked_axes.collections[0].get_offsets()[:, 0], reference.loc[retained, "time"])
-        window.table_output_tabs.setCurrentIndex(2)
-        window.table_dataset.setCurrentText("aggregations/tremor")
+        np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in checked_axes.collections[0].get_paths()], reference.loc[retained, "time"])
+        window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
         aggregated = window.aggregation_table.model().frame.set_index("measure")["value"]
         assert aggregated["perc_windows_tremor"] == percentage
         assert float(window.overview_values[("tremor", "Aggregates", ("perc_windows_tremor",))].toolTip()) == percentage

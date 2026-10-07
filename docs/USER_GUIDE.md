@@ -76,13 +76,24 @@ median, IQR and range of segment durations. Individual segment records stay out
 of Overview. Detail filters do not recompute or alter official aggregates.
 
 Results **Graphs** contain classifications and quantifications. **Tables** has
-separate Classification, Quantification and Aggregation views. Choose the module
-or branch in **Output table**. Classification and quantification tables show the
+Gait, Tremor and Pulse rate tabs. Within each module, choose its classification,
+quantification or aggregation table in **Output table**. Tabs without outputs are
+disabled; each module remembers its selected table. Classification and quantification tables show the
 original columns and values by default. Aggregation dictionaries appear as ordered
 **measure/value** tables with their original keys and values. These aggregates
 always cover the full run, regardless of the graph/table time filter.
 Check **Plot series** to compare metrics from several modules on vertically aligned
 plots with a shared time axis. Different quantities keep their own vertical scales.
+Tremor's arm-rest and checked-tremor predictors appear only under Classification
+in Plot series; Quantification lists derived measurements. Raw tables retain
+the original columns in both outputs.
+Gait Classification also offers **Gait window presence** and **No other arm
+activity window** alongside the probabilities. These display-only indicators
+use `probability ≥ threshold` from the bundled gait detection/filtering models;
+the threshold appears in the plot label. They describe individual windows.
+ParaDigMa averages overlapping probabilities before applying the threshold to
+its final sample-level segmentation, so these plots do not reproduce that
+segmentation. Raw tables and exports retain the official probability columns.
 The Plot series tree is the graph selector; choose a detailed output separately
 on Tables for its table and CSV export. Only the shared From/Until time range
 and Time origin appear in Filters. Mouse-wheel and touchpad scrolling work while
@@ -130,13 +141,16 @@ want to edit. Shared horizontal limits, grid and legend settings apply across
 plots. The toolbar retains reset view, back/forward, pan, zoom and figure saving.
 
 Continuous plots display at most 20,000 samples per series for responsiveness.
-Binary indicators show **Present · 1** only, with slim ticks at every positive
-output timestamp. Zero and missing states stay blank; no durations or transitions
-are inferred. These indicators are not subsampled, so isolated detections remain
-visible. The full selected time range stays visible, including selections without
-detections. Tables and exports retain all selected rows, including zero and missing states.
-The ticks denote output timestamps, not continuous coverage or proportional duration;
-there is no full-width shaded band suggesting presence between detections.
+Binary predictors use slim filled bars for positive output intervals, without a
+redundant vertical-axis label. Each label extends to the next output update, capped
+at the module's update cadence (4 seconds for default tremor). Overlapping feature
+windows are displayed at their update cadence, rather than extending every label
+across the full feature-window length. Recording sections, gaps, zero and missing
+states are not joined. Intervals are determined before filtering and clipped at
+the selected end time; a single selected timestamp remains visible as a tick.
+These intervals present window labels, not exact physiological onset/offset times.
+Binary indicators are not subsampled, so isolated detections remain visible.
+Tables and exports retain all selected rows, including zero and missing states.
 For `pred_tremor_checked`, the plot shows checked/resting-window counts and the
 percentage for the current selection. ParaDigMa's `perc_windows_tremor` is
 `100 × checked tremor windows / resting-or-stable windows`, not a percentage

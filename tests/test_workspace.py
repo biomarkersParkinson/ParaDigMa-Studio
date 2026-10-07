@@ -122,6 +122,30 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
 
 
+def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window):
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
+    window.set_modules(["gait", "tremor", "pulse_rate"])
+    window.navigate(1)
+    window.resize(960, 650)
+    window.show()
+    QTest.qWait(30)
+    assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+    for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
+                    window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared):
+        assert control.visibleRegion().boundingRect().contains(control.rect())
+    help_buttons = [info for info, description in window.analysis_help.values()]
+    assert {(info.width(), info.height()) for info in help_buttons} == {(22, 22)}
+    assert all(info.objectName() == "helpInfo" and info.isCheckable() for info in help_buttons)
+    for info in help_buttons:
+        info.click()
+    QTest.qWait(30)
+    assert window.analysis_scroll.verticalScrollBar().maximum() > 0
+    for info in help_buttons:
+        info.click()
+    QTest.qWait(30)
+    assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+
+
 def test_data_overview_graphs_and_tables_use_original_recording(window):
     frame = pd.DataFrame({"time": [0., .1, .2], "gyroscope_x": [1., np.nan, 3.], "green": [5., 6., 7.]})
     original = frame.copy(deep=True)
@@ -172,6 +196,12 @@ def test_module_cards_allow_every_combination(window):
     assert window.selected_modules() == ["gait", "pulse_rate"]
     window.set_modules(["tremor", "pulse_rate"])
     assert window.selected_modules() == ["tremor", "pulse_rate"]
+    window.set_modules(["pulse_rate"])
+    assert "Accelerometer" in window.module_requirements.text()
+    window.prepared.setChecked(True)
+    assert window.module_requirements.text() == "Raw green PPG required."
+    window.set_modules(["gait", "pulse_rate"])
+    assert "Accelerometer" in window.module_requirements.text()
 
 
 def test_inline_analysis_help_does_not_change_configuration(window):

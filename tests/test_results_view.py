@@ -123,22 +123,25 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
             pd.testing.assert_frame_equal(table["unfiltered"], original["quantifications"][module]["unfiltered"])
 
 
-def test_tables_separate_original_outputs_and_export_full_run_aggregates(window, results, tmp_path, monkeypatch):
+def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(window, results, tmp_path, monkeypatch):
     original = deepcopy(results)
     setup(window, results)
     window.show()
     window.result_tabs.setCurrentIndex(2)
-    assert [window.table_output_tabs.tabText(i) for i in range(3)] == ["Classification", "Quantification", "Aggregation"]
+    assert [window.table_module_tabs.tabText(i) for i in range(3)] == ["Gait", "Tremor", "Pulse rate"]
+    assert not window.table_module_tabs.isTabEnabled(2)
     assert not window.timing_toggle.isChecked()
-    assert window.table_output_tabs.currentIndex() == 1
+    assert window.table_module_tabs.currentIndex() == 0
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"])
-    window.table_output_tabs.setCurrentIndex(0)
-    assert all(window.table_dataset.itemText(i).startswith("classifications/") for i in range(window.table_dataset.count()))
+    window.table_module_tabs.setCurrentIndex(1)
+    names = [window.table_dataset.itemData(i) for i in range(window.table_dataset.count())]
+    assert names == ["classifications/tremor", "quantifications/tremor", "aggregations/tremor"]
+    assert [window.table_dataset.itemText(i) for i in range(3)] == ["Classification", "Quantification", "Aggregation"]
+    window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"])
     window.time_from.setText("8"); window.apply_filters()
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"].iloc[2:])
-    window.table_output_tabs.setCurrentIndex(2)
-    window.table_dataset.setCurrentText("aggregations/tremor")
+    window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
     assert window.table_stack.currentWidget() is window.aggregation_table
     expected = pd.DataFrame({"measure": ["tremor_time_percent"], "value": pd.Series([42.], dtype=object)})
     pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
@@ -150,14 +153,42 @@ def test_tables_separate_original_outputs_and_export_full_run_aggregates(window,
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
     pd.testing.assert_frame_equal(pd.read_csv(path), expected.astype({"value": float}))
-    window.table_output_tabs.setCurrentIndex(1)
-    assert window.table_dataset.currentText() == "quantifications/gait/unfiltered"
+    window.table_module_tabs.setCurrentIndex(0)
+    assert window.table_dataset.currentData() == "quantifications/gait/unfiltered"
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["gait"]["unfiltered"].iloc[2:])
+    window.table_module_tabs.setCurrentIndex(1)
+    assert window.table_dataset.currentData() == "aggregations/tremor"
+    pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
+    window.result_tabs.setCurrentIndex(1)
+    gait_axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/gait/unfiltered")
+    anchor = dates.date2num(clock_times([11.], window.display_clock))[0]
+    window.graph_clicked(SimpleNamespace(inaxes=gait_axes, xdata=anchor))
+    assert window.table_module_tabs.currentIndex() == 0
+    assert window.table_dataset.currentData() == "quantifications/gait/unfiltered"
     for category in ("classifications", "quantifications"):
         for name, frame in results[category].items():
             if isinstance(frame, pd.DataFrame):
                 pd.testing.assert_frame_equal(frame, original[category][name])
     assert results["aggregations"] == original["aggregations"]
+
+
+def test_module_tabs_support_aggregation_only_modules(window):
+    classification = pd.DataFrame({"time": [0., 1.], "pred_gait": [1, 0]})
+    window.analyzed({"classifications": {"gait": classification},
+                     "aggregations": {"pulse_rate": {"median_pulse_rate": 72.}}})
+    window.result_tabs.setCurrentIndex(2)
+    assert window.table_module_tabs.isTabEnabled(0)
+    assert not window.table_module_tabs.isTabEnabled(1)
+    assert window.table_module_tabs.isTabEnabled(2)
+    window.table_module_tabs.setCurrentIndex(2)
+    assert window.table_dataset.count() == 1
+    assert window.table_dataset.currentText() == "Aggregation"
+    assert window.table_dataset.currentData() == "aggregations/pulse_rate"
+    assert window.aggregation_table.model().frame.value.tolist() == [72.]
+    assert window.selected_export_table()[0] == "aggregations/pulse_rate"
+    assert not window.filters_toggle.isVisible()
+    window.table_module_tabs.setCurrentIndex(0)
+    pd.testing.assert_frame_equal(window.result_table.model().frame, classification)
 
 
 def test_optional_timing_columns_preserve_original_data_and_linked_selection(window, results):

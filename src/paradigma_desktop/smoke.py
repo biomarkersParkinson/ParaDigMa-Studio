@@ -169,7 +169,9 @@ def smoke_test(report_path):
                 window.canvas.draw()
                 state_axes = window.figure.axes[0]
                 present = classification[state].to_numpy(dtype=float) == 1.
-                if state_axes.lines or not np.array_equal(state_axes.collections[0].get_offsets()[:, 1], classification[state].to_numpy()[present]):
+                if state_axes.lines or not np.array_equal(
+                        [bar.vertices[:, 0].min() for bar in state_axes.collections[0].get_paths()],
+                        classification.time.to_numpy()[present]):
                     raise RuntimeError("Binary output did not show only positive detections")
                 if state_axes.patches:
                     raise RuntimeError("Binary graph background implies continuous detection")
@@ -189,11 +191,9 @@ def smoke_test(report_path):
                 if not window.clock_input.calendar.calendarPopup():
                     raise RuntimeError("The recording time origin has no calendar selector")
                 window.result_tabs.setCurrentIndex(2)
-                window.table_output_tabs.setCurrentIndex(0)
-                window.table_dataset.setCurrentText("classifications/tremor")
+                window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
                 pd.testing.assert_frame_equal(window.result_table.model().frame, classification, check_exact=True)
-                window.table_output_tabs.setCurrentIndex(2)
-                window.table_dataset.setCurrentText("aggregations/tremor")
+                window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
                 aggregates = window.aggregation_table.model().frame.set_index("measure")["value"].to_dict()
                 if aggregates != results["aggregations"]["tremor"] or not window.filters_toggle.isHidden():
                     raise RuntimeError("The separate full-run aggregation table differs from official output")

@@ -37,8 +37,8 @@ from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time
 from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
 from .results_view import (
-    MODULE_NAMES, clock_times, clock_origin, aggregation_tables, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key, tremor_window_counts,
+    MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
+    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key, tremor_window_counts,
 )
 from .theme import STYLESHEET, light_palette, style_axes, module_color
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
@@ -111,6 +111,8 @@ class MainWindow(QMainWindow):
         self.tables, self.provenance = {}, {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
+        self._interval_ends = {}
+        self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self.display_clock = None
         self._source_timelines, self._display_offsets = {}, {}
@@ -323,28 +325,37 @@ class MainWindow(QMainWindow):
 
     def _build_analyze(self):
         layout = self.page()
-        scroll = QScrollArea()
+        layout.setSpacing(8)
+        scroll = self.analysis_scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         body = QWidget()
+        body.setObjectName("analysisBody")
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
-        content.setSpacing(18)
+        content.setSpacing(8)
         panel, input_layout = card()
-        input_layout.addWidget(label("Selected input", "muted"))
+        input_layout.setContentsMargins(12, 8, 12, 8)
         input_row = QHBoxLayout()
+        input_row.addWidget(label("Selected input", "muted"))
         self.analysis_input = label("No recording loaded", "sectionTitle")
         input_row.addWidget(self.analysis_input, 1)
+        self.analysis_input_detail = label("", "muted")
+        input_row.addWidget(self.analysis_input_detail)
         input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
         input_layout.addLayout(input_row)
-        self.analysis_input_detail = label("", "muted")
-        input_layout.addWidget(self.analysis_input_detail)
         content.addWidget(panel)
         self.analysis_controls = QWidget()
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(16)
+        controls.setSpacing(8)
         self.analysis_help = {}
-        controls.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
+        module_header = QHBoxLayout()
+        module_header.addWidget(self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True))
+        self.module_requirements = label("", "muted")
+        self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        module_header.addWidget(self.module_requirements, 1)
+        controls.addLayout(module_header)
         modules = QHBoxLayout()
         self.module_buttons = {}
         for name in ("Gait", "Tremor", "Pulse rate"):
@@ -356,18 +367,18 @@ class MainWindow(QMainWindow):
             modules.addWidget(item, 1)
         self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
-        self.module_requirements = label("", "muted")
-        controls.addWidget(self.module_requirements)
         self.settings_panel, parameters = card()
+        parameters.setContentsMargins(12, 10, 12, 10)
+        parameters.setSpacing(8)
         parameters.addWidget(label("Analysis parameters", "sectionTitle"))
         columns = QHBoxLayout()
-        columns.setSpacing(28)
+        columns.setSpacing(20)
         left = QFormLayout()
         right = QFormLayout()
         for form in (left, right):
             form.setRowWrapPolicy(QFormLayout.WrapLongRows)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            form.setSpacing(14)
+            form.setSpacing(6)
         self.side = self.combo(["left", "right"])
         self.acc = self.combo(["g", "m/s^2"])
         self.gyro = self.combo(["deg/s", "rad/s"])
@@ -391,7 +402,7 @@ class MainWindow(QMainWindow):
         sections.setContentsMargins(0, 0, 0, 0)
         sections.setRowWrapPolicy(QFormLayout.WrapLongRows)
         sections.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        sections.setSpacing(14)
+        sections.setSpacing(6)
         sections.addRow(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True))
         self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
         self.section_reset_buttons = {}
@@ -417,7 +428,7 @@ class MainWindow(QMainWindow):
         parameters.addLayout(columns)
         self.mapping = QPlainTextEdit("{}")
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
-        self.mapping.setFixedHeight(70)
+        self.mapping.setFixedHeight(42)
         parameters.addWidget(self.analysis_field("Column mapping (JSON)", self.mapping))
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         controls.addWidget(self.settings_panel)
@@ -461,12 +472,12 @@ class MainWindow(QMainWindow):
         if not inline:
             title_label.setBuddy(control)
         row.addWidget(title_label)
-        row.addWidget(info)
+        row.addWidget(info, alignment=Qt.AlignVCenter)
         row.addStretch()
         body = QWidget()
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 0, 0)
-        content.setSpacing(6)
+        content.setSpacing(4)
         if form is not None:
             content.addWidget(control)
             content.addWidget(description)
@@ -579,12 +590,12 @@ class MainWindow(QMainWindow):
         self.filters_panel.hide()
         self.selection_note = label("No detailed output", "muted")
         controls_layout.addWidget(self.selection_note)
-        self.table_output_tabs = QTabBar()
-        self.table_output_tabs.setExpanding(False)
-        for title in ("Classification", "Quantification", "Aggregation"):
-            self.table_output_tabs.addTab(title)
-        self.table_output_tabs.setCurrentIndex(1)
-        controls_layout.insertWidget(0, self.table_output_tabs)
+        self.table_module_tabs = QTabBar()
+        self.table_module_tabs.setExpanding(False)
+        for title in MODULE_NAMES.values():
+            self.table_module_tabs.addTab(title)
+        self.table_module_tabs.setCurrentIndex(0)
+        controls_layout.insertWidget(0, self.table_module_tabs)
         self.overview_scroll, overview_body = view("Overview")
         self.overview_content = QWidget()
         self.overview_layout = QVBoxLayout(self.overview_content)
@@ -738,8 +749,8 @@ class MainWindow(QMainWindow):
         self.time.currentTextChanged.connect(self.data_time_unit.setCurrentText)
         self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
         self.dataset.currentTextChanged.connect(self.select_dataset)
-        self.table_dataset.currentTextChanged.connect(self.select_output_table)
-        self.table_output_tabs.currentChanged.connect(self.table_output_changed)
+        self.table_dataset.currentIndexChanged.connect(self.select_output_table)
+        self.table_module_tabs.currentChanged.connect(self.table_module_changed)
         self.timing_toggle.toggled.connect(self.table_timing_changed)
         self.y_column.currentIndexChanged.connect(self.update_metric)
         self.result_series.itemChanged.connect(self.plot)
@@ -797,13 +808,14 @@ class MainWindow(QMainWindow):
         selected = self.selected_modules()
         self.side.setEnabled("gait" in selected)
         requirements = []
-        if "gait" in selected:
-            requirements.append("Accelerometer and gyroscope channels required.")
-        elif "tremor" in selected:
-            requirements.append("Gyroscope channels required.")
+        if "gait" in selected or ("pulse_rate" in selected and not self.prepared.isChecked()):
+            requirements.append("Accelerometer")
+        if "gait" in selected or "tremor" in selected:
+            requirements.append("gyroscope")
         if "pulse_rate" in selected:
-            requirements.append("Raw green PPG required; raw preparation also needs accelerometer channels.")
-        self.module_requirements.setText(" ".join(requirements) or "Select an analysis module.")
+            requirements.append("raw green PPG")
+        text = ", ".join(requirements)
+        self.module_requirements.setText(text[0].upper() + text[1:] + " required." if text else "Select an analysis module.")
         self.run_button.setEnabled(self.frame is not None and bool(selected) and self.worker is None)
 
     def preparation_changed(self, *_):
@@ -812,6 +824,7 @@ class MainWindow(QMainWindow):
             widget.setEnabled(not prepared)
         for widget in (self.max_gap, self.min_segment):
             widget.setEnabled(not prepared and self.gaps.isChecked())
+        self.modules_changed()
 
     def start_job(self, operation, completed):
         if self.worker is not None:
@@ -913,6 +926,8 @@ class MainWindow(QMainWindow):
         self.tables = {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
+        self._interval_ends = {}
+        self._plot_tables, self._plot_labels = {}, {}
         self.result_series.blockSignals(True)
         self.result_series.clear()
         self.result_series.blockSignals(False)
@@ -1160,7 +1175,7 @@ class MainWindow(QMainWindow):
         actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
         actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
         self.results_scroll = self._result_view_scrolls[index]
-        aggregation = index == 2 and self.table_output_tabs.currentIndex() == 2
+        aggregation = index == 2 and self.table_dataset.currentData() in self.aggregation_tables
         detailed = index in (1, 2) and not aggregation
         self.results_header.show()
         self.detail_controls.setVisible(index == 2 or index == 1 and self.filters_toggle.isChecked())
@@ -1169,59 +1184,70 @@ class MainWindow(QMainWindow):
         self.csv_button.setVisible(index in (1, 2))
         self.context_controls.setVisible(detailed)
         self.dataset_field.setVisible(index == 2)
-        self.table_output_tabs.setVisible(index == 2)
+        self.table_module_tabs.setVisible(index == 2)
         self.timing_toggle.setVisible(index == 2 and not aggregation)
         self.selection_note.setVisible(index == 2)
         self.csv_button.setEnabled(self.worker is None and self.selected_export_table()[1] is not None)
 
     def sync_table_outputs(self, force_detail=False):
-        prefixes = ("classifications/", "quantifications/", "aggregations/")
-        choices = [any(name.startswith(prefix) for name in (*self.tables, *self.aggregation_tables))
-                   for prefix in prefixes]
-        index = self.table_output_tabs.currentIndex()
+        names = [*self.tables, *self.aggregation_tables]
+        modules = list(dict.fromkeys([*MODULE_NAMES, *(name.split("/")[1] for name in names)]))
+        available = {module: any(name.split("/")[1] == module for name in names) for module in modules}
+        current = self.table_module_tabs.tabData(self.table_module_tabs.currentIndex())
         name = self.dataset.currentText()
         if force_detail and name in self.tables:
-            index = 0 if name.startswith(prefixes[0]) else 1
-            self._table_choices[index] = name
-        elif index < 0 or not choices[index]:
-            index = next((i for i in (1, 0, 2) if choices[i]), 1)
-        previous = self.table_output_tabs.blockSignals(True)
-        for i, enabled in enumerate(choices):
-            self.table_output_tabs.setTabEnabled(i, enabled)
-        self.table_output_tabs.setCurrentIndex(index)
-        self.table_output_tabs.blockSignals(previous)
-        self.table_output_changed(index)
+            current = name.split("/")[1]
+            self._table_choices[current] = name
+        if not available.get(current):
+            current = next((module for module in modules if available[module]), modules[0])
+        previous = self.table_module_tabs.blockSignals(True)
+        if modules != [self.table_module_tabs.tabData(i) for i in range(self.table_module_tabs.count())]:
+            while self.table_module_tabs.count():
+                self.table_module_tabs.removeTab(0)
+            for module in modules:
+                index = self.table_module_tabs.addTab(MODULE_NAMES.get(module, module.replace("_", " ").title()))
+                self.table_module_tabs.setTabData(index, module)
+        for index, module in enumerate(modules):
+            self.table_module_tabs.setTabEnabled(index, available[module])
+        index = modules.index(current)
+        self.table_module_tabs.setCurrentIndex(index)
+        self.table_module_tabs.blockSignals(previous)
+        self.table_module_changed(index)
 
-    def table_output_changed(self, index):
+    def table_module_changed(self, index):
         if index < 0:
             return
-        prefix = ("classifications/", "quantifications/", "aggregations/")[index]
-        tables = self.aggregation_tables if index == 2 else self.tables
-        names = [name for name in tables if name.startswith(prefix)]
-        preferred = self._table_choices.get(index, self.dataset.currentText())
+        module = self.table_module_tabs.tabData(index)
+        tables = {**self.tables, **self.aggregation_tables}
+        names = [name for name in tables if name.split("/")[1] == module]
+        preferred = self._table_choices.get(module)
+        if preferred not in names:
+            preferred = next((name for name in names if name.startswith("quantifications/") and len(tables[name])),
+                             names[0] if names else None)
         previous = self.table_dataset.blockSignals(True)
         self.table_dataset.clear()
-        self.table_dataset.addItems(names)
+        for name in names:
+            self.table_dataset.addItem(output_label(name).partition(" · ")[2], name)
         if preferred in names:
-            self.table_dataset.setCurrentText(preferred)
+            self.table_dataset.setCurrentIndex(self.table_dataset.findData(preferred))
         self.table_dataset.blockSignals(previous)
-        self.select_output_table(self.table_dataset.currentText())
+        self.select_output_table()
 
-    def select_output_table(self, name):
-        index = self.table_output_tabs.currentIndex()
-        self._table_choices[index] = name
-        if index == 2:
-            frame = self.aggregation_tables.get(name)
-            self.aggregation_table.setModel(FrameModel(frame) if frame is not None else None)
+    def select_output_table(self, *_):
+        name = self.table_dataset.currentData()
+        module = self.table_module_tabs.tabData(self.table_module_tabs.currentIndex())
+        self._table_choices[module] = name
+        if name in self.aggregation_tables:
+            self.aggregation_table.setModel(FrameModel(self.aggregation_tables[name]))
             self.table_stack.setCurrentIndex(1)
-            self.selection_note.setText("Full-run aggregates" if frame is not None else "No aggregation outputs")
+            self.selection_note.setText("Full-run aggregates")
         else:
             self.table_stack.setCurrentIndex(0)
             if name in self.tables and name != self.dataset.currentText():
                 self.dataset.setCurrentText(name)
-            elif self.active_frame is None:
+            elif name not in self.tables or self.active_frame is None:
                 self.result_table.setModel(None)
-                self.selection_note.setText("No outputs for this category")
+                self.selection_note.setText("No tables available")
             else:
                 self.update_detail_note()
         self.results_tab_changed(self.result_tabs.currentIndex())
@@ -1235,9 +1261,12 @@ class MainWindow(QMainWindow):
         self.highlight_result_row()
 
     def selected_export_table(self):
-        if self.result_tabs.currentIndex() == 2 and self.table_output_tabs.currentIndex() == 2:
-            name = self.table_dataset.currentText()
-            return name, self.aggregation_tables.get(name)
+        if self.result_tabs.currentIndex() == 2:
+            name = self.table_dataset.currentData()
+            if name in self.aggregation_tables:
+                return name, self.aggregation_tables[name]
+            if name not in self.tables:
+                return name, None
         return self.dataset.currentText(), getattr(self, "display_frame", None)
 
     def build_result_overview(self):
@@ -1320,7 +1349,7 @@ class MainWindow(QMainWindow):
         self.result_series.clear()
         self._series_items = {}
         roots, default_modules = {}, set()
-        for name, frame in self.tables.items():
+        for name, frame in self._plot_tables.items():
             module = name.split("/")[1]
             if module not in roots:
                 root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, module.title())])
@@ -1335,11 +1364,13 @@ class MainWindow(QMainWindow):
             choose = (len(frame) > 0 and name.startswith("quantifications/") and module not in default_modules
                       and (not name.endswith("/filtered") or not len(self.tables.get("quantifications/gait/unfiltered", []))))
             for metric in metrics:
-                item = QTreeWidgetItem(stage, [str(metric).replace("_", " ")])
+                title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
+                item = QTreeWidgetItem(stage, [title])
                 item.setData(0, Qt.UserRole, (name, metric))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(0, Qt.Checked if choose and metric == default else Qt.Unchecked)
-                item.setToolTip(0, f"{name}\n{metric}")
+                item.setToolTip(0, f"{name}\n{metric}" if (name, metric) not in self._plot_labels else
+                                title + "\nDerived from each window probability using the bundled model threshold; not the final merged sample labels.")
                 self._series_items[(name, metric)] = item
             if choose and default is not None:
                 default_modules.add(module)
@@ -1388,10 +1419,13 @@ class MainWindow(QMainWindow):
         self.time_to.clear()
         self._detail_selections = {}
         self.tables = detail_tables(results)
+        self._plot_tables, self._plot_labels = plot_tables(self.tables)
         self.aggregation_tables = aggregation_tables(results)
         self._timings = {name: detail_timing(results, name, frame) for name, frame in self.tables.items()}
         for name, timing in self._timings.items():
             timing["Timeline time (s)"] = timing["Analysis time (s)"] + self._display_offsets.get(name.split("/")[1], 0.)
+        self._interval_ends = {name: binary_interval_ends(name, self.tables[name], timing["Timeline time (s)"])
+                               for name, timing in self._timings.items()}
         self.results_source.setText(Path(self.provenance.get("source", self.source)).name or "Current analysis")
         self.build_result_overview()
         self.populate_result_series()
@@ -1450,10 +1484,11 @@ class MainWindow(QMainWindow):
         self.y_column.blockSignals(True)
         self.y_column.clear()
         if frame is not None:
-            for column in plot_metrics(name, frame):
+            plot_frame = self._plot_tables[name]
+            for column in plot_metrics(name, plot_frame):
                 self.y_column.addItem(str(column), column)
             preferred = next((metric for dataset, metric in self.selected_result_series() if dataset == name),
-                             preferred_metric(name, frame))
+                             preferred_metric(name, plot_frame))
             if preferred is not None:
                 self.y_column.setCurrentIndex(self.y_column.findData(preferred))
         self.y_column.blockSignals(False)
@@ -1561,7 +1596,7 @@ class MainWindow(QMainWindow):
                                     + (" · Gait positions estimated within segments" if estimated else ""))
         if not self.timing_toggle.isChecked():
             self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows")
-        if self.table_output_tabs.currentIndex() == 2:
+        if self.table_dataset.currentData() in self.aggregation_tables:
             self.selection_note.setText("Full-run aggregates")
 
     def reset_filters(self):
@@ -1585,7 +1620,7 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         self._result_selection_artists = []
         chosen = self.selected_result_series()
-        binaries = [binary_indicator(self.tables[name][metric], metric) for name, metric in chosen]
+        binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
         compact_states = bool(binaries) and all(binaries)
         height = max(140 if compact_states else 220, sum(105 if binary else 190 for binary in binaries))
         self.canvas.setMinimumHeight(height)
@@ -1604,11 +1639,11 @@ class MainWindow(QMainWindow):
             ax._paradigma_metric = metric
             selected, positions = self._detail_selections.get(name, (self.tables[name].iloc[:0], np.array([], dtype=int)))
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            binary = binary_indicator(self.tables[name][metric], metric)
+            binary = binary_indicator(self._plot_tables[name][metric], metric)
             step = 1 if binary else max(1, int(np.ceil(len(selected) / 20000)))
             sample = selected.iloc[::step]
             xs = clock_times(times[::step], self.display_clock)
-            ys = sample[metric].to_numpy(dtype=float, na_value=np.nan)
+            ys = self._plot_tables[name][metric].iloc[positions[::step]].to_numpy(dtype=float, na_value=np.nan)
             estimated = name.startswith("quantifications/gait/") and "time" not in sample
             participant_column = next((c for c in PARTICIPANT_COLUMNS if c in sample), None)
             points_only = estimated or participant_column is not None and sample[participant_column].nunique() > 1
@@ -1622,7 +1657,12 @@ class MainWindow(QMainWindow):
             if len(sample) and np.isfinite(xs).any():
                 color = module_color(name.split("/")[1])
                 if binary:
-                    plot_states(ax, xs, ys, color)
+                    stops = self._interval_ends[name][positions]
+                    until = time_bound(self.active_selection.get("time_to", ""), self.display_clock)
+                    if until is not None:
+                        stops = np.minimum(stops, until)
+                    stops = clock_times(stops, self.display_clock)
+                    plot_states(ax, xs, ys, color, ends=stops)
                     counts = tremor_window_counts(selected) if metric == "pred_tremor_checked" else None
                     if counts is not None:
                         numerator, denominator, percentage = counts
@@ -1636,7 +1676,7 @@ class MainWindow(QMainWindow):
                 ax.text(.5, .5, "No timed rows in the current selection", ha="center", transform=ax.transAxes, color="#68778c")
             if not binary:
                 ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
-            metric_title = str(metric).replace("_", " ").capitalize()
+            metric_title = self._plot_labels.get((name, metric), str(metric).replace("_", " ").capitalize())
             ax.set_title(output_label(name) + "  ·  " + metric_title + (" · Estimated positions" if estimated else ""),
                          fontsize=10, fontweight="semibold", color="#243C57", pad=13, loc="left")
             if self.display_clock is not None:
@@ -1711,7 +1751,7 @@ class MainWindow(QMainWindow):
             self._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
-            value = frame[ax._paradigma_metric].iloc[row]
+            value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
             if (pd.isna(value) or not np.isfinite(float(value))
                     or getattr(ax, "_paradigma_binary", False) and float(value) != 1.):
                 continue
@@ -1748,6 +1788,12 @@ class MainWindow(QMainWindow):
         if not finite.any():
             return
         row = int(np.argmin(np.where(finite, distances, np.inf)))
+        if getattr(event.inaxes, "_paradigma_binary", False) and metric in self._plot_tables[name]:
+            ends = self._interval_ends[name][self.active_positions]
+            present = self._plot_tables[name][metric].iloc[self.active_positions].eq(1).fillna(False).to_numpy(dtype=bool)
+            covering = np.flatnonzero(present & (times <= anchor) & (anchor < ends))
+            if len(covering):
+                row = int(covering[-1])
         self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
         self.result_table.selectRow(row)
         self.result_table.scrollTo(self.result_table.currentIndex())

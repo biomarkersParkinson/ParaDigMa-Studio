@@ -23,11 +23,13 @@ The two generic figure dialogs have been removed.
 
 ## Analyze
 
-Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel, with an **i** button beside each field for inline documented guidance. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
+Select any combination of gait, tremor and pulse rate. All settings are in one compact Analysis parameters panel, with uniform circular **i** buttons for inline documented guidance. Default controls fit without scrolling at the minimum window size; expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. The Run Analysis button remains visible when the page scrolls. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
 
 Gap splitting, maximum gap and minimum section duration are grouped together. Splitting defaults to off; both thresholds default to 1.5 seconds, matching the official package, and each has a **Default** button. **Already prepared** is the last field.
 
 ![Analysis workspace](screenshots/analyze.png)
+
+![All default parameters in a compact window](screenshots/analyze-compact.png)
 
 ![Inline guidance for device axes and column mapping](screenshots/analyze-help.png)
 
@@ -49,7 +51,14 @@ metadata; files with only elapsed time can use a user-supplied time origin.
 Gait points are estimated within explicit segment boundaries and labeled as estimates.
 Plot series is the sole graph selector. Graphs use a consistent palette, subtle
 grids and shared bottom time labels; scrolling works over the graph canvas.
-Binary outputs show presence only, with slim timestamp ticks and compact rows. Zero and missing states stay blank; no background band implies continuous presence. The checked-tremor plot reports its checked/resting-window counts and percentage for the current selection. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+Binary predictors show slim filled bars at the output update cadence, with compact rows and no redundant vertical-axis label. Positive intervals remain filled when zoomed in; recording gaps, zero and missing states stay blank. The checked-tremor plot reports its checked/resting-window counts and percentage for the current selection. Selected Plot series text stays dark and readable on a pale background, including on hover. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+
+Gait Classification includes probabilities and window presence indicators, using
+the bundled detection/filtering thresholds shown in their labels. These are
+window comparisons, distinct from ParaDigMa's final labels based on averaging
+overlapping windows. Original tables and exports retain their official columns.
+
+![Gait window probabilities and threshold-based presence](screenshots/gait-presence.png)
 
 **Inspect sensor context** and its radius sit at the right of the figure toolbar, leaving the space above the time axis for graphs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
 
@@ -66,7 +75,7 @@ The [calendar popup](screenshots/calendar.png) has readable day headings. In
 onto two rows, or one field per row when wider native controls require it.
 The Results workspace scrolls when its controls and graphs exceed the window height.
 
-Tables separates Classification, Quantification and Aggregation. Original output columns and values are the default; **Timing details** optionally adds recording timestamps and gait timing annotations. Aggregation dictionaries retain their original keys/values in separate tables and CSV exports, covering the entire run rather than the selected time interval.
+Tables uses Gait, Tremor and Pulse rate tabs. Each module's dropdown lists its classification, quantification and aggregation tables, including filtered/unfiltered branches where available. Original output columns and values are the default; **Timing details** optionally adds recording timestamps and gait timing annotations. Aggregation dictionaries retain their original keys/values in separate tables and CSV exports, covering the entire run rather than the selected time interval.
 
 ![Detailed result tables](screenshots/results-tables.png)
 

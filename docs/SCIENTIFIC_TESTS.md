@@ -70,10 +70,15 @@ Comparisons cover:
 - Exact row counts, order, column names, timestamps and missing-value masks.
 - Real-result Qt filters, scientific table values and plotted measurements, plus
   independently derived gait display positions and unchanged official aggregate cards.
-- Checked-tremor ticks at exactly the positive official timestamps; plotted
+- Checked-tremor interval starts at exactly the positive official timestamps,
+  extending at the official output update cadence without joining recording gaps; plotted
   counts and checked/resting-window ratios reconcile with the official percentage.
   Raw classification/quantification tables preserve all original columns; aggregate
-  tables retain full-run values when the detailed time selection changes.
+  tables retain full-run values when the detailed time selection changes or users switch module tabs.
+- Gait display-only window indicators match the saved probabilities compared with
+  each bundled model's threshold, including equality at the threshold and missing
+  values. Recorded-output plots, time filters and clicks preserve the raw tables.
+  These indicators are distinct from the pipeline's merged sample-level labels.
 - JSON export/reopening and CSV exports, including missing tremor measurements.
 
 Discrete labels, identifiers and time columns must match exactly. Other floating
