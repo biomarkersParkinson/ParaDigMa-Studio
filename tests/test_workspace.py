@@ -122,16 +122,23 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
 
 
-def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window):
+@pytest.mark.parametrize("control_minimum_height", [0, 40, 44])
+def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling(window, control_minimum_height):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.], "gyroscope_x": [1., 2.]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
+    # Larger native Windows control hints overflowed the previous layout even
+    # though the same fields fitted under the headless Linux font metrics.
+    for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
+                    window.max_gap, window.min_segment):
+        control.setMinimumHeight(control_minimum_height)
     window.navigate(1)
     window.resize(960, 650)
     window.show()
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
     for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
-                    window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared):
+                    window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared,
+                    *window.section_reset_buttons.values()):
         assert control.visibleRegion().boundingRect().contains(control.rect())
     help_buttons = [info for info, description in window.analysis_help.values()]
     assert {(info.width(), info.height()) for info in help_buttons} == {(22, 22)}
