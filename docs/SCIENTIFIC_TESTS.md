@@ -167,7 +167,8 @@ Windows clipping, and requires the entire fields and Apply/Reset buttons to rema
 visible. Results uses adaptive columns and scrolling rather than relaxing that check.
 Analyze is also checked at 960 × 650 with larger input controls, labels,
 checkboxes and buttons. All fields and uniform help buttons must remain visible
-without scrolling while help is closed; expanded guidance can scroll.
+without scrolling while help is closed, with at least 16 pixels of spare height
+in the larger-controls case; expanded guidance can scroll.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

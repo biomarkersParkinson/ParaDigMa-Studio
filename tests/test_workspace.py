@@ -148,6 +148,12 @@ def test_compact_analysis_fits_all_parameters_and_uniform_help_without_scrolling
     window.show()
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+    if larger_surrounding_controls:
+        # Keep a real sizing buffer: native Windows font metrics previously
+        # left this case four pixels too tall despite the other cases fitting.
+        minimum_height = window.analysis_scroll.widget().minimumSizeHint().height()
+        available_height = window.analysis_scroll.viewport().height()
+        assert minimum_height + 16 <= available_height, (minimum_height, available_height)
     for control in (window.side, window.acc, window.gyro, window.time, window.orientation,
                     window.gaps, window.max_gap, window.min_segment, window.mapping, window.prepared,
                     *window.section_reset_buttons.values()):

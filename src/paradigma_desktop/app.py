@@ -334,7 +334,7 @@ class MainWindow(QMainWindow):
 
     def _build_analyze(self):
         layout = self.page()
-        layout.setSpacing(8)
+        layout.setSpacing(4)
         scroll = self.analysis_scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -344,7 +344,7 @@ class MainWindow(QMainWindow):
         content.setContentsMargins(0, 0, 4, 0)
         content.setSpacing(4)
         panel, input_layout = card()
-        input_layout.setContentsMargins(12, 8, 12, 8)
+        input_layout.setContentsMargins(12, 4, 12, 4)
         input_row = QHBoxLayout()
         input_row.addWidget(label("Selected input", "muted"))
         self.analysis_input = label("No recording loaded", "sectionTitle")
@@ -374,8 +374,8 @@ class MainWindow(QMainWindow):
         self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
         self.settings_panel, parameters = card()
-        parameters.setContentsMargins(12, 8, 12, 8)
-        parameters.setSpacing(4)
+        parameters.setContentsMargins(12, 4, 12, 4)
+        parameters.setSpacing(2)
         parameter_header = QHBoxLayout()
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
