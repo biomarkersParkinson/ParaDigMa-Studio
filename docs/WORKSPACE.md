@@ -31,6 +31,8 @@ Select any combination of gait, tremor and pulse rate. All settings are in one A
 
 ## Results
 
+Overview, Graphs and Tables stay in one fixed tab row near the page heading. Export and filter buttons sit alongside the tabs; the recording name and view controls sit below. Scrolling each view leaves navigation in place.
+
 Overview shows official aggregate values and relevant metadata grouped into module
 cards. Gait segment metadata is summarized by counts and duration distributions;
 individual segment records are reserved for detailed inspection. Detail filters
@@ -74,13 +76,13 @@ error when too few tremor windows are detected; available detail remains visible
 
 ## Runs
 
-Select a run to review status and its Parameters, Warnings, Outputs and Processing log tabs below the history list. Session results and explicitly exported JSON can be reopened here.
+Select a run to review status and its Parameters, Warnings, Errors, Outputs and Processing log tabs below the history list. Warning and error counts in the history list match their separate detail tabs. Partial results retain the failed modules’ errors; successful runs with warnings are labeled accordingly. Session results and explicitly exported JSON can be reopened here.
 
 ![Run history](screenshots/runs.png)
 
 ## Acknowledgement and citation
 
-**About & citations**, available on every page, credits the official ParaDigMa
+**About**, at the bottom of the sidebar and available on every page, credits the official ParaDigMa
 authors and provides research references, a copyable BibTeX entry and the complete
 upstream licence. Attribution files also accompany the executable.
 
@@ -88,7 +90,9 @@ upstream licence. Attribution files also accompany the executable.
 
 ## Compact layout
 
-Collapse the sidebar for more room. Controls are integrated into each page, and settings persist while navigating.
+The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Controls are integrated into each page, and settings persist while navigating.
+
+[Sidebar expanded on hover](screenshots/sidebar-expanded.png)
 
 ![Compact analysis layout](screenshots/compact.png)
 

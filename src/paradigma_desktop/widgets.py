@@ -1,13 +1,60 @@
 """Shared Qt controls and layouts; no analysis or application state."""
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
     QPushButton, QTableView, QVBoxLayout, QWidget,
 )
 from .theme import light_palette
+
+
+class HoverSidebar(QFrame):
+    """A compact rail that unfolds over the workspace without moving content."""
+    expandedChanged = Signal(bool)
+    rail_width = 68
+    expanded_width = 194
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.expanded = False
+        self.setFixedWidth(self.rail_width)
+        self.animation = QVariantAnimation(self)
+        self.animation.setDuration(120)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.valueChanged.connect(self._resize)
+        parent.installEventFilter(self)
+
+    def _resize(self, width):
+        self.setFixedWidth(int(width))
+        self.setGeometry(0, 0, int(width), self.parentWidget().height())
+        self.raise_()
+
+    def setExpanded(self, expanded, animated=True):
+        self.animation.stop()
+        self.expanded = expanded
+        self.expandedChanged.emit(expanded)
+        target = self.expanded_width if expanded else self.rail_width
+        if animated:
+            self.animation.setStartValue(self.width())
+            self.animation.setEndValue(target)
+            self.animation.start()
+        else:
+            self._resize(target)
+
+    def enterEvent(self, event):
+        self.setExpanded(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setExpanded(False)
+        super().leaveEvent(event)
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() == QEvent.Resize:
+            self._resize(self.width())
+        return super().eventFilter(watched, event)
 
 
 class FrameModel(QAbstractTableModel):

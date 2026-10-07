@@ -30,13 +30,14 @@ QFrame#sidebar QPushButton { background: transparent; color: #c4cfde; border: no
     border-radius: 7px; text-align: left; padding: 12px; font-weight: 600; }
 QFrame#sidebar QPushButton:hover { background: #253950; }
 QFrame#sidebar QPushButton:checked { background: #344960; color: white; }
-QFrame#sidebar QPushButton#collapse { color: #adbbce; }
+QFrame#sidebar QPushButton#about { padding: 12px 2px; text-align: center; }
 QLabel#pageTitle { font-size: 27px; font-weight: 600; color: #16253a; }
 QLabel#sectionTitle { font-size: 16px; font-weight: 600; }
 QLabel#muted { color: #68778c; }
 QLabel#metricValue { font-size: 25px; font-weight: 600; }
 QLabel#notice { color: #77561d; background: #fff6e4; border: 1px solid #eddfbf;
     border-radius: 7px; padding: 10px; }
+QLabel#notice[severity="error"] { color: #962d37; background: #fff0f1; border-color: #edc5ca; }
 QFrame#card { background: white; border: 1px solid #e1e6ee; border-radius: 10px; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
 QPushButton { background: white; border: 1px solid #d7dfe9; border-radius: 6px;

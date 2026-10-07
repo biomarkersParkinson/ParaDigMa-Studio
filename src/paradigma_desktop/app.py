@@ -31,7 +31,7 @@ from .core import (
     validate_column_mapping, validate_orientation,
 )
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
-from .history import RunHistory, load_result_export, new_run, now
+from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states
@@ -42,18 +42,24 @@ from .results_view import (
 from .theme import STYLESHEET, light_palette, style_axes
 from .analysis_help import FIELD_HELP, SOURCE
 from .time_controls import TimeField
-from .widgets import FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
-    def __init__(self, signal, warning=None):
+    def __init__(self, signal, warning=None, error=None):
         super().__init__()
         self.signal = signal
         self.warning = warning
+        self.error = error
 
     def emit(self, record):
         self.signal.emit(self.format(record))
-        if self.warning is not None and record.levelno >= logging.WARNING:
+        if error_summary(record.getMessage()):
+            return  # Keep the log; count the individual pipeline failures.
+        if record.levelno >= logging.ERROR or failure_log(record.getMessage()):
+            if self.error is not None:
+                self.error.emit(record.getMessage())
+        elif self.warning is not None and record.levelno >= logging.WARNING:
             self.warning.emit(record.getMessage())
 
 
@@ -62,6 +68,7 @@ class Worker(QThread):
     failed = Signal(str)
     message = Signal(str)
     warning = Signal(str)
+    error = Signal(str)
 
     def __init__(self, operation):
         super().__init__()
@@ -69,7 +76,7 @@ class Worker(QThread):
 
     def run(self):
         logger = logging.Logger("paradigma-desktop", logging.INFO)
-        handler = SignalHandler(self.message, self.warning)
+        handler = SignalHandler(self.message, self.warning, self.error)
         logger.addHandler(handler)
         package_logger = logging.getLogger("paradigma")
         previous_level = package_logger.level
@@ -110,7 +117,7 @@ class MainWindow(QMainWindow):
         self.result_timeline = None
         self.sensor_frame = None
         self.active_run = self.current_run = self.selected_run = None
-        self.sidebar_collapsed = False
+        self.sidebar_collapsed = True
         directory = history_dir or Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / "ParaDigMaDesktop" / "runs"
         self.history = RunHistory(directory)
         self.runs, history_issues = self.history.load()
@@ -148,9 +155,8 @@ class MainWindow(QMainWindow):
         shell = QHBoxLayout(root)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
-        self.sidebar = QFrame()
+        self.sidebar = HoverSidebar(root)
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(194)
         navigation = QVBoxLayout(self.sidebar)
         navigation.setContentsMargins(12, 20, 12, 18)
         navigation.setSpacing(8)
@@ -175,13 +181,15 @@ class MainWindow(QMainWindow):
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
-        self.local_label = label("Local processing")
-        navigation.addWidget(self.local_label)
-        self.collapse_button = button("‹  Collapse", self.toggle_sidebar)
-        self.collapse_button.setObjectName("collapse")
-        self.collapse_button.setAccessibleName("Collapse navigation")
-        navigation.addWidget(self.collapse_button)
-        shell.addWidget(self.sidebar)
+        self.about_button = button("About", self.show_acknowledgements)
+        self.about_button.setObjectName("about")
+        self.about_button.setShortcut("F1")
+        navigation.addWidget(self.about_button)
+        rail = QWidget()
+        rail.setFixedWidth(self.sidebar.rail_width)
+        shell.addWidget(rail)
+        self.sidebar.expandedChanged.connect(self.sidebar_expanded)
+        self.sidebar_expanded(False)
         center = QWidget()
         center_layout = QVBoxLayout(center)
         center_layout.setContentsMargins(24, 20, 20, 12)
@@ -189,9 +197,6 @@ class MainWindow(QMainWindow):
         heading = QHBoxLayout()
         self.page_title = label("", "pageTitle")
         heading.addWidget(self.page_title, 1)
-        self.about_button = button("About & citations", self.show_acknowledgements)
-        self.about_button.setShortcut("F1")
-        heading.addWidget(self.about_button)
         center_layout.addLayout(heading)
         self.notice = label("", "notice")
         self.notice.hide()
@@ -205,6 +210,7 @@ class MainWindow(QMainWindow):
         self.status = label("Open a sensor file.", "muted")
         center_layout.addWidget(self.status)
         shell.addWidget(center, 1)
+        self.sidebar.raise_()
 
     def page(self):
         widget = QWidget()
@@ -444,28 +450,46 @@ class MainWindow(QMainWindow):
 
     def _build_results(self):
         layout = self.page()
-        # Results must remain usable when native font metrics need wider fields
-        # or the available window height cannot fit filters and graphs together.
-        self.results_scroll = QScrollArea()
-        self.results_scroll.setWidgetResizable(True)
-        self.results_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        results_body = QWidget()
-        layout.addWidget(self.results_scroll)
-        self.results_scroll.setWidget(results_body)
-        layout = QVBoxLayout(results_body)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
-        layout.setSizeConstraint(QLayout.SetMinimumSize)
-        header = QHBoxLayout()
+        self.result_tabs = QTabWidget()
+        self.result_tabs.tabBar().setExpanding(False)
+        self.result_tabs.setMinimumHeight(200)
+        layout.addWidget(self.result_tabs, 1)
+        self._result_view_layouts, self._result_view_scrolls = [], []
+
+        def view(title):
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            body = QWidget()
+            body_layout = QVBoxLayout(body)
+            body_layout.setContentsMargins(12, 12, 12, 12)
+            body_layout.setSpacing(12)
+            body_layout.setSizeConstraint(QLayout.SetMinimumSize)
+            scroll.setWidget(body)
+            self.result_tabs.addTab(scroll, title)
+            self._result_view_layouts.append(body_layout)
+            self._result_view_scrolls.append(scroll)
+            return scroll, body_layout
+
+        self.results_header = QWidget()
+        header = QHBoxLayout(self.results_header)
+        header.setContentsMargins(0, 0, 0, 0)
         self.results_source = label("No analysis results", "muted")
         header.addWidget(self.results_source, 1)
-        self.csv_button = button("Export selection CSV…", self.export_csv)
-        self.export_button = button("Export all JSON…", self.export)
+        actions = QWidget()
+        action_layout = QHBoxLayout(actions)
+        action_layout.setContentsMargins(12, 0, 0, 0)
+        self.filters_toggle = button("Filters")
+        self.filters_toggle.setCheckable(True)
+        self.csv_button = button("Export CSV…", self.export_csv)
+        self.csv_button.setAccessibleName("Export selection CSV")
+        self.export_button = button("Export JSON…", self.export)
+        self.export_button.setAccessibleName("Export all results JSON")
         self.csv_button.setEnabled(False)
         self.export_button.setEnabled(False)
-        header.addWidget(self.csv_button)
-        header.addWidget(self.export_button)
-        layout.addLayout(header)
+        for item in (self.filters_toggle, self.csv_button, self.export_button):
+            action_layout.addWidget(item)
+        self.result_tabs.setCornerWidget(actions, Qt.TopRightCorner)
         self.detail_controls = QWidget()
         controls_layout = QVBoxLayout(self.detail_controls)
         controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
@@ -480,10 +504,7 @@ class MainWindow(QMainWindow):
         # Plot series is the user-facing metric selector.
         self.y_column.setParent(self.detail_controls)
         self.y_column.hide()
-        self.filters_toggle = button("Filters")
-        self.filters_toggle.setCheckable(True)
         settings.addStretch()
-        settings.addWidget(self.filters_toggle)
         controls_layout.addLayout(settings)
         self.filters_panel, filters = card()
         filters.setSizeConstraint(QLayout.SetMinimumSize)
@@ -513,18 +534,13 @@ class MainWindow(QMainWindow):
         self.filters_panel.hide()
         self.selection_note = label("No detailed output", "muted")
         controls_layout.addWidget(self.selection_note)
-        layout.addWidget(self.detail_controls)
-        self.result_tabs = QTabWidget()
-        self.result_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        self.result_tabs.setMinimumHeight(200)
-        self.overview_scroll = QScrollArea()
-        self.overview_scroll.setWidgetResizable(True)
+        self.overview_scroll, overview_body = view("Overview")
         self.overview_content = QWidget()
         self.overview_layout = QVBoxLayout(self.overview_content)
-        self.overview_layout.setContentsMargins(12, 12, 12, 12)
+        self.overview_layout.setContentsMargins(0, 0, 0, 0)
         self.overview_layout.setSpacing(16)
-        self.overview_scroll.setWidget(self.overview_content)
-        self.result_tabs.addTab(self.overview_scroll, "Overview")
+        overview_body.addWidget(self.overview_content, 1)
+        _, graph_body = view("Graphs")
         graphs = QWidget()
         graph_layout = QHBoxLayout(graphs)
         self.result_series = QTreeWidget()
@@ -547,12 +563,16 @@ class MainWindow(QMainWindow):
         graph_scroll.setWidget(self.canvas)
         self.graph_scroll = graph_scroll
         self.canvas.scroll_area = graph_scroll
+        self.canvas.outer_scroll_area = self._result_view_scrolls[1]
         plots.addWidget(graph_scroll, 1)
         graph_layout.addWidget(graph, 1)
         self.canvas.setToolTip("Click a point to select its detailed output row.")
-        self.result_tabs.addTab(graphs, "Graphs")
+        graphs.setMinimumHeight(260)
+        graph_body.addWidget(graphs, 1)
+        _, table_body = view("Tables")
         self.result_table = table()
-        self.result_tabs.addTab(self.result_table, "Tables")
+        self.result_table.setMinimumHeight(200)
+        table_body.addWidget(self.result_table, 1)
         self.sensor_panel, sensor_layout = card()
         self.sensor_note = label("", "muted")
         sensor_header = QHBoxLayout()
@@ -573,9 +593,10 @@ class MainWindow(QMainWindow):
         self.sensor_table = table()
         sensor_tabs.addTab(self.sensor_table, "Samples")
         sensor_layout.addWidget(sensor_tabs, 1)
-        self.sensor_tab_index = self.result_tabs.addTab(self.sensor_panel, "Sensor context")
+        _, sensor_body = view("Sensor context")
+        sensor_body.addWidget(self.sensor_panel, 1)
+        self.sensor_tab_index = 3
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)
-        layout.addWidget(self.result_tabs, 1)
         context = QHBoxLayout()
         self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
         self.context_button.setEnabled(False)
@@ -592,7 +613,6 @@ class MainWindow(QMainWindow):
         context.addWidget(self.context_hint, 1)
         self.context_controls = QWidget()
         self.context_controls.setLayout(context)
-        layout.addWidget(self.context_controls)
         self.result_tabs.currentChanged.connect(self.results_tab_changed)
         self.results_tab_changed(0)
 
@@ -617,10 +637,10 @@ class MainWindow(QMainWindow):
         self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
         content.addWidget(self.run_summary)
         self.run_detail_tabs = QTabWidget()
-        self.run_details, self.run_warnings, self.run_outputs = readout(), readout(), readout()
+        self.run_details, self.run_warnings, self.run_errors, self.run_outputs = readout(), readout(), readout(), readout()
         self.log = readout()
         for widget, title in ((self.run_details, "Parameters"), (self.run_warnings, "Warnings"),
-                              (self.run_outputs, "Outputs"), (self.log, "Processing log")):
+                              (self.run_errors, "Errors"), (self.run_outputs, "Outputs"), (self.log, "Processing log")):
             self.run_detail_tabs.addTab(widget, title)
         content.addWidget(self.run_detail_tabs, 1)
         split.addWidget(panel)
@@ -636,6 +656,7 @@ class MainWindow(QMainWindow):
     def _connect(self):
         self.filters_toggle.toggled.connect(self.filters_panel.setVisible)
         self.filters_toggle.toggled.connect(lambda _checked: self.arrange_time_fields())
+        self.filters_toggle.toggled.connect(lambda _checked: self.results_tab_changed(self.result_tabs.currentIndex()))
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
         self.drop_missing.toggled.connect(self.preparation_changed)
@@ -673,20 +694,19 @@ class MainWindow(QMainWindow):
         self._acknowledgements_dialog.activateWindow()
 
     def toggle_sidebar(self):
-        self.sidebar_collapsed = not self.sidebar_collapsed
-        compact = self.sidebar_collapsed
-        self.sidebar.setFixedWidth(68 if compact else 194)
-        self.brand.setText("P" if compact else "ParaDigMa")
-        self.brand.setVisible(not compact)
-        self.brand_caption.setVisible(not compact)
-        self.local_label.setVisible(not compact)
-        for i, item in enumerate(self.nav_buttons):
-            item.setText(str(i + 1) if compact else f"{i + 1}    {self.SECTIONS[i]}")
-        self.collapse_button.setText("›" if compact else "‹  Collapse")
-        self.collapse_button.setAccessibleName("Expand navigation" if compact else "Collapse navigation")
-        self.arrange_time_fields()
+        self.sidebar.setExpanded(self.sidebar_collapsed, animated=False)
 
-    def show_notice(self, message):
+    def sidebar_expanded(self, expanded):
+        self.sidebar_collapsed = not expanded
+        self.brand.setVisible(expanded)
+        self.brand_caption.setVisible(expanded)
+        for i, item in enumerate(self.nav_buttons):
+            item.setText(f"{i + 1}    {self.SECTIONS[i]}" if expanded else str(i + 1))
+
+    def show_notice(self, message, severity="warning"):
+        self.notice.setProperty("severity", severity)
+        self.notice.style().unpolish(self.notice)
+        self.notice.style().polish(self.notice)
         self.notice.setText(message)
         self.notice.setVisible(bool(message))
 
@@ -735,6 +755,7 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self.failure)
         self.worker.message.connect(self.append_log)
         self.worker.warning.connect(self.capture_warning)
+        self.worker.error.connect(self.capture_error)
         self.worker.finished.connect(self.job_finished)
         self.worker.start()
 
@@ -766,8 +787,27 @@ class MainWindow(QMainWindow):
     def capture_warning(self, message):
         if self.active_run is not None and message not in self.active_run["warnings"]:
             self.active_run["warnings"].append(message)
-            if self.selected_run is self.active_run:
-                self.run_warnings.setPlainText("\n\n".join(self.active_run["warnings"]))
+            self.update_run_problems()
+
+    def capture_error(self, message):
+        if self.active_run is not None and message not in self.active_run["errors"]:
+            self.active_run["errors"].append(message)
+            self.update_run_problems()
+
+    def update_run_problems(self):
+        record = self.active_run
+        if self.selected_run is record:
+            self.run_warnings.setPlainText("\n\n".join(record["warnings"]) or "No recorded warnings.")
+            self.run_errors.setPlainText("\n\n".join(record["errors"]) or "No recorded errors.")
+            self.run_summary.setText(self.run_summary_text(record))
+        model = self.run_table.model()
+        row = next((i for i, run in enumerate(self.runs) if run is record), None)
+        if model is not None and row is not None:
+            for name in ("Warnings", "Errors"):
+                column = model.frame.columns.get_loc(name)
+                model.frame.iat[row, column] = len(record[name.lower()])
+                index = model.index(row, column)
+                model.dataChanged.emit(index, index, [Qt.DisplayRole])
 
     def persist_run(self, record):
         try:
@@ -780,10 +820,9 @@ class MainWindow(QMainWindow):
             return
         record = self.active_run
         record["status"], record["finished"] = status, now()
-        for error in errors:
-            message = error if isinstance(error, str) else json.dumps(error, default=str)
-            if message not in record["warnings"]:
-                record["warnings"].append(message)
+        record["errors"] = merge_errors(record["errors"], errors)
+        if record["errors"] and status == "Completed":
+            record["status"] = "Partial"
         self.persist_run(record)
         self.active_run = None
         self.refresh_runs()
@@ -791,7 +830,7 @@ class MainWindow(QMainWindow):
     def failure(self, message):
         self.status.setText("Operation failed. See the processing log.")
         self.append_log(message)
-        self.show_notice(message)
+        self.show_notice(message, "error")
         self.finish_run("Failed", [message])
 
     def clear_results(self):
@@ -1029,8 +1068,22 @@ class MainWindow(QMainWindow):
         self.start_job(lambda logger: analyze(frame, logger=logger, **settings), self.analyzed)
 
     def results_tab_changed(self, index):
+        if index < 0:
+            return
+        body = self._result_view_layouts[index]
+        # The tab bar stays outside every view's scrolling content. Shared
+        # controls move below it rather than changing the navigation position.
+        for widget in (self.results_header, self.detail_controls, self.context_controls):
+            for previous in self._result_view_layouts:
+                previous.removeWidget(widget)
+        body.insertWidget(0, self.results_header)
+        body.insertWidget(1, self.detail_controls)
+        body.addWidget(self.context_controls)
+        self.results_scroll = self._result_view_scrolls[index]
         detailed = index in (1, 2)
-        self.detail_controls.setVisible(detailed)
+        self.results_header.show()
+        self.detail_controls.setVisible(index == 2 or index == 1 and self.filters_toggle.isChecked())
+        self.filters_toggle.setVisible(detailed)
         self.csv_button.setVisible(detailed)
         self.context_controls.setVisible(detailed)
         self.dataset_field.setVisible(index == 2)
@@ -1201,15 +1254,29 @@ class MainWindow(QMainWindow):
         errors = results.get("errors", [])
         if errors:
             self.append_log(json.dumps(errors, indent=2, default=str))
-            message = f"Analysis returned {len(errors)} processing error(s); inspect Runs and the partial results."
+            count = len(merge_errors(self.active_run["errors"] if self.active_run else [], errors))
+            message = f"Analysis returned {count} processing error(s); inspect Runs and the partial results."
             self.status.setText(message)
-            self.show_notice(message)
+            self.show_notice(message, "error")
             self.finish_run("Partial", errors)
         else:
             has_rows = any(len(v) for k, v in self.tables.items() if k.startswith("quantifications/"))
             message = "Analysis completed." if has_rows else "No quantified windows. See Runs for details."
+            if not has_rows:
+                self.capture_warning(message)
+            record = self.active_run or self.current_run
+            warnings = len(record["warnings"]) if record else 0
+            logged_errors = len(record.get("errors", [])) if record else 0
+            if logged_errors:
+                message = f"Analysis returned {logged_errors} processing error(s); inspect Runs and the partial results."
+                self.show_notice(message, "error")
+            elif warnings and has_rows:
+                message = f"Analysis completed with {warnings} warning(s). See Runs."
+                self.show_notice(message)
+            elif not has_rows:
+                self.show_notice(message)
             self.status.setText(message)
-            self.finish_run("Completed", [] if has_rows else [message])
+            self.finish_run("Completed")
         self.result_tabs.setCurrentIndex(0)
         self.navigate(2)
 
@@ -1520,10 +1587,10 @@ class MainWindow(QMainWindow):
         self.sensor_canvas.draw_idle()
 
     def refresh_runs(self):
-        data = pd.DataFrame([{"Started": datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y · %H:%M"), "Status": record["status"],
+        data = pd.DataFrame([{"Started": datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y · %H:%M"), "Status": run_status(record),
             "Input": Path(record["source"]).name, "Modules": ", ".join(record["settings"].get("pipelines", [])),
-            "Warnings": len(record["warnings"]), "Exports": len(record["outputs"])} for record in self.runs],
-            columns=["Started", "Status", "Input", "Modules", "Warnings", "Exports"])
+            "Warnings": len(record["warnings"]), "Errors": len(record.get("errors", [])), "Exports": len(record["outputs"])} for record in self.runs],
+            columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"])
         self.run_table.setModel(FrameModel(data))
         self.run_table.setColumnWidth(0, 176)
         self.run_table.setColumnWidth(2, 170)
@@ -1541,16 +1608,22 @@ class MainWindow(QMainWindow):
             return
         record = self.runs[current.row()]
         self.selected_run = record
-        self.run_heading.setText(f"{record['status']} · {Path(record['source']).name}")
+        self.run_heading.setText(f"{run_status(record)} · {Path(record['source']).name}")
         self.run_heading.setToolTip(f"Run ID: {record['id']}")
-        started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
-        finished = datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S") if record.get("finished") else "—"
-        self.run_summary.setText(f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')}\n{record['source']}")
+        self.run_summary.setText(self.run_summary_text(record))
         self.run_details.setPlainText("\n".join(f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}" for key, value in record["settings"].items()))
         self.run_warnings.setPlainText("\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings.")
+        self.run_errors.setPlainText("\n\n".join(record.get("errors", [])) or "No recorded errors.")
         self.run_outputs.setPlainText("\n\n".join(f"{item.get('kind', 'Export')}: {item.get('path', '')}" for item in record["outputs"]) or "No exports saved.")
         self.log.setPlainText(record.get("log", ""))
         self.update_run_actions()
+
+    @staticmethod
+    def run_summary_text(record):
+        started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
+        finished = datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S") if record.get("finished") else "—"
+        return (f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
+                f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{record['source']}")
 
     def update_run_actions(self):
         record = self.selected_run
@@ -1655,7 +1728,7 @@ class MainWindow(QMainWindow):
     def arrange_time_fields(self):
         # Use actual control hints, including Windows font metrics and the
         # hidden elapsed-seconds editor, rather than a fixed window breakpoint.
-        available = self.width() - self.sidebar.width() - 44 - 38 - 24
+        available = self.width() - self.sidebar.rail_width - 44 - 38 - 24 - 24
         for widget in self.time_fields:
             widget.ensurePolished()
         widths = [widget.minimumSizeHint().width() for widget in self.time_fields]

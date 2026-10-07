@@ -24,7 +24,7 @@ publisher setup.
 ## Application responsibilities
 
 - `app.py`: the main window, pages, navigation and workflow coordination.
-- `widgets.py`: shared table models, readable controls and small layout helpers.
+- `widgets.py`: shared table models, readable controls, hover navigation and small layout helpers.
 - `acknowledgements.py`: the on-demand About/citation view; attribution text lives
   in the packaged notices, not in duplicated UI strings.
 - `core.py`: file loading, official ParaDigMa orchestration and safe export.

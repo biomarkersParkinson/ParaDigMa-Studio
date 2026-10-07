@@ -125,6 +125,15 @@ def smoke_test(report_path):
                 window.dataset.setCurrentText("quantifications/tremor")
                 window.show()
                 app.processEvents()
+                if window.about_button.text() != "About" or not window.sidebar.isAncestorOf(window.about_button):
+                    raise RuntimeError("Sidebar About action is missing")
+                tab_bar = window.result_tabs.tabBar()
+                positions = [tab_bar.mapTo(window, tab_bar.tabRect(i).topLeft()) for i in range(3)]
+                for index in (1, 2, 0):
+                    window.result_tabs.setCurrentIndex(index)
+                    app.processEvents()
+                    if [tab_bar.mapTo(window, tab_bar.tabRect(i).topLeft()) for i in range(3)] != positions:
+                        raise RuntimeError("Results tabs move between views")
                 window.canvas.draw()
                 if len(window.figure.axes[0].lines) != 1:
                     raise RuntimeError("Result plot was not rendered")

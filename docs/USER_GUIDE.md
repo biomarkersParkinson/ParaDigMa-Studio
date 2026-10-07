@@ -2,7 +2,7 @@
 
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
 
-**About & citations** (or **F1**) opens the ParaDigMa acknowledgement, official
+**About** at the bottom of the sidebar (or **F1**) opens the ParaDigMa acknowledgement, official
 software citation, pipeline publication links and full Apache 2.0 licence.
 **Copy software citation** copies the upstream BibTeX entry for research use.
 
@@ -20,7 +20,7 @@ examples rename your file's columns to the required toolbox names.
 When pulse rate is selected alongside gait or tremor, the desktop runs the
 official orchestrator twice in the background and combines their returned outputs.
 The workflows retain independent sensor requirements and missing-sample exclusions.
-If one fails, the other workflow's successful outputs remain available with warnings.
+If one fails, the other workflow's successful outputs remain available, and failed workflows appear under **Errors** in Runs.
 
 - Check acceleration units, gyroscope units and time representation against the
   recording. Numeric time supports relative, absolute or difference-based values
@@ -91,7 +91,7 @@ available, and seconds otherwise. Each checkbox enables or clears that field.
 Known timezones and daylight-saving offsets are retained; unzoned recordings
 remain unzoned. Removing the origin preserves the selected range in seconds.
 Time fields wrap according to their actual size, including native Windows font
-metrics. Results scrolls vertically when filters and graphs cannot fit together.
+metrics. Each Results view scrolls vertically while Overview, Graphs and Tables stay in place. Export and Filters are alongside the tabs.
 
 Combined workflows can have different internal time origins after excluding
 missing samples. The display aligns each workflow to the same source clock.
@@ -141,7 +141,7 @@ retained in the same session and usable timing metadata.
   of exploration filters. Scientific tables keep their original columns; display
   clock metadata is saved with the analysis provenance. JSON converts non-finite
   scalars to null. Absolute plots can be restored without reopening the recording.
-- **Runs:** saves status, parameters, warnings, log and export locations in
+- **Runs:** saves status, parameters, separate warnings and errors, log and export locations in
   `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows. Recordings are not copied there.
   Full result tables remain in memory until exported.
 

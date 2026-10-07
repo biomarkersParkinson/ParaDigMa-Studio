@@ -108,6 +108,9 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     assert all(key.startswith(("classifications/", "quantifications/")) for key in window.tables)
     assert set(window.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
+    assert not window.filters_toggle.isHidden()
+    assert window.detail_controls.isHidden()  # No empty controls above the graph.
+    window.filters_toggle.setChecked(True)
     assert not window.detail_controls.isHidden()
     window.time_from.setText("10")
     window.apply_filters()

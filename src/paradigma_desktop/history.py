@@ -21,7 +21,70 @@ def now():
 def new_run(source, settings):
     return {"id": uuid4().hex, "started": now(), "finished": None,
             "status": "Running", "source": source, "settings": settings,
-            "paradigma_version": "", "warnings": [], "outputs": [], "log": ""}
+            "paradigma_version": "", "warnings": [], "errors": [], "outputs": [], "log": ""}
+
+
+def error_text(error):
+    if isinstance(error, str):
+        return error
+    module = error.get("pipeline") or ", ".join(error.get("pipelines", []))
+    context = " · ".join(str(value) for value in (module, error.get("stage"), error.get("file")) if value)
+    return f"{context}: {error['error']}" if context else str(error["error"])
+
+
+def failure_log(message):
+    """ParaDigMa reports some pipeline failures at WARNING log level."""
+    return any(message.startswith(f"{module} pipeline returned error: ")
+               for module in ("gait", "tremor", "pulse_rate"))
+
+
+def error_summary(message):
+    return bool(re.fullmatch(r"ParaDigMa analysis completed with \d+ error\(s\)", message))
+
+
+def run_status(record):
+    status = record["status"]
+    return "Completed with warnings" if status == "Completed" and record["warnings"] else status
+
+
+def merge_errors(existing, errors):
+    """Prefer structured pipeline errors over duplicate log messages."""
+    messages = [error_text(error) for error in errors]
+    details = [str(error.get("error", "")) if isinstance(error, dict) else error for error in errors]
+    for message in existing:
+        detail = message.split(" pipeline returned error: ", 1)[-1]
+        if message.startswith("Modules ") and " failed: " in message:
+            detail = message.split(" failed: ", 1)[1]
+        if not any(detail and (detail in value or value in detail) for value in details):
+            messages.append(message)
+    return list(dict.fromkeys(messages))
+
+
+def migrate_problems(record):
+    """Recover errors saved in the warnings field by older app versions."""
+    if "errors" in record:
+        return
+    warnings, errors, remaining = record["warnings"], [], []
+    for message in warnings:
+        if error_summary(message):
+            continue
+        try:
+            value = json.loads(message)
+        except (ValueError, TypeError):
+            value = None
+        if isinstance(value, dict) and "error" in value:
+            errors.append(value)
+        elif failure_log(message):
+            errors.append(message)
+        else:
+            remaining.append(message)
+    # Failed runs appended the terminal exception last; earlier messages
+    # retain their original warning meaning.
+    if record["status"] == "Failed" and remaining:
+        errors.append(remaining.pop())
+    record["warnings"] = remaining
+    record["errors"] = merge_errors([error for error in errors if isinstance(error, str)],
+                                    [error for error in errors if isinstance(error, dict)])
 
 
 class RunHistory:
@@ -53,10 +116,13 @@ class RunHistory:
                 pipelines = settings.get("pipelines", [])
                 if (not isinstance(pipelines, list) or not all(p in ("gait", "tremor", "pulse_rate") for p in pipelines)
                         or not all(isinstance(warning, str) for warning in record["warnings"])
+                        or not isinstance(record.get("errors", []), list)
+                        or not all(isinstance(error, str) for error in record.get("errors", []))
                         or not isinstance(record.get("log", ""), str)
                         or not all(isinstance(output, dict) and output.get("kind") in ("CSV", "JSON")
                                    and isinstance(output.get("path"), str) for output in record["outputs"])):
                     raise ValueError("Invalid run parameters or outputs.")
+                migrate_problems(record)
                 validate_column_mapping(settings.get("column_mapping"))
                 validate_orientation(settings.get("device_orientation"))
                 for key in ("max_gap_seconds", "min_segment_seconds"):

@@ -72,9 +72,9 @@ Scientific processing is provided by **ParaDigMa**, developed by its authors and
 contributors and licensed under [Apache 2.0](src/paradigma_desktop/data/notices/LICENSE-paradigma.txt).
 For research, cite Post et al. (2024), *ParaDigMa: Parkinson's disease Digital Markers*,
 [doi:10.5281/zenodo.13838392](https://doi.org/10.5281/zenodo.13838392), and relevant
-pipeline publications. **About & citations** in the app provides credits, the
+pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.3.3**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.3.4**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

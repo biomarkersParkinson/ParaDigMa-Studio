@@ -62,11 +62,12 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
         assert window.pages.currentIndex() == index
         assert window.nav_buttons[index].isChecked()
         assert sum(item.isChecked() for item in window.nav_buttons) == 1
-    window.toggle_sidebar()
     assert window.sidebar.width() == 68
-    assert [item.accessibleName() for item in window.nav_buttons] == list(window.SECTIONS)
     window.toggle_sidebar()
     assert window.sidebar.width() == 194
+    assert [item.accessibleName() for item in window.nav_buttons] == list(window.SECTIONS)
+    window.toggle_sidebar()
+    assert window.sidebar.width() == 68
     window.navigate(1)
     assert window.selected_modules() == ["gait", "tremor"]
     assert window.gyro.currentText() == "rad/s"
@@ -75,7 +76,7 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
 def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     app = QApplication.instance()
     window.navigate(1)
-    window.toggle_sidebar()
+    window.sidebar.setExpanded(False, animated=False)
     window.resize(1050, 720)
     window.show()
     app.processEvents()
@@ -458,7 +459,11 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     window.run_analysis()
     wait_for_job(window)
     assert window.runs[0]["status"] == "Failed"
-    assert window.runs[0]["warnings"] == ["ValueError: Sensor validation failed"]
+    assert window.runs[0]["warnings"] == []
+    assert window.runs[0]["errors"] == ["ValueError: Sensor validation failed"]
+    assert window.run_errors.toPlainText() == "ValueError: Sensor validation failed"
+    assert window.run_warnings.toPlainText() == "No recorded warnings."
+    assert "0 warning(s), 1 error(s)" in window.run_summary.text()
     assert window.run_button.isEnabled() and window.open_button.isEnabled()
     assert window.settings_panel.isEnabled() and window.analysis_controls.isEnabled()
     window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
@@ -563,3 +568,107 @@ def test_sensor_context_absolute_origin_uses_first_retained_sample():
                           "gyroscope_y": 1., "gyroscope_z": 1.})
     settings = {"time_input_unit": "absolute_s", "pipelines": ["tremor"], "drop_missing_samples": True}
     assert source_timeline(frame, settings).tolist() == [-1., 0., 1.]
+
+
+def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_failures(window, monkeypatch):
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
+
+    def partial(frame, logger, **settings):
+        logger.warning("Some windows excluded")
+        logger.warning("tremor pipeline returned error: No tremor windows")
+        logger.error("Modules pulse_rate failed: No pulse signal")
+        logger.warning("ParaDigMa analysis completed with 2 error(s)")
+        return {"quantifications": {"gait": output()}, "errors": [
+            {"pipeline": "tremor", "stage": "pipeline_execution", "error": "No tremor windows"},
+            {"pipelines": ["pulse_rate"], "stage": "desktop_execution", "error": "ValueError: No pulse signal"}]}
+
+    monkeypatch.setattr(desktop, "analyze", partial)
+    window.run_analysis()
+    wait_for_job(window)
+    record = window.runs[0]
+    assert record["status"] == "Partial"
+    assert record["warnings"] == ["Some windows excluded"]
+    assert len(record["errors"]) == 2
+    assert "tremor" in record["errors"][0] and "pulse_rate" in record["errors"][1]
+    assert window.run_table.model().frame.loc[0, ["Warnings", "Errors"]].tolist() == [1, 2]
+    assert "1 warning(s), 2 error(s)" in window.run_summary.text()
+    assert window.run_warnings.toPlainText() == "Some windows excluded"
+    assert window.run_errors.toPlainText() == "\n\n".join(record["errors"])
+    assert "2 processing error(s)" in window.status.text()
+    assert window.notice.property("severity") == "error"
+    saved, issues = window.history.load()
+    assert not issues and saved[0]["errors"] == record["errors"]
+    assert saved[0]["warnings"] == record["warnings"]
+
+
+def test_no_quantified_windows_is_a_warning_without_processing_errors(window, monkeypatch):
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
+    monkeypatch.setattr(desktop, "analyze", lambda *args, **kwargs: {"quantifications": {"tremor": pd.DataFrame()}, "errors": []})
+    window.run_analysis()
+    wait_for_job(window)
+    record = window.runs[0]
+    assert record["status"] == "Completed"
+    assert len(record["warnings"]) == 1 and record["errors"] == []
+    assert window.run_table.model().frame.loc[0, "Status"] == "Completed with warnings"
+    assert window.run_heading.text().startswith("Completed with warnings")
+    assert window.notice.property("severity") == "warning"
+
+
+def test_legacy_history_moves_known_failures_to_errors_and_preserves_quality_warnings(tmp_path):
+    history = RunHistory(tmp_path)
+    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record.pop("errors")
+    record["status"] = "Partial"
+    record["warnings"] = ["Quality warning", "ParaDigMa analysis completed with 1 error(s)", "tremor pipeline returned error: Failed aggregation",
+                          json.dumps({"pipeline": "tremor", "stage": "pipeline_execution", "error": "Failed aggregation"})]
+    history.save(record)
+    records, issues = history.load()
+    assert not issues
+    assert records[0]["warnings"] == ["Quality warning"]
+    assert records[0]["errors"] == ["tremor · pipeline_execution: Failed aggregation"]
+    record["status"] = "Failed"
+    record["warnings"] = ["Quality warning", "ValueError: Invalid data"]
+    history.save(record)
+    records, issues = history.load()
+    assert not issues
+    assert records[0]["warnings"] == ["Quality warning"]
+    assert records[0]["errors"] == ["ValueError: Invalid data"]
+    record["errors"] = "invalid"
+    history.save(record)
+    assert history.load()[0] == []
+
+
+def test_running_problem_counts_update_immediately(window):
+    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    window.runs.insert(0, record)
+    window.active_run = record
+    window.refresh_runs()
+    window.capture_warning("Quality warning")
+    window.capture_error("Pipeline error")
+    window.capture_warning("Quality warning")
+    window.capture_error("Pipeline error")
+    assert window.run_table.model().frame.loc[0, ["Warnings", "Errors"]].tolist() == [1, 1]
+    assert "1 warning(s), 1 error(s)" in window.run_summary.text()
+    assert window.run_warnings.toPlainText() == "Quality warning"
+    assert window.run_errors.toPlainText() == "Pipeline error"
+    window.finish_run("Completed")
+    assert record["status"] == "Partial"
+
+
+def test_legacy_history_rejects_non_text_warnings_without_crashing(tmp_path):
+    history = RunHistory(tmp_path)
+    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record.pop("errors")
+    record["warnings"] = [42]
+    history.save(record)
+    records, issues = history.load()
+    assert records == [] and len(issues) == 1
+
+
+def test_identical_errors_in_different_recording_sections_remain_separate():
+    from paradigma_desktop.history import merge_errors
+    errors = [{"pipeline": "tremor", "stage": "pipeline_execution", "file": section, "error": "No windows"}
+              for section in ("section_1", "section_2")]
+    messages = merge_errors(["tremor pipeline returned error: No windows"], errors)
+    assert messages == ["tremor · pipeline_execution · section_1: No windows",
+                        "tremor · pipeline_execution · section_2: No windows"]

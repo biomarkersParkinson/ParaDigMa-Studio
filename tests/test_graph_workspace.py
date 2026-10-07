@@ -167,25 +167,111 @@ def test_calendar_fields_remain_readable_in_compact_results(window, editor_minim
     window.show_notice("Analysis warning: review the partial results in Runs.")
     window.resize(960, 720)
     QTest.qWait(50)  # Let nested layout/paint requests settle on Windows too.
-    assert window._time_field_columns in (1, 2)
+    assert window._time_field_columns in (1, 2, 3)
     if editor_minimum_width:
         assert window._time_field_columns == 1
     for field in (window.clock_input, window.time_from, window.time_to):
         assert field.editors.currentWidget().height() >= 38
         assert field.editors.currentWidget().width() >= field.editors.currentWidget().minimumSizeHint().width()
+        window.results_scroll.ensureWidgetVisible(field, 0, 0)
+        QTest.qWait(20)
         assert field.visibleRegion().boundingRect().contains(field.rect())
     origin, lower, upper = window.time_fields
-    assert origin.geometry().bottom() < lower.geometry().top()
+    if window._time_field_columns < 3:
+        assert origin.geometry().bottom() < lower.geometry().top()
+    else:
+        assert origin.geometry().top() == lower.geometry().top() == upper.geometry().top()
     assert lower.geometry().bottom() < window.time_zone.geometry().top()
     for child in (window.time_zone, window.filter_apply, window.filter_reset):
+        window.results_scroll.ensureWidgetVisible(child, 0, 0)
+        QTest.qWait(20)
         assert child.isVisible(), f"{child.objectName() or type(child).__name__} is hidden"
         assert child.visibleRegion().boundingRect().contains(child.rect()), (
             f"Filter control is clipped: {child.objectName() or type(child).__name__}, "
             f"geometry={child.geometry()}, visible={child.visibleRegion().boundingRect()}, "
             f"screen={window.screen().geometry()}"
         )
-    assert window.filters_panel.mapTo(window, QPoint(0, window.filters_panel.height())).y() <= window.result_tabs.mapTo(window, QPoint(0, 0)).y()
+    window.results_scroll.verticalScrollBar().setValue(0)
+    QTest.qWait(20)
+    tab_bar = window.result_tabs.tabBar()
+    assert tab_bar.mapTo(window, QPoint(0, tab_bar.height())).y() <= window.filters_panel.mapTo(window, QPoint(0, 0)).y()
     window.resize(1800, 920)
     QTest.qWait(50)
     assert window._time_field_columns == 3
     assert window.time_grid.getItemPosition(window.time_grid.indexOf(window.time_fields[2])) == (0, 2, 1, 1)
+
+
+def test_results_tabs_stay_anchored_across_views_filters_and_scrolling(window):
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
+    bar = window.result_tabs.tabBar()
+
+    def positions():
+        return [bar.mapTo(window, bar.tabRect(i).topLeft()) for i in range(3)]
+
+    QTest.qWait(30)
+    original = positions()
+    assert original[0].y() < 125
+    for filters in (False, True):
+        window.filters_toggle.setChecked(filters)
+        for index in (1, 2, 0, 2, 1):
+            window.result_tabs.setCurrentIndex(index)
+            QTest.qWait(30)
+            assert positions() == original
+            export_center = window.export_button.mapTo(window, window.export_button.rect().center()).y()
+            assert bar.mapTo(window, QPoint(0, 0)).y() <= export_center <= bar.mapTo(window, QPoint(0, bar.height())).y()
+            window.results_scroll.verticalScrollBar().setValue(window.results_scroll.verticalScrollBar().maximum())
+            QTest.qWait(20)
+            assert positions() == original
+    assert window.dataset_field.isHidden()
+    assert not window.filters_toggle.isHidden()
+    assert not window.csv_button.isHidden()
+    window.result_tabs.setCurrentIndex(0)
+    assert window.filters_toggle.isHidden() and window.csv_button.isHidden()
+    assert not window.export_button.isHidden()
+
+
+def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(window):
+    window.navigate(2)
+    QTest.mouseMove(window.pages, QPoint(300, 100))
+    QTest.qWait(150)
+    assert window.sidebar_collapsed and window.sidebar.width() == 68
+    position = window.result_tabs.mapTo(window, QPoint(0, 0))
+    QTest.mouseMove(window.sidebar, QPoint(30, 100))
+    QTest.qWait(160)
+    assert not window.sidebar_collapsed and window.sidebar.width() == 194
+    assert [item.text() for item in window.nav_buttons] == [f"{i + 1}    {title}" for i, title in enumerate(window.SECTIONS)]
+    assert window.result_tabs.mapTo(window, QPoint(0, 0)) == position
+    QTest.mouseMove(window.pages, QPoint(300, 100))
+    QTest.qWait(160)
+    assert window.sidebar_collapsed and window.sidebar.width() == 68
+    assert window.result_tabs.mapTo(window, QPoint(0, 0)) == position
+    assert window.about_button.text() == "About"
+    assert window.sidebar.isAncestorOf(window.about_button)
+    assert window.about_button.geometry().bottom() > window.sidebar.height() - 70
+    assert window.about_button.visibleRegion().boundingRect().contains(window.about_button.rect())
+    assert not hasattr(window, "local_label") and not hasattr(window, "collapse_button")
+    window.about_button.click()
+    assert window._acknowledgements_dialog.isVisible()
+    window._acknowledgements_dialog.close()
+
+
+def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window):
+    for field in (window.clock_input, window.time_from, window.time_to):
+        field.calendar.setMinimumWidth(382)
+        field.seconds.setMinimumWidth(382)
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
+    window.result_tabs.setCurrentIndex(1)
+    window.filters_toggle.setChecked(True)
+    window.resize(960, 650)
+    QTest.qWait(50)
+    inner = window.graph_scroll.verticalScrollBar()
+    outer = window.results_scroll.verticalScrollBar()
+    assert inner.maximum() == 0 and outer.maximum() > 120
+    tab_position = window.result_tabs.tabBar().mapTo(window, QPoint(0, 0))
+    outer.setValue(100)
+    for pixels, expected in ((30, 70), (-30, 100)):
+        event = QWheelEvent(QPointF(30, 30), QPointF(window.canvas.mapToGlobal(QPoint(30, 30))),
+                            QPoint(0, pixels), QPoint(0, 0), Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False)
+        QApplication.sendEvent(window.canvas, event)
+        assert event.isAccepted() and outer.value() == expected
+        assert window.result_tabs.tabBar().mapTo(window, QPoint(0, 0)) == tab_position
