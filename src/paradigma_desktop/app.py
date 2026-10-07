@@ -196,6 +196,7 @@ class MainWindow(QMainWindow):
         rail = QWidget()
         rail.setFixedWidth(self.sidebar.rail_width)
         shell.addWidget(rail)
+        self.sidebar.fit_content()
         self.sidebar.expandedChanged.connect(self.sidebar_expanded)
         self.sidebar_expanded(False)
         center = QWidget()

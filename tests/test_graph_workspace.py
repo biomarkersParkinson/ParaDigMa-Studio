@@ -238,7 +238,8 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     position = window.result_tabs.mapTo(window, QPoint(0, 0))
     QTest.mouseMove(window.sidebar, QPoint(30, 100))
     QTest.qWait(160)
-    assert not window.sidebar_collapsed and window.sidebar.width() == 194
+    assert not window.sidebar_collapsed and window.sidebar.width() == window.sidebar.expanded_width
+    assert window.sidebar.expanded_width >= 194
     assert [item.text() for item in window.nav_buttons] == [f"{i + 1}    {title}" for i, title in enumerate(window.SECTIONS)]
     assert window.result_tabs.mapTo(window, QPoint(0, 0)) == position
     QTest.mouseMove(window.pages, QPoint(300, 100))
@@ -259,14 +260,21 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     window._acknowledgements_dialog.close()
 
 
-def test_sidebar_text_anchors_stay_fixed_through_animation(window):
+@pytest.mark.parametrize("caption_font_px", [None, 22])
+def test_sidebar_text_anchors_stay_fixed_through_animation(window, caption_font_px):
     QTest.mouseMove(window.pages, QPoint(300, 100))
     QTest.qWait(150)
     sidebar = window.sidebar
+    if caption_font_px is not None:
+        # Reproduce the wider native Windows font metrics on any platform.
+        window.brand_caption.setStyleSheet(f"font-size: {caption_font_px}px;")
     sidebar.setExpanded(False, animated=False)
     QApplication.instance().processEvents()
     controls = [*window.nav_buttons, window.about_button, window.brand_icon, window.brand, window.brand_caption]
     positions = [(widget.mapTo(window, QPoint(0, 0)), widget.size()) for widget in controls]
+    if caption_font_px is not None:
+        assert window.brand_caption.fontMetrics().horizontalAdvance(window.brand_caption.text()) > 170
+        assert sidebar.expanded_width > 194
 
     def text_box(widget, text):
         option = QStyleOptionButton()

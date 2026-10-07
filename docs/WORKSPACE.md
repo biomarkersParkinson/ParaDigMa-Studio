@@ -90,7 +90,7 @@ upstream licence. Attribution files also accompany the executable.
 
 ## Compact layout
 
-The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Navigation numbers, brand text and the left-aligned About button keep fixed positions throughout the animation; the subtitle stays on one line. Controls are integrated into each page, and settings persist while navigating.
+The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Navigation numbers, brand text and the left-aligned About button keep fixed positions throughout the animation; the subtitle stays on one line. The expanded width adapts to the system's font metrics so the text fits on Windows. Controls are integrated into each page, and settings persist while navigating.
 
 [Sidebar expanded on hover](screenshots/sidebar-expanded.png)
 

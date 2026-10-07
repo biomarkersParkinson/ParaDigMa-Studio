@@ -64,7 +64,8 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
         assert sum(item.isChecked() for item in window.nav_buttons) == 1
     assert window.sidebar.width() == 68
     window.toggle_sidebar()
-    assert window.sidebar.width() == 194
+    assert window.sidebar.width() == window.sidebar.expanded_width
+    assert window.sidebar.expanded_width >= 194
     assert [item.accessibleName() for item in window.nav_buttons] == list(window.SECTIONS)
     window.toggle_sidebar()
     assert window.sidebar.width() == 68

@@ -1,7 +1,7 @@
 """Shared Qt controls and layouts; no analysis or application state."""
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal
+from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
@@ -30,6 +30,16 @@ class HoverSidebar(QFrame):
         self.animation.valueChanged.connect(self._resize)
         parent.installEventFilter(self)
 
+    def fit_content(self):
+        # Native font metrics differ between Windows and the headless tests.
+        # Reserve enough space before animating the clipping frame. Keep the
+        # width when labels are hidden/shortened on collapse so anchors stay put.
+        self.content.ensurePolished()
+        for widget in self.content.findChildren(QWidget):
+            widget.ensurePolished()
+        self.expanded_width = max(self.expanded_width, self.content.minimumSizeHint().width())
+        self.content.setFixedWidth(self.expanded_width)
+
     def _resize(self, width):
         self.setFixedWidth(int(width))
         self.setGeometry(0, 0, int(width), self.parentWidget().height())
@@ -40,6 +50,7 @@ class HoverSidebar(QFrame):
         self.animation.stop()
         self.expanded = expanded
         self.expandedChanged.emit(expanded)
+        self.fit_content()
         target = self.expanded_width if expanded else self.rail_width
         if animated:
             self.animation.setStartValue(self.width())
@@ -58,7 +69,9 @@ class HoverSidebar(QFrame):
 
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() == QEvent.Resize:
-            self._resize(self.width())
+            self.fit_content()
+            width = self.expanded_width if self.expanded and self.animation.state() != QAbstractAnimation.Running else self.width()
+            self._resize(width)
         return super().eventFilter(watched, event)
 
 
