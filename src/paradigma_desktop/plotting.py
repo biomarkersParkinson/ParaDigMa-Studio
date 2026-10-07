@@ -88,7 +88,7 @@ def plot_states(ax, xs, ys, color, *, label=None, ends=None):
     else:
         ends = time_coordinates(ends)
         valid = present & np.isfinite(ends) & (ends > xs)
-        ax.broken_barh(list(zip(xs[valid], ends[valid] - xs[valid])), (.88, .24),
+        ax.broken_barh(list(zip(xs[valid], ends[valid] - xs[valid])), (.76, .48),
                        facecolors=color, edgecolors="none", zorder=3, label=label,
                        rasterized=len(xs) > 2000)
         points = present & ~valid
@@ -103,6 +103,7 @@ def plot_states(ax, xs, ys, color, *, label=None, ends=None):
     ax.set_yticks([])
     ax.set_ylim(.65, 1.35)
     ax.set_ylabel("")
+    ax.spines["left"].set_visible(False)
     ax.grid(False, axis="y")
     ax.margins(x=.025)
 
@@ -146,4 +147,27 @@ def plot_bars(ax, starts, ends, values, color):
         ax.update_datalim([(starts[timed].min(), 0.), (ends[timed].max(), 0.)])
         ax.autoscale_view()
     ax._paradigma_bars = True
+    ax._paradigma_bar_data = starts, ends, values
+    ax.callbacks.connect("xlim_changed", autoscale_bars)
+    autoscale_bars(ax)
     return collection
+
+
+def autoscale_bars(ax):
+    """Fit automatic Y limits to every bar intersecting the visible time range."""
+    if not getattr(ax, "_paradigma_bars", False) or not ax.get_autoscaley_on():
+        return
+    starts, ends, values = ax._paradigma_bar_data
+    low, high = sorted(ax.get_xlim())
+    inset = (ends - starts) * .08
+    intervals = (ends > starts) & (ends - inset > low) & (starts + inset < high)
+    points = (ends == starts) & (starts >= low) & (starts <= high)
+    visible = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (intervals | points)
+    present = values[visible]
+    lower = min(0., float(present.min())) if len(present) else 0.
+    upper = max(0., float(present.max())) if len(present) else 0.
+    margin = (upper - lower) * .08
+    if margin == 0:
+        upper, margin = 1., 0.
+    ax.set_ylim(lower - margin if lower < 0 else lower,
+                upper + margin if upper > 0 else upper, auto=True, emit=False)

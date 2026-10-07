@@ -364,8 +364,7 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
         np.testing.assert_array_equal([bar.vertices[:, 0].max() for bar in bars], reference.loc[positive, "time"] + 4.)
         assert not axes.get_yticks().size
         assert not axes.patches  # No full-width background implying continuous detection.
-        assert f"{int(positive.sum())} / {int(resting.sum())} resting windows" in axes.texts[0].get_text()
-        assert f"{percentage:.2f}%" in axes.texts[0].get_text()
+        assert not axes.texts  # Graphs omit aggregate statistics; the overview retains them.
         window.table_dataset.setCurrentIndex(window.table_dataset.findData("classifications/tremor"))
         pd.testing.assert_frame_equal(window.result_table.model().frame, actual["classifications"]["tremor"], check_exact=True)
         np.testing.assert_array_equal(actual["classifications"]["tremor"].pred_tremor_checked, reference.pred_tremor_checked)

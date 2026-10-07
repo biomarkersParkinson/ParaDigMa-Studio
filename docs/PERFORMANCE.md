@@ -1,10 +1,10 @@
-# Performance review — 0.2.2
+# Performance review
 
 The app now opens before importing the scientific pipelines, reuses fonts between
 portable-app launches, and ships fewer unused Arrow files. Analysis algorithms,
 classifiers, supported sensor formats, parameters and exports remain unchanged.
 
-## Measurements
+## Startup and bundle measurements (0.2.2)
 
 Measured on 6 October 2026 in the Linux cloud environment, with Python 3.12,
 ParaDigMa 1.1.2 and identical dependencies. These are **Linux results, not Windows
@@ -58,9 +58,28 @@ app includes these runtimes. Further major size reductions would require differe
 dependencies or a separately installed runtime, which needs a broader compatibility
 review. This update retains them to preserve existing functionality.
 
+## Recording switching in 0.5.1
+
+Switching the inspected file now reuses its loaded sensor/time descriptives,
+preserves the selected Data tab and channels, and leaves the batch's analysis
+clock unchanged. Batch alignment runs when analysis settings change rather
+than on every inspection switch. Graph rebuilding is deferred until Graphs is
+opened when Overview or Tables is active; channel discovery reads dtypes without
+copying sensor arrays.
+
+A Linux profile with three 300,000-sample recordings measured one Overview switch
+at 112 ms before these changes and 39 ms afterward. These measurements include
+profiling overhead and exclude rendering a newly selected Graphs view. A regression
+test checks that inspection switching does not call batch alignment or recalculate
+descriptives, and that displayed samples remain identical to the source frames.
+
+Version 0.5.1 passed 257 source tests, including all 31 scientific-equivalence
+cases, with one Windows-only signing check skipped on Linux. The rebuilt Linux
+bundle passed its analysis, graph, export and startup checks.
+
 ## Verification and Windows measurements
 
-All **139 tests passed**, with one Windows-only test skipped locally. This includes
+For the 0.2.2 startup changes, **139 tests passed**, with one Windows-only test skipped locally. This included
 all **23 scientific equivalence cases** against independent official ParaDigMa
 workflows. Startup/cache and summary-filter tests cover the new behavior. The
 rebuilt executable also passed its classifier, CWA, Empatica, Physilog, plotting,

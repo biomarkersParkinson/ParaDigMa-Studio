@@ -15,8 +15,8 @@ def recording_summary(results, provenance, clock):
     if sources:
         entries.append(("Files", " · ".join(Path(path).name for path in sources.values())))
     if clock:
-        entries.append(("Time origin", clock_origin(clock).strftime("%d %b %Y, %H:%M:%S")))
-        entries.append(("Time zone", clock.get("timezone") or "Unspecified"))
+        entries.append(("Time origin", clock_origin(clock).strftime("%d %b %Y, %H:%M:%S")
+                        + " · " + (clock.get("timezone") or "Time zone unspecified")))
     preparation = metadata.get("desktop_preparation", {})
     for path, value in flat_values(metadata.get("recording", {})):
         if path[-1] not in ("input_samples", "n_samples", "start_time", "end_time", "duration_s", "sampling_rate_hz"):

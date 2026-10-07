@@ -112,15 +112,15 @@ Continuous outputs use individual bars at the output update cadence, with gaps f
 missing or non-finite measurements. Actual zero values remain visible at the baseline.
 No interpolation connects values across missing outputs or recording sections.
 Gait arm-swing positions are evenly spaced bin midpoints within the official segment
-start/end, with bars confined to those bins. They are explicitly labeled **Estimated**;
+start/end, with bars confined to those bins. Timing details and sensor context identify them as **Estimated**;
 unknown segment boundaries leave timing unavailable. Values and aggregates stay exact.
 
 Binary predictors show slim filled spans only when present. Spans run to the next
 output update, capped at the module's cadence (4 seconds for default tremor), rather
 than the full overlapping feature-window length. Zero and missing states remain blank;
-all output rows remain in tables. For `pred_tremor_checked`, the graph reports the
-full-run checked/resting-window count and percentage, matching the official
-`perc_windows_tremor` denominator. Tremor's duplicate arm-rest and checked-tremor
+all output rows remain in tables. The overview retains the official tremor aggregates;
+graphs omit statistics text. `perc_windows_tremor` uses the resting-window denominator.
+Tremor's duplicate arm-rest and checked-tremor
 predictors appear only under Classification in Plot series.
 
 **Data preparation** tracks show coverage of the actual prepared samples handed to
@@ -140,6 +140,8 @@ classification, quantification or aggregation table using **Output table**. Orig
 columns and values are the default. **Timing details** adds display-only clock and
 gait annotations. Aggregation dictionaries are ordered measure/value tables.
 Zooming never filters table rows or recalculates aggregates.
+Automatic vertical limits follow the visible result bars, including any extreme
+values in that time interval. Manual limits remain fixed when panning or zooming.
 
 **Inspect sensor context**, beside the figure buttons, links a selected row or
 clicked bar to original samples. A vertical marker and the pinned axis identify the

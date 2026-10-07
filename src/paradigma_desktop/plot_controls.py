@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import light_palette
+from .plotting import autoscale_bars
 
 
 class GraphToolbar(NavigationToolbar2QT):
@@ -52,6 +53,39 @@ class GraphToolbar(NavigationToolbar2QT):
         self.settings.apply_visibility()
         if self.settings_action.isChecked():
             self.settings.read_axes()
+
+    def press_zoom(self, event):
+        self._automatic_bar_y = [ax for ax in self.canvas.figure.axes
+                                 if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()]
+        super().press_zoom(event)
+
+    def release_zoom(self, event):
+        super().release_zoom(event)
+        self.restore_automatic_bar_y()
+        self._automatic_bar_y = []
+
+    def press_pan(self, event):
+        self._automatic_bar_y = [ax for ax in self.canvas.figure.axes
+                                 if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()]
+        super().press_pan(event)
+
+    def release_pan(self, event):
+        super().release_pan(event)
+        self.restore_automatic_bar_y()
+        self._automatic_bar_y = []
+
+    def push_current(self):
+        # Save the final automatic range, so Back/Forward also restore that choice.
+        if getattr(self, "_automatic_bar_y", []):
+            self.restore_automatic_bar_y()
+        super().push_current()
+
+    def restore_automatic_bar_y(self):
+        for ax in getattr(self, "_automatic_bar_y", []):
+            if ax in self.canvas.figure.axes:
+                ax.set_autoscaley_on(True)
+                autoscale_bars(ax)
+        self.canvas.draw_idle()
 
 
 class GraphSettings(QFrame):
@@ -215,6 +249,8 @@ class GraphSettings(QFrame):
                     ax.set_autoscaley_on(True)
                 else:
                     ax.autoscale_view(scalex=axis == "x", scaley=axis == "y")
+                    if axis == "y":
+                        autoscale_bars(ax)
             else:
                 getattr(ax, f"set_{axis}lim")(*bounds)
         self.apply_visibility()

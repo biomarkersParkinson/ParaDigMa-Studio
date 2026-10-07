@@ -100,6 +100,35 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(wi
     assert not issues and saved[0]["sources"] == sources
 
 
+def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_and_channels(window, tmp_path, monkeypatch):
+    sources, frames = inputs(tmp_path)
+    original = deepcopy(frames)
+    load(window, sources, frames)
+    clock = window.clock_input.text()
+    window.set_input_channels(["gyroscope_y", "gyroscope_z"])
+    plots = []
+    plot = window.plot_input
+    monkeypatch.setattr(window, "plot_input", lambda *args: (plots.append(window.source), plot(*args)))
+    def unexpected(*args, **kwargs):
+        pytest.fail("Inspecting an already loaded recording must not recompute batch alignment or descriptives.")
+    for name in ("align_recordings", "analysis_alignment", "inspect_recording"):
+        monkeypatch.setattr(desktop, name, unexpected)
+    window.input_recording.setCurrentIndex(1)
+    assert plots == [] and window.data_tabs.currentIndex() == 0
+    assert window.clock_input.text() == clock
+    assert window.selected_input_channels() == ["gyroscope_y", "gyroscope_z"]
+    pd.testing.assert_frame_equal(window.input_table.model().frame, frames["recording_002"])
+    window.data_tabs.setCurrentIndex(1)
+    assert plots == [sources["recording_002"]]
+    window.input_recording.setCurrentIndex(0)
+    assert window.data_tabs.currentIndex() == 1 and len(plots) == 2
+    for line in window.data_figure.axes[0].lines:
+        np.testing.assert_array_equal(line.get_ydata(), frames["recording_001"][line.get_label()])
+    assert window.recordings is frames and window.clock_input.text() == clock
+    for key in frames:
+        pd.testing.assert_frame_equal(frames[key], original[key])
+
+
 def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path, monkeypatch):
     sources, frames = inputs(tmp_path)
     load(window, sources, frames)

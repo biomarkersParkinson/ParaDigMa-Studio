@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from matplotlib import dates
 from matplotlib.figure import Figure
+from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialogButtonBox, QLabel
@@ -233,6 +234,111 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
     window.reset_origin()
     assert window.clock_input.text() == derived_origin
     assert window.origin_setting() == {"mode": "automatic"}
+
+
+def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or_overriding_manual_limits(window):
+    frame = pd.DataFrame({"time": [0., 4., 8., 12.], "tremor_power": [2., 3., 200., np.nan]})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    axes = window.figure.axes[0]
+    assert axes.get_ylim() == pytest.approx((0., 216.))
+    axes.set_xlim(.5, 7.5)
+    assert axes.get_ylim() == pytest.approx((0., 3.24))
+    axes.set_xlim(8.5, 9.)
+    assert axes.get_ylim() == pytest.approx((0., 216.))  # The full extreme remains when visible.
+    axes.set_ylim(-10., 500.)
+    axes.set_xlim(.5, 7.5)
+    assert axes.get_ylim() == (-10., 500.)
+    panel = window.plot_toolbar.settings
+    panel.read_axes()
+    panel.bounds["y"][0].setChecked(True)
+    panel.apply()
+    assert axes.get_ylim() == pytest.approx((0., 3.24))
+    axes.set_xlim(12., 14.)
+    assert axes.get_ylim() == (0., 1.)  # A missing bar never retains the preceding extreme.
+    np.testing.assert_array_equal(bar_values(axes), [2., 3., 200.])
+    pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame)
+
+
+@pytest.mark.parametrize("automatic", [True, False])
+@pytest.mark.parametrize("action", ["zoom", "pan"])
+def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, automatic, action):
+    frame = pd.DataFrame({"time": [0., 4., 8.], "tremor_power": [2., 3., 200.]})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    window.canvas.draw()
+    axes = window.figure.axes[0]
+    if not automatic:
+        axes.set_ylim(0., 500.)
+    toolbar = window.plot_toolbar
+    if action == "zoom":
+        toolbar.zoom()
+        first = axes.transData.transform((.5, axes.get_ylim()[1] * .1))
+        last = axes.transData.transform((7.5, axes.get_ylim()[1] * .9))
+        toolbar.press_zoom(MouseEvent("button_press_event", window.canvas, *first, button=1))
+        toolbar.release_zoom(MouseEvent("button_release_event", window.canvas, *last, button=1))
+    else:
+        toolbar.pan()
+        first = axes.transData.transform((.5, axes.get_ylim()[1] * .5))
+        last = axes.transData.transform((7.5, axes.get_ylim()[1] * .5))
+        toolbar.press_pan(MouseEvent("button_press_event", window.canvas, *first, button=1))
+        toolbar.drag_pan(MouseEvent("motion_notify_event", window.canvas, *last, buttons={1}))
+        toolbar.release_pan(MouseEvent("button_release_event", window.canvas, *last, button=1))
+    assert axes.get_autoscaley_on() == automatic
+    assert (axes.get_ylim()[1] < 4 if automatic else axes.get_ylim()[1] > 100), (axes.get_xlim(), axes.get_ylim())
+    limits = axes.get_ylim()
+    toolbar.back()
+    assert axes.get_autoscaley_on() == automatic
+    toolbar.forward()
+    assert axes.get_autoscaley_on() == automatic
+    assert axes.get_ylim() == pytest.approx(limits)
+
+
+def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(window):
+    window.navigate(1)
+    window.resize(1450, 920)
+    heading = next(label for label in window.settings_panel.findChildren(QLabel) if label.text() == "Column mapping (JSON)")
+    def positions():
+        QTest.qWait(30)
+        return heading.mapTo(window, heading.rect().topLeft()).y(), window.mapping.mapTo(window, window.mapping.rect().topLeft()).y()
+    initial = positions()
+    for name in ("Device axes", "Minimum section duration", "Column mapping (JSON)"):
+        window.analysis_help[name][0].click()
+        label_y, editor_y = positions()
+        assert abs(editor_y - label_y) <= 6
+        assert editor_y - initial[1] == pytest.approx(label_y - initial[0], abs=2)
+
+
+def test_overview_clock_is_one_field_and_run_buttons_are_adjacent(window):
+    entries = recording_summary({}, {}, {"origin": "2026-10-07T12:00:00+02:00", "timezone": "Europe/Amsterdam"})
+    assert entries == [("Time origin", "07 Oct 2026, 12:00:00 · Europe/Amsterdam")]
+    window.navigate(3)
+    QTest.qWait(30)
+    use, delete = window.use_parameters_button, window.delete_run_button
+    assert delete.y() == use.y() and 0 < delete.x() - (use.x() + use.width()) <= 20
+
+
+def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metadata(window):
+    result = outputs()
+    result["quantifications"]["gait"] = {"unfiltered": pd.DataFrame({
+        "gait_segment_nr": [1, 1], "range_of_motion": [5., 8.], "peak_velocity": [25., 40.]})}
+    result["metadata"]["gait"] = {"unfiltered": {"per_segment": {1: {"start_s": 0., "end_s": 4., "duration_s": 4.}}}}
+    window.analyzed(result)
+    chosen = {("quantifications/gait/unfiltered", "range_of_motion"),
+              ("quantifications/gait/unfiltered", "peak_velocity"), ("classifications/tremor", "pred_tremor_checked")}
+    window.result_series.blockSignals(True)
+    for key, item in window._series_items.items():
+        item.setCheckState(0, Qt.Checked if key in chosen else Qt.Unchecked)
+    window.result_series.blockSignals(False)
+    window.plot()
+    window.canvas.draw()
+    axes = {axis._paradigma_metric: axis for axis in window.figure.axes}
+    assert "Estimated positions" not in axes["range_of_motion"].get_title(loc="left")
+    assert "Estimated positions" in axes["peak_velocity"].get_title(loc="left")
+    indicator = axes["pred_tremor_checked"]
+    assert not indicator.texts and not indicator.get_yticks().size
+    assert indicator.get_position().height < axes["range_of_motion"].get_position().height * .5
+    assert np.ptp(indicator.collections[0].get_paths()[0].vertices[:, 1]) == pytest.approx(.48)
+    assert window._timings["quantifications/gait/unfiltered"]["Time basis"].str.contains("Estimated").all()
 
 
 def test_zip_export_protects_sources_and_neutralizes_formula_text(tmp_path):

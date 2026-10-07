@@ -40,7 +40,7 @@ from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, binary_indicator, plot_signal, plot_states, plot_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key, tremor_window_counts,
+    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
 )
 from .theme import STYLESHEET, light_palette, style_axes, module_color
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
@@ -127,6 +127,7 @@ class MainWindow(QMainWindow):
         self._result_selection_artists = []
         self.display_clock = None
         self._origin_override = False
+        self._data_plot_dirty = False
         self._source_timelines, self._display_offsets = {}, {}
         self.active_frame = None
         self.active_positions = np.array([], dtype=int)
@@ -536,12 +537,13 @@ class MainWindow(QMainWindow):
         content.setSpacing(4)
         content.setSizeConstraint(QLayout.SetMinimumSize)
         if form is not None:
+            content.setAlignment(Qt.AlignTop)
             content.addWidget(control)
             content.addWidget(description)
             if isinstance(form, QGridLayout):
                 index = form.rowCount()
                 form.addWidget(heading, index, 0, Qt.AlignTop)
-                form.addWidget(body, index, 1)
+                form.addWidget(body, index, 1, Qt.AlignTop)
             else:
                 form.addRow(heading, body)
         else:
@@ -737,9 +739,9 @@ class MainWindow(QMainWindow):
         self.use_parameters_button = button("Use these parameters", self.use_run_parameters)
         actions.addWidget(self.open_run_button)
         actions.addWidget(self.use_parameters_button)
-        actions.addStretch()
         self.delete_run_button = button("Delete Run…", self.delete_run)
         actions.addWidget(self.delete_run_button)
+        actions.addStretch()
         self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
         self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         self.delete_run_shortcut.activated.connect(self.delete_run)
@@ -769,6 +771,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.history_location)
 
     def _connect(self):
+        self.data_tabs.currentChanged.connect(self.data_tab_changed)
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
         self.drop_missing.toggled.connect(self.preparation_changed)
@@ -1021,29 +1024,21 @@ class MainWindow(QMainWindow):
         self.sources, self.recordings = sources, recordings
         self._input_descriptions = descriptions
         self._origin_override = False
-        self.inspect_input_recording()
-        self.update_origin_default()
+        self.inspect_input_recording(new_selection=True)
+        self.modules_changed()
         self.status.setText(f"{len(recordings)} recordings loaded for one subject.")
 
-    def inspect_input_recording(self, *_):
+    def inspect_input_recording(self, *_, new_selection=False):
         key = self.input_recording.currentData()
         if key not in self.recordings:
             return
-        sources, recordings, descriptions = self.sources, self.recordings, self._input_descriptions
-        origin_override, origin_text, origin_clock = self._origin_override, self.clock_input.text(), self.clock_input._clock
-        self.loaded((sources[key], recordings[key], descriptions[key]))
-        self._origin_override = origin_override
-        if origin_override:
-            self.clock_input.set_clock(origin_clock)
-            self.clock_input.setText(origin_text)
-        self.sources, self.recordings = sources, recordings
-        self._input_descriptions = descriptions
+        self.source, self.frame = self.sources[key], self.recordings[key]
+        self.display_input_recording(self._input_descriptions[key], new_selection=new_selection)
         self.input_recording.show()
-        self.file_label.setText(f"{len(recordings)} recordings")
-        self.file_label.setToolTip("\n".join(sources.values()))
-        self.analysis_input.setText(f"{len(recordings)} recordings · One subject")
-        self.analysis_input_detail.setText(f"{sum(len(frame) for frame in recordings.values()):,} samples")
-        self.update_origin_default()
+        self.file_label.setText(f"{len(self.recordings)} recordings")
+        self.file_label.setToolTip("\n".join(self.sources.values()))
+        self.analysis_input.setText(f"{len(self.recordings)} recordings · One subject")
+        self.analysis_input_detail.setText(f"{sum(len(frame) for frame in self.recordings.values()):,} samples")
 
     def loaded(self, payload):
         self.source, self.frame = payload[:2]
@@ -1052,7 +1047,24 @@ class MainWindow(QMainWindow):
         self._input_descriptions = {}
         self.input_recording.hide()
         description = payload[2] if len(payload) > 2 else inspect_recording(self.frame, self.time.currentText())
-        self.data_tabs.setCurrentIndex(0)
+        self.display_input_recording(description, new_selection=True)
+        self.modules_changed()
+        self.show_notice("")
+        self.navigate(0)
+        if self.frame.attrs.get("source_format") == "empatica" and not any(f"gyroscope_{axis}" in self.frame for axis in "xyz"):
+            message = ("Empatica accelerometer samples loaded. Gait and tremor require gyroscope data; "
+                       "pulse rate requires raw green PPG. This import contains neither.")
+            self.status.setText(message)
+            self.show_notice(message)
+            self.append_log(message)
+        else:
+            self.status.setText("Recording loaded.")
+
+    def display_input_recording(self, description, *, new_selection):
+        """Refresh inspection only; changing the viewed file never realigns the batch."""
+        channels = None if new_selection else self.selected_input_channels()
+        if new_selection:
+            self.data_tabs.setCurrentIndex(0)
         self.input_table.setModel(FrameModel(self.frame))
         self.file_label.setText(Path(self.source).name)
         self.file_label.setToolTip(self.source)
@@ -1073,21 +1085,16 @@ class MainWindow(QMainWindow):
         self.channel_table.setModel(FrameModel(description["sensors"], compact=True))
         self.time_table.setModel(FrameModel(description["time"], compact=True) if description["time"] is not None else None)
         self.update_time_unit_control()
-        self.populate_input_channels()
-        self.plot_input()
-        self.continue_button.setEnabled(True)
-        self.modules_changed()
-        self.update_origin_default()
-        self.show_notice("")
-        self.navigate(0)
-        if self.frame.attrs.get("source_format") == "empatica" and not any(f"gyroscope_{axis}" in self.frame for axis in "xyz"):
-            message = ("Empatica accelerometer samples loaded. Gait and tremor require gyroscope data; "
-                       "pulse rate requires raw green PPG. This import contains neither.")
-            self.status.setText(message)
-            self.show_notice(message)
-            self.append_log(message)
+        self.populate_input_channels(channels)
+        if new_selection or self.data_tabs.currentIndex() == 1:
+            self.plot_input()
         else:
-            self.status.setText("Recording loaded.")
+            self._data_plot_dirty = True
+        self.continue_button.setEnabled(True)
+
+    def data_tab_changed(self, index):
+        if index == 1 and self._data_plot_dirty:
+            self.plot_input()
 
     def update_time_unit_control(self):
         column = self.data_time_channel.currentData()
@@ -1126,9 +1133,10 @@ class MainWindow(QMainWindow):
         self.plot_input()
 
     def populate_input_channels(self, selection=None):
-        numeric = [column for column in self.frame.select_dtypes(include=["number", "bool"]).columns
+        numeric = [column for column, dtype in self.frame.dtypes.items()
+                   if pd.api.types.is_numeric_dtype(dtype)
                    if str(column).lower() not in TIME_NAMES
-                   and not pd.api.types.is_complex_dtype(self.frame[column].dtype)]
+                   and not pd.api.types.is_complex_dtype(dtype)]
         colors = GRAPH_COLORS if len(numeric) <= len(GRAPH_COLORS) else colormaps["tab20"].colors if len(numeric) <= 20 else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
         self._channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
         self.data_channels.blockSignals(True)
@@ -1145,6 +1153,7 @@ class MainWindow(QMainWindow):
         self.data_channels.blockSignals(False)
 
     def plot_input(self, *_):
+        self._data_plot_dirty = False
         self.data_figure.clear()
         channels = self.selected_input_channels()
         if self.frame is None or not channels:
@@ -1739,7 +1748,7 @@ class MainWindow(QMainWindow):
         chosen = self.selected_result_series()
         binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
         compact_states = bool(binaries) and all(binaries)
-        height = max(140 if compact_states else 220, sum(105 if binary else 190 for binary in binaries))
+        height = max(100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries))
         self.canvas.setMinimumHeight(height)
         self.canvas.setMaximumHeight(height if compact_states else 16777215)
         self.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
@@ -1747,7 +1756,7 @@ class MainWindow(QMainWindow):
             ax = style_axes(self.figure)
             ax.text(.5, .5, "Select detailed metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
         first_axes = None
-        grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.55 if binary else 1 for binary in binaries]) if chosen else None
+        grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.34 if binary else 1 for binary in binaries]) if chosen else None
         for index, (name, metric) in enumerate(chosen):
             ax = style_axes(self.figure, position=(grid[index],), sharex=first_axes)
             if first_axes is None:
@@ -1765,12 +1774,6 @@ class MainWindow(QMainWindow):
                 if binary:
                     stops = clock_times(self._interval_ends[name][positions], self.display_clock)
                     plot_states(ax, xs, ys, color, ends=stops)
-                    counts = tremor_window_counts(selected) if metric == "pred_tremor_checked" else None
-                    if counts is not None:
-                        numerator, denominator, percentage = counts
-                        text = f"{numerator:,} / {denominator:,} resting windows"
-                        text += f" · {percentage:.2f}%" if percentage is not None else " · No resting windows"
-                        ax.text(.01, .95, text, transform=ax.transAxes, va="top", fontsize=8.5, color="#465B73")
                 else:
                     starts, ends = self._bar_bounds[name]
                     plot_bars(ax, clock_times(starts[positions], self.display_clock),
@@ -1780,8 +1783,8 @@ class MainWindow(QMainWindow):
             if not binary:
                 ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
             metric_title = self._plot_labels.get((name, metric), str(metric).replace("_", " ").capitalize())
-            ax.set_title(output_label(name) + "  ·  " + metric_title + (" · Estimated positions" if estimated else ""),
-                         fontsize=10, fontweight="semibold", color="#243C57", pad=13, loc="left")
+            ax.set_title(output_label(name) + "  ·  " + metric_title + (" · Estimated positions" if estimated and metric != "range_of_motion" else ""),
+                         fontsize=10, fontweight="semibold", color="#243C57", pad=8 if binary else 13, loc="left")
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)

@@ -65,10 +65,10 @@ Graphs contain classifications and quantifications. The Plot
 series tree supports multiple modules and metrics simultaneously, with vertically
 aligned plots sharing recording date/time. A pinned time axis stays at the bottom while graphs scroll and follows pan, zoom and time selections. Dates come from source timestamps or
 metadata; files with only elapsed time can use a user-supplied time origin.
-Gait bars are estimated within explicit segment boundaries and labeled as estimates.
+Gait bars are estimated within explicit segment boundaries; timing details retain that distinction.
 Plot series is the sole graph selector. Graphs use a consistent palette, subtle
 grids and shared bottom time labels; scrolling works over the graph canvas.
-Binary predictors show slim filled bars at the output update cadence, with compact rows and no redundant vertical-axis label. Positive intervals remain filled when zoomed in; recording gaps, zero and missing states stay blank. The checked-tremor plot reports its checked/resting-window counts and percentage for the complete run. Selected Plot series text stays dark and readable on a pale background, including on hover. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+Binary predictors show compact filled tracks at the output update cadence, with less white space and no redundant vertical-axis label. Positive intervals remain filled when zoomed in; recording gaps, zero and missing states stay blank. Tremor statistics remain in the overview. Automatic Y limits fit the bars within the visible time interval; manual limits remain fixed. Selected Plot series text stays dark and readable on a pale background, including on hover. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
 
 Gait Classification includes probabilities and window presence indicators, using
 the bundled detection/filtering thresholds shown in their labels. These are
