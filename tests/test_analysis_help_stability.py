@@ -65,15 +65,23 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path,
             assert positions() == baseline, title
             assert [window.run_button.pos(), window.stop_button.pos()] == actions
             assert description.isVisible()
+            assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1
+            assert not window.settings_panel.isAncestorOf(description)
+            assert window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y() >= (
+                window.settings_panel.mapTo(body, QPoint(0, window.settings_panel.height())).y())
             info.click()
             QTest.qWait(20)
             assert positions() == baseline, title
         for info, _ in window.analysis_help.values():
             info.click()
             assert positions() == baseline
+            assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1
+            assert sum(description.isVisible() for _, description in window.analysis_help.values()) == 1
         for info, _ in window.analysis_help.values():
-            info.click()
+            if info.isChecked():
+                info.click()
             assert positions() == baseline
+        assert window.analysis_help_panel.isHidden()
     finally:
         window.close()
         app.processEvents()

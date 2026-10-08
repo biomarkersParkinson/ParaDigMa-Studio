@@ -25,8 +25,8 @@ def plot_tables(tables):
     """Add display-only gait window indicators; leave raw outputs untouched."""
     plots, labels = dict(tables), {}
     for stage, probability, indicator, title in (
-        ("detection", "pred_gait_proba", "pred_gait_window", "Gait window presence"),
-        ("arm_activity", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window", "No other arm activity window"),
+        ("detection", "pred_gait_proba", "pred_gait_window", "Gait presence"),
+        ("arm_activity", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window", "Filtered gait presence"),
     ):
         name = f"classifications/gait/{stage}"
         frame = tables.get(name)
@@ -37,7 +37,15 @@ def plot_tables(tables):
         view = frame.copy()
         view[indicator] = values.ge(threshold).astype(float).where(np.isfinite(values))
         plots[name] = view
-        labels[(name, indicator)] = f"{title} (≥ {threshold:.5g})"
+        labels[(name, probability)] = f"{title} (probability)"
+        labels[(name, indicator)] = f"{title} (prediction)"
+    for branch in ("filtered", "unfiltered"):
+        name = f"quantifications/gait/{branch}"
+        frame = tables.get(name)
+        if frame is not None:
+            for metric, title in (("range_of_motion", "Range of motion"), ("peak_velocity", "Peak velocity")):
+                if metric in frame:
+                    labels[(name, metric)] = f"{title} ({branch} gait)"
     return plots, labels
 
 
@@ -138,7 +146,7 @@ def aggregation_tables(results):
 
 def output_label(name):
     if name.startswith("preparation/"):
-        return "Data preparation"
+        return "Data coverage"
     parts = name.split("/")
     module = MODULE_NAMES.get(parts[1], parts[1].replace("_", " ").title()) if len(parts) > 1 else name
     stage = {"classifications": "Classification", "quantifications": "Quantification",

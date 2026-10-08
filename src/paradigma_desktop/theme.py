@@ -16,6 +16,16 @@ def module_color(module):
     return MODULE_PALETTE.get(module, MODULE_PALETTE["gait"])["accent"]
 
 
+def style_result_heading(ax, title, module, module_label):
+    """Readable series heading and a small module badge in the shared palette."""
+    accent = module_color(module)
+    tint = MODULE_PALETTE.get(module, {'tint': '#F1F4F8'})['tint']
+    box = {'boxstyle': 'round,pad=.4,rounding_size=.25', 'facecolor': tint, 'edgecolor': 'none'}
+    ax.set_title(title, loc='left', fontsize=10, fontweight='semibold', color='#243C57', pad=12, bbox=box)
+    ax.set_title(module_label, loc='right', fontsize=8, fontweight='semibold', color=accent, pad=12, bbox=box)
+    ax._paradigma_module = module
+
+
 def light_palette():
     palette = QPalette()
     colors = {

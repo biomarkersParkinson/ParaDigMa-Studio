@@ -333,8 +333,9 @@ def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metada
     window.plot()
     window.canvas.draw()
     axes = {axis._paradigma_metric: axis for axis in window.figure.axes}
-    assert "Estimated positions" not in axes["range_of_motion"].get_title(loc="left")
-    assert "Estimated positions" in axes["peak_velocity"].get_title(loc="left")
+    assert axes["range_of_motion"].get_title(loc="left") == "Range of motion (unfiltered gait)"
+    assert axes["peak_velocity"].get_title(loc="left") == "Peak velocity (unfiltered gait)"
+    assert axes["peak_velocity"].get_title(loc="right") == "Gait"
     indicator = axes["pred_tremor_checked"]
     assert not indicator.texts and not indicator.get_yticks().size
     assert indicator.get_position().height < axes["range_of_motion"].get_position().height * .5

@@ -20,13 +20,16 @@ def window(tmp_path):
 
 
 def test_all_metrics_are_direct_module_children_with_distinguishable_output_context(window):
-    frame = pd.DataFrame({"time": [0., 1.], "range_of_motion": [3., 5.]})
-    window.analyzed({"classifications": {"tremor": pd.DataFrame({"time": [0., 1.], "metric": [1., 0.]})},
+    frame = pd.DataFrame({"time": [0., 1.], "range_of_motion": [3., 5.], "peak_velocity": [15., 25.]})
+    window.analyzed({"classifications": {"tremor": pd.DataFrame({"time": [0., 1.], "metric": [1., 0.]}),
+                                          "gait": {"detection": pd.DataFrame({"time": [0., 1.], "pred_gait_proba": [.1, .9]}),
+                                                   "arm_activity": pd.DataFrame({"time": [0., 1.], "pred_no_other_arm_activity_proba": [.2, .8]})}},
                      "quantifications": {"gait": {"unfiltered": frame, "filtered": frame.copy()},
                                           "tremor": pd.DataFrame({"time": [0., 1.], "metric": [2., 3.]})},
                      "metadata": {"desktop_availability": {"gait": {"df_1": {"intervals": [[0., 2.]]}}}}})
     tree = window.result_series
-    assert {tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())} == {"Gait", "Tremor", "Data preparation"}
+    assert {tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())} == {"Gait", "Tremor", "Data coverage"}
+    assert window._series_items["preparation/gait", "available"].text(0) == "Gait"
     leaves = []
     for i in range(tree.topLevelItemCount()):
         module = tree.topLevelItem(i)
@@ -38,7 +41,14 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
             assert item.data(0, Qt.UserRole) in window._series_items
             leaves.append(item)
     assert len(leaves) == len(window._series_items)
-    assert len({item.text(0) for item in leaves if item.parent().text(0) == "Gait"}) == 2
+    assert {item.text(0) for item in leaves if item.parent().text(0) == "Gait"} == {
+        "Gait presence (probability)", "Gait presence (prediction)",
+        "Filtered gait presence (probability)", "Filtered gait presence (prediction)",
+        "Range of motion (filtered gait)", "Range of motion (unfiltered gait)",
+        "Peak velocity (filtered gait)", "Peak velocity (unfiltered gait)"}
+    for item in leaves:
+        if item.parent().text(0) == "Gait" and item.text(0).endswith("(prediction)"):
+            assert "bundled model threshold" in item.toolTip(0)
     assert len({item.text(0) for item in leaves if item.parent().text(0) == "Tremor"}) == 2
 
 

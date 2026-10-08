@@ -40,13 +40,14 @@ from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key,
+    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key, gait_model_threshold,
 )
-from .theme import STYLESHEET, light_palette, style_axes, module_color
+from .theme import STYLESHEET, light_palette, style_axes, module_color, style_result_heading
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
 from .availability import availability_views
+from .epochs import epoch_phase, epoch_summary, availability_epoch_summary
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
@@ -127,6 +128,7 @@ class MainWindow(QMainWindow):
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self._plot_signature = None
+        self._epoch_views = {}
         self._table_views = OrderedDict()
         self._result_layout_index = None
         self.display_clock = None
@@ -492,11 +494,9 @@ class MainWindow(QMainWindow):
         self.analysis_field("Time origin", origin_row, form=origin_form)
         parameters.addLayout(origin_form)
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
-        # Help belongs below the complete form. Expanding a field's row changes
+        # Help belongs below the complete parameter card. Expanding a field's row changes
         # QFormLayout alignment and column widths, shifting unrelated labels.
-        self.analysis_help_panel = QWidget()
-        help_layout = QVBoxLayout(self.analysis_help_panel)
-        help_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_help_panel, help_layout = card()
         help_layout.setSpacing(12)
         for title, (info, description) in self.analysis_help.items():
             section = QWidget()
@@ -507,12 +507,11 @@ class MainWindow(QMainWindow):
             section_layout.addWidget(description)
             section.hide()
             info.toggled.connect(section.setVisible)
-            info.toggled.connect(lambda _: self.analysis_help_panel.setVisible(
-                any(button.isChecked() for button, _ in self.analysis_help.values())))
+            info.toggled.connect(lambda checked, title=title: self.toggle_analysis_help(title, checked))
             help_layout.addWidget(section)
         self.analysis_help_panel.hide()
-        parameter_card.addWidget(self.analysis_help_panel)
         controls.addWidget(self.settings_panel)
+        controls.addWidget(self.analysis_help_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
         row = QHBoxLayout()
@@ -533,6 +532,13 @@ class MainWindow(QMainWindow):
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         layout.addLayout(row)
+
+    def toggle_analysis_help(self, title, checked):
+        if checked:
+            for other_title, (info, _) in self.analysis_help.items():
+                if other_title != title:
+                    info.setChecked(False)
+        self.analysis_help_panel.setVisible(any(info.isChecked() for info, _ in self.analysis_help.values()))
 
     def analysis_field(self, title, control, *, form=None, inline=False):
         """Accessible help toggles; explanations are kept outside the form rows."""
@@ -675,6 +681,20 @@ class MainWindow(QMainWindow):
         self.overview_layout.setSpacing(16)
         overview_body.addWidget(self.overview_content, 1)
         _, graph_body = view("Graphs", pinned=True)
+        graph_view_controls = QWidget()
+        view_row = QHBoxLayout(graph_view_controls)
+        view_row.setContentsMargins(12, 6, 12, 0)
+        view_row.addWidget(label("View", "muted"))
+        self.result_graph_view = self.combo(["Detailed", "30-minute epochs"])
+        self.result_graph_view.setAccessibleName("Graph time view for all selected series")
+        self.result_graph_view.setMinimumWidth(190)
+        self.result_graph_view.setToolTip(
+            "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
+            "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
+            "Bins use calendar half-hours when dates are known; first/last epochs may be partial.")
+        view_row.addWidget(self.result_graph_view)
+        view_row.addStretch()
+        self.graph_view_layout.insertWidget(0, graph_view_controls)
         graphs = QWidget()
         graph_layout = QHBoxLayout(graphs)
         graph_layout.setContentsMargins(0, 0, 0, 0)
@@ -838,6 +858,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.history_location)
 
     def _connect(self):
+        self.result_graph_view.currentIndexChanged.connect(self.plot)
         self.data_tabs.currentChanged.connect(self.data_tab_changed)
         self.prepared.toggled.connect(self.preparation_changed)
         self.gaps.toggled.connect(self.preparation_changed)
@@ -1030,6 +1051,7 @@ class MainWindow(QMainWindow):
 
     def clear_results(self):
         self._plot_signature = None
+        self._epoch_views.clear()
         self._table_views.clear()
         self.result_overlay.invalidate()
         self.results, self.active_frame = None, None
@@ -1646,7 +1668,7 @@ class MainWindow(QMainWindow):
         for name, frame in self._plot_tables.items():
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             if module not in roots:
-                root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, "Data preparation" if module == "preparation" else module.title())])
+                root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, "Data coverage" if module == "preparation" else module.title())])
                 root.setForeground(0, QColor(module_color(module)))
                 root.setExpanded(True)
                 roots[module] = root
@@ -1657,7 +1679,8 @@ class MainWindow(QMainWindow):
                       and (not name.endswith("/filtered") or not len(self.tables.get("quantifications/gait/unfiltered", []))))
             for metric in metrics:
                 title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-                if module != "preparation" and len(name.split("/")) > 2:
+                if module != "preparation" and len(name.split("/")) > 2 and not (
+                        module == "gait" and (name, metric) in self._plot_labels):
                     title += " (" + " / ".join(part.replace("_", " ").title() for part in name.split("/")[2:]) + ")"
                 elif title_counts[module, title] > 1:
                     title += " (" + output_label(name).split(" · ", 1)[-1] + ")"
@@ -1665,9 +1688,16 @@ class MainWindow(QMainWindow):
                 item.setData(0, Qt.UserRole, (name, metric))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(0, Qt.Checked if name.startswith("preparation/") or choose and metric == default else Qt.Unchecked)
-                item.setToolTip(0, title + "\nCoverage of the prepared samples supplied to these pipelines." if module == "preparation" else
-                               f"{name}\n{metric}" if (name, metric) not in self._plot_labels else
-                               title + "\nDerived from each window probability using the bundled model threshold; not the final merged sample labels.")
+                if module == "preparation":
+                    tooltip = title + "\nCoverage of the prepared samples supplied to these pipelines."
+                elif name.startswith("classifications/gait/") and metric in (
+                        "pred_gait_window", "pred_no_other_arm_activity_window"):
+                    threshold = gait_model_threshold(name.rsplit("/", 1)[-1])
+                    tooltip = (title + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
+                               "\nThese window predictions precede the final merged sample labels.")
+                else:
+                    tooltip = f"{name}\n{metric}"
+                item.setToolTip(0, tooltip)
                 self._series_items[(name, metric)] = item
             if choose and default is not None:
                 default_modules.add(module)
@@ -1688,6 +1718,7 @@ class MainWindow(QMainWindow):
 
     def analyzed(self, results):
         self._plot_signature = None
+        self._epoch_views.clear()
         self._table_views.clear()
         self._table_output_names = None
         self.results = results
@@ -1903,29 +1934,53 @@ class MainWindow(QMainWindow):
             self.result_series.blockSignals(False)
         self.plot()
 
+    def epoch_plot_data(self, name, metric, positions, binary):
+        key = name, metric, id(positions)
+        if key not in self._epoch_views:
+            times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
+            phase = epoch_phase(self.display_clock)
+            if name.startswith("preparation/"):
+                extent = self.provenance.get("recording_extent", {})
+                try:
+                    bounds = float(extent["start_s"]), float(extent["end_s"])
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    bounds = None
+                frame = availability_epoch_summary(times, self._interval_ends[name][positions], phase=phase, bounds=bounds)
+            else:
+                values = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+                frame = epoch_summary(times, values, binary=binary, phase=phase)
+            self._epoch_views[key] = frame
+        return self._epoch_views[key]
+
     def plot(self, *_):
         chosen = self.selected_result_series()
-        signature = tuple(chosen)
+        epochs = self.result_graph_view.currentIndex() == 1
+        signature = epochs, tuple(chosen)
         if self._plot_signature == signature and self.figure.axes:
             self.highlight_result_row()
             return
-        changed = set(signature).symmetric_difference(self._plot_signature or ())
+        previous_mode, previous_chosen = self._plot_signature or (None, ())
+        changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (self._plot_signature is not None and bool(changed)
-                         and bool(set(signature).intersection(self._plot_signature))
+                         and epochs == previous_mode and bool(set(chosen).intersection(previous_chosen))
                          and all(name.startswith("preparation/") for name, metric in changed))
+        mode_changed = self._plot_signature is not None and epochs != previous_mode
         viewport = None
         previous_y = {}
-        if coverage_only and self.figure.axes:
+        if (coverage_only or mode_changed) and self.figure.axes:
             source = self.figure.axes[0]
-            viewport = source.get_xlim(), source.get_autoscalex_on()
-            previous_y = {(ax._paradigma_dataset, ax._paradigma_metric):
-                          (ax.get_ylim(), ax.get_autoscaley_on())
-                          for ax in self.figure.axes if hasattr(ax, "_paradigma_dataset")}
+            if coverage_only or not source.get_autoscalex_on():
+                viewport = source.get_xlim(), source.get_autoscalex_on()
+            if coverage_only:
+                previous_y = {(ax._paradigma_dataset, ax._paradigma_metric):
+                              (ax.get_ylim(), ax.get_autoscaley_on())
+                              for ax in self.figure.axes if hasattr(ax, "_paradigma_dataset")}
         self._plot_signature = signature
         self.result_overlay.invalidate()
         self.figure.clear()
         self._result_selection_artists = []
-        binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
+        actual_binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
+        binaries = [False] * len(chosen) if epochs else actual_binaries
         compact_states = bool(binaries) and all(binaries)
         height = max(100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries))
         self.canvas.setMinimumHeight(height)
@@ -1933,7 +1988,7 @@ class MainWindow(QMainWindow):
         self.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
         if not chosen:
             ax = style_axes(self.figure)
-            ax.text(.5, .5, "Select detailed metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
+            ax.text(.5, .5, "Select metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
         first_axes = None
         grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.34 if binary else 1 for binary in binaries]) if chosen else None
         for index, (name, metric) in enumerate(chosen):
@@ -1944,11 +1999,23 @@ class MainWindow(QMainWindow):
             ax._paradigma_metric = metric
             selected, positions = self._detail_selections.get(name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int)))
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            binary = binary_indicator(self._plot_tables[name][metric], metric)
+            binary = actual_binaries[index]
+            percentage = binary or name.startswith("preparation/")
             ys = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
-            estimated = name.startswith("quantifications/gait/") and "time" not in selected
             xs = clock_times(times, self.display_clock)
-            if len(selected) and np.isfinite(times).any():
+            ax._paradigma_epoch = epochs
+            if epochs:
+                summary = self.epoch_plot_data(name, metric, positions, binary)
+                ax._paradigma_epoch_data = summary
+                color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
+                if len(summary):
+                    plot_bars(ax, clock_times(summary.start_s, self.display_clock),
+                              clock_times(summary.end_s, self.display_clock), summary.value, color)
+                if not len(summary) or not np.isfinite(summary.value).any():
+                    ax.text(.5, .5, "No valid outputs", ha="center", transform=ax.transAxes, color="#68778c")
+                if percentage:
+                    ax.set_ylim(0, 100)
+            elif len(selected) and np.isfinite(times).any():
                 color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
                 if binary:
                     stops = clock_times(self._interval_ends[name][positions], self.display_clock)
@@ -1959,11 +2026,14 @@ class MainWindow(QMainWindow):
                               clock_times(ends[positions], self.display_clock), ys, color)
             else:
                 ax.text(.5, .5, "No timed outputs", ha="center", transform=ax.transAxes, color="#68778c")
-            if not binary:
-                ax.set_ylabel(str(metric).replace("_", " "), fontsize=9)
-            metric_title = self._plot_labels.get((name, metric), str(metric).replace("_", " ").capitalize())
-            ax.set_title(output_label(name) + "  ·  " + metric_title + (" · Estimated positions" if estimated and metric != "range_of_motion" else ""),
-                         fontsize=10, fontweight="semibold", color="#243C57", pad=8 if binary else 13, loc="left")
+            if epochs or not binary:
+                ax.set_ylabel(("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
+                              if epochs and percentage else "Median" if epochs else str(metric).replace("_", " "), fontsize=9)
+            item = self._series_items.get((name, metric))
+            metric_title = item.text(0) if item is not None else self._plot_labels.get((name, metric), str(metric).replace("_", " "))
+            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
+            style_result_heading(ax, metric_title, module, MODULE_NAMES.get(module,
+                                 "Data coverage" if module == "preparation" else module.title()))
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
                 locator = dates.AutoDateLocator(tz=timezone)
@@ -2056,7 +2126,12 @@ class MainWindow(QMainWindow):
             self._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
-            value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
+            if getattr(ax, "_paradigma_epoch", False):
+                summary = ax._paradigma_epoch_data
+                selected = summary.loc[(summary.start_s <= seconds) & (seconds < summary.end_s)]
+                value = selected.value.iloc[0] if len(selected) else np.nan
+            else:
+                value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
             if (pd.isna(value) or not np.isfinite(float(value))
                     or getattr(ax, "_paradigma_binary", False) and float(value) != 1.):
                 continue
@@ -2099,7 +2174,17 @@ class MainWindow(QMainWindow):
         if not finite.any():
             return
         row = int(np.argmin(np.where(finite, distances, np.inf)))
-        if (getattr(event.inaxes, "_paradigma_binary", False) or getattr(event.inaxes, "_paradigma_bars", False)) and metric in self._plot_tables[name]:
+        if getattr(event.inaxes, "_paradigma_epoch", False):
+            summary = event.inaxes._paradigma_epoch_data
+            epoch = summary.loc[(summary.start_s <= anchor) & (anchor < summary.end_s)]
+            if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
+                return
+            observed = self._plot_tables[name][metric].iloc[self.active_positions].to_numpy(dtype=float, na_value=np.nan)
+            matching = finite & np.isfinite(observed) & (times >= epoch.start_s.iloc[0]) & (times < epoch.end_s.iloc[0])
+            if not matching.any():
+                return
+            row = int(np.argmin(np.where(matching, distances, np.inf)))
+        elif (getattr(event.inaxes, "_paradigma_binary", False) or getattr(event.inaxes, "_paradigma_bars", False)) and metric in self._plot_tables[name]:
             ends = self._interval_ends[name][self.active_positions]
             present = self._plot_tables[name][metric].iloc[self.active_positions].eq(1).fillna(False).to_numpy(dtype=bool)
             if getattr(event.inaxes, "_paradigma_bars", False):

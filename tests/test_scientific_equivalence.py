@@ -313,8 +313,10 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
             bars = axes.collections[0].get_paths()
             np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[positive, "time"])
             assert all(0 < np.ptp(bar.vertices[:, 0]) <= cadence for bar in bars)
-            assert "window" in axes.get_title(loc="left").lower()
-            assert f"≥ {threshold:.5g}" in axes.get_title(loc="left")
+            item = window._series_items[name, indicator]
+            assert axes.get_title(loc="left") == item.text(0)
+            assert "(prediction)" in axes.get_title(loc="left")
+            assert f"≥ {threshold:.5g}" in item.toolTip(0)
             if positive.any():
                 start = float(reference.loc[positive, "time"].iloc[0])
                 window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=start + cadence * .8))

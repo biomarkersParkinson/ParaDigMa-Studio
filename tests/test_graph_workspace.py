@@ -40,8 +40,9 @@ def test_gait_window_threshold_boundaries_preserve_probabilities_and_raw_tables(
         np.testing.assert_array_equal(plots[name][indicator], [0., 1., 1., np.nan, np.nan, np.nan])
         pd.testing.assert_series_equal(plots[name][probability], original[probability], check_exact=True)
         pd.testing.assert_frame_equal(frame, original, check_exact=True)
-        assert "window" in labels[(name, indicator)].lower()
-        assert f"≥ {threshold:.5g}" in labels[(name, indicator)]
+        title = "Gait presence" if stage == "detection" else "Filtered gait presence"
+        assert labels[(name, indicator)] == f"{title} (prediction)"
+        assert labels[(name, probability)] == f"{title} (probability)"
 
 
 @pytest.fixture

@@ -68,10 +68,19 @@ metadata; files with only elapsed time can use a user-supplied time origin.
 Gait bars are estimated within explicit segment boundaries; timing details retain that distinction.
 Plot series is the sole graph selector. Graphs use a consistent palette, subtle
 grids and shared bottom time labels; scrolling works over the graph canvas.
+The shared View selector switches every selected graph between Detailed and
+30-minute epochs. Epochs align to calendar half-hours when a recording clock
+is available, or elapsed half-hours otherwise. Binary predictions show the
+percentage of finite observations that are positive; continuous outcomes show
+the median of finite observations. Missing outputs leave gaps rather than
+becoming zero. Prepared-input availability shows unioned covered time as a
+percentage of the recording span within each epoch, including partial edge
+epochs. Clicking an epoch bar selects a nearby original output row within it;
+tables, exports and pipeline calculations remain unchanged.
 Binary predictors show compact filled tracks at the output update cadence, with less white space and no redundant vertical-axis label. Positive intervals remain filled when zoomed in; recording gaps, zero and missing states stay blank. Tremor statistics remain in the overview. Automatic Y limits fit the bars within the visible time interval; manual limits remain fixed. Selected Plot series text stays dark and readable on a pale background, including on hover. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
 
 Gait Classification includes probabilities and window presence indicators, using
-the bundled detection/filtering thresholds shown in their labels. These are
+the bundled detection/filtering thresholds shown in their tooltips. These are
 window comparisons, distinct from ParaDigMa's final labels based on averaging
 overlapping windows. Original tables and exports retain their official columns.
 
@@ -82,7 +91,7 @@ overlapping windows. Original tables and exports retain their official columns.
 Set **Time origin** in Analyze. Its calendar and clock default to the original
 recording when possible; Default restores this value. Results has no time filters.
 Time and date appear on separate lines, and graph zoom leaves all table rows intact.
-Continuous outputs use bars, with gaps for missing measurements. **Data preparation**
+Continuous outputs use bars, with gaps for missing measurements. **Data coverage**
 tracks show coverage of the actual prepared input supplied to each pipeline.
 
 ![Interactive result graphs](screenshots/graphs.png)

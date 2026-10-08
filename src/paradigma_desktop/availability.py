@@ -39,5 +39,5 @@ def availability_views(results, offsets):
     for group in groups.values():
         name = "preparation/" + "_".join(group["modules"])
         views[name] = group["frame"]
-        labels[(name, "available")] = ", ".join(MODULE_NAMES.get(m, m) for m in group["modules"]) + " input available"
+        labels[(name, "available")] = ", ".join(MODULE_NAMES.get(m, m) for m in group["modules"])
     return views, labels

@@ -178,12 +178,15 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         assert window.run_button.visibleRegion().boundingRect().contains(window.run_button.rect())
     for info in help_buttons:
         info.click()
+        assert sum(button.isChecked() for button in help_buttons) == 1
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() > small_scroll_maximum
     for info in help_buttons:
-        info.click()
+        if info.isChecked():
+            info.click()
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
+    assert window.analysis_help_panel.isHidden()
     window.resize(1200, 900)
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0

@@ -24,13 +24,16 @@ A verified signing identity must be configured before the signed workflow can pr
    channels in Graphs, or view original samples in Tables.
 2. **Analyze:** Select any combination of gait, tremor and pulse rate.
    Review units, time representation, watch side and channel mapping; use each
-   field's **i** button for guidance below the parameters, then click **Run Analysis**.
+   field's **i** button for guidance below the parameters box. One explanation
+   opens at a time. Then click **Run Analysis**.
 3. **Results:** Overview shows gait quantity (duration and segment counts),
    range of motion and peak velocity charts, other module aggregates
    and metadata. Graphs compares
    selected metrics from multiple modules across recording time; Tables shows
    module tabs with each module's classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
+   Switch **View** between Detailed and 30-minute epochs (binary percentages
+   and continuous medians). Tables and exports retain the original outputs.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
    **Recording & preparation** shows the recording's start/end, prepared-data
    coverage in hours and percent of the timespan, and interruptions between
@@ -93,7 +96,7 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.11**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.12**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
 
 [Performance review and measurements](docs/PERFORMANCE.md).
