@@ -97,7 +97,7 @@ def select_all(window):
     window.plot()
 
 
-def test_shared_view_switches_binary_continuous_probability_and_availability_and_keeps_raw_outputs(window):
+def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_outputs(window):
     times = [10., 20., 1790., 1800., 1810., 4000.]
     output = {'classifications': {'tremor': pd.DataFrame({'time': times,
                     'pred_tremor_checked': [0, 1, 1, 0, 0, 1], 'pred_tremor_proba': [.1, .7, .9, .2, .4, .8]})},
@@ -121,7 +121,8 @@ def test_shared_view_switches_binary_continuous_probability_and_availability_and
     np.testing.assert_array_equal(power._paradigma_epoch_data.value, [5, 5, 20])
     np.testing.assert_allclose(axes['classifications/tremor', 'pred_tremor_checked']._paradigma_epoch_data.value,
                                [200 / 3, 0, 100])
-    np.testing.assert_allclose(axes['classifications/tremor', 'pred_tremor_proba']._paradigma_epoch_data.value, [.7, .3, .8])
+    assert ('classifications/tremor', 'pred_tremor_proba') not in axes
+    assert ('classifications/tremor', 'pred_tremor_proba') not in window._series_items
     np.testing.assert_array_equal(axes['quantifications/pulse_rate', 'pulse_rate']._paradigma_epoch_data.value, [60, 80, 70])
     coverage = next(ax for (name, metric), ax in axes.items() if name.startswith('preparation/'))
     np.testing.assert_array_equal(coverage._paradigma_epoch_data.value, [100, 0, 100])

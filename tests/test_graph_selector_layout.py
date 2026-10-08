@@ -52,6 +52,38 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
     assert len({item.text(0) for item in leaves if item.parent().text(0) == "Tremor"}) == 2
 
 
+def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_selection(window):
+    window.analyzed({'classifications': {'tremor': pd.DataFrame({'time': [0., 1.],
+        'pred_tremor_checked': [0, 1], 'pred_arm_at_rest': [1, 1],
+        'pred_tremor_proba': [.2, .8], 'pred_tremor_logreg': [0, 1]})},
+        'quantifications': {'tremor': pd.DataFrame({'time': [0., 1.], 'tremor_power': [1., 3.]})}})
+    window.result_tabs.setCurrentIndex(1)
+    QTest.qWait(30)
+    tree = window.result_series
+    root = tree.topLevelItem(0)
+    assert tree.indentation() == 12
+    assert {root.child(i).text(0) for i in range(root.childCount())} == {
+        'Tremor presence (prediction)', 'Arm at rest (prediction)', 'Tremor power'}
+    assert 'pred_tremor_proba' in window.tables['classifications/tremor']
+    assert 'pred_tremor_logreg' in window.tables['classifications/tremor']
+    for expanded in (False, True, False):
+        root.setExpanded(expanded)
+        rect = tree.visualItemRect(root)
+        QTest.mouseClick(tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 30, rect.center().y()))
+        assert root.isExpanded() != expanded
+        QTest.mouseClick(tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() - 6, rect.center().y()))
+        assert root.isExpanded() == expanded
+    root.setExpanded(True)
+    leaf = root.child(0)
+    before = leaf.checkState(0)
+    rect = tree.visualItemRect(leaf)
+    QTest.mouseClick(tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 10, rect.center().y()))
+    assert leaf.checkState(0) != before
+    assert root.isExpanded()
+    for ax in window.figure.axes:
+        assert ax.get_title(loc='left') == window._series_items[ax._paradigma_dataset, ax._paradigma_metric].text(0)
+
+
 @pytest.mark.parametrize("dated", [False, True])
 def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readable(window, dated):
     window.provenance = {"display_clock": {"origin": "2026-10-07T12:00:00Z", "timezone": "UTC"}} if dated else {}
@@ -65,8 +97,11 @@ def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readabl
         tree_bottom = window.result_series.mapTo(window, QPoint(0, window.result_series.height())).y()
         ruler_bottom = window.time_axis.mapTo(window, QPoint(0, window.time_axis.height())).y()
         assert abs(tree_bottom - ruler_bottom) <= 1
+        footer_top = window.graph_footer.mapTo(window, QPoint(0, 0)).y()
+        assert footer_top - tree_bottom == 12
         page_bottom = window.graph_view.mapTo(window, QPoint(0, window.graph_view.height())).y()
-        assert page_bottom - tree_bottom == 12
+        controls_bottom = window.context_controls.mapTo(window, QPoint(0, window.context_controls.height())).y()
+        assert page_bottom - controls_bottom == 12
         plot_bottom = window.graph_scroll.mapTo(window, QPoint(0, window.graph_scroll.height())).y()
         ruler_top = window.time_axis.mapTo(window, QPoint(0, 0)).y()
         assert 0 <= ruler_top - plot_bottom <= 8
@@ -98,9 +133,10 @@ def test_large_native_toolbar_wraps_context_without_hiding_actions_or_expanding_
             control = toolbar.widgetForAction(action)
             assert control.isVisible() and control.visibleRegion().contains(control.rect())
         assert window.figure_actions.secondary.isVisible() == wrapped
+        assert window.graph_view_controls.visibleRegion().contains(window.graph_view_controls.rect())
         assert window.context_controls.visibleRegion().contains(window.context_controls.rect())
         assert window.time_axis.visibleRegion().contains(window.time_axis.rect())
-    # Moving the shared controls to Tables must not leave an empty toolbar row.
+    # Inspect controls move to Tables; the graph View selector stays in its toolbar.
     window.result_tabs.setCurrentIndex(2)
     QTest.qWait(30)
     assert window.detail_controls.isAncestorOf(window.context_controls)
@@ -108,3 +144,5 @@ def test_large_native_toolbar_wraps_context_without_hiding_actions_or_expanding_
     QTest.qWait(30)
     assert window.figure_actions.secondary.isVisible()
     assert window.context_controls.isVisible()
+    assert window.graph_footer.isAncestorOf(window.context_controls)
+    assert window.figure_actions.isAncestorOf(window.graph_view_controls)

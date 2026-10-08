@@ -123,17 +123,26 @@ graphs omit statistics text. `perc_windows_tremor` uses the resting-window denom
 Tremor's duplicate arm-rest and checked-tremor
 predictors appear only under Classification in Plot series.
 
-**Data preparation** tracks show coverage of the actual prepared samples handed to
+**Data coverage** tracks show coverage of the actual prepared samples handed to
 the pipelines, reflecting excluded rows and discarded sections. Identical workflows
 share a track; differing IMU and PPG coverage is shown separately. A sample is displayed
 for one nominal sample interval; gaps exceeding 1.5 times the median positive interval
 stay blank. An isolated sample with unknown cadence appears as a tick. These tracks
 are display metadata, not classifications or inferred physiological states.
 
-Gait Classification offers **Gait window presence** and **No other arm activity
-window** alongside probabilities. These use the bundled model's `probability ≥ threshold`.
-They describe individual windows; ParaDigMa's final sample segmentation additionally
-averages overlapping probabilities. Raw tables retain the official probability columns.
+Gait Classification offers **Gait presence (prediction)** and **Filtered gait presence
+(prediction)** alongside probabilities, using the bundled models' `probability ≥ threshold`.
+Filtered-positive intervals are restricted to detected gait. These describe individual
+windows; ParaDigMa's final sample segmentation additionally averages overlapping
+probabilities. Raw tables retain the official probability columns.
+
+**View**, at the right of the figure toolbar, switches all graphs between Detailed
+and 30-minute epochs. Continuous values show the median; binary predictions show
+percentages. Gait and filtered gait share one observed-time denominator, so filtered
+gait cannot have a higher percentage. Gait-positive time without filtering results
+is excluded from both denominators. Other binary outcomes use finite observations.
+Missing outputs stay blank. Click module titles to expand or collapse Plot series;
+tremor offers checked presence, arm-at-rest predictions and tremor power.
 
 Results **Tables** uses module-colored Gait, Tremor and Pulse rate tabs. Select the
 classification, quantification or aggregation table using **Output table**. Original
@@ -143,7 +152,7 @@ Zooming never filters table rows or recalculates aggregates.
 Automatic vertical limits follow the visible result bars, including any extreme
 values in that time interval. Manual limits remain fixed when panning or zooming.
 
-**Inspect sensor context**, beside the figure buttons, links a selected row or
+**Inspect sensor context**, at the bottom right of Graphs, links a selected row or
 clicked bar to original samples. A vertical marker and the pinned axis identify the
 selected time. Gait measurements open the complete official segment rather than
 treating their estimated positions as observed event timestamps. Sensor context

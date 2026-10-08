@@ -311,22 +311,42 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
             window.plot()
             axes = window.figure.axes[0]
             bars = axes.collections[0].get_paths()
-            np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[positive, "time"])
-            assert all(0 < np.ptp(bar.vertices[:, 0]) <= cadence for bar in bars)
+            if stage == "detection":
+                expected_intervals = [(float(start), float(start) + cadence) for start in reference.loc[positive, "time"]]
+            else:
+                # Independently intersect the two official threshold decisions.
+                # Filtering is conditional on gait and cannot create presence
+                # outside detected gait, even with different window cadences.
+                detection = expected["classifications"]["gait"]["detection"]
+                detection_threshold = ClassifierPackage.load(files("paradigma.assets") / "gait_detection_clf_package.pkl").threshold
+                gait_starts = detection.loc[detection.pred_gait_proba.ge(detection_threshold), "time"].to_numpy()
+                intersections = sorted((max(float(arm), float(gait)), min(float(arm) + cadence, float(gait) + 1.))
+                    for arm in reference.loc[positive, "time"] for gait in gait_starts
+                    if max(float(arm), float(gait)) < min(float(arm) + cadence, float(gait) + 1.))
+                expected_intervals = []
+                for start, end in intersections:
+                    if expected_intervals and start <= expected_intervals[-1][1] + 1e-9:
+                        expected_intervals[-1] = (expected_intervals[-1][0], max(end, expected_intervals[-1][1]))
+                    else:
+                        expected_intervals.append((start, end))
+            rendered = [(bar.vertices[:, 0].min(), bar.vertices[:, 0].max()) for bar in bars]
+            np.testing.assert_allclose(np.array(rendered).reshape(-1, 2), np.array(expected_intervals).reshape(-1, 2), rtol=0, atol=1e-9)
             item = window._series_items[name, indicator]
             assert axes.get_title(loc="left") == item.text(0)
             assert "(prediction)" in axes.get_title(loc="left")
             assert f"≥ {threshold:.5g}" in item.toolTip(0)
-            if positive.any():
-                start = float(reference.loc[positive, "time"].iloc[0])
-                window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=start + cadence * .8))
+            if expected_intervals:
+                start, end = expected_intervals[0]
+                anchor = start + min(cadence * .8, (end - start) / 2)
+                window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=anchor))
                 row = window.result_table.currentIndex().row()
-                assert window.active_frame.time.iloc[row] == start
+                selected_start = float(window.active_frame.time.iloc[row])
+                assert selected_start <= anchor < selected_start + cadence
+                assert reference[probability].iloc[row] >= threshold
             pd.testing.assert_frame_equal(window.result_table.model().frame, reference, check_exact=True)
             window.figure.axes[0].set_xlim(float(reference.time.median()), float(reference.time.max()) + cadence)
             bars = window.figure.axes[0].collections[0].get_paths()
-            retained = positive
-            np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in bars], reference.loc[retained, "time"])
+            np.testing.assert_allclose([(bar.vertices[:, 0].min(), bar.vertices[:, 0].max()) for bar in bars], rendered, rtol=0, atol=1e-9)
             pd.testing.assert_frame_equal(actual["classifications"]["gait"][stage], reference, check_exact=True)
             assert indicator not in actual["classifications"]["gait"][stage]
             window.apply_filters()

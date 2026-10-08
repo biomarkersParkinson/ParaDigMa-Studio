@@ -167,7 +167,9 @@ def smoke_test(report_path):
                 if hasattr(window, "filters_toggle"):
                     raise RuntimeError("Removed Results time filters are still present")
                 classification = results["classifications"]["tremor"]
-                state = next(column for column in classification if binary_indicator(classification[column], column))
+                state = 'pred_tremor_checked'
+                if not binary_indicator(classification[state], state):
+                    raise RuntimeError('Checked tremor predictions are not binary')
                 window.result_series.blockSignals(True)
                 for key, item in window._series_items.items():
                     item.setCheckState(0, Qt.Checked if key == ("classifications/tremor", state) else Qt.Unchecked)
@@ -185,8 +187,10 @@ def smoke_test(report_path):
                 window.result_tabs.setCurrentIndex(1)
                 if not window.dataset_field.isHidden() or not window.y_column.isHidden():
                     raise RuntimeError("Graphs still have redundant output/metric selectors")
-                if not window.figure_actions.isAncestorOf(window.context_controls):
-                    raise RuntimeError("Sensor context controls are not in the figure toolbar row")
+                if not window.graph_footer.isAncestorOf(window.context_controls):
+                    raise RuntimeError("Sensor context controls are not in the graph footer")
+                if not window.figure_actions.isAncestorOf(window.graph_view_controls):
+                    raise RuntimeError("Graph View selector is not beside the figure buttons")
                 window.dataset.setCurrentText("classifications/tremor")
                 row = int(np.flatnonzero(present)[0]) if present.any() else 0
                 window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
@@ -351,7 +355,8 @@ def smoke_test(report_path):
                               linked_result_selection_verified=True,
                               binary_state_raster_verified=True,
                               presence_only_verified=True,
-                              context_toolbar_verified=True,
+                              context_footer_verified=True,
+                              view_toolbar_verified=True,
                               selected_result_marker_verified=True,
                               calendar_time_controls_verified=True,
                               gait_sensor_context_verified=True,

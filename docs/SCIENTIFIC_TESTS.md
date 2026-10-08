@@ -77,7 +77,9 @@ Comparisons cover:
   tables retain full-run values when the detailed time selection changes or users switch module tabs.
 - Gait display-only window indicators match the saved probabilities compared with
   each bundled model's threshold, including equality at the threshold and missing
-  values. Recorded-output plots, zoom and clicks preserve the raw tables.
+  values. Filtered-positive display intervals are independently intersected with
+  threshold-positive detected gait in the recorded fixtures. Recorded-output
+  plots, zoom and clicks preserve the raw tables.
   These indicators are distinct from the pipeline's merged sample-level labels.
 - JSON export/reopening and CSV exports, including missing tremor measurements.
 
@@ -162,7 +164,11 @@ checked against the official output; no lines interpolate across missing estimat
 Estimated gait positions stay within their official segments and are never inserted
 into scientific result tables. Plot zoom leaves the complete raw tables unchanged.
 Binary tests verify positive spans, actual timestamps, gaps, missing states and
-isolated detections. Prepared-input availability comes from the exact pipeline inputs.
+isolated detections. `tests/test_gait_presence.py` checks the common observed-time
+percentage denominator, conditional filtering, unequal cadences, gaps and missing
+filter predictions, overlapping recordings, and recording/participant isolation.
+Filtered gait cannot exceed gait presence in any epoch; unknown time is excluded
+from both denominators. Prepared-input availability comes from the exact pipeline inputs.
 Other tests exercise real Qt wheel/touchpad events, the pinned time axis, source-clock
 precision and Analyze's calendar defaults, including wider Windows-sized editors.
 Selective JSON/CSV/ZIP tests retain native columns, metadata and integer precision,

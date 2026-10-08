@@ -72,7 +72,11 @@ The shared View selector switches every selected graph between Detailed and
 30-minute epochs. Epochs align to calendar half-hours when a recording clock
 is available, or elapsed half-hours otherwise. Binary predictions show the
 percentage of finite observations that are positive; continuous outcomes show
-the median of finite observations. Missing outputs leave gaps rather than
+the median of finite observations. Gait and filtered-gait predictions instead
+use a shared observed-time denominator: filtered positives are intersected with
+detected gait, so their percentage cannot exceed gait presence. Gait-positive
+time without filtering predictions is excluded from both denominators.
+Missing outputs leave gaps rather than
 becoming zero. Prepared-input availability shows unioned covered time as a
 percentage of the recording span within each epoch, including partial edge
 epochs. Clicking an epoch bar selects a nearby original output row within it;
@@ -81,12 +85,13 @@ Binary predictors show compact filled tracks at the output update cadence, with 
 
 Gait Classification includes probabilities and window presence indicators, using
 the bundled detection/filtering thresholds shown in their tooltips. These are
-window comparisons, distinct from ParaDigMa's final labels based on averaging
+window comparisons; filtered-positive intervals are restricted to detected
+gait. They are distinct from ParaDigMa's final labels based on averaging
 overlapping windows. Original tables and exports retain their official columns.
 
 ![Gait window probabilities and threshold-based presence](screenshots/gait-presence.png)
 
-**Inspect sensor context** and its radius sit at the right of the figure toolbar, leaving the space above the time axis for graphs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
+The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** and its radius sit at the bottom right, below the pinned time axis. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
 
 Set **Time origin** in Analyze. Its calendar and clock default to the original
 recording when possible; Default restores this value. Results has no time filters.

@@ -427,7 +427,7 @@ def test_binary_intervals_respect_gaps_recordings_filters_and_clicks_inside_bars
     pd.testing.assert_frame_equal(frame, original)
 
 
-def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(window):
+def test_view_shares_figure_toolbar_and_sensor_context_stays_bottom_right(window):
     window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [2., 3.]})}})
     window.result_tabs.setCurrentIndex(1)
     QTest.qWait(50)
@@ -435,8 +435,10 @@ def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(windo
         window.resize(width, 720)
         QTest.qWait(30)
         toolbar = window.plot_toolbar
-        controls = window.context_controls
+        controls = window.graph_view_controls
         assert window.figure_actions.isAncestorOf(controls)
+        assert window.graph_footer.isAncestorOf(window.context_controls)
+        assert window.context_controls.visibleRegion().contains(window.context_controls.rect())
         toolbar_center = toolbar.mapTo(window, toolbar.rect().center()).y()
         top = controls.mapTo(window, QPoint(0, 0)).y()
         if window.figure_actions.secondary.isVisible():
@@ -455,7 +457,8 @@ def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(windo
     assert window.detail_controls.isAncestorOf(window.context_controls)
     assert window.context_controls.isVisible()
     window.result_tabs.setCurrentIndex(1)
-    assert window.figure_actions.isAncestorOf(window.context_controls)
+    assert window.graph_footer.isAncestorOf(window.context_controls)
+    assert window.figure_actions.isAncestorOf(window.graph_view_controls)
 
 
 def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_data(window):

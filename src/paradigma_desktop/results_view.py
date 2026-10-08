@@ -46,6 +46,12 @@ def plot_tables(tables):
             for metric, title in (("range_of_motion", "Range of motion"), ("peak_velocity", "Peak velocity")):
                 if metric in frame:
                     labels[(name, metric)] = f"{title} ({branch} gait)"
+    for name, frame in tables.items():
+        if name.split('/')[1] == 'tremor':
+            for metric, title in (('pred_tremor_checked', 'Tremor presence (prediction)'),
+                                  ('pred_arm_at_rest', 'Arm at rest (prediction)'), ('tremor_power', 'Tremor power')):
+                if metric in frame:
+                    labels[name, metric] = title
     return plots, labels
 
 
@@ -159,6 +165,8 @@ def plot_metrics(name, frame):
     if name.startswith("preparation/"):
         return ["available"]
     metrics = measurement_columns(frame)
+    if name.split('/')[1] == 'tremor':
+        metrics = [column for column in metrics if column not in ('pred_tremor_proba', 'pred_tremor_logreg')]
     if name.startswith("quantifications/tremor"):
         metrics = [column for column in metrics if column not in ("pred_arm_at_rest", "pred_tremor_checked")]
     if name.startswith("classifications/"):

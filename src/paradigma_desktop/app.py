@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
     QScrollArea, QSplitter, QStackedWidget, QListView,
-    QTabBar, QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
+    QTabBar, QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
 )
 from .plot_cache import configure_plot_cache
 
@@ -37,7 +37,7 @@ from .recordings import load_recordings, align_recordings, source_key, timeline_
 from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
 from .plot_controls import GraphToolbar, add_graph_controls
-from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars
+from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars, time_coordinates
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
     output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key, gait_model_threshold,
@@ -48,10 +48,11 @@ from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
 from .availability import availability_views
 from .epochs import epoch_phase, epoch_summary, availability_epoch_summary
+from .gait_presence import gait_presence_intervals, gait_epoch_summaries
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, FigureActionBar, label, button, card, table, readout, field
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, FigureActionBar, SeriesTree, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -129,6 +130,8 @@ class MainWindow(QMainWindow):
         self._result_selection_artists = []
         self._plot_signature = None
         self._epoch_views = {}
+        self._gait_presence_cache = None
+        self._gait_epoch_cache = None
         self._table_views = OrderedDict()
         self._result_layout_index = None
         self.display_clock = None
@@ -609,6 +612,7 @@ class MainWindow(QMainWindow):
 
         def view(title, pinned=False):
             scroll = QScrollArea()
+            scroll.setFrameShape(QFrame.NoFrame)
             scroll.setWidgetResizable(True)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             body = QWidget()
@@ -681,24 +685,29 @@ class MainWindow(QMainWindow):
         self.overview_layout.setSpacing(16)
         overview_body.addWidget(self.overview_content, 1)
         _, graph_body = view("Graphs", pinned=True)
-        graph_view_controls = QWidget()
-        view_row = QHBoxLayout(graph_view_controls)
-        view_row.setContentsMargins(12, 6, 12, 0)
+        self.graph_view_controls = QWidget()
+        view_row = QHBoxLayout(self.graph_view_controls)
+        view_row.setContentsMargins(0, 0, 0, 0)
         view_row.addWidget(label("View", "muted"))
         self.result_graph_view = self.combo(["Detailed", "30-minute epochs"])
         self.result_graph_view.setAccessibleName("Graph time view for all selected series")
         self.result_graph_view.setMinimumWidth(190)
         self.result_graph_view.setToolTip(
             "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
+            "Gait and filtered gait percentages use the same jointly observed time; filtered positives are a subset of gait.\n"
             "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
             "Bins use calendar half-hours when dates are known; first/last epochs may be partial.")
         view_row.addWidget(self.result_graph_view)
-        view_row.addStretch()
-        self.graph_view_layout.insertWidget(0, graph_view_controls)
         graphs = QWidget()
+        # The wrapped source label makes the enclosing layout height-for-width.
+        # Let the plot viewport shrink below the canvas's preferred size; its
+        # own scroll area handles tall figures without spilling over the ruler.
+        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         graph_layout = QHBoxLayout(graphs)
         graph_layout.setContentsMargins(0, 0, 0, 0)
-        self.result_series = QTreeWidget()
+        self.result_series = SeriesTree()
+        self.result_series.setIndentation(12)
+        self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 3px; }")
         self.result_series.setHeaderLabel("Plot series")
         self.result_series.setPalette(light_palette())
         self.result_series.setMinimumWidth(190)
@@ -716,10 +725,12 @@ class MainWindow(QMainWindow):
         self.canvas.pinned_time_axis = True
         self.plot_toolbar = GraphToolbar(self.canvas, self)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
+        self.figure_actions.set_context(self.graph_view_controls)
         self.figure_actions_layout = self.figure_actions.primary
         graph_body.addWidget(self.figure_actions)
         graph_body.addWidget(self.plot_toolbar.settings)
         graph_scroll = QScrollArea()
+        graph_scroll.setFrameShape(QFrame.NoFrame)
         graph_scroll.setWidgetResizable(True)
         graph_scroll.setWidget(self.canvas)
         self.graph_scroll = graph_scroll
@@ -755,6 +766,11 @@ class MainWindow(QMainWindow):
         workspace_layout.addWidget(self.result_series)
         workspace_layout.addWidget(plot_view, 1)
         self.graph_view_layout.addWidget(workspace, 1)
+        self.graph_footer = QWidget()
+        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
+        self.graph_footer_layout.setContentsMargins(12, 0, 12, 12)
+        self.graph_footer_layout.addStretch()
+        self.graph_view_layout.addWidget(self.graph_footer)
         graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
@@ -1052,6 +1068,7 @@ class MainWindow(QMainWindow):
     def clear_results(self):
         self._plot_signature = None
         self._epoch_views.clear()
+        self._gait_presence_cache = self._gait_epoch_cache = None
         self._table_views.clear()
         self.result_overlay.invalidate()
         self.results, self.active_frame = None, None
@@ -1453,10 +1470,10 @@ class MainWindow(QMainWindow):
                     previous.removeWidget(widget)
             body.insertWidget(0, self.results_header)
             body.insertWidget(1, self.detail_controls)
-            self.figure_actions.remove_context(self.context_controls)
+            self.graph_footer_layout.removeWidget(self.context_controls)
             self.table_actions_layout.removeWidget(self.context_controls)
             if index == 1:
-                self.figure_actions.set_context(self.context_controls)
+                self.graph_footer_layout.addWidget(self.context_controls, alignment=Qt.AlignRight)
             else:
                 self.table_actions_layout.addWidget(self.context_controls, alignment=Qt.AlignRight)
             self._result_layout_index = index
@@ -1694,7 +1711,8 @@ class MainWindow(QMainWindow):
                         "pred_gait_window", "pred_no_other_arm_activity_window"):
                     threshold = gait_model_threshold(name.rsplit("/", 1)[-1])
                     tooltip = (title + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
-                               "\nThese window predictions precede the final merged sample labels.")
+                               "\nThese window predictions precede the final merged sample labels."
+                               "\nFiltered presence is intersected with detected gait. Both epoch percentages use the same observed time.")
                 else:
                     tooltip = f"{name}\n{metric}"
                 item.setToolTip(0, tooltip)
@@ -1719,6 +1737,7 @@ class MainWindow(QMainWindow):
     def analyzed(self, results):
         self._plot_signature = None
         self._epoch_views.clear()
+        self._gait_presence_cache = self._gait_epoch_cache = None
         self._table_views.clear()
         self._table_output_names = None
         self.results = results
@@ -1934,12 +1953,36 @@ class MainWindow(QMainWindow):
             self.result_series.blockSignals(False)
         self.plot()
 
+    def gait_plot_presence(self):
+        if self._gait_presence_cache is None:
+            def frame(stage, metric):
+                name = 'classifications/gait/' + stage
+                source = self._plot_tables.get(name)
+                if source is None or metric not in source:
+                    return None
+                data = pd.DataFrame({'start': self._timings[name]['Timeline time (s)'].to_numpy(),
+                                     'end': self._interval_ends[name],
+                                     'state': source[metric].to_numpy(dtype=float, na_value=np.nan)})
+                for key in ('file_key', *PARTICIPANT_COLUMNS):
+                    if key in source:
+                        data[key] = source[key].to_numpy()
+                return data
+            detection = frame('detection', 'pred_gait_window')
+            self._gait_presence_cache = gait_presence_intervals(
+                detection if detection is not None else pd.DataFrame(columns=['start', 'end', 'state']),
+                frame('arm_activity', 'pred_no_other_arm_activity_window'))
+        return self._gait_presence_cache
+
     def epoch_plot_data(self, name, metric, positions, binary):
         key = name, metric, id(positions)
         if key not in self._epoch_views:
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
             phase = epoch_phase(self.display_clock)
-            if name.startswith("preparation/"):
+            if name.startswith('classifications/gait/') and metric in ('pred_gait_window', 'pred_no_other_arm_activity_window'):
+                if self._gait_epoch_cache is None:
+                    self._gait_epoch_cache = gait_epoch_summaries(self.gait_plot_presence(), phase)
+                frame = self._gait_epoch_cache['gait' if metric == 'pred_gait_window' else 'filtered']
+            elif name.startswith("preparation/"):
                 extent = self.provenance.get("recording_extent", {})
                 try:
                     bounds = float(extent["start_s"]), float(extent["end_s"])
@@ -1979,7 +2022,9 @@ class MainWindow(QMainWindow):
         self.result_overlay.invalidate()
         self.figure.clear()
         self._result_selection_artists = []
-        actual_binaries = [binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
+        actual_binaries = [(name.startswith('classifications/gait/') and metric in
+                            ('pred_gait_window', 'pred_no_other_arm_activity_window')) or
+                           binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
         binaries = [False] * len(chosen) if epochs else actual_binaries
         compact_states = bool(binaries) and all(binaries)
         height = max(100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries))
@@ -2018,8 +2063,19 @@ class MainWindow(QMainWindow):
             elif len(selected) and np.isfinite(times).any():
                 color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
                 if binary:
-                    stops = clock_times(self._interval_ends[name][positions], self.display_clock)
-                    plot_states(ax, xs, ys, color, ends=stops)
+                    if name == 'classifications/gait/arm_activity' and metric == 'pred_no_other_arm_activity_window':
+                        presence = self.gait_plot_presence()
+                        pairs = presence['filtered']
+                        plot_states(ax, clock_times(pairs[:, 0], self.display_clock), np.ones(len(pairs)), color,
+                                    ends=clock_times(pairs[:, 1], self.display_clock))
+                        domain = presence['domain']
+                        if len(domain):
+                            extent = time_coordinates(clock_times([domain[:, 0].min(), domain[:, 1].max()], self.display_clock))
+                            ax.update_datalim(np.column_stack((extent, [1, 1])))
+                            ax.autoscale_view(scaley=False)
+                    else:
+                        stops = clock_times(self._interval_ends[name][positions], self.display_clock)
+                        plot_states(ax, xs, ys, color, ends=stops)
                 else:
                     starts, ends = self._bar_bounds[name]
                     plot_bars(ax, clock_times(starts[positions], self.display_clock),
@@ -2132,6 +2188,10 @@ class MainWindow(QMainWindow):
                 value = selected.value.iloc[0] if len(selected) else np.nan
             else:
                 value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
+                if name == 'classifications/gait/arm_activity' and ax._paradigma_metric == 'pred_no_other_arm_activity_window':
+                    pairs = self.gait_plot_presence()['filtered']
+                    if not ((pairs[:, 0] <= seconds) & (seconds < pairs[:, 1])).any():
+                        continue
             if (pd.isna(value) or not np.isfinite(float(value))
                     or getattr(ax, "_paradigma_binary", False) and float(value) != 1.):
                 continue

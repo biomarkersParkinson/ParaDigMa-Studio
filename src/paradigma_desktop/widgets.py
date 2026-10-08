@@ -5,7 +5,7 @@ from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex,
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy,
+    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget,
 )
 from .theme import light_palette, module_color
 
@@ -39,6 +39,19 @@ class WrappedForm(QWidget):
         if event.type() == QEvent.LayoutRequest:
             self._fit_height()
         return result
+
+
+class SeriesTree(QTreeWidget):
+    """Module titles toggle expansion; native arrows and leaf checks still work."""
+    def mouseReleaseEvent(self, event):
+        position = event.position().toPoint()
+        item = self.itemAt(position)
+        title_clicked = (event.button() == Qt.LeftButton and item is not None and item.parent() is None
+                         and self.visualItemRect(item).contains(position))
+        expanded = item.isExpanded() if item is not None else False
+        super().mouseReleaseEvent(event)
+        if title_clicked:
+            item.setExpanded(not expanded)
 
 
 class FigureActionBar(QWidget):

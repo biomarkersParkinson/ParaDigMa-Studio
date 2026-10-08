@@ -241,12 +241,16 @@ def test_multiple_modules_share_absolute_time_axes_filters_tables_and_csv(window
 
 
 def test_classifications_can_plot_alongside_quantifications_and_click_selects_correct_table(window, results):
+    results["classifications"]["tremor"]["pred_tremor_checked"] = [0, 1, 1, 0]
     setup(window, results)
-    key = ("classifications/tremor", "pred_tremor_proba")
+    key = ("classifications/tremor", "pred_tremor_checked")
     window._series_items[key].setCheckState(0, Qt.Checked)
     assert len(window.figure.axes) == 3
     ax = next(ax for ax in window.figure.axes if ax._paradigma_dataset == key[0])
-    np.testing.assert_array_equal(bar_values(ax), [.1, .8, .4, .9])
+    assert ax._paradigma_binary
+    assert len(ax.collections[0].get_paths()) == 2
+    np.testing.assert_array_equal([bar.vertices[:, 0].min() for bar in ax.collections[0].get_paths()],
+                                  dates.date2num(clock_times([4., 8.], window.display_clock)))
     click = dates.date2num(clock_times([8.], window.display_clock))[0]
     window.graph_clicked(SimpleNamespace(inaxes=ax, xdata=click))
     assert window.dataset.currentText() == key[0]
