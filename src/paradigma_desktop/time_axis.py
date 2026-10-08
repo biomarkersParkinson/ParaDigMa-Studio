@@ -65,12 +65,12 @@ class RecordingTimeFormatter(ticker.Formatter):
 class PinnedTimeAxis(FigureCanvasQTAgg):
     def __init__(self, source_canvas, label_source):
         super().__init__(Figure(figsize=(8, .82)))
-        self.setFixedHeight(82)
+        self.setFixedHeight(74)
         self.setAccessibleName("Pinned recording time axis")
         self.source_canvas = source_canvas
         self.label_source = label_source
         self.figure.set_facecolor("white")
-        self.axes = self.figure.add_axes((.1, .78, .85, .1))
+        self.axes = self.figure.add_axes((.1, .84, .85, .1))
         self.axes.yaxis.set_visible(False)
         for side in ("top", "right", "left"):
             self.axes.spines[side].set_visible(False)
@@ -87,7 +87,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.selection_marker = Line2D([], [], marker="v", markersize=6, color="#465B73",
                                        linestyle="none", transform=self.axes.get_xaxis_transform(), clip_on=False, zorder=5)
         self.axes.add_artist(self.selection_marker)
-        self.selection_label = self.axes.text(1, 1.8, "", transform=self.axes.transAxes,
+        self.selection_label = self.axes.text(1, 1.35, "", transform=self.axes.transAxes,
                                               ha="right", va="top", fontsize=8.5, color="#465B73")
         self._selected_x = None
         self.set_selection(None)
@@ -109,10 +109,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 locator = dates.AutoDateLocator(tz=locator.tz, minticks=3, maxticks=7)
                 self.axes.xaxis.set_major_locator(locator)
                 self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
-                self.setFixedHeight(102)
+                self.setFixedHeight(94)
             else:
                 self._date_timezone = None
-                self.setFixedHeight(82)
+                self.setFixedHeight(74)
                 self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
         else:
@@ -160,7 +160,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         if state == self._sync_state:
             return
         self._sync_state = state
-        self.axes.set_position((left, .78, max(.01, right - left), .1))
+        self.axes.set_position((left, .84, max(.01, right - left), .1))
         self.axes.set_xlim(limits, emit=False)
         self._update_selection_visibility()
         self.axes.set_xlabel(text, labelpad=8)

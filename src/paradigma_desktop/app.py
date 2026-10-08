@@ -11,7 +11,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths, QUrl
+from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths, QUrl, QItemSelectionModel
 from PySide6.QtGui import QAction, QIcon, QColor, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QDoubleSpinBox,
@@ -50,7 +50,7 @@ from .availability import availability_views
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, label, button, card, table, readout, field
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -402,10 +402,9 @@ class MainWindow(QMainWindow):
         parameter_card.setContentsMargins(18, 16, 18, 16)
         parameter_card.setSpacing(14)
         parameter_card.setAlignment(Qt.AlignTop)
-        self.analysis_parameter_fields = QWidget()
+        self.analysis_parameter_fields = WrappedForm()
         self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         parameters = QVBoxLayout(self.analysis_parameter_fields)
-        parameters.setSizeConstraint(QLayout.SetMinimumSize)
         parameters.setContentsMargins(0, 0, 0, 0)
         parameters.setSpacing(14)
         parameters.setAlignment(Qt.AlignTop)
@@ -679,6 +678,7 @@ class MainWindow(QMainWindow):
         _, graph_body = view("Graphs", pinned=True)
         graphs = QWidget()
         graph_layout = QHBoxLayout(graphs)
+        graph_layout.setContentsMargins(0, 0, 0, 0)
         self.result_series = QTreeWidget()
         self.result_series.setHeaderLabel("Plot series")
         self.result_series.setPalette(light_palette())
@@ -687,7 +687,6 @@ class MainWindow(QMainWindow):
         self.result_series.setWordWrap(True)
         self.result_series.setTextElideMode(Qt.ElideNone)
         self.result_series.setAccessibleName("Results to plot simultaneously")
-        graph_layout.addWidget(self.result_series)
         graph = QWidget()
         plots = QVBoxLayout(graph)
         plots.setContentsMargins(0, 0, 0, 0)
@@ -717,7 +716,31 @@ class MainWindow(QMainWindow):
         self.graphs_workspace = graphs
         graph_body.addWidget(graphs, 1)
         self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
-        self.graph_view_layout.addWidget(self.time_axis)
+        # The selector spans the plot viewport and its pinned time ruler.
+        # It must not end above a blank rectangle the height of the ruler.
+        plot_view = QWidget()
+        plot_view_layout = QVBoxLayout(plot_view)
+        plot_view_layout.setContentsMargins(0, 0, 0, 0)
+        plot_view_layout.setSpacing(0)
+        scroll = self._result_view_scrolls[1]
+        self.graph_view_layout.removeWidget(scroll)
+        # Figure actions retain the full page width, including at 960 px.
+        # Otherwise the selector can hide the toolbar's settings/save buttons.
+        graph_body.removeWidget(self.figure_actions)
+        graph_body.removeWidget(self.plot_toolbar.settings)
+        self.figure_actions_layout.setContentsMargins(12, 6, 12, 6)
+        self.graph_view_layout.addWidget(self.figure_actions)
+        self.graph_view_layout.addWidget(self.plot_toolbar.settings)
+        plot_view_layout.addWidget(scroll, 1)
+        plot_view_layout.addWidget(self.time_axis)
+        workspace = QWidget()
+        workspace_layout = QHBoxLayout(workspace)
+        workspace_layout.setContentsMargins(12, 0, 0, 12)
+        workspace_layout.setSpacing(10)
+        workspace_layout.addWidget(self.result_series)
+        workspace_layout.addWidget(plot_view, 1)
+        self.graph_view_layout.addWidget(workspace, 1)
+        graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         _, table_body = view("Tables")
@@ -778,6 +801,8 @@ class MainWindow(QMainWindow):
         split = QSplitter(Qt.Vertical)
         panel, content = card()
         self.run_table = table()
+        self.run_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.run_table.setAccessibleName("Runs; use Ctrl or Shift to select multiple runs")
         content.addWidget(self.run_table, 1)
         actions = QHBoxLayout()
         self.open_run_button = button("Open results", self.open_run)
@@ -786,6 +811,8 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.use_parameters_button)
         self.delete_run_button = button("Delete Run…", self.delete_run)
         actions.addWidget(self.delete_run_button)
+        self.clear_runs_button = button("Clear all…", self.clear_runs)
+        actions.addWidget(self.clear_runs_button)
         actions.addStretch()
         self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
         self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
@@ -915,7 +942,7 @@ class MainWindow(QMainWindow):
         if self.worker is not None:
             return
         for widget in (self.open_button, self.run_button, self.settings_panel, self.analysis_controls,
-                       self.export_button, self.open_run_button, self.use_parameters_button, self.delete_run_button,
+                       self.export_button, self.open_run_button, self.use_parameters_button, self.delete_run_button, self.clear_runs_button,
                        self.data_time_channel, self.data_time_unit, self.input_recording):
             widget.setEnabled(False)
         self.progress.setRange(0, 0)
@@ -1615,6 +1642,12 @@ class MainWindow(QMainWindow):
         self.result_series.clear()
         self._series_items = {}
         roots, default_modules = {}, set()
+        title_counts = {}
+        for name, frame in self._plot_tables.items():
+            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
+            for metric in plot_metrics(name, frame):
+                title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
+                title_counts[module, title] = title_counts.get((module, title), 0) + 1
         for name, frame in self._plot_tables.items():
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             if module not in roots:
@@ -1622,8 +1655,6 @@ class MainWindow(QMainWindow):
                 root.setForeground(0, QColor(module_color(module)))
                 root.setExpanded(True)
                 roots[module] = root
-            stage = roots[module] if module == "preparation" else QTreeWidgetItem(roots[module], [output_label(name).split(" · ", 1)[-1]])
-            stage.setExpanded((name.startswith("quantifications/") or name.startswith("preparation/")) and len(frame) > 0)
             metrics = plot_metrics(name, frame)
             default = preferred_metric(name, frame)
             # Favor unfiltered gait and quantified outputs for initial plots.
@@ -1631,7 +1662,11 @@ class MainWindow(QMainWindow):
                       and (not name.endswith("/filtered") or not len(self.tables.get("quantifications/gait/unfiltered", []))))
             for metric in metrics:
                 title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-                item = QTreeWidgetItem(stage, [title])
+                if module != "preparation" and len(name.split("/")) > 2:
+                    title += " (" + " / ".join(part.replace("_", " ").title() for part in name.split("/")[2:]) + ")"
+                elif title_counts[module, title] > 1:
+                    title += " (" + output_label(name).split(" · ", 1)[-1] + ")"
+                item = QTreeWidgetItem(roots[module], [title])
                 item.setData(0, Qt.UserRole, (name, metric))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(0, Qt.Checked if name.startswith("preparation/") or choose and metric == default else Qt.Unchecked)
@@ -2176,18 +2211,29 @@ class MainWindow(QMainWindow):
         self.sensor_canvas.draw_idle()
 
     def refresh_runs(self):
+        selected_ids = {record["id"] for record in self.selected_run_records()}
+        if self.selected_run is not None and not any(record is self.selected_run for record in getattr(self, "_run_row_records", ())):
+            selected_ids = {self.selected_run["id"]}
         data = pd.DataFrame([{"Started": datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y · %H:%M"), "Status": run_status(record),
             "Input": (f"{len(record['sources'])} recordings" if len(record.get("sources", {})) > 1 else Path(record["source"]).name), "Modules": ", ".join(record["settings"].get("pipelines", [])),
             "Warnings": len(record["warnings"]), "Errors": len(record.get("errors", [])), "Exports": len(record["outputs"])} for record in self.runs],
             columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"])
+        self._run_row_records = tuple(self.runs)
         self.run_table.setModel(FrameModel(data))
         self.run_table.setColumnWidth(0, 176)
         self.run_table.setColumnWidth(2, 170)
         self.run_table.selectionModel().currentRowChanged.connect(self.select_run)
+        self.run_table.selectionModel().selectionChanged.connect(self.update_run_actions)
         if self.runs:
             index = next((i for i, record in enumerate(self.runs) if record is self.selected_run), 0)
-            self.run_table.setCurrentIndex(self.run_table.model().index(index, 0))
-            self.run_table.selectRow(index)
+            selection = self.run_table.selectionModel()
+            selection.blockSignals(True)
+            selection.setCurrentIndex(self.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate)
+            rows = [i for i, record in enumerate(self.runs) if record["id"] in selected_ids] or [index]
+            for row in rows:
+                selection.select(self.run_table.model().index(row, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+            selection.blockSignals(False)
+            self.select_run(selection.currentIndex(), None)
         else:
             self.selected_run = None
         self.update_run_actions()
@@ -2214,49 +2260,83 @@ class MainWindow(QMainWindow):
         return (f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
                 f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}")
 
-    def update_run_actions(self):
+    def selected_run_records(self):
+        selection = self.run_table.selectionModel()
+        rows = selection.selectedRows() if selection is not None else []
+        records = getattr(self, "_run_row_records", ())
+        return [records[index.row()] for index in sorted(rows, key=lambda index: index.row()) if index.row() < len(records)]
+
+    def update_run_actions(self, *_):
+        records = self.selected_run_records()
+        count = len(records)
+        current = self.run_table.currentIndex()
+        desired = records[0] if count == 1 else (
+            self._run_row_records[current.row()] if count > 1 and current.isValid() else None)
+        if desired is not None and self.selected_run is not desired:
+            row = next(i for i, record in enumerate(self._run_row_records) if record is desired)
+            self.select_run(self.run_table.model().index(row, 0), None)
+            return
         record = self.selected_run
         available = record is not None and ("_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"]))
-        self.open_run_button.setEnabled(bool(available) and self.worker is None)
-        self.use_parameters_button.setEnabled(record is not None and self.worker is None)
-        self.delete_run_button.setEnabled(record is not None and self.worker is None)
+        self.open_run_button.setEnabled(bool(available) and count == 1 and self.worker is None)
+        self.use_parameters_button.setEnabled(record is not None and count == 1 and self.worker is None)
+        self.delete_run_button.setEnabled(count > 0 and self.worker is None)
+        self.delete_run_button.setText(f"Delete {count} Runs…" if count > 1 else "Delete Run…")
+        self.clear_runs_button.setEnabled(bool(self.runs) and self.worker is None)
 
     def delete_run(self):
-        record = self.selected_run
-        if record is None or self.worker is not None:
+        self.delete_runs(self.selected_run_records())
+
+    def clear_runs(self):
+        self.delete_runs(list(self.runs), clear_all=True)
+
+    def delete_runs(self, records, *, clear_all=False):
+        if not records or self.worker is not None:
             return
+        original_runs = list(self.runs)
         protected = [self.source, *self.sources.values(), *self.provenance.get("sources", {}).values()]
+        removed = []
         try:
-            files = self.history.removal_files(record, self.runs, protected)
+            files = list(dict.fromkeys(path for record in records for path in
+                         self.history.removal_files(record, original_runs, protected, removing=records)))
             warning = QMessageBox(self)
             warning.setPalette(light_palette())
             warning.setStyleSheet(STYLESHEET)
             warning.setIcon(QMessageBox.Warning)
-            warning.setWindowTitle("Delete run")
-            warning.setText("Delete this run and its associated exports?")
-            warning.setInformativeText(f"The history entry and {len(files)} export file(s) will be permanently deleted. "
-                                      "Original sensor files and exports shared with other runs are kept.")
+            warning.setWindowTitle("Clear all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run")
+            warning.setText("Delete all runs and their associated exports?" if clear_all else
+                            f"Delete these {len(records)} runs and their associated exports?" if len(records) > 1 else
+                            "Delete this run and its associated exports?")
+            warning.setInformativeText(f"{len(records)} history entry/entries and {len(files)} export file(s) will be permanently deleted. "
+                                      "Original sensor files and exports referenced by runs you keep are preserved.")
             warning.setDetailedText("\n".join(str(path) for path in files) or "No associated export files exist.")
             warning.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
             warning.setDefaultButton(QMessageBox.Cancel)
-            warning.button(QMessageBox.Yes).setText("Delete run")
+            warning.button(QMessageBox.Yes).setText("Delete all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run")
             if warning.exec() != QMessageBox.Yes:
                 return
-            self.history.remove(record, self.runs, protected)
-            self.runs.remove(record)
-            self.selected_run = None
-            if self.current_run is record:
-                self.current_run = None
-                self.clear_results()
-            self.refresh_runs()
-            if not self.runs:
-                self.run_heading.setText("Select a run")
-                self.run_summary.clear()
-                for view in (self.run_details, self.run_warnings, self.run_errors, self.run_outputs, self.log):
-                    view.clear()
-            self.status.setText("Run and associated exports deleted.")
+            for record in records:
+                self.history.remove(record, original_runs, protected, removing=records)
+                removed.append(record["id"])
+            self.status.setText(f"{len(removed)} run(s) and associated exports deleted.")
         except (OSError, ValueError) as exc:
-            self.show_notice(f"Could not delete the run: {exc}", "error")
+            self.show_notice(f"Could not finish deleting runs ({len(removed)} deleted): {exc}", "error")
+        finally:
+            if removed:
+                self.runs[:] = [record for record in self.runs if record["id"] not in removed]
+                if self.selected_run is not None and self.selected_run["id"] in removed:
+                    self.selected_run = None
+                if self.current_run is not None and self.current_run["id"] in removed:
+                    self.current_run = None
+                    self.provenance = {}
+                    self.result_source_frame = self.result_timeline = None
+                    self.clear_results()
+                self.refresh_runs()
+                if not self.runs:
+                    self.run_heading.setText("Select a run")
+                    self.run_summary.clear()
+                    for view in (self.run_details, self.run_warnings, self.run_errors, self.run_outputs, self.log):
+                        view.clear()
 
     def open_run(self):
         record = self.selected_run

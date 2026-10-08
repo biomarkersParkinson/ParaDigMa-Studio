@@ -156,7 +156,7 @@ class RunHistory:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
-    def removal_files(self, record, records, protected_sources=()):
+    def removal_files(self, record, records, protected_sources=(), removing=()):
         """Exports owned only by this run; never original inputs or directories."""
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")
@@ -172,7 +172,8 @@ class RunHistory:
             if path.suffix.lower() == ".json":
                 prefix = path.stem.replace("_meta", "")
                 protected.extend(path.parent / f"{prefix}_{suffix}.bin" for suffix in ("time", "values"))
-        shared = [Path(item["path"]) for run in records if run is not record for item in run["outputs"]]
+        deleting = {record["id"], *(run["id"] for run in removing)}
+        shared = [Path(item["path"]) for run in records if run["id"] not in deleting for item in run["outputs"]]
 
         def same(first, second):
             return first.resolve() == second.resolve() or first.exists() and second.exists() and first.samefile(second)
@@ -184,8 +185,8 @@ class RunHistory:
                 files.append(path)
         return files
 
-    def remove(self, record, records, protected_sources=()):
-        files = self.removal_files(record, records, protected_sources)
+    def remove(self, record, records, protected_sources=(), removing=()):
+        files = self.removal_files(record, records, protected_sources, removing)
         for path in files:
             path.unlink(missing_ok=True)
         (self.directory / f"{record['id']}.json").unlink(missing_ok=True)

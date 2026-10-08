@@ -10,6 +10,33 @@ from PySide6.QtWidgets import (
 from .theme import light_palette, module_color
 
 
+class WrappedForm(QWidget):
+    """Reserve the form's actual height at its current width, including wraps.
+
+    QWidget.sizeHint describes the preferred width. A fixed size policy based
+    on that hint can clip QFormLayout.WrapLongRows at narrower Windows widths.
+    Help lives outside this widget, so it cannot alter the reserved form height.
+    """
+    def _fit_height(self):
+        layout = self.layout()
+        if layout is None:
+            return
+        height = layout.totalHeightForWidth(self.width()) if layout.hasHeightForWidth() else layout.sizeHint().height()
+        height = max(height, layout.minimumSize().height())
+        if self.minimumHeight() != height or self.maximumHeight() != height:
+            self.setFixedHeight(height)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_height()
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() == QEvent.LayoutRequest:
+            self._fit_height()
+        return result
+
+
 class ModuleTabBar(QTabBar):
     """Keep module text and selected underline in the same module colors."""
     def paintEvent(self, event):

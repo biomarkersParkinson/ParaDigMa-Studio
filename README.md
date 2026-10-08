@@ -34,8 +34,9 @@ A verified signing identity must be configured before the signed workflow can pr
    **Recording & preparation** shows the recording's start/end, prepared-data
    coverage in hours and percent of the timespan, and interruptions between
    prepared intervals. Modules with identical prepared inputs share these figures.
-4. **Runs:** Review parameters, warnings, logs and export locations. Delete a run
-   with **Delete Run** or the Delete key, after confirmation.
+4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
+   runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
+   run, after confirmation. Original sensor files are preserved.
 
 Multiple files share the selected analysis settings. ParaDigMa processes them
 independently, combines their detailed outputs with file identifiers, and computes
@@ -91,7 +92,7 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.7**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.8**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
 
 [Performance review and measurements](docs/PERFORMANCE.md).
