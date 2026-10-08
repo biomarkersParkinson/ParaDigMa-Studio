@@ -120,6 +120,10 @@ output update, capped at the module's cadence (4 seconds for default tremor), ra
 than the full overlapping feature-window length. Zero and missing states remain blank;
 all output rows remain in tables. The overview retains the official tremor aggregates;
 graphs omit statistics text. `perc_windows_tremor` uses the resting-window denominator.
+The tremor overview shows percentage tremor during rest, official power measures
+and percentage arm at rest with two decimal places, without subcategory labels.
+Arm-at-rest percentage uses resting windows divided by all quantified windows.
+Original tables, metadata and exports keep their full precision.
 Tremor's duplicate arm-rest and checked-tremor
 predictors appear only under Classification in Plot series.
 
@@ -138,7 +142,8 @@ probabilities. Raw tables retain the official probability columns.
 
 **View**, at the right of the figure toolbar, switches all graphs between Detailed
 and 30-minute epochs. Continuous values show the median; binary predictions show
-percentages. Gait and filtered gait share one observed-time denominator, so filtered
+percentages. Plots are grouped by module, following Plot series order, and long
+series names wrap in full. Gait and filtered gait share one observed-time denominator, so filtered
 gait cannot have a higher percentage. Gait-positive time without filtering results
 is excluded from both denominators. Other binary outcomes use finite observations.
 Missing outputs stay blank. Click module titles to expand or collapse Plot series;
@@ -152,7 +157,7 @@ Zooming never filters table rows or recalculates aggregates.
 Automatic vertical limits follow the visible result bars, including any extreme
 values in that time interval. Manual limits remain fixed when panning or zooming.
 
-**Inspect sensor context**, at the bottom right of Graphs, links a selected row or
+**Inspect sensor context**, alongside the recording-time label at the bottom right of Graphs, links a selected row or
 clicked bar to original samples. A vertical marker and the pinned axis identify the
 selected time. Gait measurements open the complete official segment rather than
 treating their estimated positions as observed event timestamps. Sensor context

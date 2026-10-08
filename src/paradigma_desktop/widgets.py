@@ -1,11 +1,11 @@
 """Shared Qt controls and layouts; no analysis or application state."""
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal
+from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal, QRect, QSize
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget,
+    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget, QStyledItemDelegate, QStyleOptionViewItem,
 )
 from .theme import light_palette, module_color
 
@@ -41,8 +41,38 @@ class WrappedForm(QWidget):
         return result
 
 
+class SeriesLabelDelegate(QStyledItemDelegate):
+    """Reserve wrapped row heights instead of shortening long metric names."""
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        option.textElideMode = Qt.ElideNone
+        option.features |= QStyleOptionViewItem.WrapText
+
+    def sizeHint(self, option, index):
+        styled = QStyleOptionViewItem(option)
+        self.initStyleOption(styled, index)
+        tree = self.parent()
+        depth, parent = 1, index.parent()
+        while parent.isValid():
+            depth += 1
+            parent = parent.parent()
+        check_width = 32 if index.data(Qt.CheckStateRole) is not None else 0
+        width = max(40, tree.viewport().width() - depth * tree.indentation() - check_width - 12)
+        text = styled.fontMetrics.boundingRect(QRect(0, 0, width, 10000), Qt.TextWordWrap, styled.text)
+        hint = super().sizeHint(styled, index)
+        return QSize(hint.width(), max(hint.height(), text.height() + 10))
+
+
 class SeriesTree(QTreeWidget):
     """Module titles toggle expansion; native arrows and leaf checks still work."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setItemDelegate(SeriesLabelDelegate(self))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.scheduleDelayedItemsLayout()
+
     def mouseReleaseEvent(self, event):
         position = event.position().toPoint()
         item = self.itemAt(position)

@@ -400,6 +400,10 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
         aggregated = window.aggregation_table.model().frame.set_index("measure")["value"]
         assert aggregated["perc_windows_tremor"] == percentage
         assert float(window.overview_values[("tremor", "Aggregates", ("perc_windows_tremor",))].toolTip()) == percentage
+        assert window.overview_values['tremor', 'Aggregates', ('perc_windows_tremor',)].text() == f'{percentage:.2f}'
+        rest_percentage = int(resting.sum()) / len(reference) * 100
+        assert float(window.overview_values['tremor', 'Metadata', ('percentage_arm_at_rest',)].toolTip()) == rest_percentage
+        assert window.overview_values['tremor', 'Metadata', ('percentage_arm_at_rest',)].text() == f'{rest_percentage:.2f}'
         assert len(window.aggregation_table.model().frame) == len(actual["aggregations"]["tremor"])
     finally:
         window.close()

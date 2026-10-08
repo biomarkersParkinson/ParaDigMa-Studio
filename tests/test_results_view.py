@@ -11,7 +11,7 @@ import pytest
 from matplotlib import dates
 from paradigma_desktop.time_axis import RecordingTimeFormatter
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.core import export_results
@@ -65,11 +65,11 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
 @pytest.fixture
 def results():
     return {"aggregations": {"gait": {"unfiltered": {"all": {"median_range_of_motion": 25.}}},
-                             "tremor": {"tremor_time_percent": 42.}},
+                             "tremor": {"perc_windows_tremor": 42.}},
             "metadata": {"gait": {"unfiltered": {"per_segment": {
                 1: {"start_s": 0., "end_s": 4., "duration_s": 4.},
                 2: {"start_s": 10., "end_s": 14., "duration_s": 4.}}}},
-                         "tremor": {"recorded_windows": 4}},
+                         "tremor": {"nr_windows_total": 4, "nr_windows_rest": 2}},
             "classifications": {"tremor": pd.DataFrame({"time": [0., 4., 8., 12.],
                                                          "pred_tremor_proba": [.1, .8, .4, .9]})},
             "quantifications": {"gait": {"unfiltered": pd.DataFrame({"gait_segment_nr": [1, 1, 2, 2],
@@ -103,8 +103,9 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     assert window.result_tabs.currentIndex() == 0
     assert window.detail_controls.isHidden() and not window.export_button.isHidden()
     assert window.overview_gait_charts["median_range_of_motion"]["values"].tolist() == [25.]
-    assert window.overview_values[("tremor", "Aggregates", ("tremor_time_percent",))].text() == "42"
-    assert window.overview_values[("tremor", "Metadata", ("recorded_windows",))].text() == "4"
+    assert window.overview_values[("tremor", "Aggregates", ("perc_windows_tremor",))].text() == "42.00"
+    assert window.overview_values[("tremor", "Metadata", ("percentage_arm_at_rest",))].text() == "50.00"
+    assert ("tremor", "Metadata", ("nr_windows_total",)) not in window.overview_values
     assert not any("per_segment" in path for module, group, path in window.overview_values)
     np.testing.assert_array_equal(window.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 2, 0])
     assert not any("gait segments" in group.lower() for module, group, path in window.overview_values)
@@ -119,6 +120,47 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
             pd.testing.assert_frame_equal(table, original["quantifications"][module])
         else:
             pd.testing.assert_frame_equal(table["unfiltered"], original["quantifications"][module]["unfiltered"])
+
+
+def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without_changing_outputs(window):
+    results = {'aggregations': {'tremor': {'perc_windows_tremor': 42.123456,
+        'median_tremor_power': 1.234567, 'modal_tremor_power': 2., '90p_tremor_power': np.nan,
+        'custom_count': 123}}, 'metadata': {'tremor': {'nr_windows_total': 30, 'nr_windows_rest': 7,
+                                                    'nr_valid_days': 2}}}
+    original = deepcopy(results)
+    window.analyzed(results)
+    texts = [widget.text() for widget in window.overview_module_cards['tremor'].findChildren(QLabel)]
+    assert 'Aggregates' not in texts and 'Metadata' not in texts
+    assert {'Percentage tremor during rest (%)', 'Median tremor power', 'Modal tremor power',
+            '90th percentile tremor power', 'Percentage arm at rest (%)'}.issubset(texts)
+    assert set(window.overview_values) == {('tremor', 'Aggregates', (key,)) for key in
+        ('perc_windows_tremor', 'median_tremor_power', 'modal_tremor_power', '90p_tremor_power')} | {
+        ('tremor', 'Metadata', ('percentage_arm_at_rest',))}
+    assert {widget.text() for widget in window.overview_values.values()} == {'42.12', '1.23', '2.00', '—', '23.33'}
+    for key, value in original['aggregations']['tremor'].items():
+        if np.isfinite(value):
+            assert results['aggregations']['tremor'][key] == value
+        else:
+            assert np.isnan(results['aggregations']['tremor'][key])
+    assert results['metadata'] == original['metadata']
+    assert float(window.overview_values['tremor', 'Aggregates', ('median_tremor_power',)].toolTip()) == 1.234567
+    assert 'percentage_arm_at_rest' not in results['metadata']['tremor']
+
+
+@pytest.mark.parametrize('metadata, quantification, expected', [
+    ({'nr_windows_rest': 2, 'nr_windows_total': 5}, None, 40.),
+    ({'nr_windows_rest': 0, 'nr_windows_total': 0}, None, None),
+    ({'nr_windows_rest': 3, 'nr_windows_total': 2}, None, None),
+    ({'nr_windows_rest': np.nan, 'nr_windows_total': 5}, None, None),
+    ({}, pd.DataFrame({'pred_arm_at_rest': [0., 1., 1., np.nan]}), 50.),
+])
+def test_arm_at_rest_overview_uses_official_counts_or_original_quantification_and_unknown_stays_unknown(metadata, quantification, expected):
+    from paradigma_desktop.results_view import tremor_overview_entries
+
+    results = {'metadata': {'tremor': metadata}, 'quantifications': {'tremor': quantification}}
+    entry = tremor_overview_entries(results)[-1]
+    assert entry[3] == expected
+    assert 'percentage_arm_at_rest' not in metadata
 
 
 def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(window, results, tmp_path, monkeypatch):
@@ -140,7 +182,7 @@ def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(wind
     pd.testing.assert_frame_equal(window.result_table.model().frame, results["classifications"]["tremor"])
     window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
     assert window.table_stack.currentWidget() is window.aggregation_table
-    expected = pd.DataFrame({"measure": ["tremor_time_percent"], "value": pd.Series([42.], dtype=object)})
+    expected = pd.DataFrame({"measure": ["perc_windows_tremor"], "value": pd.Series([42.], dtype=object)})
     pd.testing.assert_frame_equal(window.aggregation_table.model().frame, expected)
     assert window.context_controls.isHidden() and window.timing_toggle.isHidden()
     assert window.export_button.isEnabled() and window.export_button.isVisible()

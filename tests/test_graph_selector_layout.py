@@ -84,6 +84,37 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
         assert ax.get_title(loc='left') == window._series_items[ax._paradigma_dataset, ax._paradigma_metric].text(0)
 
 
+def test_selected_graphs_follow_module_groups_in_both_views_and_long_labels_wrap(window):
+    frame = pd.DataFrame({'time': [0., 1.], 'range_of_motion': [10., 20.], 'peak_velocity': [30., 40.]})
+    window.analyzed({'classifications': {
+        'tremor': pd.DataFrame({'time': [0., 1.], 'pred_tremor_checked': [0, 1]}),
+        'gait': {'detection': pd.DataFrame({'time': [0., 1.], 'pred_gait_proba': [.1, .99]}),
+                 'arm_activity': pd.DataFrame({'time': [0., .75], 'pred_no_other_arm_activity_proba': [.2, .99]})}},
+        'quantifications': {'gait': {'unfiltered': frame},
+                            'tremor': pd.DataFrame({'time': [0., 1.], 'tremor_power': [1., 2.]}),
+                            'pulse_rate': pd.DataFrame({'time': [0., 1.], 'pulse_rate': [60., 70.]})}})
+    window.result_tabs.setCurrentIndex(1)
+    window.result_series.blockSignals(True)
+    for item in window._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_series.blockSignals(False)
+    for width in (960, 1200):
+        window.resize(width, 800)
+        QTest.qWait(30)
+        for metric, suffix in [('pred_no_other_arm_activity_proba', 'probability'),
+                               ('pred_no_other_arm_activity_window', 'prediction')]:
+            item = window._series_items['classifications/gait/arm_activity', metric]
+            assert item.text(0) == f'Filtered gait presence ({suffix})'
+            assert window.result_series.visualItemRect(item).height() > window.result_series.fontMetrics().height() * 2
+        for mode in (0, 1):
+            window.result_graph_view.setCurrentIndex(mode)
+            window.plot()
+            modules = [ax._paradigma_module for ax in window.figure.axes]
+            assert modules == sorted(modules, key=['gait', 'tremor', 'pulse_rate'].index)
+            assert [(ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes] == window.selected_result_series()
+            assert window.recording_time_label.text() == window.figure.axes[0].get_xlabel()
+
+
 @pytest.mark.parametrize("dated", [False, True])
 def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readable(window, dated):
     window.provenance = {"display_clock": {"origin": "2026-10-07T12:00:00Z", "timezone": "UTC"}} if dated else {}
@@ -96,12 +127,19 @@ def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readabl
         window.time_axis.draw()
         tree_bottom = window.result_series.mapTo(window, QPoint(0, window.result_series.height())).y()
         ruler_bottom = window.time_axis.mapTo(window, QPoint(0, window.time_axis.height())).y()
-        assert abs(tree_bottom - ruler_bottom) <= 1
+        footer_bottom = window.graph_footer.mapTo(window, QPoint(0, window.graph_footer.height())).y()
+        assert abs(tree_bottom - footer_bottom) <= 1
         footer_top = window.graph_footer.mapTo(window, QPoint(0, 0)).y()
-        assert footer_top - tree_bottom == 12
+        assert footer_top == ruler_bottom
         page_bottom = window.graph_view.mapTo(window, QPoint(0, window.graph_view.height())).y()
         controls_bottom = window.context_controls.mapTo(window, QPoint(0, window.context_controls.height())).y()
         assert page_bottom - controls_bottom == 12
+        assert page_bottom - tree_bottom == 12
+        label_center = window.recording_time_label.mapTo(window, window.recording_time_label.rect().center()).y()
+        controls_center = window.context_controls.mapTo(window, window.context_controls.rect().center()).y()
+        assert abs(label_center - controls_center) <= 1
+        assert window.recording_time_label.text() == window.time_axis.axes.get_xlabel()
+        assert window.recording_time_label.visibleRegion().contains(window.recording_time_label.rect())
         plot_bottom = window.graph_scroll.mapTo(window, QPoint(0, window.graph_scroll.height())).y()
         ruler_top = window.time_axis.mapTo(window, QPoint(0, 0)).y()
         assert 0 <= ruler_top - plot_bottom <= 8

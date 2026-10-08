@@ -61,8 +61,14 @@ does not replace the official aggregate values with selection statistics.
 
 ![Result overview](screenshots/results.png)
 
+Tremor shows tremor during rest, power measures and arm-at-rest percentage in
+one set of cards, with two decimal places and no subcategory headings. Arm-at-rest
+percentage uses the official resting-window and total-window counts; missing values
+stay blank. Original tables and exports retain full precision and metadata.
+
 Graphs contain classifications and quantifications. The Plot
-series tree supports multiple modules and metrics simultaneously, with vertically
+series tree supports multiple modules and metrics simultaneously. Long names wrap
+in full, and plots stay together by module in the same order as the tree, with vertically
 aligned plots sharing recording date/time. A pinned time axis stays at the bottom while graphs scroll and follows pan, zoom and time selections. Dates come from source timestamps or
 metadata; files with only elapsed time can use a user-supplied time origin.
 Gait bars are estimated within explicit segment boundaries; timing details retain that distinction.
@@ -91,7 +97,7 @@ overlapping windows. Original tables and exports retain their official columns.
 
 ![Gait window probabilities and threshold-based presence](screenshots/gait-presence.png)
 
-The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** and its radius sit at the bottom right, below the pinned time axis. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
+The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** and its radius share the recording-time label row at the bottom right, below the pinned ticks. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
 
 Set **Time origin** in Analyze. Its calendar and clock default to the original
 recording when possible; Default restores this value. Results has no time filters.

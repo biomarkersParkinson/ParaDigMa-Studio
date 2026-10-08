@@ -105,6 +105,48 @@ def tremor_window_counts(frame):
     return count, denominator, count / denominator * 100 if denominator else None
 
 
+def tremor_overview_entries(results):
+    """Selected official measures plus resting-window percentage for display.
+
+    Power aggregates already use ParaDigMa's log10(power + 1) scale. Never
+    transform them again or insert the derived rest percentage into outputs.
+    """
+    aggregates = {path[-1]: (path, value) for path, value in
+                  flat_values(results.get('aggregations', {}).get('tremor', {})) if path}
+    titles = {'perc_windows_tremor': 'Percentage tremor during rest (%)',
+              'median_tremor_power': 'Median tremor power',
+              'modal_tremor_power': 'Modal tremor power',
+              '90p_tremor_power': '90th percentile tremor power'}
+    for key in aggregates:
+        if key.endswith('_tremor_power') and key not in titles:
+            titles[key] = readable_key(key)
+    entries = []
+    for key, title in titles.items():
+        path, value = aggregates.get(key, ((key,), None))
+        explanation = ('Checked tremor-positive windows ÷ resting/stable windows × 100.'
+                       if key == 'perc_windows_tremor' else 'Official ParaDigMa aggregate of log10(tremor power + 1).')
+        entries.append(('Aggregates', path, title, value, explanation))
+    metadata = results.get('metadata', {}).get('tremor', {})
+    counts = {path[-1]: value for path, value in flat_values(metadata) if path}
+    rest, total = counts.get('nr_windows_rest'), counts.get('nr_windows_total')
+    if rest is None or total is None:
+        # Older result exports may lack aggregate metadata but retain the exact
+        # quantification rows used by the official resting-window denominator.
+        frame = results.get('quantifications', {}).get('tremor')
+        if isinstance(frame, pd.DataFrame) and 'pred_arm_at_rest' in frame:
+            rest, total = int(frame.pred_arm_at_rest.eq(1).sum()), len(frame)
+    percentage = None
+    try:
+        rest, total = float(rest), float(total)
+        if np.isfinite([rest, total]).all() and 0 <= rest <= total and total > 0:
+            percentage = rest / total * 100
+    except (TypeError, ValueError, OverflowError):
+        pass
+    entries.append(('Metadata', ('percentage_arm_at_rest',), 'Percentage arm at rest (%)', percentage,
+                    'Official resting/stable windows ÷ total quantified windows × 100.'))
+    return entries
+
+
 def readable_key(key):
     if key == "perc_windows_tremor":
         return "Checked tremor / resting windows (%)"

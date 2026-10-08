@@ -73,6 +73,8 @@ Comparisons cover:
 - Checked-tremor interval starts at exactly the positive official timestamps,
   extending at the official output update cadence without joining recording gaps; plotted
   counts and checked/resting-window ratios reconcile with the official percentage.
+  Tremor overview rounding is display-only; arm-at-rest percentage agrees with
+  the independent official resting/total window counts.
   Raw classification/quantification tables preserve all original columns; aggregate
   tables retain full-run values when the detailed time selection changes or users switch module tabs.
 - Gait display-only window indicators match the saved probabilities compared with

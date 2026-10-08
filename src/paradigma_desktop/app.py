@@ -40,7 +40,7 @@ from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars, time_coordinates
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key, gait_model_threshold,
+    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key, gait_model_threshold, tremor_overview_entries,
 )
 from .theme import STYLESHEET, light_palette, style_axes, module_color, style_result_heading
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
@@ -759,6 +759,16 @@ class MainWindow(QMainWindow):
         self.graph_view_layout.addWidget(self.plot_toolbar.settings)
         plot_view_layout.addWidget(scroll, 1)
         plot_view_layout.addWidget(self.time_axis)
+        self.graph_footer = QWidget()
+        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
+        self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)
+        self.recording_time_label = label('', 'muted')
+        self.recording_time_label.setWordWrap(True)
+        self.recording_time_label.setAlignment(Qt.AlignCenter)
+        self.recording_time_label.setAccessibleName('Recording time axis label')
+        self.graph_footer_layout.addWidget(self.recording_time_label, 1)
+        self.time_axis.label_changed.connect(self.recording_time_label.setText)
+        plot_view_layout.addWidget(self.graph_footer)
         workspace = QWidget()
         workspace_layout = QHBoxLayout(workspace)
         workspace_layout.setContentsMargins(12, 0, 0, 12)
@@ -766,11 +776,6 @@ class MainWindow(QMainWindow):
         workspace_layout.addWidget(self.result_series)
         workspace_layout.addWidget(plot_view, 1)
         self.graph_view_layout.addWidget(workspace, 1)
-        self.graph_footer = QWidget()
-        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
-        self.graph_footer_layout.setContentsMargins(12, 0, 12, 12)
-        self.graph_footer_layout.addStretch()
-        self.graph_view_layout.addWidget(self.graph_footer)
         graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
@@ -1628,6 +1633,26 @@ class MainWindow(QMainWindow):
             for error in results.get("errors", []):
                 if isinstance(error, dict) and (error.get("pipeline") == module or module in error.get("pipelines", [])):
                     content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
+            if module == 'tremor':
+                grid = QGridLayout()
+                grid.setSpacing(10)
+                for index, (group, path, title, value, explanation) in enumerate(tremor_overview_entries(results)):
+                    box, inside = card()
+                    box.setToolTip(explanation)
+                    inside.addWidget(label(title, 'muted'))
+                    try:
+                        number = float(value)
+                        text = f'{number:.2f}' if np.isfinite(number) else '—'
+                    except (TypeError, ValueError, OverflowError):
+                        text = '—'
+                    display = label(text, 'metricValue')
+                    display.setToolTip(str(value))
+                    inside.addWidget(display)
+                    self.overview_values[module, group, path] = display
+                    grid.addWidget(box, index // 3, index % 3)
+                content.addLayout(grid)
+                self.overview_layout.addWidget(panel)
+                continue
             aggregate_entries = list(flat_values(results.get("aggregations", {}).get(module, {})))
             if module == "gait":
                 from .gait_overview import build_gait_charts
@@ -1652,9 +1677,6 @@ class MainWindow(QMainWindow):
                     box, inside = card()
                     title = " · ".join(readable_key(part) for part in path) or "Value"
                     box.setToolTip(" / ".join(path))
-                    if module == "tremor" and path == ("perc_windows_tremor",):
-                        box.setToolTip("Checked tremor-positive windows ÷ resting/stable windows × 100. "
-                                       "This aggregate uses all resting/stable windows in the run.")
                     inside.addWidget(label(title, "muted"))
                     if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
                         text = "—"
@@ -1677,12 +1699,17 @@ class MainWindow(QMainWindow):
         self._series_items = {}
         roots, default_modules = {}, set()
         title_counts = {}
-        for name, frame in self._plot_tables.items():
+        module_order = {module: index for index, module in enumerate((*MODULE_NAMES, 'preparation'))}
+        names = sorted(self._plot_tables, key=lambda name: module_order.get(
+            'preparation' if name.startswith('preparation/') else name.split('/')[1], len(module_order)))
+        for name in names:
+            frame = self._plot_tables[name]
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             for metric in plot_metrics(name, frame):
                 title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
                 title_counts[module, title] = title_counts.get((module, title), 0) + 1
-        for name, frame in self._plot_tables.items():
+        for name in names:
+            frame = self._plot_tables[name]
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             if module not in roots:
                 root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, "Data coverage" if module == "preparation" else module.title())])
@@ -1722,7 +1749,14 @@ class MainWindow(QMainWindow):
         self.result_series.blockSignals(False)
 
     def selected_result_series(self):
-        return [key for key, item in self._series_items.items() if item.checkState(0) == Qt.Checked]
+        chosen = []
+        for index in range(self.result_series.topLevelItemCount()):
+            module = self.result_series.topLevelItem(index)
+            for row in range(module.childCount()):
+                item = module.child(row)
+                if item.checkState(0) == Qt.Checked:
+                    chosen.append(item.data(0, Qt.UserRole))
+        return chosen
 
     def select_plot_series(self, item, previous=None):
         key = item.data(0, Qt.UserRole) if item is not None else None

@@ -3,7 +3,7 @@ from matplotlib import dates, ticker
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, Signal
 
 
 class RecordingTimeFormatter(ticker.Formatter):
@@ -63,9 +63,11 @@ class RecordingTimeFormatter(ticker.Formatter):
 
 
 class PinnedTimeAxis(FigureCanvasQTAgg):
+    label_changed = Signal(str)
+
     def __init__(self, source_canvas, label_source):
         super().__init__(Figure(figsize=(8, .82)))
-        self.setFixedHeight(74)
+        self.setFixedHeight(42)
         self.setAccessibleName("Pinned recording time axis")
         self.source_canvas = source_canvas
         self.label_source = label_source
@@ -78,6 +80,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.tick_params(axis="x", colors="#60728A", labelsize=9, length=3, pad=6)
         self.axes.xaxis.label.set_color("#465B73")
         self.axes.xaxis.label.set_size(10)
+        # The live label shares a Qt row with sensor inspection. Figure exports
+        # retain the original Matplotlib axis label on the source canvas.
+        self.axes.xaxis.label.set_visible(False)
+        self._label_text = ''
         self._source = None
         self._source_connection = None
         self._sync_state = None
@@ -109,13 +115,15 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 locator = dates.AutoDateLocator(tz=locator.tz, minticks=3, maxticks=7)
                 self.axes.xaxis.set_major_locator(locator)
                 self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
-                self.setFixedHeight(94)
+                self.setFixedHeight(62)
             else:
                 self._date_timezone = None
-                self.setFixedHeight(74)
+                self.setFixedHeight(42)
                 self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
         else:
+            self._label_text = ''
+            self.label_changed.emit('')
             self.draw_idle()
         self.synchronize()
 
@@ -164,6 +172,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.set_xlim(limits, emit=False)
         self._update_selection_visibility()
         self.axes.set_xlabel(text, labelpad=8)
+        self.axes.xaxis.label.set_visible(False)
+        if text != self._label_text:
+            self._label_text = text
+            self.label_changed.emit(text)
         self.draw_idle()
 
     def draw_idle(self):
