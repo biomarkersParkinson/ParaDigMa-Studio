@@ -130,9 +130,10 @@ def build_gait_charts(aggregates, *, metadata=None, scroll_area=None):
                 axis.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True, min_n_ticks=2))
                 canvas.setToolTip('Segment counts use original unfiltered segment durations, matching ParaDigMa.\n'
                                   '0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —.')
+            precision = 2 if '_cov_' in metric else 1
             for position, value in zip(positions, display_numbers):
                 if np.isfinite(value):
-                    axis.annotate(f'{value:.1f}', (value, position), xytext=(5, 0),
+                    axis.annotate(f'{value:.{precision}f}', (value, position), xytext=(5, 0),
                                   textcoords='offset points', va='center', fontsize=9, color='#243C57')
                 else:
                     axis.text(.02, position, '—', transform=axis.get_yaxis_transform(), va='center', color='#68778C')
