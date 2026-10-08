@@ -7,7 +7,7 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QFrame
 
 from paradigma_desktop.app import MainWindow
-from paradigma_desktop.gait_overview import aggregate_rows, duration_label
+from paradigma_desktop.gait_overview import aggregate_rows, duration_label, segment_count_rows
 
 
 def aggregates():
@@ -35,16 +35,23 @@ def test_overview_three_cards_with_all_statistics_and_ordered_exact_values(tmp_p
     app.processEvents()
     try:
         cards = [widget for widget in window.findChildren(QFrame) if widget.property('gaitOverviewGroup')]
-        assert {widget.property('gaitOverviewGroup') for widget in cards} == {'duration', 'range_of_motion', 'peak_velocity'}
-        assert len(window.overview_gait_charts) == 9
+        assert {widget.property('gaitOverviewGroup') for widget in cards} == {'quantity', 'range_of_motion', 'peak_velocity'}
+        assert len(window.overview_gait_charts) == 10
+        assert np.isnan(window.overview_gait_charts['segment_count']['values']).all()
         ordered = aggregate_rows(source)
         assert [(branch, duration) for branch, duration, _ in ordered] == [
             (branch, duration) for branch in ('filtered', 'unfiltered') for duration in ('0_inf', '0_20', '20_inf')]
         for metric, chart in window.overview_gait_charts.items():
+            if metric == 'segment_count':
+                continue
             expected = np.asarray([np.nan if values.get(metric) is None else values[metric]
                                    for _, _, values in ordered])
             np.testing.assert_array_equal(chart['values'], expected)
-            np.testing.assert_array_equal([bar.get_width() for bar in chart['axis'].patches], expected[np.isfinite(expected)])
+            displayed = expected / 60 if metric == 'duration_s' else expected
+            np.testing.assert_array_equal(chart['display_values'], displayed)
+            np.testing.assert_array_equal([bar.get_width() for bar in chart['axis'].patches], displayed[np.isfinite(displayed)])
+            if metric == 'duration_s':
+                assert chart['axis'].get_xlabel() == 'Minutes'
             chart['canvas'].draw()
         assert not any(module == 'gait' and group == 'Aggregates' for module, group, path in window.overview_values)
         assert source == original  # No derived statistics or edits to aggregate dictionaries.
@@ -90,12 +97,40 @@ def test_charts_match_official_gait_aggregation_output(tmp_path):
                 aggregates=['median', '95p', 'cov'])
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
-    window.analyzed({'aggregations': {'gait': {'unfiltered': official}}})
+    window.analyzed({'aggregations': {'gait': {'unfiltered': official}},
+                     'metadata': {'gait': {'unfiltered': metadata}}})
     try:
-        assert len(window.overview_gait_charts) == 9
+        assert len(window.overview_gait_charts) == 10
+        np.testing.assert_array_equal(window.overview_gait_charts['segment_count']['values'], [np.nan, np.nan, 1, 1])
         for metric, chart in window.overview_gait_charts.items():
+            if metric == 'segment_count':
+                continue
             expected = [official[duration][metric] for branch, duration in chart['categories']]
             np.testing.assert_array_equal(chart['values'], expected)
     finally:
         window.close()
         app.processEvents()
+
+
+def test_segment_counts_match_official_categories_and_twenty_second_boundary():
+    metadata = {
+        'filtered': {'per_segment': {
+            'a': {'duration_s': 2., 'unfiltered_duration_s': 19.9},
+            'b': {'duration_s': 3., 'unfiltered_duration_s': 20.},
+            'c': {'duration_s': 4., 'unfiltered_duration_s': 30.}}},
+        'unfiltered': {'per_segment': {
+            'a': {'duration_s': 19.9}, 'b': {'duration_s': 20.},
+            'c': {'start_s': 10., 'end_s': 40.}}}}
+    original = deepcopy(metadata)
+    rows = segment_count_rows(metadata)
+    assert [(branch, duration, values['segment_count']) for branch, duration, values in rows] == [
+        ('filtered', '0_20', 1), ('filtered', '20_inf', 2),
+        ('unfiltered', '0_20', 1), ('unfiltered', '20_inf', 2)]
+    assert metadata == original
+
+
+def test_missing_invalid_and_empty_segment_metadata_do_not_invent_counts():
+    assert all(np.isnan(values['segment_count']) for _, _, values in segment_count_rows({}))
+    rows = segment_count_rows({'filtered': {'per_segment': {}},
+                               'unfiltered': {'per_segment': {'a': {'duration_s': np.nan}}}})
+    np.testing.assert_array_equal([values['segment_count'] for _, _, values in rows], [0, 0, np.nan, np.nan])

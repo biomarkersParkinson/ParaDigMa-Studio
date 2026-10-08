@@ -142,7 +142,7 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
                                                     "by_module": {"gait": preparation, "tremor": preparation}})
     provenance = {"sources": {"a": "/recordings/a.csv", "b": "/recordings/b.csv"}}
     entries = recording_summary(result, provenance, None)
-    assert entries.count(("Input samples", "100")) == 1
+    assert not any(title in ("Recordings", "Files") or title.endswith("Input samples") for title, _ in entries)
     assert ("Gait, Tremor · Prepared samples", "90") in entries
     assert not any("section" in title.lower() and isinstance(value, dict) for title, value in entries)
     window.provenance = provenance

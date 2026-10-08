@@ -37,8 +37,21 @@ def test_prepared_hours_percentage_and_internal_gaps_replace_raw_preparation_cou
         "07 Oct 2026, 10:00:00 – 07 Oct 2026, 12:00:00 · Europe/Amsterdam")
     assert entries["Gait, Tremor · Data coverage (prepared)"] == "1.00 h · 50.0% of timespan"
     assert entries["Gait, Tremor · Gaps"] == "1"
-    assert entries["Input samples"] == "7,200"
+    assert "Input samples" not in entries
     assert not {"Prepared samples", "Prepared sections", "Time origin"}.intersection(entries)
+    assert output == original
+
+
+def test_removed_recording_boxes_stay_absent_for_current_and_legacy_metadata():
+    output = {'metadata': {'desktop_recordings': {'recordings': ['first', 'second']},
+                          'recording': {'input_samples': 99, 'n_samples': 99, 'duration_s': 30},
+                          'desktop_preparation': {'input_samples': 99, 'by_module': {
+                              'gait': {'input_samples': 99, 'excluded_samples': 1}}}}}
+    original = deepcopy(output)
+    entries = dict(recording_summary(output, {'sources': {'first': 'a.csv', 'second': 'b.csv'}}, None))
+    assert not any(name in ('Recordings', 'Files') or name.endswith('Input samples') or name == 'N samples'
+                   for name in entries)
+    assert entries['Gait · Excluded missing samples'] == '1'
     assert output == original
 
 

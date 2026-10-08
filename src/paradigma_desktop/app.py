@@ -40,7 +40,7 @@ from .plot_controls import GraphToolbar, add_graph_controls
 from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars
 from .results_view import (
     MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, segment_summary, time_bound, normalise_clock, readable_key,
+    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key,
 )
 from .theme import STYLESHEET, light_palette, style_axes, module_color
 from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
@@ -1593,16 +1593,14 @@ class MainWindow(QMainWindow):
             if module == "gait":
                 from .gait_overview import build_gait_charts
                 charts, self.overview_gait_charts, chart_paths = build_gait_charts(
-                    results.get("aggregations", {}).get(module, {}), scroll_area=self._result_view_scrolls[0])
+                    results.get("aggregations", {}).get(module, {}),
+                    metadata=results.get("metadata", {}).get(module, {}), scroll_area=self._result_view_scrolls[0])
                 for chart in charts:
                     content.addWidget(chart)
                 aggregate_entries = [(path, value) for path, value in aggregate_entries if path not in chart_paths]
             groups = [("Aggregates", aggregate_entries)]
             metadata = results.get("metadata", {}).get(module, {})
             groups.append(("Metadata", list(flat_values(metadata))))
-            if module == "gait":
-                for branch, summary in segment_summary(metadata).items():
-                    groups.append((f"{branch.title()} gait segments", list(flat_values(summary))))
             for heading, entries in groups:
                 if not entries:
                     if heading == "Aggregates" and not (module == "gait" and self.overview_gait_charts):

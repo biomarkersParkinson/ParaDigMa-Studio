@@ -106,8 +106,8 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     assert window.overview_values[("tremor", "Aggregates", ("tremor_time_percent",))].text() == "42"
     assert window.overview_values[("tremor", "Metadata", ("recorded_windows",))].text() == "4"
     assert not any("per_segment" in path for module, group, path in window.overview_values)
-    assert window.overview_values[("gait", "Unfiltered gait segments", ("Segment count",))].text() == "2"
-    assert window.overview_values[("gait", "Unfiltered gait segments", ("Median duration (s)",))].text() == "4"
+    np.testing.assert_array_equal(window.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 2, 0])
+    assert not any("gait segments" in group.lower() for module, group, path in window.overview_values)
     assert all(key.startswith(("classifications/", "quantifications/")) for key in window.tables)
     assert set(window.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
