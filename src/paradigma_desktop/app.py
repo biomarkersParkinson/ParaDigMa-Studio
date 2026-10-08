@@ -48,7 +48,7 @@ from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
 from .availability import availability_views
 from .previews import CachedPreview
-from .overview import recording_summary
+from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
 from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, label, button, card, table, readout, field
 
@@ -381,11 +381,10 @@ class MainWindow(QMainWindow):
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(16)
+        controls.setAlignment(Qt.AlignTop)
         self.analysis_help = {}
         modules = QHBoxLayout()
         module_heading = self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True)
-        module_description = self.analysis_help["Analysis modules"][1]
-        module_heading.layout().removeWidget(module_description)
         modules.addWidget(module_heading)
         self.module_requirements = label("", "muted")
         self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -399,10 +398,18 @@ class MainWindow(QMainWindow):
             modules.addWidget(item, 1)
         self.module_buttons["Gait"].setChecked(True)
         controls.addLayout(modules)
-        controls.addWidget(module_description)
-        self.settings_panel, parameters = card()
-        parameters.setContentsMargins(18, 16, 18, 16)
+        self.settings_panel, parameter_card = card()
+        parameter_card.setContentsMargins(18, 16, 18, 16)
+        parameter_card.setSpacing(14)
+        parameter_card.setAlignment(Qt.AlignTop)
+        self.analysis_parameter_fields = QWidget()
+        self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        parameters = QVBoxLayout(self.analysis_parameter_fields)
+        parameters.setSizeConstraint(QLayout.SetMinimumSize)
+        parameters.setContentsMargins(0, 0, 0, 0)
         parameters.setSpacing(14)
+        parameters.setAlignment(Qt.AlignTop)
+        parameter_card.addWidget(self.analysis_parameter_fields, alignment=Qt.AlignTop)
         parameter_header = QHBoxLayout()
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
@@ -473,17 +480,40 @@ class MainWindow(QMainWindow):
         right.setFormAlignment(Qt.AlignTop)
         sections.setAlignment(Qt.AlignTop)
         self.clock_input = TimeField("Time origin", origin=True)
+        self.clock_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.origin_reset = button("Default", self.reset_origin)
         origin_row = QWidget()
+        origin_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         origin_layout = QHBoxLayout(origin_row)
         origin_layout.setContentsMargins(0, 0, 0, 0)
         origin_layout.addWidget(self.clock_input, 1)
         origin_layout.addWidget(self.origin_reset)
         origin_form = QFormLayout()
         origin_form.setRowWrapPolicy(QFormLayout.DontWrapRows)
+        origin_form.setFormAlignment(Qt.AlignTop)
         self.analysis_field("Time origin", origin_row, form=origin_form)
         parameters.addLayout(origin_form)
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
+        # Help belongs below the complete form. Expanding a field's row changes
+        # QFormLayout alignment and column widths, shifting unrelated labels.
+        self.analysis_help_panel = QWidget()
+        help_layout = QVBoxLayout(self.analysis_help_panel)
+        help_layout.setContentsMargins(0, 0, 0, 0)
+        help_layout.setSpacing(12)
+        for title, (info, description) in self.analysis_help.items():
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            section_layout.setSpacing(4)
+            section_layout.addWidget(label(title, "sectionTitle"))
+            section_layout.addWidget(description)
+            section.hide()
+            info.toggled.connect(section.setVisible)
+            info.toggled.connect(lambda _: self.analysis_help_panel.setVisible(
+                any(button.isChecked() for button, _ in self.analysis_help.values())))
+            help_layout.addWidget(section)
+        self.analysis_help_panel.hide()
+        parameter_card.addWidget(self.analysis_help_panel)
         controls.addWidget(self.settings_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
@@ -507,7 +537,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(row)
 
     def analysis_field(self, title, control, *, form=None, inline=False):
-        """Accessible, keyboard-operable help expanded beside its own field."""
+        """Accessible help toggles; explanations are kept outside the form rows."""
         text, reference = FIELD_HELP[title]
         info = button("i")
         info.setObjectName("helpInfo")
@@ -552,8 +582,7 @@ class MainWindow(QMainWindow):
         content.setSizeConstraint(QLayout.SetMinimumSize)
         if form is not None:
             content.setAlignment(Qt.AlignTop)
-            content.addWidget(control)
-            content.addWidget(description)
+            content.addWidget(control, alignment=Qt.AlignTop)
             if isinstance(form, QGridLayout):
                 index = form.rowCount()
                 form.addWidget(heading, index, 0, Qt.AlignTop)
@@ -564,7 +593,6 @@ class MainWindow(QMainWindow):
             content.addWidget(heading)
             if not inline:
                 content.addWidget(control)
-            content.addWidget(description)
         return body
 
     def _build_results(self):
@@ -1483,7 +1511,7 @@ class MainWindow(QMainWindow):
                 return name, None
         return self.dataset.currentText(), getattr(self, "display_frame", None)
 
-    def build_result_overview(self):
+    def build_result_overview(self, prepared_views=None):
         while self.overview_layout.count():
             item = self.overview_layout.takeAt(0)
             if item.widget() is not None:
@@ -1492,19 +1520,32 @@ class MainWindow(QMainWindow):
         self.overview_module_cards = {}
         self.overview_gait_charts = {}
         results = self.results or {}
-        entries = recording_summary(results, self.provenance, self.display_clock)
+        entries = recording_summary(results, self.provenance, self.display_clock, prepared_views)
         if entries:
             panel, content = card()
             content.addWidget(label("Recording & preparation", "sectionTitle"))
             grid = QGridLayout()
             grid.setSpacing(10)
-            for index, (title, value) in enumerate(entries):
+            index = 0
+            for title, value in entries:
                 box, inside = card()
-                inside.addWidget(label(title, "muted"))
+                inside.setAlignment(Qt.AlignTop)
+                heading = label(title, "muted")
+                heading.setWordWrap(True)
+                inside.addWidget(heading)
                 display = label(str(value), "metricValue")
                 display.setWordWrap(True)
                 inside.addWidget(display)
-                grid.addWidget(box, index // 3, index % 3)
+                if title == "Recording timespan":
+                    index = (index + 2) // 3 * 3
+                    grid.addWidget(box, index // 3, 0, 1, 3)
+                    box.setToolTip("Recording extent includes the final sample interval.")
+                    index += 3
+                else:
+                    grid.addWidget(box, index // 3, index % 3)
+                    if title.endswith("Gaps"):
+                        box.setToolTip("Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps.")
+                    index += 1
             content.addLayout(grid)
             self.overview_layout.addWidget(panel)
         modules = list(dict.fromkeys([*results.get("aggregations", {}), *results.get("metadata", {}),
@@ -1633,6 +1674,9 @@ class MainWindow(QMainWindow):
                 self.result_source_frame, settings, results, self.provenance.get("display_offsets"))
         if self._display_offsets:
             self.provenance["display_offsets"] = dict(self._display_offsets)
+        extent = recording_extent(self.result_timeline, self._recording_bases)
+        if extent is not None:
+            self.provenance["recording_extent"] = extent
         self.display_clock = None
         if self.provenance.get("display_clock"):
             try:
@@ -1688,7 +1732,7 @@ class MainWindow(QMainWindow):
         sources = self.provenance.get("sources", {})
         self.results_source.setText(f"{len(sources)} recordings · One subject" if len(sources) > 1 else
                                     Path(self.provenance.get("source", self.source)).name or "Current analysis")
-        self.build_result_overview()
+        self.build_result_overview((coverage, labels))
         self.populate_result_series()
         self.dataset.blockSignals(True)
         self.dataset.clear()
