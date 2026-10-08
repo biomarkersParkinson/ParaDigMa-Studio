@@ -1490,6 +1490,7 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
         self.overview_values = {}
         self.overview_module_cards = {}
+        self.overview_gait_charts = {}
         results = self.results or {}
         entries = recording_summary(results, self.provenance, self.display_clock)
         if entries:
@@ -1523,7 +1524,15 @@ class MainWindow(QMainWindow):
             for error in results.get("errors", []):
                 if isinstance(error, dict) and (error.get("pipeline") == module or module in error.get("pipelines", [])):
                     content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
-            groups = [("Aggregates", list(flat_values(results.get("aggregations", {}).get(module, {}))))]
+            aggregate_entries = list(flat_values(results.get("aggregations", {}).get(module, {})))
+            if module == "gait":
+                from .gait_overview import build_gait_charts
+                charts, self.overview_gait_charts, chart_paths = build_gait_charts(
+                    results.get("aggregations", {}).get(module, {}), scroll_area=self._result_view_scrolls[0])
+                for chart in charts:
+                    content.addWidget(chart)
+                aggregate_entries = [(path, value) for path, value in aggregate_entries if path not in chart_paths]
+            groups = [("Aggregates", aggregate_entries)]
             metadata = results.get("metadata", {}).get(module, {})
             groups.append(("Metadata", list(flat_values(metadata))))
             if module == "gait":
@@ -1531,7 +1540,7 @@ class MainWindow(QMainWindow):
                     groups.append((f"{branch.title()} gait segments", list(flat_values(summary))))
             for heading, entries in groups:
                 if not entries:
-                    if heading == "Aggregates":
+                    if heading == "Aggregates" and not (module == "gait" and self.overview_gait_charts):
                         content.addWidget(label("No aggregates returned for this module.", "muted"))
                     continue
                 content.addWidget(label(heading, "sectionTitle"))

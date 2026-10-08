@@ -102,7 +102,7 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     setup(window, results)
     assert window.result_tabs.currentIndex() == 0
     assert window.detail_controls.isHidden() and not window.export_button.isHidden()
-    assert window.overview_values[("gait", "Aggregates", ("unfiltered", "all", "median_range_of_motion"))].text() == "25"
+    assert window.overview_gait_charts["median_range_of_motion"]["values"].tolist() == [25.]
     assert window.overview_values[("tremor", "Aggregates", ("tremor_time_percent",))].text() == "42"
     assert window.overview_values[("tremor", "Metadata", ("recorded_windows",))].text() == "4"
     assert not any("per_segment" in path for module, group, path in window.overview_values)
@@ -113,7 +113,7 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     window.result_tabs.setCurrentIndex(1)
     assert window.detail_controls.isHidden()
     window.figure.axes[0].set_xlim(10., 14.)
-    assert window.overview_values[("gait", "Aggregates", ("unfiltered", "all", "median_range_of_motion"))].text() == "25"
+    assert window.overview_gait_charts["median_range_of_motion"]["values"].tolist() == [25.]
     for module, table in results["quantifications"].items():
         if isinstance(table, pd.DataFrame):
             pd.testing.assert_frame_equal(table, original["quantifications"][module])
