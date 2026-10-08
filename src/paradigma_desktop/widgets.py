@@ -5,7 +5,7 @@ from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex,
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle,
+    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy,
 )
 from .theme import light_palette, module_color
 
@@ -17,6 +17,10 @@ class WrappedForm(QWidget):
     on that hint can clip QFormLayout.WrapLongRows at narrower Windows widths.
     Help lives outside this widget, so it cannot alter the reserved form height.
     """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
     def _fit_height(self):
         layout = self.layout()
         if layout is None:
@@ -34,6 +38,72 @@ class WrappedForm(QWidget):
         result = super().event(event)
         if event.type() == QEvent.LayoutRequest:
             self._fit_height()
+        return result
+
+
+class FigureActionBar(QWidget):
+    """Keep the complete toolbar visible; wrap context controls when needed."""
+    def __init__(self, toolbar, parent=None):
+        super().__init__(parent)
+        self.toolbar, self.context = toolbar, None
+        toolbar.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+        self.primary = QHBoxLayout()
+        self.primary.addWidget(toolbar)
+        self.primary.addStretch()
+        layout.addLayout(self.primary)
+        self.secondary = QWidget()
+        self.secondary_layout = QHBoxLayout(self.secondary)
+        self.secondary_layout.setContentsMargins(0, 0, 0, 0)
+        self.secondary_layout.addStretch()
+        layout.addWidget(self.secondary)
+        self.secondary.hide()
+
+    def set_context(self, widget):
+        self.context = widget
+        self.primary.addWidget(widget, alignment=Qt.AlignRight)
+        self._arrange()
+
+    def remove_context(self, widget):
+        self.primary.removeWidget(widget)
+        self.secondary_layout.removeWidget(widget)
+        self.context = None
+        self.secondary.hide()
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        margins = self.layout().contentsMargins()
+        context_width = self.context.minimumSizeHint().width() if self.context is not None else 0
+        hint.setWidth(max(self.toolbar.sizeHint().width(), context_width) + margins.left() + margins.right())
+        return hint
+
+    def _arrange(self):
+        if self.context is None:
+            return
+        margins = self.layout().contentsMargins()
+        available = self.width() - margins.left() - margins.right()
+        required = self.toolbar.sizeHint().width() + self.context.sizeHint().width() + self.primary.spacing()
+        wrapped = required > available
+        target = self.secondary_layout if wrapped else self.primary
+        if target.indexOf(self.context) < 0:
+            visible = not self.context.isHidden()
+            self.primary.removeWidget(self.context)
+            self.secondary_layout.removeWidget(self.context)
+            target.addWidget(self.context, alignment=Qt.AlignRight)
+            self.context.setVisible(visible)
+        self.secondary.setVisible(wrapped)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._arrange()
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() == QEvent.LayoutRequest:
+            self._arrange()
         return result
 
 

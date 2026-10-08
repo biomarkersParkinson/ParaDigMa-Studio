@@ -7,6 +7,18 @@ from PySide6.QtTest import QTest
 from paradigma_desktop.app import MainWindow
 
 
+def layout_bounds(window, control):
+    """Useful Windows diagnostics if a native ancestor still clips a field."""
+    ancestors = []
+    while control is not window.analysis_scroll:
+        ancestors.append((type(control).__name__, control.geometry().getRect(),
+                          control.minimumSize().toTuple(), control.maximumSize().toTuple(),
+                          control.visibleRegion().boundingRect().getRect()))
+        control = control.parentWidget()
+    bar = window.analysis_scroll.verticalScrollBar()
+    return {"ancestors": ancestors, "scroll": (bar.value(), bar.maximum())}
+
+
 @pytest.mark.parametrize('size', [(1450, 920), (960, 650)])
 @pytest.mark.parametrize('native_height, native_width', [(0, 0), (44, 0), (30, 280), (44, 280)])
 def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path, size, native_height, native_width):
@@ -44,7 +56,7 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path,
     center = window.mapping.mapTo(body, window.mapping.rect().center())
     window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, window.mapping.height() // 2 + 8)
     app.processEvents()
-    assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect())
+    assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect()), layout_bounds(window, window.mapping)
     actions = [window.run_button.pos(), window.stop_button.pos()]
     try:
         for title, (info, description) in window.analysis_help.items():
@@ -62,6 +74,44 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path,
         for info, _ in window.analysis_help.values():
             info.click()
             assert positions() == baseline
+    finally:
+        window.close()
+        app.processEvents()
+
+
+@pytest.mark.parametrize('grid_width', [0, 314])
+def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_reachable(tmp_path, grid_width):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(tmp_path)
+    for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+        control.setMinimumWidth(280)
+        control.setMinimumHeight(30)
+    for label in window.analysis_parameter_fields.findChildren(QLabel):
+        label.setMinimumHeight(28)
+        if label.text() == 'Minimum section duration':
+            label.setFixedWidth(70)  # A multi-line native heading.
+    window.mapping.setMinimumWidth(grid_width)
+    window.navigate(1)
+    window.resize(960, 650)
+    window.show()
+    QTest.qWait(40)
+    try:
+        for help_name in ('Watch side', 'Device axes', 'Minimum section duration'):
+            for control in (window.mapping, window.max_gap, window.min_segment):
+                # Inspect every ancestor, not only the outer form: a spanned
+                # QFormLayout row previously clipped the grid by twelve pixels.
+                child = control
+                while child is not window.analysis_scroll.widget():
+                    parent = child.parentWidget()
+                    assert child.y() >= 0 and child.y() + child.height() <= parent.height(), (
+                        type(child).__name__, child.geometry(), type(parent).__name__, parent.geometry())
+                    child = parent
+            center = window.mapping.mapTo(window.analysis_scroll.widget(), window.mapping.rect().center())
+            window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, window.mapping.height() // 2 + 8)
+            app.processEvents()
+            assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect())
+            window.analysis_help[help_name][0].click()
+            QTest.qWait(30)
     finally:
         window.close()
         app.processEvents()

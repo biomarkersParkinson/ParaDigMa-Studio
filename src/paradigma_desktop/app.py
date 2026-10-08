@@ -50,7 +50,7 @@ from .availability import availability_views
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, label, button, card, table, readout, field
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, FigureActionBar, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -439,9 +439,8 @@ class MainWindow(QMainWindow):
         for widget in (self.prepared, self.gaps, self.drop_missing):
             widget.setPalette(light_palette())
         right.addRow(self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True))
-        self.segmentation_controls = QWidget()
+        self.segmentation_controls = WrappedForm()
         sections = QGridLayout(self.segmentation_controls)
-        sections.setSizeConstraint(QLayout.SetMinimumSize)
         sections.setContentsMargins(0, 0, 0, 0)
         sections.setColumnStretch(1, 1)
         sections.setHorizontalSpacing(10)
@@ -695,12 +694,9 @@ class MainWindow(QMainWindow):
         self.canvas.defer_when_hidden = True
         self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
         self.canvas.pinned_time_axis = True
-        self.figure_actions = QWidget()
-        self.figure_actions_layout = QHBoxLayout(self.figure_actions)
-        self.figure_actions_layout.setContentsMargins(0, 0, 0, 0)
         self.plot_toolbar = GraphToolbar(self.canvas, self)
-        self.figure_actions_layout.addWidget(self.plot_toolbar)
-        self.figure_actions_layout.addStretch()
+        self.figure_actions = FigureActionBar(self.plot_toolbar)
+        self.figure_actions_layout = self.figure_actions.primary
         graph_body.addWidget(self.figure_actions)
         graph_body.addWidget(self.plot_toolbar.settings)
         graph_scroll = QScrollArea()
@@ -728,7 +724,6 @@ class MainWindow(QMainWindow):
         # Otherwise the selector can hide the toolbar's settings/save buttons.
         graph_body.removeWidget(self.figure_actions)
         graph_body.removeWidget(self.plot_toolbar.settings)
-        self.figure_actions_layout.setContentsMargins(12, 6, 12, 6)
         self.graph_view_layout.addWidget(self.figure_actions)
         self.graph_view_layout.addWidget(self.plot_toolbar.settings)
         plot_view_layout.addWidget(scroll, 1)
@@ -1436,10 +1431,12 @@ class MainWindow(QMainWindow):
                     previous.removeWidget(widget)
             body.insertWidget(0, self.results_header)
             body.insertWidget(1, self.detail_controls)
-            self.figure_actions_layout.removeWidget(self.context_controls)
+            self.figure_actions.remove_context(self.context_controls)
             self.table_actions_layout.removeWidget(self.context_controls)
-            actions = self.figure_actions_layout if index == 1 else self.table_actions_layout
-            actions.addWidget(self.context_controls, alignment=Qt.AlignRight)
+            if index == 1:
+                self.figure_actions.set_context(self.context_controls)
+            else:
+                self.table_actions_layout.addWidget(self.context_controls, alignment=Qt.AlignRight)
             self._result_layout_index = index
         self.results_scroll = self._result_view_scrolls[index]
         aggregation = index == 2 and self.table_dataset.currentData() in self.aggregation_tables

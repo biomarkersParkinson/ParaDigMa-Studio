@@ -438,9 +438,12 @@ def test_context_controls_share_figure_toolbar_and_leave_graph_bottom_free(windo
         assert window.figure_actions.isAncestorOf(controls)
         toolbar_center = toolbar.mapTo(window, toolbar.rect().center()).y()
         top = controls.mapTo(window, QPoint(0, 0)).y()
-        assert top <= toolbar_center <= top + controls.height()
+        if window.figure_actions.secondary.isVisible():
+            assert top >= toolbar.mapTo(window, QPoint(0, toolbar.height())).y()
+        else:
+            assert top <= toolbar_center <= top + controls.height()
+            assert controls.mapTo(window, QPoint(0, 0)).x() > toolbar.mapTo(window, QPoint(toolbar.width(), 0)).x()
         assert controls.visibleRegion().contains(controls.rect())
-        assert controls.mapTo(window, QPoint(0, 0)).x() > toolbar.mapTo(window, QPoint(toolbar.width(), 0)).x()
         body = window._result_view_layouts[1]
         assert body.itemAt(body.count() - 1).widget() is window.graphs_workspace
         graph_bottom = window.graph_scroll.mapTo(window, QPoint(0, window.graph_scroll.height())).y()

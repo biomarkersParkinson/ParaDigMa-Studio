@@ -70,3 +70,31 @@ def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readabl
         for artist in [*window.time_axis.axes.get_xticklabels(), window.time_axis.axes.xaxis.label]:
             if artist.get_visible() and artist.get_text():
                 assert artist.get_window_extent(renderer).y0 >= 0
+
+
+def test_large_native_toolbar_wraps_context_without_hiding_actions_or_expanding_window(window):
+    window.analyzed({"quantifications": {"tremor": pd.DataFrame({"time": [0., 1.], "power": [1., 2.]})}})
+    window.result_tabs.setCurrentIndex(1)
+    toolbar = window.plot_toolbar
+    # Reproduce native Windows hints exceeding the width left beside context.
+    toolbar.widgetForAction(toolbar.settings_action).setMinimumWidth(260)
+    toolbar.widgetForAction(toolbar._actions["save_figure"]).setMinimumWidth(100)
+    for width in (960, 1450, 960):
+        window.resize(width, 800)
+        QTest.qWait(40)
+        assert window.width() == width
+        wrapped = width == 960
+        for action in (toolbar._actions["save_figure"], toolbar.settings_action):
+            control = toolbar.widgetForAction(action)
+            assert control.isVisible() and control.visibleRegion().contains(control.rect())
+        assert window.figure_actions.secondary.isVisible() == wrapped
+        assert window.context_controls.visibleRegion().contains(window.context_controls.rect())
+        assert window.time_axis.visibleRegion().contains(window.time_axis.rect())
+    # Moving the shared controls to Tables must not leave an empty toolbar row.
+    window.result_tabs.setCurrentIndex(2)
+    QTest.qWait(30)
+    assert window.detail_controls.isAncestorOf(window.context_controls)
+    window.result_tabs.setCurrentIndex(1)
+    QTest.qWait(30)
+    assert window.figure_actions.secondary.isVisible()
+    assert window.context_controls.isVisible()
