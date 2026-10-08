@@ -132,7 +132,7 @@ def build_gait_charts(aggregates, *, metadata=None, scroll_area=None):
                                   '0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —.')
             for position, value in zip(positions, display_numbers):
                 if np.isfinite(value):
-                    axis.annotate(f'{value:.5g}', (value, position), xytext=(5, 0),
+                    axis.annotate(f'{value:.1f}', (value, position), xytext=(5, 0),
                                   textcoords='offset points', va='center', fontsize=9, color='#243C57')
                 else:
                     axis.text(.02, position, '—', transform=axis.get_yaxis_transform(), va='center', color='#68778C')
