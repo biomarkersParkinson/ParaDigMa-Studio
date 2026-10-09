@@ -397,7 +397,9 @@ class MainWindow(QMainWindow):
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(16)
-        controls.setAlignment(Qt.AlignTop)
+        # WrappedForm already reserves exactly the stack's required height.
+        # AlignTop would cap the layout rectangle at its preferred size hint,
+        # compressing spacing when help is taller at the current width.
         self.analysis_help = {}
         self.analysis_help_sections = {}
         self._updating_analysis_help = False

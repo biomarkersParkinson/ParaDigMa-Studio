@@ -326,18 +326,21 @@ locally. The rebuilt portable app passed its runtime smoke checks with the
 bundled CWA, Empatica and Physilog examples. Native Windows validation remains
 part of the GitHub Actions build.
 
-## Analysis help spacing (0.5.16)
+## Analysis help spacing (0.5.17)
 
-Windows CI exposed a one-pixel overlap below the parameter card with larger
-native controls in a 960 × 650 window. The complete analysis stack now reserves
-its wrapped height, and growing forms synchronize their layout rectangle with
-their actual bounds. The 16-pixel gap is preserved; smaller windows scroll
-instead of compressing the cards or their fields.
+Windows CI exposed compressed spacing and overlap below the parameter card
+when Device axes help opened in a 960 × 650 window. Version 0.5.16 synchronized
+growing forms' layout rectangles, but the outer stack's `AlignTop` still capped
+the usable rectangle at its preferred height instead of its wrapped height.
+Version 0.5.17 removes that redundant alignment: the stack already reserves its
+exact required height. Smaller windows scroll while preserving the 16-pixel gap
+and the positions of labels and controls.
 
-The new regression reproduces a stale layout rectangle on 0.5.15 and checks
-spacing after both growth and shrinkage. Existing help tests now require the
-full configured gap, as well as stable field positions. All **360 source tests**
-passed locally; one Windows-only signature check was skipped. The rebuilt app
-passed its packaged smoke checks. Native Windows confirmation is supplied by
-the GitHub Actions build. Scientific processing and graph calculations are
-unaffected by this layout correction.
+The help tests require the full configured gap as well as stable field
+positions. Additional larger-font cases reproduce the compressed gap locally
+on 0.5.16 and pass with this correction; the original Windows control-size
+cases remain in the suite. Scientific processing and graph calculations are
+unaffected. Native Windows validation runs in GitHub Actions.
+
+Local validation: **362 tests passed**, with one Windows-only signature check
+skipped. The rebuilt app passed its packaged runtime checks on Linux.

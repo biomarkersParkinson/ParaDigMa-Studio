@@ -116,11 +116,17 @@ def layout_bounds(window, control):
 
 
 @pytest.mark.parametrize('size', [(1450, 920), (960, 650)])
-@pytest.mark.parametrize('native_height, native_width', [(0, 0), (44, 0), (30, 280), (44, 280)])
-def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path, size, native_height, native_width):
+@pytest.mark.parametrize('native_height, native_width, font_size',
+                         [(0, 0, 13), (44, 0, 13), (30, 280, 13), (44, 280, 13), (44, 280, 18)])
+def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path, size, native_height, native_width, font_size):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
     window.resize(*size)
+    if font_size != 13:
+        # A taller, wrapped explanation must use its height at the available
+        # width, rather than the stack's preferred height at a wider width.
+        # Larger font metrics reproduce the compressed Windows gap on Linux.
+        window.setStyleSheet(window.styleSheet() + f'\nQWidget {{ font-size: {font_size}px; }}')
     fields = [window.side, window.acc, window.gyro, window.time, window.orientation,
               window.mapping, window.max_gap, window.min_segment, window.clock_input,
               window.prepared, window.gaps, window.drop_missing, *window.module_buttons.values()]
