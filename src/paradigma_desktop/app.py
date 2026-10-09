@@ -378,6 +378,7 @@ class MainWindow(QMainWindow):
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
         content.setSpacing(16)
+        content.setSizeConstraint(QLayout.SetMinimumSize)
         panel, input_layout = card()
         input_layout.setContentsMargins(18, 14, 18, 14)
         input_row = QHBoxLayout()
@@ -389,7 +390,10 @@ class MainWindow(QMainWindow):
         input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
         input_layout.addLayout(input_row)
         content.addWidget(panel)
-        self.analysis_controls = QWidget()
+        # The full stack, including wrapped help, must reserve its real height.
+        # Otherwise native controls can grow while the parent still allocates
+        # a smaller preferred height, consuming the gap below the parameters.
+        self.analysis_controls = WrappedForm()
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(16)

@@ -25,6 +25,12 @@ class WrappedForm(QWidget):
         height = self.heightForWidth(self.width())
         if height >= 0 and (self.minimumHeight() != height or self.maximumHeight() != height):
             self.setFixedHeight(height)
+        layout = self.layout()
+        if layout is not None and layout.geometry() != self.contentsRect():
+            # Resizing inside a layout pass can leave Qt's cached rectangle
+            # at the previous height even after the widget has grown. Restore
+            # its real bounds before arranging the children or painting them.
+            layout.setGeometry(self.contentsRect())
 
     def heightForWidth(self, width):
         # Report the same height to parent layouts that we reserve locally.

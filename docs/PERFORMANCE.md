@@ -325,3 +325,19 @@ scientific-equivalence checks; one Windows-only signature check was skipped
 locally. The rebuilt portable app passed its runtime smoke checks with the
 bundled CWA, Empatica and Physilog examples. Native Windows validation remains
 part of the GitHub Actions build.
+
+## Analysis help spacing (0.5.16)
+
+Windows CI exposed a one-pixel overlap below the parameter card with larger
+native controls in a 960 × 650 window. The complete analysis stack now reserves
+its wrapped height, and growing forms synchronize their layout rectangle with
+their actual bounds. The 16-pixel gap is preserved; smaller windows scroll
+instead of compressing the cards or their fields.
+
+The new regression reproduces a stale layout rectangle on 0.5.15 and checks
+spacing after both growth and shrinkage. Existing help tests now require the
+full configured gap, as well as stable field positions. All **360 source tests**
+passed locally; one Windows-only signature check was skipped. The rebuilt app
+passed its packaged smoke checks. Native Windows confirmation is supplied by
+the GitHub Actions build. Scientific processing and graph calculations are
+unaffected by this layout correction.

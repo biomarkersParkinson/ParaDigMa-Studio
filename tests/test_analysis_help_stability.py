@@ -1,10 +1,51 @@
 """Opening help must not reflow the Analyze labels, options or action buttons."""
 import pytest
 from PySide6.QtCore import QPoint, QObject, QEvent
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QSizePolicy
 from PySide6.QtTest import QTest
 
 from paradigma_desktop.app import MainWindow
+from paradigma_desktop.widgets import WrappedForm
+
+
+def test_growing_wrapped_stack_updates_its_layout_bounds_without_compressing_spacing():
+    app = QApplication.instance() or QApplication([])
+
+    class NativeHint(QWidget):
+        def __init__(self, minimum, wrapped=False):
+            super().__init__()
+            self.wrapped = wrapped
+            self.setMinimumHeight(minimum)
+            policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            policy.setHeightForWidth(True)
+            self.setSizePolicy(policy)
+
+        def heightForWidth(self, width):
+            # Native controls may have a larger enforced minimum than their
+            # preferred hint; help grows independently when its text wraps.
+            return (160 if width < 350 else 100) if self.wrapped else 20
+
+    stack = WrappedForm()
+    layout = QVBoxLayout(stack)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(16)
+    parameters, help_box = NativeHint(80), NativeHint(10, wrapped=True)
+    layout.addWidget(parameters)
+    layout.addWidget(help_box)
+    stack.resize(300, 100)
+    stack.show()
+    try:
+        for width in (300, 450, 240):
+            stack.resize(width, 100)
+            QTest.qWait(20)
+            assert layout.geometry() == stack.contentsRect()
+            assert parameters.height() >= 80
+            assert help_box.height() >= help_box.heightForWidth(width)
+            assert help_box.y() - parameters.y() - parameters.height() >= 16
+            assert help_box.y() + help_box.height() <= stack.height()
+    finally:
+        stack.close()
+        app.processEvents()
 
 
 @pytest.mark.parametrize('size', [(1200, 900), (960, 650)])
@@ -122,8 +163,9 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path,
             assert description.isVisible()
             assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1
             assert not window.settings_panel.isAncestorOf(description)
-            assert window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y() >= (
+            gap = window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y() - (
                 window.settings_panel.mapTo(body, QPoint(0, window.settings_panel.height())).y())
+            assert gap >= window.analysis_controls.layout().spacing(), (title, gap)
             info.click()
             QTest.qWait(20)
             assert positions() == baseline, title
