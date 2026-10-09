@@ -139,7 +139,7 @@ def test_result_and_sensor_context_settings_use_current_graph_without_mutating_t
     pd.testing.assert_frame_equal(window.active_frame, result)
     window.sensor_frame = window.frame
     window.sensor_times = window.frame.time.to_numpy()
-    window.sensor_channel.addItem("gyroscope_x", "gyroscope_x")
+    window.populate_sensor_channels()
     window.plot_sensor()
     window.sensor_toolbar.settings_action.setChecked(True)
     panel = window.sensor_toolbar.settings

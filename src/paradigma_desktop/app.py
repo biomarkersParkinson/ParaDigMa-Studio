@@ -332,33 +332,9 @@ class MainWindow(QMainWindow):
         details.setSizes([660, 400])
         overview_layout.addWidget(details, 1)
         self.data_tabs.addTab(overview, "Overview")
-        preview = QWidget()
-        preview_layout = QHBoxLayout(preview)
-        channels = QWidget()
-        channels.setMinimumWidth(190)
-        channels.setMaximumWidth(260)
-        channel_layout = QVBoxLayout(channels)
-        channel_layout.addWidget(label("Channels", "sectionTitle"))
-        selection = QHBoxLayout()
-        selection.addWidget(button("Select all", lambda: self.set_input_channels(self._channel_colors)))
-        selection.addWidget(button("Clear", lambda: self.set_input_channels([])))
-        channel_layout.addLayout(selection)
-        self.data_channels = QListWidget()
+        preview, self.data_channels, self.data_figure, self.data_canvas, self.data_toolbar = self.channel_graph(
+            self.set_input_channels, "Sensor channels to plot")
         self._channel_colors = {}
-        self.data_channels.setPalette(light_palette())
-        self.data_channels.setSelectionMode(QAbstractItemView.NoSelection)
-        self.data_channels.setTextElideMode(Qt.ElideNone)
-        self.data_channels.setAccessibleName("Sensor channels to plot")
-        channel_layout.addWidget(self.data_channels, 1)
-        preview_layout.addWidget(channels)
-        graph = QWidget()
-        graph_layout = QVBoxLayout(graph)
-        self.data_figure = Figure(layout="constrained")
-        self.data_canvas = ScrollableFigureCanvas(self.data_figure)
-        self.data_canvas.defer_when_hidden = True
-        self.data_toolbar = add_graph_controls(graph_layout, self.data_canvas, self)
-        graph_layout.addWidget(self.data_canvas, 1)
-        preview_layout.addWidget(graph, 1)
         self.data_tabs.addTab(preview, "Graphs")
         self.input_table = table()
         self.data_tabs.addTab(self.input_table, "Tables")
@@ -366,6 +342,43 @@ class MainWindow(QMainWindow):
         self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
         self.continue_button.setEnabled(False)
         self.status_layout.addWidget(self.continue_button)
+
+    def channel_graph(self, select_channels, accessible_name):
+        """Shared raw-sensor workspace: a channel list beside a fitted graph."""
+        preview = QWidget()
+        preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        preview_layout = QHBoxLayout(preview)
+        channels = QWidget()
+        channels.setMinimumWidth(190)
+        channels.setMaximumWidth(260)
+        channel_layout = QVBoxLayout(channels)
+        heading = label("Channels", "sectionTitle")
+        heading.setWordWrap(False)
+        channel_layout.addWidget(heading)
+        selection = QHBoxLayout()
+        channel_list = QListWidget()
+        selection.addWidget(button("Select all", lambda: select_channels([
+            channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())])))
+        selection.addWidget(button("Clear", lambda: select_channels([])))
+        channel_layout.addLayout(selection)
+        channel_list.setPalette(light_palette())
+        channel_list.setSelectionMode(QAbstractItemView.NoSelection)
+        channel_list.setTextElideMode(Qt.ElideNone)
+        channel_list.setAccessibleName(accessible_name)
+        channel_layout.addWidget(channel_list, 1)
+        preview_layout.addWidget(channels)
+        graph = QWidget()
+        graph_layout = QVBoxLayout(graph)
+        figure = Figure(layout="constrained")
+        canvas = ScrollableFigureCanvas(figure)
+        canvas.defer_when_hidden = True
+        # Use the available height instead of imposing the canvas's preferred
+        # 480-pixel height on the enclosing page or clipping its time axis.
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        toolbar = add_graph_controls(graph_layout, canvas, self)
+        graph_layout.addWidget(canvas, 1)
+        preview_layout.addWidget(graph, 1)
+        return preview, channel_list, figure, canvas, toolbar
 
     def _build_analyze(self):
         layout = self.page()
@@ -829,26 +842,20 @@ class MainWindow(QMainWindow):
         self.sensor_panel, sensor_layout = card()
         self.sensor_note = label("", "muted")
         sensor_header = QHBoxLayout()
-        sensor_header.addWidget(label("Underlying sensor context", "sectionTitle"), 1)
+        sensor_header.addWidget(self.sensor_note, 1)
         sensor_header.addWidget(button("Close", self.hide_sensor_context))
         sensor_layout.addLayout(sensor_header)
-        sensor_layout.addWidget(self.sensor_note)
-        self.sensor_channel = self.combo()
-        sensor_layout.addWidget(self.sensor_channel)
-        sensor_tabs = QTabWidget()
-        sensor_graph = QWidget()
-        graph_layout = QVBoxLayout(sensor_graph)
-        self.sensor_figure = Figure(layout="constrained")
-        self.sensor_canvas = ScrollableFigureCanvas(self.sensor_figure)
-        self.sensor_canvas.defer_when_hidden = True
-        self.sensor_toolbar = add_graph_controls(graph_layout, self.sensor_canvas, self)
-        graph_layout.addWidget(self.sensor_canvas, 1)
-        sensor_tabs.addTab(sensor_graph, "Signal")
+        self.sensor_tabs = QTabWidget()
+        self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        sensor_graph, self.sensor_channels, self.sensor_figure, self.sensor_canvas, self.sensor_toolbar = self.channel_graph(
+            self.set_sensor_channels, "Original sensor channels to plot")
+        self._sensor_channel_colors = {}
+        self.sensor_tabs.addTab(sensor_graph, "Graphs")
         self.sensor_table = table()
-        sensor_tabs.addTab(self.sensor_table, "Samples")
-        sensor_layout.addWidget(sensor_tabs, 1)
+        self.sensor_tabs.addTab(self.sensor_table, "Tables")
         _, sensor_body = view("Sensor context")
-        sensor_body.addWidget(self.sensor_panel, 1)
+        sensor_body.addWidget(self.sensor_panel)
+        sensor_body.addWidget(self.sensor_tabs, 1)
         self.sensor_tab_index = 3
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)
         context = QHBoxLayout()
@@ -944,7 +951,7 @@ class MainWindow(QMainWindow):
             control.currentTextChanged.connect(self.update_origin_default)
         for control in (self.prepared, self.drop_missing):
             control.toggled.connect(self.update_origin_default)
-        self.sensor_channel.currentIndexChanged.connect(self.plot_sensor)
+        self.sensor_channels.itemChanged.connect(self.plot_sensor)
         self.canvas.mpl_connect("button_press_event", self.graph_clicked)
         self.modules_changed()
         self.preparation_changed()
@@ -1304,90 +1311,113 @@ class MainWindow(QMainWindow):
         self.time_table.setEnabled(True)
 
     def selected_input_channels(self):
-        return [self.data_channels.item(i).data(Qt.UserRole) for i in range(self.data_channels.count())
-                if self.data_channels.item(i).checkState() == Qt.Checked]
+        return self.selected_channels(self.data_channels)
+
+    @staticmethod
+    def selected_channels(channel_list):
+        return [channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())
+                if channel_list.item(i).checkState() == Qt.Checked]
+
+    @staticmethod
+    def check_channels(channel_list, channels):
+        channels = set(channels)
+        blocked = channel_list.blockSignals(True)
+        for i in range(channel_list.count()):
+            item = channel_list.item(i)
+            item.setCheckState(Qt.Checked if item.data(Qt.UserRole) in channels else Qt.Unchecked)
+        channel_list.blockSignals(blocked)
 
     def set_input_channels(self, channels):
-        self.data_channels.blockSignals(True)
-        for i in range(self.data_channels.count()):
-            item = self.data_channels.item(i)
-            item.setCheckState(Qt.Checked if item.data(Qt.UserRole) in channels else Qt.Unchecked)
-        self.data_channels.blockSignals(False)
+        self.check_channels(self.data_channels, channels)
         self.plot_input()
 
     def populate_input_channels(self, selection=None):
-        numeric = [column for column, dtype in self.frame.dtypes.items()
+        self._channel_colors = self.populate_channels(self.data_channels, self.frame,
+            excluded={self.data_time_channel.currentData()}, selection=selection)
+
+    @staticmethod
+    def populate_channels(channel_list, frame, *, excluded=(), selection=None):
+        numeric = [column for column, dtype in frame.dtypes.items()
                    if pd.api.types.is_numeric_dtype(dtype)
                    if str(column).lower() not in TIME_NAMES
                    and not pd.api.types.is_complex_dtype(dtype)]
         colors = GRAPH_COLORS if len(numeric) <= len(GRAPH_COLORS) else colormaps["tab20"].colors if len(numeric) <= 20 else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
-        self._channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
-        self.data_channels.blockSignals(True)
-        self.data_channels.clear()
+        channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
+        blocked = channel_list.blockSignals(True)
+        channel_list.clear()
         for column in numeric:
-            if column == self.data_time_channel.currentData():
+            if column in excluded:
                 continue
-            item = QListWidgetItem(str(column), self.data_channels)
+            item = QListWidgetItem(str(column), channel_list)
             item.setData(Qt.UserRole, column)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked if selection is not None and column in selection else Qt.Unchecked)
-        if selection is None and self.data_channels.count():
-            self.data_channels.item(0).setCheckState(Qt.Checked)
-        self.data_channels.blockSignals(False)
+        if selection is None and channel_list.count():
+            channel_list.item(0).setCheckState(Qt.Checked)
+        channel_list.blockSignals(blocked)
+        return channel_colors
 
     def plot_input(self, *_):
         self._data_plot_dirty = False
-        self.data_figure.clear()
         channels = self.selected_input_channels()
-        if self.frame is None or not channels:
-            ax = style_axes(self.data_figure)
-            ax.text(.5, .5, "Select sensor channels" if self.frame is not None else "Open a recording with numeric sensor channels",
-                    ha="center", transform=ax.transAxes, color="#60728A")
-        else:
+        times, time_label, timezone = None, "Time (file units)", None
+        if self.frame is not None:
             column = self.data_time_channel.currentData()
-            times, time_label = None, "Time (file units)"
             if column in self.frame:
                 series = self.frame[column]
                 if pd.api.types.is_datetime64_any_dtype(series.dtype):
-                    times, time_label = series, "Time"
+                    times, time_label, timezone = series, "Time", series.dt.tz
                 elif pd.api.types.is_timedelta64_dtype(series.dtype):
                     times, time_label = series.dt.total_seconds(), "Time (s)"
                 elif not pd.api.types.is_complex_dtype(series.dtype):
                     times = pd.to_numeric(series, errors="coerce")
-            usable = times is not None and times.notna().all()
-            xs = times if usable else np.arange(len(self.frame))
-            flags = [c for c in channels if binary_indicator(self.frame[c], c)]
+        usable = times is not None and times.notna().all()
+        xs = times if usable else np.arange(len(self.frame)) if self.frame is not None else []
+        self.plot_channel_signals(self.data_figure, self.frame, channels, self._channel_colors, xs,
+            time_label if usable else "Sample position", timezone=timezone,
+            calendar=usable and pd.api.types.is_datetime64_any_dtype(times.dtype),
+            empty_text="Open a recording with numeric sensor channels")
+        self.data_toolbar.refresh()
+        self.data_canvas.draw_idle()
+
+    @staticmethod
+    def plot_channel_signals(figure, frame, channels, colors, xs, time_label, *, calendar=False,
+                             timezone=None, empty_text="No original samples in this context"):
+        figure.clear()
+        if frame is None or frame.empty or not channels:
+            ax = style_axes(figure)
+            ax.text(.5, .5, "Select sensor channels" if frame is not None and not frame.empty else empty_text,
+                    ha="center", transform=ax.transAxes, color="#60728A")
+        else:
+            flags = [c for c in channels if binary_indicator(frame[c], c)]
             signals = [c for c in channels if c not in flags]
             groups = ([signals] if signals else []) + [[flag] for flag in flags]
             first_axes = None
-            grid = self.data_figure.add_gridspec(len(groups), 1, height_ratios=[.55 if group[0] in flags else 1 for group in groups])
+            grid = figure.add_gridspec(len(groups), 1, height_ratios=[.55 if group[0] in flags else 1 for group in groups])
             for index, group in enumerate(groups):
-                ax = style_axes(self.data_figure, position=(grid[index],), sharex=first_axes)
+                ax = style_axes(figure, position=(grid[index],), sharex=first_axes)
                 if first_axes is None:
                     first_axes = ax
                 for channel in group:
                     if channel in flags:
-                        plot_states(ax, xs, self.frame[channel].to_numpy(dtype=float, na_value=np.nan), self._channel_colors[channel], label=str(channel))
+                        plot_states(ax, xs, frame[channel].to_numpy(dtype=float, na_value=np.nan), colors[channel], label=str(channel))
                         ax.set_title(str(channel), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
                     else:
-                        step = max(1, int(np.ceil(len(self.frame) / 20000)))
+                        step = max(1, int(np.ceil(len(frame) / 20000)))
                         plot_signal(ax, xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
-                                    self.frame[channel].iloc[::step], self._channel_colors[channel], label=str(channel))
+                                    frame[channel].iloc[::step], colors[channel], label=str(channel))
                         ax.set_ylabel(str(group[0]) if len(group) == 1 else "Sensor values (file units)")
                 if len(group) > 1:
                     ax.legend(loc="upper right", ncols=min(3, len(group)), frameon=True, facecolor="white",
                               edgecolor="#E0E7EF", framealpha=.95, fontsize=9)
-                if usable and pd.api.types.is_datetime64_any_dtype(times.dtype):
-                    timezone = times.dt.tz
+                if calendar:
                     locator = dates.AutoDateLocator(tz=timezone)
                     ax.xaxis.set_major_locator(locator)
                     ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-                ax.set_xlabel(time_label if usable else "Sample position")
+                ax.set_xlabel(time_label)
                 ax.tick_params(axis="x", labelbottom=index == len(groups) - 1)
                 ax.xaxis.label.set_visible(index == len(groups) - 1)
                 ax.xaxis.offsetText.set_visible(index == len(groups) - 1)
-        self.data_toolbar.refresh()
-        self.data_canvas.draw_idle()
 
     def origin_edited(self):
         self._origin_override = True
@@ -2452,13 +2482,7 @@ class MainWindow(QMainWindow):
             self.sensor_frame = source_frame.iloc[np.flatnonzero(mask)]
             self.sensor_times = display_timeline[mask]
             self.sensor_table.setModel(FrameModel(self.sensor_frame))
-            self.sensor_channel.blockSignals(True)
-            self.sensor_channel.clear()
-            mapping = self.provenance.get("settings", {}).get("column_mapping", {})
-            for column in self.sensor_frame.select_dtypes(include="number").columns:
-                if mapping.get(column, column) != "time":
-                    self.sensor_channel.addItem(str(column), column)
-            self.sensor_channel.blockSignals(False)
+            self.populate_sensor_channels()
             self.sensor_note.setText(f"{len(self.sensor_frame):,} original samples {description} Original units; horizontal axis aligned to analysis time.")
             if isinstance(self.result_source_frame, dict):
                 path = self.provenance.get("sources", {}).get(key, key)
@@ -2476,32 +2500,30 @@ class MainWindow(QMainWindow):
             self.result_tabs.setCurrentIndex(1)
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)
 
+    def selected_sensor_channels(self):
+        return self.selected_channels(self.sensor_channels)
+
+    def set_sensor_channels(self, channels):
+        self.check_channels(self.sensor_channels, channels)
+        self.plot_sensor()
+
+    def populate_sensor_channels(self):
+        selection = self.selected_sensor_channels() if self.sensor_channels.count() else None
+        mapping = self.provenance.get("settings", {}).get("column_mapping", {})
+        self._sensor_channel_colors = self.populate_channels(self.sensor_channels, self.sensor_frame,
+            excluded={column for column, target in mapping.items() if target == "time"}, selection=selection)
+        # Keep the chosen channels across context windows. A different recording
+        # with no matching channels gets its first channel; an explicit Clear
+        # remains empty until the user selects channels again.
+        if selection and not self.selected_sensor_channels() and self.sensor_channels.count():
+            self.check_channels(self.sensor_channels, [self.sensor_channels.item(0).data(Qt.UserRole)])
+
     def plot_sensor(self, *_):
-        self.sensor_figure.clear()
-        ax = style_axes(self.sensor_figure)
-        column = self.sensor_channel.currentData()
-        if self.sensor_frame is not None and column in self.sensor_frame and len(self.sensor_frame):
-            module = self.dataset.currentText().split("/")[1]
-            color = module_color(module)
-            step = max(1, int(np.ceil(len(self.sensor_frame) / 20000)))
-            xs = clock_times(self.sensor_times[::step], self.display_clock)
-            if binary_indicator(self.sensor_frame[column], column):
-                plot_states(ax, clock_times(self.sensor_times, self.display_clock), self.sensor_frame[column].to_numpy(dtype=float, na_value=np.nan), color)
-                ax.set_title(str(column), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
-            else:
-                plot_signal(ax, xs, self.sensor_frame[column].iloc[::step], color)
-            if self.display_clock is not None:
-                timezone = clock_origin(self.display_clock).tz
-                locator = dates.AutoDateLocator(tz=timezone)
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-                ax.set_xlabel("Recording date/time")
-            else:
-                ax.set_xlabel("Analysis time (s)")
-            if not getattr(ax, "_paradigma_binary", False):
-                ax.set_ylabel(str(column))
-        else:
-            ax.text(.5, .5, "No original samples in this context", ha="center", transform=ax.transAxes)
+        xs = clock_times(self.sensor_times, self.display_clock) if self.sensor_frame is not None else []
+        calendar = self.display_clock is not None
+        self.plot_channel_signals(self.sensor_figure, self.sensor_frame, self.selected_sensor_channels(),
+            self._sensor_channel_colors, xs, "Recording date/time" if calendar else "Analysis time (s)",
+            calendar=calendar, timezone=clock_origin(self.display_clock).tz if calendar else None)
         self.sensor_toolbar.refresh()
         self.sensor_canvas.draw_idle()
 

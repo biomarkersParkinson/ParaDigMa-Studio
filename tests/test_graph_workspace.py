@@ -381,9 +381,9 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     QTest.qWait(30)
     window.sensor_frame = pd.DataFrame({"gyroscope_x": [1., 2., 3.]})
     window.sensor_times = np.array([0., 1., 2.])
-    window.sensor_channel.addItem("gyroscope_x", "gyroscope_x")
+    window.populate_sensor_channels()
     window.plot_sensor()
-    assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(module_color("tremor"))
+    assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(window._sensor_channel_colors["gyroscope_x"])
 
 
 def test_binary_display_fills_positive_intervals_without_shading_missing_or_zero_states(window):

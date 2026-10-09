@@ -423,3 +423,23 @@ Local validation: **375 tests passed**, including all 31 scientific-equivalence
 tests, with one Windows-only signature check skipped. The rebuilt app passed
 its packaged runtime checks on Linux. Native Windows confirmation remains part
 of the GitHub Actions build.
+
+## Fitted multi-channel sensor context (0.5.22)
+
+Sensor context now shares the Data page's channel checklist and raw-signal
+renderer. It overlays selected continuous channels in distinct, stable colors,
+retains binary tracks and time alignment, and preserves selections between
+drill-downs. Select all and Clear update the graph once per action.
+
+The canvas and its tabs use the available height rather than a preferred fixed
+height. The one-word channel heading does not request wrapping: an unnecessary
+height-for-width hint otherwise made Qt reserve the list's preferred height and
+scroll the page. The context information sits above the Graphs/Tables tabs,
+leaving the graph visible in the same arrangement as Data.
+
+New checks cover original values, channel colors and selection, mapped time
+columns, calendar alignment, and full figure visibility without page scrolling
+at 960 × 650 and 1450 × 920 with ordinary and enlarged fonts. Local validation:
+**382 tests passed**, including all scientific-equivalence tests; one Windows-only
+signature check was skipped. The rebuilt app passed its packaged runtime checks
+on Linux. Native Windows validation runs in GitHub Actions.

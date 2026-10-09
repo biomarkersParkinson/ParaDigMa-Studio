@@ -131,6 +131,9 @@ metadata links a derived arm-swing result to original sensor samples. Drill-down
 uses the entire recorded segment, rather than treating an estimated point as an
 observed arm-swing timestamp. The CWA example can return a tremor aggregation
 error when too few tremor windows are detected; available detail remains visible.
+Graphs uses the Data page's left-hand channel checklist, with multiple signals
+overlaid in distinct colors. The figure fits the available height without page
+scrolling; original samples remain available in Tables.
 
 ![Original sensor context](screenshots/sensor-context.png)
 

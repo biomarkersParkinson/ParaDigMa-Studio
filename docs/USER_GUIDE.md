@@ -162,6 +162,11 @@ clicked bar to original samples. A vertical marker and the pinned axis identify 
 selected time. Gait measurements open the complete official segment rather than
 treating their estimated positions as observed event timestamps. Sensor context
 requires the original recording to remain available in the session.
+The context's **Graphs** tab uses the same left-hand channel checkboxes as Data:
+select multiple channels to overlay their original values with distinct colors,
+or use **Select all** and **Clear**. The complete figure resizes to fit the page;
+the channel list and **Tables** can scroll independently. Channel selections are
+retained when inspecting another result.
 
 Each graph has one inline **Graph settings** panel for title, axis labels, limits,
 grid and legend. Date limits accept ISO timestamps. Click a graph to edit its
