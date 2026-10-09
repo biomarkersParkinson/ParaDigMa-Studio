@@ -7,3 +7,5 @@ dist/
 *.spec
 dependency-audit.json
 test-results.xml
+
+.ruff_cache/

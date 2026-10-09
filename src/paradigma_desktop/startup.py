@@ -1,4 +1,5 @@
 """Opt-in first-window probe; never opens recordings or starts an analysis."""
+
 import json
 import sys
 import tempfile
@@ -32,13 +33,20 @@ def startup_test(report_path, started):
 
             def ready(self):
                 report.clear()
-                report.update(status="passed", import_seconds=imported - started,
-                              first_paint_seconds=time.perf_counter() - started,
-                              qt_platform=app.platformName(), empty_history=True,
-                              persistent_font_cache=getattr(workspace, "PLOT_CACHE_DIRECTORY", None) is not None,
-                              analysis_modules_loaded=[name for name in
-                                  ("paradigma", "sklearn", "scipy", "openmovement")
-                                  if name in sys.modules])
+                report.update(
+                    status="passed",
+                    import_seconds=imported - started,
+                    first_paint_seconds=time.perf_counter() - started,
+                    qt_platform=app.platformName(),
+                    empty_history=True,
+                    persistent_font_cache=getattr(workspace, "PLOT_CACHE_DIRECTORY", None)
+                    is not None,
+                    analysis_modules_loaded=[
+                        name
+                        for name in ("paradigma", "sklearn", "scipy", "openmovement")
+                        if name in sys.modules
+                    ],
+                )
                 temporary = report_path.with_suffix(".tmp")
                 temporary.write_text(json.dumps(report, indent=2), encoding="utf-8")
                 temporary.replace(report_path)
@@ -56,6 +64,8 @@ def startup_test(report_path, started):
             report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         return 0 if report["status"] == "passed" else 1
     except Exception:
-        report_path.write_text(json.dumps({"status": "failed", "error": traceback.format_exc()}, indent=2),
-                               encoding="utf-8")
+        report_path.write_text(
+            json.dumps({"status": "failed", "error": traceback.format_exc()}, indent=2),
+            encoding="utf-8",
+        )
         return 1

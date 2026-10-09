@@ -4,6 +4,7 @@ ParaDigMa 1.1.2 rejects an absent gyroscope despite its tutorial supporting
 accelerometer-only files. This adapter makes that sensor optional and uses
 each sensor's own conversion parameters. Other formats keep official loaders.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -59,12 +60,16 @@ def load_empatica_imu(path):
             if record is None:
                 raise ValueError("The Empatica Avro file contains no records.")
             if next(reader, None) is not None:
-                raise ValueError("Empatica import requires one recording per Avro file; split multi-record files first.")
+                raise ValueError(
+                    "Empatica import requires one recording per Avro file; split multi-record files first."
+                )
     try:
         raw = record["rawData"]
         schema = record["schemaVersion"]
         version = tuple(schema[key] for key in ("major", "minor", "patch"))
-        if not isinstance(raw, dict) or any(type(value) is not int or value < 0 for value in version):
+        if not isinstance(raw, dict) or any(
+            type(value) is not int or value < 0 for value in version
+        ):
             raise ValueError("Invalid Empatica rawData or schemaVersion.")
         accel = _motion_stream(raw.get("accelerometer"), "accelerometer", version)
         gyro = _motion_stream(raw.get("gyroscope"), "gyroscope", version)
@@ -74,17 +79,25 @@ def load_empatica_imu(path):
         raise ValueError("The Empatica file contains no accelerometer samples.")
     values, frequency, start = accel
     elapsed = np.arange(len(values), dtype=float) / frequency
-    frame = pd.DataFrame({
-        "time": elapsed,
-        "time_dt": pd.to_datetime(start, unit="us") + pd.to_timedelta(elapsed, unit="s"),
-        **{f"accelerometer_{axis}": values[:, index] for index, axis in enumerate("xyz")},
-    })
+    frame = pd.DataFrame(
+        {
+            "time": elapsed,
+            "time_dt": pd.to_datetime(start, unit="us") + pd.to_timedelta(elapsed, unit="s"),
+            **{f"accelerometer_{axis}": values[:, index] for index, axis in enumerate("xyz")},
+        }
+    )
     if gyro is not None:
         gyro_values, gyro_frequency, gyro_start = gyro
         if len(gyro_values) != len(values) or gyro_frequency != frequency or gyro_start != start:
-            raise ValueError("Empatica accelerometer and gyroscope timelines differ; resample them to a common timeline before import.")
+            raise ValueError(
+                "Empatica accelerometer and gyroscope timelines differ; resample them to a common timeline before import."
+            )
         for index, axis in enumerate("xyz"):
             frame[f"gyroscope_{axis}"] = gyro_values[:, index]
-    frame.attrs.update(source_format="empatica", sampling_frequency=frequency,
-                       timestamp_start_us=start, schema_version=version)
+    frame.attrs.update(
+        source_format="empatica",
+        sampling_frequency=frequency,
+        timestamp_start_us=start,
+        schema_version=version,
+    )
     return frame

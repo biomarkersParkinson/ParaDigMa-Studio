@@ -1,4 +1,5 @@
 """Real Empatica example and encoded Avro import regressions."""
+
 import copy
 import json
 from importlib.resources import files
@@ -15,25 +16,57 @@ from paradigma_desktop.core import analyze, load_sensor_file
 
 def write_avro(path, records):
     # Small independent recordings with the metadata fields used by the loader.
-    params = {"type": "record", "name": "ImuParams", "fields": [
-        {"name": name, "type": "double"} for name in
-        ("physicalMin", "physicalMax", "digitalMin", "digitalMax", "conversionFactor")
-    ]}
-    motion = {"type": "record", "name": "Motion", "fields": [
-        {"name": "timestampStart", "type": "long"},
-        {"name": "samplingFrequency", "type": "double"},
-        {"name": "imuParams", "type": params},
-        *[{"name": axis, "type": {"type": "array", "items": "double"}} for axis in "xyz"],
-    ]}
-    shape = {"type": "record", "name": "Empatica", "fields": [
-        {"name": "schemaVersion", "type": {"type": "record", "name": "Version", "fields": [
-            {"name": name, "type": "int"} for name in ("major", "minor", "patch")
-        ]}},
-        {"name": "rawData", "type": {"type": "record", "name": "RawData", "fields": [
-            {"name": "accelerometer", "type": motion},
-            {"name": "gyroscope", "type": ["null", "Motion"], "default": None},
-        ]}},
-    ]}
+    params = {
+        "type": "record",
+        "name": "ImuParams",
+        "fields": [
+            {"name": name, "type": "double"}
+            for name in (
+                "physicalMin",
+                "physicalMax",
+                "digitalMin",
+                "digitalMax",
+                "conversionFactor",
+            )
+        ],
+    }
+    motion = {
+        "type": "record",
+        "name": "Motion",
+        "fields": [
+            {"name": "timestampStart", "type": "long"},
+            {"name": "samplingFrequency", "type": "double"},
+            {"name": "imuParams", "type": params},
+            *[{"name": axis, "type": {"type": "array", "items": "double"}} for axis in "xyz"],
+        ],
+    }
+    shape = {
+        "type": "record",
+        "name": "Empatica",
+        "fields": [
+            {
+                "name": "schemaVersion",
+                "type": {
+                    "type": "record",
+                    "name": "Version",
+                    "fields": [
+                        {"name": name, "type": "int"} for name in ("major", "minor", "patch")
+                    ],
+                },
+            },
+            {
+                "name": "rawData",
+                "type": {
+                    "type": "record",
+                    "name": "RawData",
+                    "fields": [
+                        {"name": "accelerometer", "type": motion},
+                        {"name": "gyroscope", "type": ["null", "Motion"], "default": None},
+                    ],
+                },
+            },
+        ],
+    }
     with path.open("wb") as stream:
         with DataFileWriter(stream, DatumWriter(), schema.parse(json.dumps(shape))) as writer:
             for record in records:
@@ -44,13 +77,23 @@ def write_avro(path, records):
 @pytest.fixture
 def record():
     sensor = {
-        "timestampStart": 1700000000000123, "samplingFrequency": 10.,
-        "imuParams": {"physicalMin": -2., "physicalMax": 2.,
-                      "digitalMin": -100., "digitalMax": 100., "conversionFactor": 0.02},
-        "x": [1., 2., 3.], "y": [4., 5., 6.], "z": [7., 8., 9.],
+        "timestampStart": 1700000000000123,
+        "samplingFrequency": 10.0,
+        "imuParams": {
+            "physicalMin": -2.0,
+            "physicalMax": 2.0,
+            "digitalMin": -100.0,
+            "digitalMax": 100.0,
+            "conversionFactor": 0.02,
+        },
+        "x": [1.0, 2.0, 3.0],
+        "y": [4.0, 5.0, 6.0],
+        "z": [7.0, 8.0, 9.0],
     }
-    return {"schemaVersion": {"major": 6, "minor": 5, "patch": 0},
-            "rawData": {"accelerometer": sensor, "gyroscope": None}}
+    return {
+        "schemaVersion": {"major": 6, "minor": 5, "patch": 0},
+        "rawData": {"accelerometer": sensor, "gyroscope": None},
+    }
 
 
 def test_official_empatica_example_opens_without_gyro():
@@ -73,20 +116,20 @@ def test_official_empatica_example_opens_without_gyro():
 def test_optional_gyro_uses_own_scaling(tmp_path, record, version):
     record["schemaVersion"] = dict(zip(("major", "minor", "patch"), version))
     gyro = copy.deepcopy(record["rawData"]["accelerometer"])
-    gyro["imuParams"].update(physicalMin=-50., physicalMax=50., conversionFactor=0.5)
+    gyro["imuParams"].update(physicalMin=-50.0, physicalMax=50.0, conversionFactor=0.5)
     record["rawData"]["gyroscope"] = gyro
     if version < (6, 5, 0):
         # Old schemas must use ranges, even if a newer factor is present.
-        record["rawData"]["accelerometer"]["imuParams"]["conversionFactor"] = 99.
-        gyro["imuParams"]["conversionFactor"] = 88.
+        record["rawData"]["accelerometer"]["imuParams"]["conversionFactor"] = 99.0
+        gyro["imuParams"]["conversionFactor"] = 88.0
     else:
         # New schemas must use factors independently of legacy ranges.
-        record["rawData"]["accelerometer"]["imuParams"]["physicalMax"] = 200.
-        gyro["imuParams"]["physicalMax"] = 200.
+        record["rawData"]["accelerometer"]["imuParams"]["physicalMax"] = 200.0
+        gyro["imuParams"]["physicalMax"] = 200.0
     frame = load_sensor_file(write_avro(tmp_path / "aligned.avro", [record]))
     np.testing.assert_allclose(frame.accelerometer_x, [0.02, 0.04, 0.06])
-    np.testing.assert_allclose(frame.gyroscope_x, [0.5, 1., 1.5])
-    np.testing.assert_allclose(frame.time, [0., 0.1, 0.2])
+    np.testing.assert_allclose(frame.gyroscope_x, [0.5, 1.0, 1.5])
+    np.testing.assert_allclose(frame.time, [0.0, 0.1, 0.2])
     assert frame.time_dt.iloc[0] == pd.Timestamp(1700000000000123, unit="us")
 
 
@@ -94,29 +137,36 @@ def test_optional_gyro_uses_own_scaling(tmp_path, record, version):
 def test_absent_or_empty_gyro_is_optional(tmp_path, record, empty_gyro):
     if empty_gyro == "empty":
         gyro = copy.deepcopy(record["rawData"]["accelerometer"])
-        gyro.update(x=[], y=[], z=[], samplingFrequency=0., timestampStart=0)
+        gyro.update(x=[], y=[], z=[], samplingFrequency=0.0, timestampStart=0)
         record["rawData"]["gyroscope"] = gyro
     frame = load_sensor_file(write_avro(tmp_path / "accel.avro", [record]))
     assert len(frame) == 3
     assert not any(column.startswith("gyroscope") for column in frame)
 
 
-@pytest.mark.parametrize("field,value,expected", [
-    ("samplingFrequency", 0., "sampling frequency"),
-    ("samplingFrequency", float("nan"), "sampling frequency"),
-    ("x", [1.], "equal sample counts"),
-    ("x", [1., float("inf"), 3.], "finite numbers"),
-])
+@pytest.mark.parametrize(
+    "field,value,expected",
+    [
+        ("samplingFrequency", 0.0, "sampling frequency"),
+        ("samplingFrequency", float("nan"), "sampling frequency"),
+        ("x", [1.0], "equal sample counts"),
+        ("x", [1.0, float("inf"), 3.0], "finite numbers"),
+    ],
+)
 def test_invalid_motion_data_rejected(tmp_path, record, field, value, expected):
     record["rawData"]["accelerometer"][field] = value
     with pytest.raises(ValueError, match=expected):
         load_sensor_file(write_avro(tmp_path / "invalid.avro", [record]))
 
 
-@pytest.mark.parametrize("field,value", [
-    ("timestampStart", 1700000001000123), ("samplingFrequency", 20.),
-    ("x", [1., 2.]),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("timestampStart", 1700000001000123),
+        ("samplingFrequency", 20.0),
+        ("x", [1.0, 2.0]),
+    ],
+)
 def test_unaligned_or_incomplete_gyro_is_not_silently_paired(tmp_path, record, field, value):
     gyro = copy.deepcopy(record["rawData"]["accelerometer"])
     gyro[field] = value

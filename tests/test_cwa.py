@@ -1,4 +1,5 @@
 """Regressions for NumPy 2 and real Axivity fractional timestamps."""
+
 from importlib.resources import files
 
 import numpy as np
@@ -14,7 +15,9 @@ def test_official_cwa_sample_loading_and_gait():
     frame = load_sensor_file(source)
     assert len(frame) == 36400
     assert set(frame.columns) == {
-        "time", "time_dt", *{f"accelerometer_{axis}" for axis in "xyz"},
+        "time",
+        "time_dt",
+        *{f"accelerometer_{axis}" for axis in "xyz"},
         *{f"gyroscope_{axis}" for axis in "xyz"},
     }
     assert frame.time.iloc[0] == 0
@@ -39,21 +42,26 @@ def test_fractional_timestamp_arithmetic_does_not_wrap(frequency):
     # uint16 could silently wrap even before the NumPy 2 division exception.
     recording = CwaData.__new__(CwaData)
     recording.verbose = False
-    recording.data_format = {"deviceFractional": 0xffff, "frequency": frequency}
+    recording.data_format = {"deviceFractional": 0xFFFF, "frequency": frequency}
     packed = ((2025 - 2000) << 26) | (11 << 22) | (17 << 17) | (9 << 12) | 2
-    recording.df = pd.DataFrame({
-        "device_fractional": np.array([0xffff, 0xc000], dtype=np.uint16),
-        "timestamp_packed": np.array([packed, packed], dtype=np.uint32),
-        "timestamp_offset": np.array([-72, -50], dtype=np.int16),
-        "sample_index": [0, 40],
-    })
+    recording.df = pd.DataFrame(
+        {
+            "device_fractional": np.array([0xFFFF, 0xC000], dtype=np.uint16),
+            "timestamp_packed": np.array([packed, packed], dtype=np.uint32),
+            "timestamp_offset": np.array([-72, -50], dtype=np.int16),
+            "sample_index": [0, 40],
+        }
+    )
     recording._parse_times()
     fractions = [65534, 32768]
-    expected_offsets = [offset + (fraction * frequency) // 65536
-                        for offset, fraction in zip([-72, -50], fractions)]
+    expected_offsets = [
+        offset + (fraction * frequency) // 65536 for offset, fraction in zip([-72, -50], fractions)
+    ]
     assert recording.df.timestamp_offset.tolist() == expected_offsets
     np.testing.assert_allclose(
         recording.df.timestamp,
-        [1763370002 + fraction / 65536 for fraction in fractions], rtol=0, atol=1e-7,
+        [1763370002 + fraction / 65536 for fraction in fractions],
+        rtol=0,
+        atol=1e-7,
     )
     assert recording.df.timestamp_index.tolist() == [expected_offsets[0], 40 + expected_offsets[1]]

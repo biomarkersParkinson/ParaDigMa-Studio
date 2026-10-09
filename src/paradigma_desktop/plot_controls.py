@@ -1,4 +1,5 @@
 """One inline settings panel for each graph, without Matplotlib's two dialogs."""
+
 import math
 
 from matplotlib import dates
@@ -6,7 +7,13 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QCheckBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
 )
 
 from .theme import light_palette
@@ -16,8 +23,9 @@ from .plotting import autoscale_bars
 class GraphToolbar(NavigationToolbar2QT):
     # Subplot spacing and the generic figure editor overlap and inherit the
     # system dialog palette. Constrained layout already handles subplot spacing.
-    toolitems = tuple(item for item in NavigationToolbar2QT.toolitems
-                      if item[0] not in ("Subplots", "Customize"))
+    toolitems = tuple(
+        item for item in NavigationToolbar2QT.toolitems if item[0] not in ("Subplots", "Customize")
+    )
 
     def __init__(self, canvas, parent):
         super().__init__(canvas, parent, coordinates=False)
@@ -48,15 +56,21 @@ class GraphToolbar(NavigationToolbar2QT):
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
-        if self.settings._defaults is not None and self.settings._defaults[0] is not self.settings.axes():
+        if (
+            self.settings._defaults is not None
+            and self.settings._defaults[0] is not self.settings.axes()
+        ):
             self.settings._defaults = None
         self.settings.apply_visibility()
         if self.settings_action.isChecked():
             self.settings.read_axes()
 
     def press_zoom(self, event):
-        self._automatic_bar_y = [ax for ax in self.canvas.figure.axes
-                                 if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()]
+        self._automatic_bar_y = [
+            ax
+            for ax in self.canvas.figure.axes
+            if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()
+        ]
         super().press_zoom(event)
 
     def release_zoom(self, event):
@@ -65,8 +79,11 @@ class GraphToolbar(NavigationToolbar2QT):
         self._automatic_bar_y = []
 
     def press_pan(self, event):
-        self._automatic_bar_y = [ax for ax in self.canvas.figure.axes
-                                 if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()]
+        self._automatic_bar_y = [
+            ax
+            for ax in self.canvas.figure.axes
+            if getattr(ax, "_paradigma_bars", False) and ax.get_autoscaley_on()
+        ]
         super().press_pan(event)
         # Keep the drag transform stable; fit the final Y range once on release.
         if self._pan_info is not None:
@@ -122,8 +139,12 @@ class GraphSettings(QFrame):
             automatic = QCheckBox("Automatic")
             lower, upper = QLineEdit(), QLineEdit()
             automatic.setChecked(True)
-            automatic.toggled.connect(lambda checked, lo=lower, hi=upper:
-                                      (lo.setEnabled(not checked), hi.setEnabled(not checked)))
+            automatic.toggled.connect(
+                lambda checked, lo=lower, hi=upper: (
+                    lo.setEnabled(not checked),
+                    hi.setEnabled(not checked),
+                )
+            )
             for edit, name in ((lower, "minimum"), (upper, "maximum")):
                 edit.setEnabled(False)
                 edit.setMinimumWidth(60)
@@ -229,7 +250,9 @@ class GraphSettings(QFrame):
                 if automatic.isChecked():
                     limits[axis] = None
                     continue
-                is_date = isinstance(getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator)
+                is_date = isinstance(
+                    getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator
+                )
                 parse = dates.datestr2num if is_date else float
                 values = tuple(float(parse(edit.text().strip())) for edit in (lower, upper))
                 if not all(math.isfinite(value) for value in values) or values[0] >= values[1]:
@@ -251,7 +274,7 @@ class GraphSettings(QFrame):
             if bounds is None:
                 getattr(ax, f"set_autoscale{axis}_on")(True)
                 if axis == "y" and getattr(ax, "_paradigma_binary", False):
-                    ax.set_ylim(.65, 1.35)
+                    ax.set_ylim(0.65, 1.35)
                     ax.set_autoscaley_on(True)
                 else:
                     ax.autoscale_view(scalex=axis == "x", scaley=axis == "y")

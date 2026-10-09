@@ -1,4 +1,5 @@
 """A recording-time ruler outside the Results scrolling viewport."""
+
 from matplotlib import dates, ticker
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -8,6 +9,7 @@ from PySide6.QtCore import QPoint, Signal
 
 class RecordingTimeFormatter(ticker.Formatter):
     """Time on the first line; date at the first visible tick and day changes."""
+
     def __init__(self, timezone=None):
         self.timezone = timezone
         self._dates = {}
@@ -38,10 +40,14 @@ class RecordingTimeFormatter(ticker.Formatter):
         for stamp in visible.values():
             offsets.setdefault(stamp.strftime("%Y-%m-%d %H:%M"), set()).add(stamp.utcoffset())
         ticks = sorted(visible)
-        self._subsecond = any(0 < (second - first) * 86400 < .999
-                              for first, second in zip(ticks, ticks[1:]))
-        self._offset_ticks = {value for value, stamp in visible.items()
-                              if len(offsets[stamp.strftime("%Y-%m-%d %H:%M")]) > 1}
+        self._subsecond = any(
+            0 < (second - first) * 86400 < 0.999 for first, second in zip(ticks, ticks[1:])
+        )
+        self._offset_ticks = {
+            value
+            for value, stamp in visible.items()
+            if len(offsets[stamp.strftime("%Y-%m-%d %H:%M")]) > 1
+        }
 
     def __call__(self, value, pos=None):
         low, high = sorted(self.axis.get_view_interval())
@@ -66,13 +72,13 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
     label_changed = Signal(str)
 
     def __init__(self, source_canvas, label_source):
-        super().__init__(Figure(figsize=(8, .82)))
+        super().__init__(Figure(figsize=(8, 0.82)))
         self.setFixedHeight(42)
         self.setAccessibleName("Pinned recording time axis")
         self.source_canvas = source_canvas
         self.label_source = label_source
         self.figure.set_facecolor("white")
-        self.axes = self.figure.add_axes((.1, .84, .85, .1))
+        self.axes = self.figure.add_axes((0.1, 0.84, 0.85, 0.1))
         self.axes.yaxis.set_visible(False)
         for side in ("top", "right", "left"):
             self.axes.spines[side].set_visible(False)
@@ -83,18 +89,35 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         # The live label shares a Qt row with sensor inspection. Figure exports
         # retain the original Matplotlib axis label on the source canvas.
         self.axes.xaxis.label.set_visible(False)
-        self._label_text = ''
+        self._label_text = ""
         self._source = None
         self._source_connection = None
         self._sync_state = None
         self._selection_state = None
         self._deferred_draw = False
         self._date_timezone = None
-        self.selection_marker = Line2D([], [], marker="v", markersize=6, color="#465B73",
-                                       linestyle="none", transform=self.axes.get_xaxis_transform(), clip_on=False, zorder=5)
+        self.selection_marker = Line2D(
+            [],
+            [],
+            marker="v",
+            markersize=6,
+            color="#465B73",
+            linestyle="none",
+            transform=self.axes.get_xaxis_transform(),
+            clip_on=False,
+            zorder=5,
+        )
         self.axes.add_artist(self.selection_marker)
-        self.selection_label = self.axes.text(1, 1.35, "", transform=self.axes.transAxes,
-                                              ha="right", va="top", fontsize=8.5, color="#465B73")
+        self.selection_label = self.axes.text(
+            1,
+            1.35,
+            "",
+            transform=self.axes.transAxes,
+            ha="right",
+            va="top",
+            fontsize=8.5,
+            color="#465B73",
+        )
         self._selected_x = None
         self.set_selection(None)
         source_canvas.mpl_connect("draw_event", self.synchronize)
@@ -122,8 +145,8 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
                 self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
                 self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
         else:
-            self._label_text = ''
-            self.label_changed.emit('')
+            self._label_text = ""
+            self.label_changed.emit("")
             self.draw_idle()
         self.synchronize()
 
@@ -142,7 +165,11 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
 
     def _update_selection_visibility(self):
         low, high = sorted(self.axes.get_xlim())
-        visible = self._source is not None and self._selected_x is not None and low <= self._selected_x <= high
+        visible = (
+            self._source is not None
+            and self._selected_x is not None
+            and low <= self._selected_x <= high
+        )
         self.selection_marker.set_visible(visible)
 
     def synchronize(self, *_):
@@ -168,7 +195,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         if state == self._sync_state:
             return
         self._sync_state = state
-        self.axes.set_position((left, .84, max(.01, right - left), .1))
+        self.axes.set_position((left, 0.84, max(0.01, right - left), 0.1))
         self.axes.set_xlim(limits, emit=False)
         self._update_selection_visibility()
         self.axes.set_xlabel(text, labelpad=8)

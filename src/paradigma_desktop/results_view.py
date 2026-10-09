@@ -1,4 +1,5 @@
 """Presentation-only aggregate summaries and timelines for official results."""
+
 import re
 from functools import lru_cache
 import numpy as np
@@ -16,8 +17,10 @@ def gait_model_threshold(stage):
     from importlib.resources import files
     from paradigma.classification import ClassifierPackage
 
-    asset = {"detection": "gait_detection_clf_package.pkl",
-             "arm_activity": "gait_filtering_clf_package.pkl"}[stage]
+    asset = {
+        "detection": "gait_detection_clf_package.pkl",
+        "arm_activity": "gait_filtering_clf_package.pkl",
+    }[stage]
     return float(ClassifierPackage.load(files("paradigma.assets") / asset).threshold)
 
 
@@ -26,7 +29,12 @@ def plot_tables(tables):
     plots, labels = dict(tables), {}
     for stage, probability, indicator, title in (
         ("detection", "pred_gait_proba", "pred_gait_window", "Gait presence"),
-        ("arm_activity", "pred_no_other_arm_activity_proba", "pred_no_other_arm_activity_window", "Filtered gait presence"),
+        (
+            "arm_activity",
+            "pred_no_other_arm_activity_proba",
+            "pred_no_other_arm_activity_window",
+            "Filtered gait presence",
+        ),
     ):
         name = f"classifications/gait/{stage}"
         frame = tables.get(name)
@@ -43,13 +51,19 @@ def plot_tables(tables):
         name = f"quantifications/gait/{branch}"
         frame = tables.get(name)
         if frame is not None:
-            for metric, title in (("range_of_motion", "Range of motion"), ("peak_velocity", "Peak velocity")):
+            for metric, title in (
+                ("range_of_motion", "Range of motion"),
+                ("peak_velocity", "Peak velocity"),
+            ):
                 if metric in frame:
                     labels[(name, metric)] = f"{title} ({branch} gait)"
     for name, frame in tables.items():
-        if name.split('/')[1] == 'tremor':
-            for metric, title in (('pred_tremor_checked', 'Tremor presence (prediction)'),
-                                  ('pred_arm_at_rest', 'Arm at rest (prediction)'), ('tremor_power', 'Tremor power')):
+        if name.split("/")[1] == "tremor":
+            for metric, title in (
+                ("pred_tremor_checked", "Tremor presence (prediction)"),
+                ("pred_arm_at_rest", "Arm at rest (prediction)"),
+                ("tremor_power", "Tremor power"),
+            ):
                 if metric in frame:
                     labels[name, metric] = title
     return plots, labels
@@ -76,8 +90,16 @@ def binary_interval_ends(name, frame, times):
         default_step = None
     times = np.asarray(times, dtype=float)
     ends = times.copy()
-    keys = [column for column in (*PARTICIPANT_COLUMNS, "file_key", "data_segment_nr", "gait_segment_nr") if column in frame]
-    groups = frame.groupby(keys, sort=False, dropna=False).indices.values() if keys else [np.arange(len(frame))]
+    keys = [
+        column
+        for column in (*PARTICIPANT_COLUMNS, "file_key", "data_segment_nr", "gait_segment_nr")
+        if column in frame
+    ]
+    groups = (
+        frame.groupby(keys, sort=False, dropna=False).indices.values()
+        if keys
+        else [np.arange(len(frame))]
+    )
     for positions in groups:
         stamps = times[positions]
         gaps = np.diff(stamps)
@@ -89,8 +111,11 @@ def binary_interval_ends(name, frame, times):
             step = min(step, default_step)
         stops = stamps + step
         following = stamps[1:]
-        stops[:-1] = np.where(np.isfinite(following) & (following > stamps[:-1]),
-                              np.minimum(stops[:-1], following), stops[:-1])
+        stops[:-1] = np.where(
+            np.isfinite(following) & (following > stamps[:-1]),
+            np.minimum(stops[:-1], following),
+            stops[:-1],
+        )
         ends[positions] = stops
     return ends
 
@@ -111,29 +136,37 @@ def tremor_overview_entries(results):
     Power aggregates already use ParaDigMa's log10(power + 1) scale. Never
     transform them again or insert the derived rest percentage into outputs.
     """
-    aggregates = {path[-1]: (path, value) for path, value in
-                  flat_values(results.get('aggregations', {}).get('tremor', {})) if path}
-    titles = {'perc_windows_tremor': 'Percentage tremor during rest (%)',
-              'median_tremor_power': 'Median tremor power',
-              'modal_tremor_power': 'Modal tremor power',
-              '90p_tremor_power': '90th percentile tremor power'}
+    aggregates = {
+        path[-1]: (path, value)
+        for path, value in flat_values(results.get("aggregations", {}).get("tremor", {}))
+        if path
+    }
+    titles = {
+        "perc_windows_tremor": "Percentage tremor during rest (%)",
+        "median_tremor_power": "Median tremor power",
+        "modal_tremor_power": "Modal tremor power",
+        "90p_tremor_power": "90th percentile tremor power",
+    }
     for key in aggregates:
-        if key.endswith('_tremor_power') and key not in titles:
+        if key.endswith("_tremor_power") and key not in titles:
             titles[key] = readable_key(key)
     entries = []
     for key, title in titles.items():
         path, value = aggregates.get(key, ((key,), None))
-        explanation = ('Checked tremor-positive windows ÷ resting/stable windows × 100.'
-                       if key == 'perc_windows_tremor' else 'Official ParaDigMa aggregate of log10(tremor power + 1).')
-        entries.append(('Aggregates', path, title, value, explanation))
-    metadata = results.get('metadata', {}).get('tremor', {})
+        explanation = (
+            "Checked tremor-positive windows ÷ resting/stable windows × 100."
+            if key == "perc_windows_tremor"
+            else "Official ParaDigMa aggregate of log10(tremor power + 1)."
+        )
+        entries.append(("Aggregates", path, title, value, explanation))
+    metadata = results.get("metadata", {}).get("tremor", {})
     counts = {path[-1]: value for path, value in flat_values(metadata) if path}
-    rest, total = counts.get('nr_windows_rest'), counts.get('nr_windows_total')
+    rest, total = counts.get("nr_windows_rest"), counts.get("nr_windows_total")
     if rest is None or total is None:
         # Older result exports may lack aggregate metadata but retain the exact
         # quantification rows used by the official resting-window denominator.
-        frame = results.get('quantifications', {}).get('tremor')
-        if isinstance(frame, pd.DataFrame) and 'pred_arm_at_rest' in frame:
+        frame = results.get("quantifications", {}).get("tremor")
+        if isinstance(frame, pd.DataFrame) and "pred_arm_at_rest" in frame:
             rest, total = int(frame.pred_arm_at_rest.eq(1).sum()), len(frame)
     percentage = None
     try:
@@ -142,8 +175,15 @@ def tremor_overview_entries(results):
             percentage = rest / total * 100
     except (TypeError, ValueError, OverflowError):
         pass
-    entries.append(('Metadata', ('percentage_arm_at_rest',), 'Percentage arm at rest (%)', percentage,
-                    'Official resting/stable windows ÷ total quantified windows × 100.'))
+    entries.append(
+        (
+            "Metadata",
+            ("percentage_arm_at_rest",),
+            "Percentage arm at rest (%)",
+            percentage,
+            "Official resting/stable windows ÷ total quantified windows × 100.",
+        )
+    )
     return entries
 
 
@@ -161,9 +201,12 @@ def readable_key(key):
 
 
 def detail_tables(results):
-    return {name: frame for category in ("classifications", "quantifications")
-            for name, frame in result_tables(results.get(category, {}), category).items()
-            if isinstance(frame, pd.DataFrame)}
+    return {
+        name: frame
+        for category in ("classifications", "quantifications")
+        for name, frame in result_tables(results.get(category, {}), category).items()
+        if isinstance(frame, pd.DataFrame)
+    }
 
 
 def aggregation_tables(results):
@@ -182,8 +225,9 @@ def aggregation_tables(results):
                 for key, child in value.items():
                     collect(child, f"{path}/{key}")
             else:
-                tables[path] = pd.DataFrame({"measure": list(value),
-                                             "value": pd.Series(list(value.values()), dtype=object)})
+                tables[path] = pd.DataFrame(
+                    {"measure": list(value), "value": pd.Series(list(value.values()), dtype=object)}
+                )
         else:
             tables.update(result_tables(value, path))
 
@@ -196,10 +240,19 @@ def output_label(name):
     if name.startswith("preparation/"):
         return "Data coverage"
     parts = name.split("/")
-    module = MODULE_NAMES.get(parts[1], parts[1].replace("_", " ").title()) if len(parts) > 1 else name
-    stage = {"classifications": "Classification", "quantifications": "Quantification",
-             "aggregations": "Aggregation"}.get(parts[0], parts[0].title())
-    branch = " · " + " / ".join(part.replace("_", " ").title() for part in parts[2:]) if len(parts) > 2 else ""
+    module = (
+        MODULE_NAMES.get(parts[1], parts[1].replace("_", " ").title()) if len(parts) > 1 else name
+    )
+    stage = {
+        "classifications": "Classification",
+        "quantifications": "Quantification",
+        "aggregations": "Aggregation",
+    }.get(parts[0], parts[0].title())
+    branch = (
+        " · " + " / ".join(part.replace("_", " ").title() for part in parts[2:])
+        if len(parts) > 2
+        else ""
+    )
     return f"{module} · {stage}{branch}"
 
 
@@ -207,22 +260,48 @@ def plot_metrics(name, frame):
     if name.startswith("preparation/"):
         return ["available"]
     metrics = measurement_columns(frame)
-    if name.split('/')[1] == 'tremor':
-        metrics = [column for column in metrics if column not in ('pred_tremor_proba', 'pred_tremor_logreg')]
+    if name.split("/")[1] == "tremor":
+        metrics = [
+            column
+            for column in metrics
+            if column not in ("pred_tremor_proba", "pred_tremor_logreg")
+        ]
     if name.startswith("quantifications/tremor"):
-        metrics = [column for column in metrics if column not in ("pred_arm_at_rest", "pred_tremor_checked")]
+        metrics = [
+            column
+            for column in metrics
+            if column not in ("pred_arm_at_rest", "pred_tremor_checked")
+        ]
     if name.startswith("classifications/"):
-        predictions = [column for column in metrics if str(column).startswith("pred_")
-                       or "proba" in str(column) or "probability" in str(column)]
+        predictions = [
+            column
+            for column in metrics
+            if str(column).startswith("pred_")
+            or "proba" in str(column)
+            or "probability" in str(column)
+        ]
         return predictions or metrics
     return metrics
 
 
 def preferred_metric(name, frame):
     metrics = plot_metrics(name, frame)
-    return next((column for column in ("range_of_motion", "tremor_power", "pulse_rate", "heart_rate",
-                "pred_gait_proba", "pred_tremor_proba", "pred_sqa_proba") if column in metrics),
-                metrics[0] if metrics else None)
+    return next(
+        (
+            column
+            for column in (
+                "range_of_motion",
+                "tremor_power",
+                "pulse_rate",
+                "heart_rate",
+                "pred_gait_proba",
+                "pred_tremor_proba",
+                "pred_sqa_proba",
+            )
+            if column in metrics
+        ),
+        metrics[0] if metrics else None,
+    )
 
 
 def detail_timing(results, name, frame):
@@ -244,11 +323,19 @@ def detail_timing(results, name, frame):
             context = gait_context(results, name, frame.iloc[positions[0]])
             if context is not None:
                 start, end, _ = context
-                times[positions] = start + (np.arange(len(positions)) + .5) / len(positions) * (end - start)
+                times[positions] = start + (np.arange(len(positions)) + 0.5) / len(positions) * (
+                    end - start
+                )
                 starts[positions], ends[positions] = start, end
                 basis[positions] = "Estimated within gait segment"
-    return pd.DataFrame({"Analysis time (s)": times, "Time basis": basis,
-                         "Segment start (s)": starts, "Segment end (s)": ends})
+    return pd.DataFrame(
+        {
+            "Analysis time (s)": times,
+            "Time basis": basis,
+            "Segment start (s)": starts,
+            "Segment end (s)": ends,
+        }
+    )
 
 
 def recording_clock(frame, settings, timeline=None):
@@ -258,8 +345,12 @@ def recording_clock(frame, settings, timeline=None):
     try:
         timeline = source_timeline(frame, settings) if timeline is None else timeline
         mapped = frame.rename(columns=settings.get("column_mapping", {}), copy=False)
-        candidates = [column for column in frame if str(column).lower() in ("time_dt", "datetime", "timestamp")
-                      or pd.api.types.is_datetime64_any_dtype(frame[column].dtype)]
+        candidates = [
+            column
+            for column in frame
+            if str(column).lower() in ("time_dt", "datetime", "timestamp")
+            or pd.api.types.is_datetime64_any_dtype(frame[column].dtype)
+        ]
         for column in candidates:
             if pd.api.types.is_numeric_dtype(frame[column].dtype):
                 continue
@@ -268,22 +359,32 @@ def recording_clock(frame, settings, timeline=None):
             if valid.any():
                 index = np.flatnonzero(valid)[0]
                 origin = stamps.iloc[index] - pd.to_timedelta(timeline[index], unit="s")
-                return {"origin": origin.isoformat(), "source": str(column),
-                        "timezone": str(origin.tz) if origin.tz is not None else None}
+                return {
+                    "origin": origin.isoformat(),
+                    "source": str(column),
+                    "timezone": str(origin.tz) if origin.tz is not None else None,
+                }
         unit = settings.get("time_input_unit", "relative_s")
         if unit.startswith("absolute") and not settings.get("skip_preparation", False):
-            raw = pd.to_numeric(mapped["time"], errors="coerce").to_numpy(dtype=float, na_value=np.nan)
+            raw = pd.to_numeric(mapped["time"], errors="coerce").to_numpy(
+                dtype=float, na_value=np.nan
+            )
             valid = np.isfinite(raw) & np.isfinite(timeline)
             if valid.any():
                 index = np.flatnonzero(valid)[0]
-                origin = pd.to_datetime(raw[index], unit="ms" if unit.endswith("ms") else "s", utc=True)
+                origin = pd.to_datetime(
+                    raw[index], unit="ms" if unit.endswith("ms") else "s", utc=True
+                )
                 origin -= pd.to_timedelta(timeline[index], unit="s")
                 return {"origin": origin.isoformat(), "source": unit, "timezone": "UTC"}
         start = frame.attrs.get("desktop_recording_start")
         if start is not None and np.isfinite(timeline[0]):
             origin = pd.Timestamp(start) - pd.to_timedelta(timeline[0], unit="s")
-            return {"origin": origin.isoformat(), "source": "Recording metadata",
-                    "timezone": str(origin.tz) if origin.tz is not None else None}
+            return {
+                "origin": origin.isoformat(),
+                "source": "Recording metadata",
+                "timezone": str(origin.tz) if origin.tz is not None else None,
+            }
     except (ValueError, TypeError, KeyError, OverflowError):
         pass
     return None
@@ -326,17 +427,26 @@ def segment_summary(metadata):
         durations = []
         for segment in segments.values():
             try:
-                length = float(segment["duration_s"]) if "duration_s" in segment else float(segment["end_s"]) - float(segment["start_s"])
+                length = (
+                    float(segment["duration_s"])
+                    if "duration_s" in segment
+                    else float(segment["end_s"]) - float(segment["start_s"])
+                )
                 if np.isfinite(length) and length >= 0:
                     durations.append(length)
             except (ValueError, TypeError, KeyError):
                 pass
         summary = {"Segment count": len(segments), "Segments with valid duration": len(durations)}
         if durations:
-            q1, median, q3 = np.quantile(durations, [.25, .5, .75])
-            summary.update({"Total duration (s)": sum(durations), "Median duration (s)": median,
-                            "Duration IQR (s)": q3 - q1,
-                            "Duration range (s)": f"{min(durations):.5g} – {max(durations):.5g}"})
+            q1, median, q3 = np.quantile(durations, [0.25, 0.5, 0.75])
+            summary.update(
+                {
+                    "Total duration (s)": sum(durations),
+                    "Median duration (s)": median,
+                    "Duration IQR (s)": q3 - q1,
+                    "Duration range (s)": f"{min(durations):.5g} – {max(durations):.5g}",
+                }
+            )
         summaries[branch] = summary
     return summaries
 
@@ -377,8 +487,11 @@ def normalise_clock(clock):
         raise ValueError("Enter a valid time origin.")
     if stamp.tz is not None and clock.get("timezone"):
         stamp = stamp.tz_convert(clock["timezone"])
-    return {"origin": stamp.isoformat(), "source": str(clock.get("source", "Stored display clock")),
-            "timezone": str(stamp.tz) if stamp.tz is not None else None}
+    return {
+        "origin": stamp.isoformat(),
+        "source": str(clock.get("source", "Stored display clock")),
+        "timezone": str(stamp.tz) if stamp.tz is not None else None,
+    }
 
 
 def analysis_alignment(frame, settings, results, saved_offsets=None):
@@ -392,8 +505,11 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
         if module in MODULE_NAMES and isinstance(value, (int, float)) and np.isfinite(value):
             offsets[module] = float(value)
         elif module in MODULE_NAMES and isinstance(value, dict):
-            offsets[module] = {key: float(offset) for key, offset in value.items()
-                               if isinstance(key, str) and isinstance(offset, (int, float)) and np.isfinite(offset)}
+            offsets[module] = {
+                key: float(offset)
+                for key, offset in value.items()
+                if isinstance(key, str) and isinstance(offset, (int, float)) and np.isfinite(offset)
+            }
     if frame is None:
         return None, {}, offsets
     groups = results.get("metadata", {}).get("desktop_preparation", {}).get("analysis_groups")
@@ -417,7 +533,11 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
             if common is None:
                 common = timeline
             valid = np.isfinite(common) & np.isfinite(timeline)
-            offset = float(common[np.flatnonzero(valid)[0]] - timeline[np.flatnonzero(valid)[0]]) if valid.any() else 0.
+            offset = (
+                float(common[np.flatnonzero(valid)[0]] - timeline[np.flatnonzero(valid)[0]])
+                if valid.any()
+                else 0.0
+            )
             for module in group:
                 timelines[module], offsets[module] = timeline, offset
         except (ValueError, TypeError, KeyError, OverflowError):

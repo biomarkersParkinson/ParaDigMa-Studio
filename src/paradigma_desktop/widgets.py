@@ -1,11 +1,40 @@
 """Shared Qt controls and layouts; no analysis or application state."""
+
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex, Qt, QEvent, QEasingCurve, QVariantAnimation, Signal, QRect, QSize
+from PySide6.QtCore import (
+    QAbstractAnimation,
+    QAbstractTableModel,
+    QModelIndex,
+    Qt,
+    QEvent,
+    QEasingCurve,
+    QVariantAnimation,
+    Signal,
+    QRect,
+    QSize,
+)
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget, QStyledItemDelegate, QStyleOptionViewItem,
+    QAbstractItemView,
+    QComboBox,
+    QFrame,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QTableView,
+    QVBoxLayout,
+    QHBoxLayout,
+    QBoxLayout,
+    QWidget,
+    QTabBar,
+    QStylePainter,
+    QStyleOptionTab,
+    QStyle,
+    QSizePolicy,
+    QTreeWidget,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
 )
 from .theme import light_palette, module_color
 
@@ -17,6 +46,7 @@ class WrappedForm(QWidget):
     on that hint can clip QFormLayout.WrapLongRows at narrower Windows widths.
     Help lives outside this widget, so it cannot alter the reserved form height.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -39,7 +69,11 @@ class WrappedForm(QWidget):
         layout = self.layout()
         if layout is None:
             return -1
-        height = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else layout.sizeHint().height()
+        height = (
+            layout.totalHeightForWidth(width)
+            if layout.hasHeightForWidth()
+            else layout.sizeHint().height()
+        )
         return max(height, layout.minimumSize().height())
 
     def resizeEvent(self, event):
@@ -61,6 +95,7 @@ class AdaptiveFormColumns(QHBoxLayout):
     Height queries do not change direction, so measuring help cannot reflow
     the fields; only the actual layout width determines their arrangement.
     """
+
     def __init__(self, left, right, *, right_stretch=1):
         super().__init__()
         self.setContentsMargins(0, 0, 0, 0)
@@ -71,8 +106,10 @@ class AdaptiveFormColumns(QHBoxLayout):
     def minimumSize(self):
         sizes = [self.itemAt(index).minimumSize() for index in range(self.count())]
         margins = self.contentsMargins()
-        return QSize(max(size.width() for size in sizes) + margins.left() + margins.right(),
-                     max(size.height() for size in sizes) + margins.top() + margins.bottom())
+        return QSize(
+            max(size.width() for size in sizes) + margins.left() + margins.right(),
+            max(size.height() for size in sizes) + margins.top() + margins.bottom(),
+        )
 
     def _column_widths(self, width):
         minimums = [self.itemAt(index).minimumSize().width() for index in range(self.count())]
@@ -81,8 +118,11 @@ class AdaptiveFormColumns(QHBoxLayout):
         available = width - self.spacing()
         # A field with an action gives the action its preferred width, leaving
         # the rest for the editor. Two parameter columns share available space.
-        preferred_left = (available - self.itemAt(1).sizeHint().width()
-                          if self.stretch(1) == 0 else available // 2)
+        preferred_left = (
+            available - self.itemAt(1).sizeHint().width()
+            if self.stretch(1) == 0
+            else available // 2
+        )
         left = max(minimums[0], min(preferred_left, available - minimums[1]))
         return left, available - left
 
@@ -97,7 +137,11 @@ class AdaptiveFormColumns(QHBoxLayout):
         for index in range(self.count()):
             item = self.itemAt(index)
             child_width = width if widths is None else widths[index]
-            height = item.heightForWidth(child_width) if item.hasHeightForWidth() else item.sizeHint().height()
+            height = (
+                item.heightForWidth(child_width)
+                if item.hasHeightForWidth()
+                else item.sizeHint().height()
+            )
             heights.append(max(height, item.minimumSize().height()))
         height = sum(heights) + self.spacing() if widths is None else max(heights)
         return height + margins.top() + margins.bottom()
@@ -105,7 +149,9 @@ class AdaptiveFormColumns(QHBoxLayout):
     def setGeometry(self, rect):
         margins = self.contentsMargins()
         width = rect.width() - margins.left() - margins.right()
-        direction = QBoxLayout.TopToBottom if self._column_widths(width) is None else QBoxLayout.LeftToRight
+        direction = (
+            QBoxLayout.TopToBottom if self._column_widths(width) is None else QBoxLayout.LeftToRight
+        )
         if self.direction() != direction:
             self.setDirection(direction)
         super().setGeometry(rect)
@@ -113,6 +159,7 @@ class AdaptiveFormColumns(QHBoxLayout):
 
 class SeriesLabelDelegate(QStyledItemDelegate):
     """Reserve wrapped row heights instead of shortening long metric names."""
+
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
         option.textElideMode = Qt.ElideNone
@@ -128,13 +175,16 @@ class SeriesLabelDelegate(QStyledItemDelegate):
             parent = parent.parent()
         check_width = 32 if index.data(Qt.CheckStateRole) is not None else 0
         width = max(40, tree.viewport().width() - depth * tree.indentation() - check_width - 12)
-        text = styled.fontMetrics.boundingRect(QRect(0, 0, width, 10000), Qt.TextWordWrap, styled.text)
+        text = styled.fontMetrics.boundingRect(
+            QRect(0, 0, width, 10000), Qt.TextWordWrap, styled.text
+        )
         hint = super().sizeHint(styled, index)
         return QSize(hint.width(), max(hint.height(), text.height() + 10))
 
 
 class SeriesTree(QTreeWidget):
     """Module titles toggle expansion; native arrows and leaf checks still work."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setItemDelegate(SeriesLabelDelegate(self))
@@ -146,8 +196,12 @@ class SeriesTree(QTreeWidget):
     def mouseReleaseEvent(self, event):
         position = event.position().toPoint()
         item = self.itemAt(position)
-        title_clicked = (event.button() == Qt.LeftButton and item is not None and item.parent() is None
-                         and self.visualItemRect(item).contains(position))
+        title_clicked = (
+            event.button() == Qt.LeftButton
+            and item is not None
+            and item.parent() is None
+            and self.visualItemRect(item).contains(position)
+        )
         expanded = item.isExpanded() if item is not None else False
         super().mouseReleaseEvent(event)
         if title_clicked:
@@ -156,6 +210,7 @@ class SeriesTree(QTreeWidget):
 
 class FigureActionBar(QWidget):
     """Keep the complete toolbar visible; wrap context controls when needed."""
+
     def __init__(self, toolbar, parent=None):
         super().__init__(parent)
         self.toolbar, self.context = toolbar, None
@@ -190,7 +245,9 @@ class FigureActionBar(QWidget):
         hint = super().minimumSizeHint()
         margins = self.layout().contentsMargins()
         context_width = self.context.minimumSizeHint().width() if self.context is not None else 0
-        hint.setWidth(max(self.toolbar.sizeHint().width(), context_width) + margins.left() + margins.right())
+        hint.setWidth(
+            max(self.toolbar.sizeHint().width(), context_width) + margins.left() + margins.right()
+        )
         return hint
 
     def _arrange(self):
@@ -198,7 +255,11 @@ class FigureActionBar(QWidget):
             return
         margins = self.layout().contentsMargins()
         available = self.width() - margins.left() - margins.right()
-        required = self.toolbar.sizeHint().width() + self.context.sizeHint().width() + self.primary.spacing()
+        required = (
+            self.toolbar.sizeHint().width()
+            + self.context.sizeHint().width()
+            + self.primary.spacing()
+        )
         wrapped = required > available
         target = self.secondary_layout if wrapped else self.primary
         if target.indexOf(self.context) < 0:
@@ -222,6 +283,7 @@ class FigureActionBar(QWidget):
 
 class ModuleTabBar(QTabBar):
     """Keep module text and selected underline in the same module colors."""
+
     def paintEvent(self, event):
         painter = QStylePainter(self)
         for index in range(self.count()):
@@ -230,7 +292,11 @@ class ModuleTabBar(QTabBar):
             text = option.text
             option.text = ""
             painter.drawControl(QStyle.CE_TabBarTabShape, option)
-            color = QColor(module_color(self.tabData(index))) if self.isTabEnabled(index) else QColor("#99A4B4")
+            color = (
+                QColor(module_color(self.tabData(index)))
+                if self.isTabEnabled(index)
+                else QColor("#99A4B4")
+            )
             font = self.font()
             font.setBold(index == self.currentIndex())
             painter.setFont(font)
@@ -242,6 +308,7 @@ class ModuleTabBar(QTabBar):
 
 class HoverSidebar(QFrame):
     """A compact rail that unfolds over the workspace without moving content."""
+
     expandedChanged = Signal(bool)
     rail_width = 68
     expanded_width = 194
@@ -300,7 +367,11 @@ class HoverSidebar(QFrame):
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() == QEvent.Resize:
             self.fit_content()
-            width = self.expanded_width if self.expanded and self.animation.state() != QAbstractAnimation.Running else self.width()
+            width = (
+                self.expanded_width
+                if self.expanded and self.animation.state() != QAbstractAnimation.Running
+                else self.width()
+            )
             self._resize(width)
         return super().eventFilter(watched, event)
 
@@ -329,8 +400,16 @@ class FrameModel(QAbstractTableModel):
             if column not in self._column_values:
                 self._column_values[column] = self.frame.iloc[:, column].array
             value = self._column_values[column][index.row()]
-            if self.compact and role == Qt.DisplayRole and (value is pd.NA or value is None
-                    or isinstance(value, (float, np.floating)) and np.isnan(value)):
+            if (
+                self.compact
+                and role == Qt.DisplayRole
+                and (
+                    value is pd.NA
+                    or value is None
+                    or isinstance(value, (float, np.floating))
+                    and np.isnan(value)
+                )
+            ):
                 return "—"
             if self.compact and role == Qt.DisplayRole and isinstance(value, (float, np.floating)):
                 return f"{value:.5g}"
@@ -338,7 +417,11 @@ class FrameModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role in (Qt.DisplayRole, Qt.ToolTipRole):
-            return str(self.frame.columns[section]) if orientation == Qt.Horizontal else str(section + 1)
+            return (
+                str(self.frame.columns[section])
+                if orientation == Qt.Horizontal
+                else str(section + 1)
+            )
 
 
 class ReadableComboBox(QComboBox):
@@ -375,8 +458,10 @@ class ReadableTable(QTableView):
             self.ensurePolished()
             self.horizontalHeader().ensurePolished()
             metrics = self.horizontalHeader().fontMetrics()
-            self._heading_widths = [metrics.horizontalAdvance(str(model.headerData(i, Qt.Horizontal))) + 28
-                                    for i in range(model.columnCount())]
+            self._heading_widths = [
+                metrics.horizontalAdvance(str(model.headerData(i, Qt.Horizontal))) + 28
+                for i in range(model.columnCount())
+            ]
             self.resizeColumnsToContents()
 
     def resizeColumnsToContents(self):

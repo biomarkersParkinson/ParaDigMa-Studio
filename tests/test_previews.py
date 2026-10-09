@@ -1,4 +1,5 @@
 """Responsiveness and correctness of background recording previews."""
+
 from threading import Event, get_ident
 import time
 
@@ -21,7 +22,7 @@ def wait_until(predicate):
     deadline = time.monotonic() + 10
     while not predicate() and time.monotonic() < deadline:
         QApplication.instance().processEvents()
-        time.sleep(.01)
+        time.sleep(0.01)
     assert predicate(), "Background preview did not finish"
 
 
@@ -144,10 +145,44 @@ def test_preview_failure_leaves_controls_usable_and_can_recover(window):
         preview.shutdown()
 
 
-def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutating_inputs(window, monkeypatch):
+def test_failed_preview_can_retry_the_same_key_without_poisoning_cached_none(window):
+    preview = CachedPreview(window, delay=5)
+    values, failures = [], []
+    preview.value_ready.connect(values.append)
+    preview.failed.connect(failures.append)
+
+    def transient_failure():
+        raise OSError("Temporary read failure")
+
+    try:
+        preview.request("recording", transient_failure)
+        wait_until(lambda: not preview.pending)
+        assert failures == ["OSError: Temporary read failure"]
+        assert not preview.is_requested("recording")
+        preview.request("recording", lambda: "Recovered")
+        wait_until(lambda: not preview.pending)
+        assert values == [None, "Recovered"]
+        # None is still a valid successful preview, for example no date origin.
+        preview.request("no clock", lambda: None)
+        wait_until(lambda: not preview.pending)
+        preview.cancel_pending()
+        preview.request("no clock", lambda: pytest.fail("Successful None must be cached"))
+        assert values[-1] is None and not preview.pending
+    finally:
+        preview.shutdown()
+
+
+def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutating_inputs(
+    window, monkeypatch
+):
     start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
-    frame = pd.DataFrame({"time": [1000., 1001., 1002.], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s"),
-                          **{f"gyroscope_{axis}": [np.nan, 1., 2.] for axis in "xyz"}})
+    frame = pd.DataFrame(
+        {
+            "time": [1000.0, 1001.0, 1002.0],
+            "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s"),
+            **{f"gyroscope_{axis}": [np.nan, 1.0, 2.0] for axis in "xyz"},
+        }
+    )
     original = frame.copy(deep=True)
     calls = []
     gui_thread = get_ident()
@@ -171,7 +206,11 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
     window.time.setCurrentText("absolute_s")
     window.drop_missing.setChecked(True)
     wait_for_previews(window)
-    settings = {"time_input_unit": "absolute_s", "pipelines": ["tremor"], "drop_missing_samples": True}
+    settings = {
+        "time_input_unit": "absolute_s",
+        "pipelines": ["tremor"],
+        "drop_missing_samples": True,
+    }
     expected = recording_clock(frame, settings, analysis_alignment(frame, settings, {})[0])
     assert window.clock_input.text() == expected["origin"]
     assert all(thread != gui_thread for thread in calls)
@@ -182,8 +221,10 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
     pd.testing.assert_frame_equal(frame, original, check_exact=True)
 
 
-def test_time_and_sensor_descriptives_update_in_background_and_keep_source_values(window, monkeypatch):
-    frame = pd.DataFrame({"device_ticks": [0., 10., 20.], "gyroscope_x": [1., 2., 3.]})
+def test_time_and_sensor_descriptives_update_in_background_and_keep_source_values(
+    window, monkeypatch
+):
+    frame = pd.DataFrame({"device_ticks": [0.0, 10.0, 20.0], "gyroscope_x": [1.0, 2.0, 3.0]})
     original = frame.copy(deep=True)
     gui_thread, threads = get_ident(), []
     for name in ("time_descriptives", "sensor_descriptives"):
@@ -198,18 +239,33 @@ def test_time_and_sensor_descriptives_update_in_background_and_keep_source_value
     window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("device_ticks"))
     window.data_time_unit.setCurrentText("relative_ms")
     wait_for_previews(window)
-    pd.testing.assert_frame_equal(window.time_table.model().frame, time_descriptives(frame.device_ticks, "relative_ms"))
-    pd.testing.assert_frame_equal(window.channel_table.model().frame, sensor_descriptives(frame, "device_ticks"))
+    pd.testing.assert_frame_equal(
+        window.time_table.model().frame, time_descriptives(frame.device_ticks, "relative_ms")
+    )
+    pd.testing.assert_frame_equal(
+        window.channel_table.model().frame, sensor_descriptives(frame, "device_ticks")
+    )
     assert threads and all(thread != gui_thread for thread in threads)
     assert window.time_table.isEnabled() and window.channel_table.isEnabled()
     pd.testing.assert_frame_equal(frame, original, check_exact=True)
 
 
 def test_restoring_custom_origin_remains_editable_and_is_not_overwritten(window):
-    frame = pd.DataFrame({"time": [0., 1.], "time_dt": pd.date_range("2026-10-07", periods=2, freq="s")})
+    frame = pd.DataFrame(
+        {"time": [0.0, 1.0], "time_dt": pd.date_range("2026-10-07", periods=2, freq="s")}
+    )
     window.loaded(("sensor.csv", frame))
-    clock = {"origin": "2020-01-01T08:00:00+02:00", "timezone": "Europe/Amsterdam", "source": "User supplied"}
-    window.selected_run = {"settings": {"pipelines": ["tremor"], "plot_time_origin": {"mode": "custom", "clock": clock}}}
+    clock = {
+        "origin": "2020-01-01T08:00:00+02:00",
+        "timezone": "Europe/Amsterdam",
+        "source": "User supplied",
+    }
+    window.selected_run = {
+        "settings": {
+            "pipelines": ["tremor"],
+            "plot_time_origin": {"mode": "custom", "clock": clock},
+        }
+    }
     window.use_run_parameters()
     wait_for_previews(window)
     assert window.clock_input.isEnabled() and window.clock_input.text() == clock["origin"]

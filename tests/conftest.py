@@ -1,4 +1,5 @@
 """Give headless Qt tests enough screen space for the desktop workspace."""
+
 import os
 from pathlib import Path
 import pytest
@@ -8,11 +9,12 @@ def wait_for_previews(window):
     """Process Qt delivery while read-only recording previews finish in workers."""
     import time
     from PySide6.QtWidgets import QApplication
+
     previews = (window._origin_preview, window._time_preview, window._sensor_preview)
     deadline = time.monotonic() + 10
     while any(preview.pending for preview in previews) and time.monotonic() < deadline:
         QApplication.instance().processEvents()
-        time.sleep(.01)  # Let Python imports/scans in the executor acquire the GIL.
+        time.sleep(0.01)  # Let Python imports/scans in the executor acquire the GIL.
     assert not any(preview.pending for preview in previews), "Recording previews did not finish"
     QApplication.instance().processEvents()
 
@@ -34,6 +36,7 @@ def release_closed_desktop_windows():
     yield
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication
+
     app = QApplication.instance()
     if app is not None:
         for widget in app.topLevelWidgets():
@@ -45,16 +48,27 @@ def release_closed_desktop_windows():
 
 def bar_values(axes):
     import numpy as np
+
     return np.array([path.vertices[1, 1] for path in axes.collections[0].get_paths()])
 
 
 def bar_starts(axes):
     import numpy as np
-    return np.array([path.vertices[:, 0].min() - np.ptp(path.vertices[:, 0]) * .08 / .84
-                     for path in axes.collections[0].get_paths()])
+
+    return np.array(
+        [
+            path.vertices[:, 0].min() - np.ptp(path.vertices[:, 0]) * 0.08 / 0.84
+            for path in axes.collections[0].get_paths()
+        ]
+    )
 
 
 def bar_centers(axes):
     import numpy as np
-    return np.array([(path.vertices[:, 0].min() + path.vertices[:, 0].max()) / 2
-                     for path in axes.collections[0].get_paths()])
+
+    return np.array(
+        [
+            (path.vertices[:, 0].min() + path.vertices[:, 0].max()) / 2
+            for path in axes.collections[0].get_paths()
+        ]
+    )

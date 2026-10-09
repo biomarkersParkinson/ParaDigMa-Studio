@@ -1,0 +1,525 @@
+{
+  "review_date": "2026-10-09",
+  "baseline_version": "0.5.22",
+  "baseline_commit": "1f495f6498763574762b51d5e45b80f2616e6f26",
+  "refactored_version": "0.5.23",
+  "scope": "Warm Linux offscreen/Fusion workflow measurements; structural refactoring regression check. Native Windows measurements run in CI.",
+  "before": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "python": "3.12.14",
+    "qt_platform": "offscreen",
+    "versions": {
+      "paradigma": "1.1.2",
+      "PySide6": "6.11.2",
+      "matplotlib": "3.11.2",
+      "pandas": "2.3.3",
+      "numpy": "2.5.3"
+    },
+    "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; synthetic inputs and temporary history/exports only.",
+    "sensor_rows": 250000,
+    "output_rows_per_table": 30000,
+    "history_records": 200,
+    "export_bytes": {
+      "JSON": 6065028,
+      "CSV ZIP": 168997
+    },
+    "workflows": {
+      "LOAD UI": {
+        "seconds": [
+          0.05524488998344168,
+          0.05247779001365416,
+          0.05261948599945754
+        ],
+        "median_seconds": 0.05261948599945754
+      },
+      "ANALYZE OPTIONS 10": {
+        "seconds": [
+          0.013268358015920967,
+          0.0066795049933716655,
+          0.006702118000248447
+        ],
+        "median_seconds": 0.006702118000248447
+      },
+      "NAVIGATE 12": {
+        "seconds": [
+          0.08808028200292028,
+          0.08767701001488604,
+          0.0842402960115578
+        ],
+        "median_seconds": 0.08767701001488604
+      },
+      "RECORDING SWITCH 12": {
+        "seconds": [
+          0.6503939920221455,
+          0.47702428500633687,
+          0.47614960599457845
+        ],
+        "median_seconds": 0.47702428500633687
+      },
+      "DATA CHANNELS 4": {
+        "seconds": [
+          0.3121787490090355,
+          0.30049973700079136,
+          0.3051907249900978
+        ],
+        "median_seconds": 0.3051907249900978
+      },
+      "RESULTS LOAD": {
+        "seconds": [
+          0.3145537219825201,
+          0.2021731760178227,
+          0.23940538501483388
+        ],
+        "median_seconds": 0.23940538501483388
+      },
+      "GRAPHS SHOW": {
+        "seconds": [
+          0.43149998600711115,
+          0.5786786839889828,
+          0.39003358301124536
+        ],
+        "median_seconds": 0.43149998600711115
+      },
+      "SELECT SERIES 3": {
+        "seconds": [
+          1.5057047510053962,
+          1.280636465002317,
+          1.256228360987734
+        ],
+        "median_seconds": 1.280636465002317
+      },
+      "SELECT EPOCH SERIES 3": {
+        "seconds": [
+          0.6167672739829868,
+          0.7373259709856939,
+          0.6888945210084785
+        ],
+        "median_seconds": 0.6888945210084785
+      },
+      "SELECT ROWS 10": {
+        "seconds": [
+          0.2579569560184609,
+          0.23651690399856307,
+          0.23570236301748082
+        ],
+        "median_seconds": 0.23651690399856307
+      },
+      "GRAPH CLICKS 10": {
+        "seconds": [
+          0.28439436497865245,
+          0.2493573359970469,
+          0.25302589597413316
+        ],
+        "median_seconds": 0.25302589597413316
+      },
+      "TABLE TIMING 4": {
+        "seconds": [
+          0.19932703400263563,
+          0.17987013200763613,
+          0.18306969199329615
+        ],
+        "median_seconds": 0.18306969199329615
+      },
+      "TABLE SWITCH 10": {
+        "seconds": [
+          0.24098355098976754,
+          0.22613434298546053,
+          0.22132004500599578
+        ],
+        "median_seconds": 0.22613434298546053
+      },
+      "EXPORT JSON": {
+        "seconds": [
+          0.2815590849786531,
+          0.2743149219895713,
+          0.28032831801101565
+        ],
+        "median_seconds": 0.28032831801101565
+      },
+      "EXPORT CSV ZIP": {
+        "seconds": [
+          0.1643851049884688,
+          0.15950360998976976,
+          0.1588554049958475
+        ],
+        "median_seconds": 0.15950360998976976
+      },
+      "HISTORY LOAD 200": {
+        "seconds": [
+          0.006329588999506086,
+          0.005674320011166856,
+          0.004796819994226098
+        ],
+        "median_seconds": 0.005674320011166856
+      },
+      "RUNS REFRESH": {
+        "seconds": [
+          0.026764375012135133,
+          0.02685799601022154,
+          0.026763200003188103
+        ],
+        "median_seconds": 0.026764375012135133
+      },
+      "RUNS SELECT 10": {
+        "seconds": [
+          0.05234253499656916,
+          0.06315042998176068,
+          0.06257224999717437
+        ],
+        "median_seconds": 0.06257224999717437
+      }
+    }
+  },
+  "after": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "python": "3.12.14",
+    "qt_platform": "offscreen",
+    "versions": {
+      "paradigma": "1.1.2",
+      "PySide6": "6.11.2",
+      "matplotlib": "3.11.2",
+      "pandas": "2.3.3",
+      "numpy": "2.5.3"
+    },
+    "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; synthetic inputs and temporary history/exports only.",
+    "sensor_rows": 250000,
+    "output_rows_per_table": 30000,
+    "history_records": 200,
+    "export_bytes": {
+      "JSON": 6065028,
+      "CSV ZIP": 168997
+    },
+    "workflows": {
+      "LOAD UI": {
+        "seconds": [
+          0.0533486689964775,
+          0.0562366189842578,
+          0.05178550200071186
+        ],
+        "median_seconds": 0.0533486689964775
+      },
+      "ANALYZE OPTIONS 10": {
+        "seconds": [
+          0.013161795999621972,
+          0.006753146008122712,
+          0.006899508007336408
+        ],
+        "median_seconds": 0.006899508007336408
+      },
+      "NAVIGATE 12": {
+        "seconds": [
+          0.08847043899004348,
+          0.08213202300248668,
+          0.08705212999484502
+        ],
+        "median_seconds": 0.08705212999484502
+      },
+      "RECORDING SWITCH 12": {
+        "seconds": [
+          0.6154984640015755,
+          0.47657091700239107,
+          0.47622609499376267
+        ],
+        "median_seconds": 0.47657091700239107
+      },
+      "DATA CHANNELS 4": {
+        "seconds": [
+          0.3098624130070675,
+          0.30695419799303636,
+          0.3719365300203208
+        ],
+        "median_seconds": 0.3098624130070675
+      },
+      "RESULTS LOAD": {
+        "seconds": [
+          0.26089548200252466,
+          0.14793056299095042,
+          0.24231180097558536
+        ],
+        "median_seconds": 0.24231180097558536
+      },
+      "GRAPHS SHOW": {
+        "seconds": [
+          0.40656868799123913,
+          0.3561705740285106,
+          0.3595486980048008
+        ],
+        "median_seconds": 0.3595486980048008
+      },
+      "SELECT SERIES 3": {
+        "seconds": [
+          1.2596117639914155,
+          1.353122264990816,
+          1.1721761460066773
+        ],
+        "median_seconds": 1.2596117639914155
+      },
+      "SELECT EPOCH SERIES 3": {
+        "seconds": [
+          0.54868527900544,
+          0.6402152289811056,
+          0.5421603870054241
+        ],
+        "median_seconds": 0.54868527900544
+      },
+      "SELECT ROWS 10": {
+        "seconds": [
+          0.23742765301722102,
+          0.21469125800649635,
+          0.2108788550249301
+        ],
+        "median_seconds": 0.21469125800649635
+      },
+      "GRAPH CLICKS 10": {
+        "seconds": [
+          0.25383394298842177,
+          0.22603683700435795,
+          0.23000635899370536
+        ],
+        "median_seconds": 0.23000635899370536
+      },
+      "TABLE TIMING 4": {
+        "seconds": [
+          0.17588126001646742,
+          0.16240650601685047,
+          0.16693184702307917
+        ],
+        "median_seconds": 0.16693184702307917
+      },
+      "TABLE SWITCH 10": {
+        "seconds": [
+          0.215900714014424,
+          0.20264094101730734,
+          0.1991722490056418
+        ],
+        "median_seconds": 0.20264094101730734
+      },
+      "EXPORT JSON": {
+        "seconds": [
+          0.2650527560035698,
+          0.28030621900688857,
+          0.26440199100761674
+        ],
+        "median_seconds": 0.2650527560035698
+      },
+      "EXPORT CSV ZIP": {
+        "seconds": [
+          0.15490875698742457,
+          0.1537131329823751,
+          0.15329126300639473
+        ],
+        "median_seconds": 0.1537131329823751
+      },
+      "HISTORY LOAD 200": {
+        "seconds": [
+          0.0064638329786248505,
+          0.0055623939842917025,
+          0.00458597598480992
+        ],
+        "median_seconds": 0.0055623939842917025
+      },
+      "RUNS REFRESH": {
+        "seconds": [
+          0.0250014080083929,
+          0.024325820995727554,
+          0.02480836899485439
+        ],
+        "median_seconds": 0.02480836899485439
+      },
+      "RUNS SELECT 10": {
+        "seconds": [
+          0.04868030600482598,
+          0.05490151300909929,
+          0.055211480997968465
+        ],
+        "median_seconds": 0.05490151300909929
+      }
+    }
+  },
+  "packaged_startup_after": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "repetitions": 5,
+    "conditions": "Fresh processes, empty run history, existing OS/font caches; not a cold-boot measurement.",
+    "startup_runs": [
+      {
+        "status": "passed",
+        "import_seconds": 0.9053292550088372,
+        "first_paint_seconds": 1.1353062580164988,
+        "qt_platform": "offscreen",
+        "empty_history": true,
+        "persistent_font_cache": true,
+        "analysis_modules_loaded": [],
+        "launch_to_report_seconds": 1.3818481259804685
+      },
+      {
+        "status": "passed",
+        "import_seconds": 0.8967222449718975,
+        "first_paint_seconds": 1.1102999519789591,
+        "qt_platform": "offscreen",
+        "empty_history": true,
+        "persistent_font_cache": true,
+        "analysis_modules_loaded": [],
+        "launch_to_report_seconds": 1.3397270849964116
+      },
+      {
+        "status": "passed",
+        "import_seconds": 0.8935064090183005,
+        "first_paint_seconds": 1.1117013320035767,
+        "qt_platform": "offscreen",
+        "empty_history": true,
+        "persistent_font_cache": true,
+        "analysis_modules_loaded": [],
+        "launch_to_report_seconds": 1.339017081016209
+      },
+      {
+        "status": "passed",
+        "import_seconds": 0.9016902180155739,
+        "first_paint_seconds": 1.1153215800004546,
+        "qt_platform": "offscreen",
+        "empty_history": true,
+        "persistent_font_cache": true,
+        "analysis_modules_loaded": [],
+        "launch_to_report_seconds": 1.348862506012665
+      },
+      {
+        "status": "passed",
+        "import_seconds": 0.8856600759900175,
+        "first_paint_seconds": 1.1022534879739396,
+        "qt_platform": "offscreen",
+        "empty_history": true,
+        "persistent_font_cache": true,
+        "analysis_modules_loaded": [],
+        "launch_to_report_seconds": 1.3290333780169021
+      }
+    ],
+    "median_launch_to_report_seconds": 1.3397270849964116,
+    "median_first_paint_seconds": 1.1117013320035767,
+    "bundle_bytes": 565615703,
+    "bundle_file_count": 1769,
+    "component_bytes": {
+      "PySide6": 124292512,
+      "pyarrow": 117290728,
+      "scipy": 42925711,
+      "libpython3.12.so.1.0": 32465344,
+      "scipy.libs": 31202973,
+      "sklearn": 28400109,
+      "numpy.libs": 27463459,
+      "ParaDigMaDesktop": 23400464,
+      "pandas": 22457542,
+      "matplotlib": 16008177,
+      "numpy": 14407202,
+      "pillow.libs": 14067594,
+      "paradigma": 11874911,
+      "libgtk-3.so.0": 8358040,
+      "libcrypto.so.3": 6517312,
+      "kiwisolver": 5739552,
+      "PIL": 4277573,
+      "libstdc++.so.6": 2497768,
+      "paradigma_desktop": 2464548,
+      "libgio-2.0.so.0": 2051320,
+      "libglib-2.0.so.0": 1404320,
+      "libcairo.so.2": 1362632,
+      "libX11.so.6": 1342984,
+      "base_library.zip": 1333490,
+      "libharfbuzz.so.0": 1310560,
+      "libepoxy.so.0": 1246808,
+      "libsystemd.so.0": 1131784,
+      "libgdk-3.so.0": 1108440,
+      "libssl.so.3": 1101760,
+      "contourpy": 993472,
+      "libkrb5.so.3": 883984,
+      "pytz": 855506,
+      "libfreetype.so.6": 845736,
+      "libzstd.so.1": 825336,
+      "libpcre2-8.so.0": 711216,
+      "libpixman-1.so.0": 706576,
+      "libjpeg.so.62": 616512,
+      "charset_normalizer": 519176,
+      "libmount.so.1": 502512,
+      "shiboken6": 465632,
+      "libpango-1.0.so.0": 458368,
+      "libgobject-2.0.so.0": 403680,
+      "libblkid.so.1": 396256,
+      "libdbus-1.so.3": 350360,
+      "libgssapi_krb5.so.2": 346904,
+      "libfontconfig.so.1": 317360,
+      "libxkbcommon.so.0": 301760,
+      "libatspi.so.0": 252152,
+      "libatk-bridge-2.0.so.0": 247728,
+      "certifi": 240216,
+      "libpng16.so.16": 231416,
+      "matplotlib-3.11.2.dist-info": 218259,
+      "numpy-2.5.3.dist-info": 211032,
+      "libselinux.so.1": 202984,
+      "libk5crypto.so.3": 187144,
+      "libgdk_pixbuf-2.0.so.0": 186552,
+      "libexpat.so.1": 186520,
+      "libgcc_s.so.1": 182856,
+      "scikit_learn.libs": 168193,
+      "libgraphite2.so.3": 166048,
+      "libatk-1.0.so.0": 165808,
+      "openmovement": 160201,
+      "dateutil": 156400,
+      "libbrotlicommon.so.1": 141496,
+      "libz.so.1": 125376,
+      "libxcb-xkb.so.1": 121384,
+      "libfribidi.so.0": 121064,
+      "libxcb-glx.so.0": 116808,
+      "libpangoft2-1.0.so.0": 116656,
+      "libcloudproviders.so.0": 96168,
+      "libXext.so.6": 81568,
+      "libXi.so.6": 76160,
+      "libbz2.so.1.0": 74688,
+      "libxcb-randr.so.0": 71960,
+      "tomli": 70088,
+      "libpangocairo-1.0.so.0": 63456,
+      "libxcb-render.so.0": 59656,
+      "libkrb5support.so.0": 52208,
+      "libbrotlidec.so.1": 51376,
+      "libXcursor.so.1": 47840,
+      "libXrender.so.1": 47608,
+      "libffi.so.8": 47576,
+      "libXrandr.so.2": 47384,
+      "libcap.so.2": 47288,
+      "markupsafe": 44072,
+      "libcairo-gobject.so.2": 42768,
+      "libthai.so.0": 41000,
+      "libxkbcommon-x11.so.0": 39720,
+      "libxcb-sync.so.1": 34936,
+      "libxcb-xfixes.so.0": 34856,
+      "libdatrie.so.1": 34736,
+      "libxcb-util.so.1": 30928,
+      "libatomic.so.1": 30848,
+      "libXdmcp.so.6": 26728,
+      "libXfixes.so.3": 26664,
+      "paradigma-1.1.2.dist-info": 25261,
+      "libxcb-cursor.so.0": 23624,
+      "libgmodule-2.0.so.0": 22584,
+      "libxcb-icccm.so.4": 22552,
+      "libkeyutils.so.1": 22448,
+      "libxcb-render-util.so.0": 22376,
+      "tornado": 20912,
+      "libxcb-image.so.0": 18600,
+      "libcom_err.so.2": 18344,
+      "tsdf-0.6.2.dist-info": 16869,
+      "libXinerama.so.1": 14496,
+      "libXau.so.6": 14472,
+      "libxcb-shm.so.0": 14392,
+      "libxcb-shape.so.0": 14376,
+      "libXdamage.so.1": 14344,
+      "libgthread-2.0.so.0": 14336,
+      "libXcomposite.so.1": 14320,
+      "libxcb-keysyms.so.1": 14176,
+      "libX11-xcb.so.1": 13944,
+      "openmovement-0.0.1.dist-info": 10370,
+      "LICENSE-paradigma.txt": 9806,
+      "markupsafe-3.0.4.dist-info": 5486,
+      "ACKNOWLEDGEMENTS.md": 4646,
+      "PARADIGMA-CITATION.cff": 4073,
+      "paradigma_desktop-0.5.23.dist-info": 1745,
+      "setuptools": 1335,
+      "avro": 912,
+      "PARADIGMA-CITATION.bib": 368
+    }
+  }
+}

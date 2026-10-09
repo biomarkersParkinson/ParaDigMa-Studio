@@ -1,15 +1,28 @@
 """On-demand attribution view, shared by source and frozen application builds."""
+
 from importlib.metadata import version
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QTabWidget, QTextBrowser, QVBoxLayout
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QTabWidget,
+    QTextBrowser,
+    QVBoxLayout,
+)
 
 from .theme import light_palette
 from .widgets import button, label, readout
 
 
 NOTICES = Path(__file__).with_name("data") / "notices"
-NOTICE_FILES = ("ACKNOWLEDGEMENTS.md", "LICENSE-paradigma.txt", "PARADIGMA-CITATION.bib", "PARADIGMA-CITATION.cff")
+NOTICE_FILES = (
+    "ACKNOWLEDGEMENTS.md",
+    "LICENSE-paradigma.txt",
+    "PARADIGMA-CITATION.bib",
+    "PARADIGMA-CITATION.cff",
+)
 
 
 class AcknowledgementsDialog(QDialog):
@@ -23,12 +36,19 @@ class AcknowledgementsDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
         layout.addWidget(label("ParaDigMa Desktop", "pageTitle"))
-        layout.addWidget(label(f"Desktop {version('paradigma-desktop')} · Official ParaDigMa {version('paradigma')}", "muted"))
+        layout.addWidget(
+            label(
+                f"Desktop {version('paradigma-desktop')} · Official ParaDigMa {version('paradigma')}",
+                "muted",
+            )
+        )
         tabs = QTabWidget()
         self.acknowledgement = QTextBrowser()
         self.acknowledgement.setPalette(light_palette())
         self.acknowledgement.setOpenExternalLinks(True)
-        self.acknowledgement.setMarkdown((NOTICES / "ACKNOWLEDGEMENTS.md").read_text(encoding="utf-8"))
+        self.acknowledgement.setMarkdown(
+            (NOTICES / "ACKNOWLEDGEMENTS.md").read_text(encoding="utf-8")
+        )
         self.acknowledgement.setAccessibleName("ParaDigMa acknowledgement and research citations")
         tabs.addTab(self.acknowledgement, "Acknowledgement & citations")
         self.licence = readout()
@@ -47,5 +67,7 @@ class AcknowledgementsDialog(QDialog):
         layout.addLayout(footer)
 
     def copy_citation(self):
-        QApplication.clipboard().setText((NOTICES / "PARADIGMA-CITATION.bib").read_text(encoding="utf-8"))
+        QApplication.clipboard().setText(
+            (NOTICES / "PARADIGMA-CITATION.bib").read_text(encoding="utf-8")
+        )
         self.copy_status.setText("BibTeX citation copied")

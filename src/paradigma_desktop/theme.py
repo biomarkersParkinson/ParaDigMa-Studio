@@ -1,4 +1,5 @@
 """Shared visual language for the desktop workspace."""
+
 from pathlib import Path
 from PySide6.QtGui import QColor, QPalette
 
@@ -19,23 +20,34 @@ def module_color(module):
 def style_result_heading(ax, title, module, module_label):
     """Readable series heading and a small module badge in the shared palette."""
     accent = module_color(module)
-    tint = MODULE_PALETTE.get(module, {'tint': '#F1F4F8'})['tint']
-    box = {'boxstyle': 'round,pad=.4,rounding_size=.25', 'facecolor': tint, 'edgecolor': 'none'}
-    ax.set_title(title, loc='left', fontsize=10, fontweight='semibold', color='#243C57', pad=12, bbox=box)
-    ax.set_title(module_label, loc='right', fontsize=8, fontweight='semibold', color=accent, pad=12, bbox=box)
+    tint = MODULE_PALETTE.get(module, {"tint": "#F1F4F8"})["tint"]
+    box = {"boxstyle": "round,pad=.4,rounding_size=.25", "facecolor": tint, "edgecolor": "none"}
+    ax.set_title(
+        title, loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12, bbox=box
+    )
+    ax.set_title(
+        module_label, loc="right", fontsize=8, fontweight="semibold", color=accent, pad=12, bbox=box
+    )
     ax._paradigma_module = module
 
 
 def light_palette():
     palette = QPalette()
     colors = {
-        QPalette.Window: "#f4f6fa", QPalette.WindowText: "#22324a",
-        QPalette.Base: "#ffffff", QPalette.AlternateBase: "#f8fafc",
-        QPalette.Text: "#22324a", QPalette.Button: "#ffffff",
-        QPalette.ButtonText: "#22324a", QPalette.Highlight: "#2563a5",
-        QPalette.HighlightedText: "#ffffff", QPalette.PlaceholderText: "#68778c",
-        QPalette.ToolTipBase: "#ffffff", QPalette.ToolTipText: "#22324a",
-        QPalette.Link: "#1e609e", QPalette.LinkVisited: "#1e609e",
+        QPalette.Window: "#f4f6fa",
+        QPalette.WindowText: "#22324a",
+        QPalette.Base: "#ffffff",
+        QPalette.AlternateBase: "#f8fafc",
+        QPalette.Text: "#22324a",
+        QPalette.Button: "#ffffff",
+        QPalette.ButtonText: "#22324a",
+        QPalette.Highlight: "#2563a5",
+        QPalette.HighlightedText: "#ffffff",
+        QPalette.PlaceholderText: "#68778c",
+        QPalette.ToolTipBase: "#ffffff",
+        QPalette.ToolTipText: "#22324a",
+        QPalette.Link: "#1e609e",
+        QPalette.LinkVisited: "#1e609e",
     }
     for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
         for role, color in colors.items():
@@ -43,6 +55,7 @@ def light_palette():
     for role in (QPalette.Text, QPalette.WindowText, QPalette.ButtonText):
         palette.setColor(QPalette.Disabled, role, QColor("#68778c"))
     return palette
+
 
 STYLESHEET = """
 QWidget { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 13px; color: #22324a; }
@@ -157,14 +170,16 @@ QScrollBar::handle:horizontal { background: #c6d0de; min-width: 30px; border-rad
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }
 """.replace("__DROPDOWN_ICON__", (Path(__file__).with_name("data") / "chevron-down.svg").as_posix())
-STYLESHEET = STYLESHEET.replace("__CHECKMARK_ICON__", (Path(__file__).with_name("data") / "checkmark.svg").as_posix())
+STYLESHEET = STYLESHEET.replace(
+    "__CHECKMARK_ICON__", (Path(__file__).with_name("data") / "checkmark.svg").as_posix()
+)
 for module, colors in MODULE_PALETTE.items():
     STYLESHEET += f'''
-QPushButton#module[analysisModule="{module}"] {{ background: white; border: 1px solid {colors['border']}; border-left: 3px solid {colors['accent']}; }}
-QPushButton#module[analysisModule="{module}"]:hover {{ background: {colors['tint']}; }}
-QPushButton#module[analysisModule="{module}"]:checked {{ background: {colors['tint']}; border: 2px solid {colors['accent']}; }}
-QFrame#card[analysisModule="{module}"] {{ background: {colors['tint']}; border-color: {colors['border']}; }}
-QLabel#pageTitle[analysisModule="{module}"] {{ color: {colors['accent']}; }}
+QPushButton#module[analysisModule="{module}"] {{ background: white; border: 1px solid {colors["border"]}; border-left: 3px solid {colors["accent"]}; }}
+QPushButton#module[analysisModule="{module}"]:hover {{ background: {colors["tint"]}; }}
+QPushButton#module[analysisModule="{module}"]:checked {{ background: {colors["tint"]}; border: 2px solid {colors["accent"]}; }}
+QFrame#card[analysisModule="{module}"] {{ background: {colors["tint"]}; border-color: {colors["border"]}; }}
+QLabel#pageTitle[analysisModule="{module}"] {{ color: {colors["accent"]}; }}
 '''
 
 
@@ -184,8 +199,8 @@ def style_axes(figure, position=(1, 1, 1), sharex=None):
         ax.spines[side].set_visible(False)
     for side in ("bottom", "left"):
         ax.spines[side].set_color("#DFE6EF")
-        ax.spines[side].set_linewidth(.7)
-    ax.grid(axis="y", color="#DAE3ED", linewidth=.7, alpha=.7)
-    ax.grid(axis="x", color="#DFE6EF", linewidth=.5, alpha=.45, linestyle=":")
-    ax.margins(x=.025, y=.12)
+        ax.spines[side].set_linewidth(0.7)
+    ax.grid(axis="y", color="#DAE3ED", linewidth=0.7, alpha=0.7)
+    ax.grid(axis="x", color="#DFE6EF", linewidth=0.5, alpha=0.45, linestyle=":")
+    ax.margins(x=0.025, y=0.12)
     return ax

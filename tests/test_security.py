@@ -1,4 +1,5 @@
 """Regression checks for unsafe deserialization, exports and diagnostic writes."""
+
 import logging
 import json
 import os
@@ -9,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from paradigma_desktop import core
+from paradigma_desktop import core, serialization
 from scripts.audit_dependencies import is_python_arrow_exception
 from scripts import audit_dependencies
 
@@ -34,10 +35,12 @@ def test_pickle_payload_cannot_execute_without_explicit_trust(tmp_path, suffix):
 
 def test_csv_formula_text_is_neutralized_without_changing_numbers(tmp_path):
     path = tmp_path / "results.csv"
-    original = pd.DataFrame({
-        "=malicious_header": ["=1+1", " +1+1", "\t@SUM(1)", "-1+1", "normal"],
-        "numeric": [-2.5, 0, 1, 2, 3],
-    })
+    original = pd.DataFrame(
+        {
+            "=malicious_header": ["=1+1", " +1+1", "\t@SUM(1)", "-1+1", "normal"],
+            "numeric": [-2.5, 0, 1, 2, 3],
+        }
+    )
     core.export_table_csv(path, original)
     exported = pd.read_csv(path)
     assert exported.columns[0] == "'=malicious_header"
@@ -72,7 +75,7 @@ def test_failed_export_preserves_existing_file(tmp_path, monkeypatch):
         stream.write("partial new results")
         raise OSError("simulated disk write failure")
 
-    monkeypatch.setattr(core, "_write_json", fail_after_partial_write)
+    monkeypatch.setattr(serialization, "_write_json", fail_after_partial_write)
     with pytest.raises(OSError, match="disk write"):
         core.export_results(target, {}, {})
     assert target.read_text() == "previous results"
@@ -114,8 +117,33 @@ def test_audit_failure_cannot_reuse_a_previous_success_report(tmp_path, monkeypa
     report = tmp_path / "audit.json"
     previous = json.dumps({"dependencies": [{"name": "numpy", "version": "2", "vulns": []}]})
     report.write_text(previous, encoding="utf-8")
-    monkeypatch.setattr(audit_dependencies.subprocess, "run",
-                        lambda args, **kwargs: subprocess.CompletedProcess(args, 1))
+    monkeypatch.setattr(
+        audit_dependencies.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(args, 1),
+    )
     with pytest.raises(RuntimeError, match="did not complete"):
         audit_dependencies.main(report)
     assert report.read_text() == previous
+
+
+def test_failed_history_save_keeps_previous_record_and_removes_temporary_file(
+    tmp_path, monkeypatch
+):
+    from paradigma_desktop import history
+
+    store = history.RunHistory(tmp_path)
+    record = history.new_run("sensor.csv", {})
+    store.save(record)
+    target = tmp_path / f"{record['id']}.json"
+    before = target.read_bytes()
+
+    def fail(value, stream, **options):
+        stream.write("incomplete")
+        raise OSError("Interrupted write")
+
+    monkeypatch.setattr(history.json, "dump", fail)
+    with pytest.raises(OSError, match="Interrupted write"):
+        store.save(record)
+    assert target.read_bytes() == before
+    assert sorted(tmp_path.iterdir()) == [target]

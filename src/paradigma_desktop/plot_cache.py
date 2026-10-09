@@ -1,4 +1,5 @@
 """Retain fonts between launches of the portable, fixed-directory build."""
+
 import hashlib
 import os
 import sys

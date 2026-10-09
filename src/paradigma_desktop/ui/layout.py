@@ -1,0 +1,859 @@
+"""Page construction and shared layout helpers for the existing main-window controls."""
+
+from html import escape
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QAction, QShortcut, QKeySequence
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QProgressBar,
+    QScrollArea,
+    QSplitter,
+    QStackedWidget,
+    QListView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+    QListWidget,
+    QGridLayout,
+    QLayout,
+    QSizePolicy,
+)
+from matplotlib.figure import Figure
+from ..plot_controls import GraphToolbar, add_graph_controls
+from ..plotting import ScrollableFigureCanvas, SelectionOverlay
+from ..results_view import MODULE_NAMES
+from ..theme import light_palette
+from ..analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
+from ..time_controls import TimeField
+from ..time_axis import PinnedTimeAxis
+from ..widgets import (
+    HoverSidebar,
+    ReadableComboBox,
+    ModuleTabBar,
+    WrappedForm,
+    AdaptiveFormColumns,
+    FigureActionBar,
+    SeriesTree,
+    label,
+    button,
+    card,
+    table,
+    readout,
+    field,
+)
+from ..assets import DATA_DIRECTORY
+
+
+class WorkspaceLayout:
+    """Page construction using the host MainWindow widgets and callbacks."""
+
+    @staticmethod
+    def combo(items=()):
+        combo = ReadableComboBox()
+        # A Qt list view and explicit palette avoid native dark-theme popups
+        # combining dark selection backgrounds with inherited dark text.
+        view = QListView()
+        view.setUniformItemSizes(True)
+        view.setPalette(light_palette())
+        combo.setView(view)
+        combo.setPalette(light_palette())
+        combo.setMaxVisibleItems(12)
+        combo.addItems(items)
+        return combo
+
+    def _build_shell(self):
+        root = QWidget()
+        root.setObjectName("workspace")
+        self.setCentralWidget(root)
+        shell = QHBoxLayout(root)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
+        self.sidebar = HoverSidebar(root)
+        self.sidebar.setObjectName("sidebar")
+        navigation = QVBoxLayout(self.sidebar.content)
+        navigation.setContentsMargins(12, 20, 12, 18)
+        navigation.setSpacing(8)
+        brand_row = QHBoxLayout()
+        self.brand_icon = label()
+        self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
+        self.brand_icon.setFixedSize(28, 28)
+        self.brand_icon.setToolTip("ParaDigMa")
+        brand_row.addWidget(self.brand_icon)
+        self.brand = label("ParaDigMa", "brand")
+        self.brand.setWordWrap(False)
+        brand_row.addWidget(self.brand, 1)
+        navigation.addLayout(brand_row)
+        self.brand_caption = label("SENSOR ANALYSIS", "muted")
+        self.brand_caption.setWordWrap(False)
+        for widget in (self.brand, self.brand_caption):
+            policy = widget.sizePolicy()
+            policy.setRetainSizeWhenHidden(True)
+            widget.setSizePolicy(policy)
+        navigation.addWidget(self.brand_caption)
+        navigation.addSpacing(24)
+        self.nav_buttons = []
+        for index, section in enumerate(self.SECTIONS):
+            item = button(
+                f"{index + 1}    {section}", lambda checked=False, i=index: self.navigate(i)
+            )
+            item.setCheckable(True)
+            item.setToolTip(section)
+            item.setAccessibleName(section)
+            item.setShortcut(f"Alt+{index + 1}")
+            navigation.addWidget(item)
+            self.nav_buttons.append(item)
+        navigation.addStretch()
+        self.about_button = button("About", self.show_acknowledgements)
+        self.about_button.setObjectName("about")
+        self.about_button.setShortcut("F1")
+        navigation.addWidget(self.about_button)
+        rail = QWidget()
+        rail.setFixedWidth(self.sidebar.rail_width)
+        shell.addWidget(rail)
+        self.sidebar.fit_content()
+        self.sidebar.expandedChanged.connect(self.sidebar_expanded)
+        self.sidebar_expanded(False)
+        center = QWidget()
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(24, 20, 20, 12)
+        center_layout.setSpacing(14)
+        heading = QHBoxLayout()
+        self.page_title = label("", "pageTitle")
+        heading.addWidget(self.page_title, 1)
+        center_layout.addLayout(heading)
+        self.notice = label("", "notice")
+        self.notice.hide()
+        center_layout.addWidget(self.notice)
+        self.pages = QStackedWidget()
+        center_layout.addWidget(self.pages, 1)
+        self.progress = QProgressBar()
+        self.progress.setTextVisible(False)
+        self.progress.hide()
+        center_layout.addWidget(self.progress)
+        self.status = label("Open a sensor file.", "muted")
+        self.status_row = QWidget()
+        self.status_layout = QHBoxLayout(self.status_row)
+        self.status_layout.setContentsMargins(0, 0, 0, 0)
+        self.status_layout.setSpacing(10)
+        self.status_layout.addWidget(self.status, 1)
+        center_layout.addWidget(self.status_row)
+        shell.addWidget(center, 1)
+        self.sidebar.raise_()
+
+    def page(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        self.pages.addWidget(widget)
+        return layout
+
+    def _build_data(self):
+        layout = self.page()
+        panel, content = card()
+        row = QHBoxLayout()
+        self.file_label = label("No recording loaded", "sectionTitle")
+        row.addWidget(self.file_label, 1)
+        self.input_recording = self.combo()
+        self.input_recording.setAccessibleName("Recording to inspect")
+        self.input_recording.hide()
+        self.input_recording.currentIndexChanged.connect(self.inspect_input_recording)
+        row.addWidget(self.input_recording, 1)
+        self.open_button = button("Open sensor files…", self.open_file, primary=True)
+        self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
+        self.open_action = QAction("Open recording", self)
+        self.open_action.setShortcut("Ctrl+O")
+        self.open_action.triggered.connect(self.open_file)
+        self.addAction(self.open_action)
+        row.addWidget(self.open_button)
+        content.addLayout(row)
+        layout.addWidget(panel)
+        self.data_tabs = QTabWidget()
+        overview = QWidget()
+        overview_layout = QVBoxLayout(overview)
+        overview_layout.setContentsMargins(18, 18, 18, 18)
+        overview_layout.setSpacing(16)
+        metrics = QHBoxLayout()
+        self.data_values = []
+        for title in ("Sensor samples", "Channels", "Missing values"):
+            panel, content = card()
+            content.addWidget(label(title, "muted"))
+            value = label("—", "metricValue")
+            content.addWidget(value)
+            self.data_values.append(value)
+            metrics.addWidget(panel, 1)
+        overview_layout.addLayout(metrics)
+        details = self.data_details = QSplitter(Qt.Horizontal)
+        details.setHandleWidth(12)
+        panel, content = card()
+        content.addWidget(label("Sensor channels", "sectionTitle"))
+        self.channel_table = table()
+        content.addWidget(self.channel_table, 1)
+        details.addWidget(panel)
+        panel, content = card()
+        time_controls = QHBoxLayout()
+        content.addWidget(label("Time channel", "sectionTitle"))
+        self.data_time_channel = self.combo()
+        self.data_time_channel.setPlaceholderText("Select time column")
+        self.data_time_channel.setToolTip(
+            "Time column inspected here. Analysis uses its column mapping."
+        )
+        time_controls.addWidget(self.data_time_channel, 1)
+        self.data_time_unit = self.combo(
+            [
+                "relative_s",
+                "relative_ms",
+                "absolute_s",
+                "absolute_ms",
+                "difference_s",
+                "difference_ms",
+            ]
+        )
+        self.data_time_unit.setToolTip(
+            "Units for inspecting the raw time column. Analysis parameters are set on Analyze."
+        )
+        time_controls.addWidget(self.data_time_unit)
+        content.addLayout(time_controls)
+        self.time_table = table()
+        content.addWidget(self.time_table, 1)
+        details.addWidget(panel)
+        details.setSizes([660, 400])
+        overview_layout.addWidget(details, 1)
+        self.data_tabs.addTab(overview, "Overview")
+        preview, self.data_channels, self.data_figure, self.data_canvas, self.data_toolbar = (
+            self.channel_graph(self.set_input_channels, "Sensor channels to plot")
+        )
+        self._channel_colors = {}
+        self.data_tabs.addTab(preview, "Graphs")
+        self.input_table = table()
+        self.data_tabs.addTab(self.input_table, "Tables")
+        layout.addWidget(self.data_tabs, 1)
+        self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
+        self.continue_button.setEnabled(False)
+        self.status_layout.addWidget(self.continue_button)
+
+    def channel_graph(self, select_channels, accessible_name):
+        """Shared raw-sensor workspace: a channel list beside a fitted graph."""
+        preview = QWidget()
+        preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        preview_layout = QHBoxLayout(preview)
+        channels = QWidget()
+        channels.setMinimumWidth(190)
+        channels.setMaximumWidth(260)
+        channel_layout = QVBoxLayout(channels)
+        heading = label("Channels", "sectionTitle")
+        heading.setWordWrap(False)
+        channel_layout.addWidget(heading)
+        selection = QHBoxLayout()
+        channel_list = QListWidget()
+        selection.addWidget(
+            button(
+                "Select all",
+                lambda: select_channels(
+                    [channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())]
+                ),
+            )
+        )
+        selection.addWidget(button("Clear", lambda: select_channels([])))
+        channel_layout.addLayout(selection)
+        channel_list.setPalette(light_palette())
+        channel_list.setSelectionMode(QAbstractItemView.NoSelection)
+        channel_list.setTextElideMode(Qt.ElideNone)
+        channel_list.setAccessibleName(accessible_name)
+        channel_layout.addWidget(channel_list, 1)
+        preview_layout.addWidget(channels)
+        graph = QWidget()
+        graph_layout = QVBoxLayout(graph)
+        figure = Figure(layout="constrained")
+        canvas = ScrollableFigureCanvas(figure)
+        canvas.defer_when_hidden = True
+        # Use the available height instead of imposing the canvas's preferred
+        # 480-pixel height on the enclosing page or clipping its time axis.
+        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        toolbar = add_graph_controls(graph_layout, canvas, self)
+        graph_layout.addWidget(canvas, 1)
+        preview_layout.addWidget(graph, 1)
+        return preview, channel_list, figure, canvas, toolbar
+
+    def _build_analyze(self):
+        layout = self.page()
+        layout.setSpacing(12)
+        scroll = self.analysis_scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body = QWidget()
+        body.setObjectName("analysisBody")
+        content = QVBoxLayout(body)
+        content.setContentsMargins(0, 0, 4, 0)
+        content.setSpacing(16)
+        content.setSizeConstraint(QLayout.SetMinimumSize)
+        panel, input_layout = card()
+        input_layout.setContentsMargins(18, 14, 18, 14)
+        input_row = QHBoxLayout()
+        input_row.addWidget(label("Selected input", "muted"))
+        self.analysis_input = label("No recording loaded", "sectionTitle")
+        input_row.addWidget(self.analysis_input, 1)
+        self.analysis_input_detail = label("", "muted")
+        input_row.addWidget(self.analysis_input_detail)
+        input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
+        input_layout.addLayout(input_row)
+        content.addWidget(panel)
+        # The full stack, including wrapped help, must reserve its real height.
+        # Otherwise native controls can grow while the parent still allocates
+        # a smaller preferred height, consuming the gap below the parameters.
+        self.analysis_controls = WrappedForm()
+        controls = QVBoxLayout(self.analysis_controls)
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.setSpacing(16)
+        # WrappedForm already reserves exactly the stack's required height.
+        # AlignTop would cap the layout rectangle at its preferred size hint,
+        # compressing spacing when help is taller at the current width.
+        self.analysis_help = {}
+        self.analysis_help_sections = {}
+        self._updating_analysis_help = False
+        modules = QHBoxLayout()
+        module_heading = self.analysis_field(
+            "Analysis modules", label("Analysis modules", "sectionTitle"), inline=True
+        )
+        modules.addWidget(module_heading)
+        self.module_requirements = label("", "muted")
+        self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.module_buttons = {}
+        for name in ("Gait", "Tremor", "Pulse rate"):
+            item = button(name)
+            item.setObjectName("module")
+            item.setProperty("analysisModule", self.MODULES[name])
+            item.setCheckable(True)
+            self.module_buttons[name] = item
+            modules.addWidget(item, 1)
+        self.module_buttons["Gait"].setChecked(True)
+        controls.addLayout(modules)
+        self.settings_panel, parameter_card = card()
+        parameter_card.setContentsMargins(18, 16, 18, 16)
+        parameter_card.setSpacing(14)
+        parameter_card.setAlignment(Qt.AlignTop)
+        # Reserve the form's actual minimum before help changes the outer
+        # layout. Otherwise Qt briefly clips the bottom rows while settling.
+        parameter_card.setSizeConstraint(QLayout.SetMinimumSize)
+        self.analysis_parameter_fields = WrappedForm()
+        self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        parameters = QVBoxLayout(self.analysis_parameter_fields)
+        parameters.setContentsMargins(0, 0, 0, 0)
+        parameters.setSpacing(14)
+        parameters.setAlignment(Qt.AlignTop)
+        parameter_card.addWidget(self.analysis_parameter_fields, alignment=Qt.AlignTop)
+        parameter_header = QHBoxLayout()
+        parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
+        parameter_header.addWidget(self.module_requirements, 1)
+        parameters.addLayout(parameter_header)
+        left = QFormLayout()
+        right = QFormLayout()
+        columns = AdaptiveFormColumns(left, right)
+        for form in (left, right):
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            form.setHorizontalSpacing(10)
+            form.setVerticalSpacing(12)
+        self.side = self.combo(["left", "right"])
+        self.acc = self.combo(["g", "m/s^2"])
+        self.gyro = self.combo(["deg/s", "rad/s"])
+        self.time = self.combo(
+            [
+                "relative_s",
+                "relative_ms",
+                "absolute_s",
+                "absolute_ms",
+                "difference_s",
+                "difference_ms",
+            ]
+        )
+        for widget in (self.side, self.acc, self.gyro, self.time):
+            widget.setMinimumWidth(160)
+        self.orientation = QLineEdit("x,y,z")
+        for title, widget in (
+            ("Watch side", self.side),
+            ("Acceleration units", self.acc),
+            ("Gyroscope units", self.gyro),
+            ("Time units", self.time),
+        ):
+            self.analysis_field(title, widget, form=left)
+        self.prepared = QCheckBox("Already prepared (skip conversion)")
+        self.gaps = QCheckBox("Split recordings at time gaps")
+        self.drop_missing = QCheckBox("Exclude missing sensor samples")
+        self.drop_missing.setChecked(True)
+        for widget in (self.prepared, self.gaps, self.drop_missing):
+            widget.setPalette(light_palette())
+        right.addRow(
+            self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True)
+        )
+        self.segmentation_controls = WrappedForm()
+        sections = QGridLayout(self.segmentation_controls)
+        sections.setContentsMargins(0, 0, 0, 0)
+        sections.setColumnStretch(1, 1)
+        sections.setHorizontalSpacing(10)
+        sections.setVerticalSpacing(12)
+        sections.addWidget(
+            self.analysis_field("Split recordings at time gaps", self.gaps, inline=True), 0, 0, 1, 2
+        )
+        self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
+        self.section_reset_buttons = {}
+        for title, widget, default in (
+            ("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),
+            ("Minimum section duration", self.min_segment, DEFAULT_MIN_SECTION_SECONDS),
+        ):
+            widget.setRange(0.01, 86400)
+            widget.setValue(default)
+            widget.setSuffix(" s")
+            widget.setDecimals(2)
+            widget.setAccessibleName(title)
+            reset = button(
+                "Default", lambda checked=False, spin=widget, value=default: spin.setValue(value)
+            )
+            reset.setAccessibleName(f"Reset {title.lower()} to the official default")
+            self.section_reset_buttons[title] = reset
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(widget, 1)
+            row_layout.addWidget(reset)
+            self.analysis_field(title, row, form=sections)
+        right.addRow(self.segmentation_controls)
+        parameters.addLayout(columns)
+        self.mapping = QPlainTextEdit("{}")
+        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
+        self.mapping.setFixedHeight(60)
+        # Each column flows independently, so short fields use available space.
+        self.analysis_field("Device axes", self.orientation, form=left)
+        self.analysis_field("Column mapping (JSON)", self.mapping, form=sections)
+        left.setFormAlignment(Qt.AlignTop)
+        right.setFormAlignment(Qt.AlignTop)
+        sections.setAlignment(Qt.AlignTop)
+        self.clock_input = TimeField("Time origin", origin=True)
+        self.clock_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.origin_reset = button("Default", self.reset_origin)
+        origin_row = WrappedForm()
+        clock_group, reset_group = QHBoxLayout(), QHBoxLayout()
+        clock_group.addWidget(self.clock_input)
+        reset_group.addWidget(self.origin_reset, alignment=Qt.AlignRight)
+        origin_layout = AdaptiveFormColumns(clock_group, reset_group, right_stretch=0)
+        origin_layout.setSpacing(12)
+        origin_row.setLayout(origin_layout)
+        origin_form = QFormLayout()
+        origin_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        origin_form.setHorizontalSpacing(10)
+        origin_form.setVerticalSpacing(12)
+        origin_form.setFormAlignment(Qt.AlignTop)
+        self.analysis_field("Time origin", origin_row, form=origin_form)
+        parameters.addLayout(origin_form)
+        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
+        # Help belongs below the complete parameter card. Expanding a field's row changes
+        # QFormLayout alignment and column widths, shifting unrelated labels.
+        self.analysis_help_panel, help_layout = card()
+        help_layout.setSpacing(12)
+        for title, (info, description) in self.analysis_help.items():
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            section_layout.setSpacing(4)
+            section_layout.addWidget(label(title, "sectionTitle"))
+            section_layout.addWidget(description)
+            section.hide()
+            self.analysis_help_sections[title] = section
+            info.toggled.connect(
+                lambda checked, title=title: self.toggle_analysis_help(title, checked)
+            )
+            help_layout.addWidget(section)
+        self.analysis_help_panel.hide()
+        controls.addWidget(self.settings_panel)
+        controls.addWidget(self.analysis_help_panel)
+        content.addWidget(self.analysis_controls)
+        content.addStretch()
+        self.run_button = button("Run Analysis", self.run_analysis, primary=True)
+        self.run_button.setShortcut("Ctrl+Return")
+        self.run_button.setEnabled(False)
+        self.run_button.setMinimumWidth(170)
+        self.stop_button = button("Stop Analysis", self.stop_analysis)
+        self.stop_button.setEnabled(False)
+        self.status_layout.addWidget(self.stop_button)
+        self.status_layout.addWidget(self.run_button)
+        # Keep the footer height stable when navigation hides its actions.
+        # Otherwise Results can resize/repaint after its first row selection.
+        self.status_row.setMinimumHeight(
+            max(
+                control.sizeHint().height()
+                for control in (self.continue_button, self.stop_button, self.run_button)
+            )
+        )
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        bar = scroll.verticalScrollBar()
+        bar.rangeChanged.connect(
+            lambda low, high: bar.setStyleSheet(
+                "QScrollBar::handle:vertical { background: transparent; }" if high == low else ""
+            )
+        )
+        bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
+        scroll.setWidget(body)
+        layout.addWidget(scroll, 1)
+
+    def analysis_field(self, title, control, *, form=None, inline=False):
+        """Accessible help toggles; explanations are kept outside the form rows."""
+        text, reference = FIELD_HELP[title]
+        info = button("i")
+        info.setObjectName("helpInfo")
+        info.setFixedSize(22, 22)
+        info.setCheckable(True)
+        info.setAccessibleName(f"Information: {title}")
+        url = reference if reference.startswith("https://") else SOURCE + reference
+        visual = ""
+        link_title = "ParaDigMa documentation"
+        if title == "Device axes":
+            image = QUrl.fromLocalFile(str(DATA_DIRECTORY / "directions_axes.png")).toString()
+            visual = (
+                f'<p><img src="{image}" width="260" height="247"></p>'
+                "<p>Reference figure: ParaDigMa Coordinate System guide.</p>"
+            )
+            link_title = "ParaDigMa documentation · Coordinate System guide"
+        description = QLabel(
+            f'{escape(text)}{visual}<br><a style="color: #1E609E; text-decoration: underline;" '
+            f'href="{url}">{link_title}</a>'
+        )
+        description.setWordWrap(True)
+        description.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        description.setTextFormat(Qt.RichText)
+        description.setOpenExternalLinks(True)
+        description.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        description.setAccessibleName(f"Help: {title}")
+        description.setObjectName("fieldHelp")
+        description.hide()
+        self.analysis_help[title] = (info, description)
+        control.setAccessibleName(title)
+        heading = QWidget()
+        row = QHBoxLayout(heading)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(6)
+        title_label = control if inline else label(title, "muted")
+        if not inline:
+            title_label.setBuddy(control)
+        row.addWidget(title_label)
+        row.addWidget(info, alignment=Qt.AlignVCenter)
+        row.addStretch()
+        body = QWidget()
+        content = QVBoxLayout(body)
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(4)
+        content.setSizeConstraint(QLayout.SetMinimumSize)
+        if form is not None:
+            content.setAlignment(Qt.AlignTop)
+            content.addWidget(control, alignment=Qt.AlignTop)
+            if isinstance(form, QGridLayout):
+                index = form.rowCount()
+                form.addWidget(heading, index, 0, Qt.AlignTop)
+                form.addWidget(body, index, 1, Qt.AlignTop)
+            else:
+                form.addRow(heading, body)
+        else:
+            content.addWidget(heading)
+            if not inline:
+                content.addWidget(control)
+        return body
+
+    def _build_results(self):
+        layout = self.page()
+        self.result_tabs = QTabWidget()
+        self.result_tabs.tabBar().setExpanding(False)
+        self.result_tabs.setMinimumHeight(200)
+        layout.addWidget(self.result_tabs, 1)
+        self._result_view_layouts, self._result_view_scrolls = [], []
+
+        def view(title, pinned=False):
+            scroll = QScrollArea()
+            scroll.setFrameShape(QFrame.NoFrame)
+            scroll.setWidgetResizable(True)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            body = QWidget()
+            body_layout = QVBoxLayout(body)
+            body_layout.setContentsMargins(12, 12, 12, 12)
+            body_layout.setSpacing(12)
+            body_layout.setSizeConstraint(QLayout.SetMinimumSize)
+            scroll.setWidget(body)
+            if pinned:
+                self.graph_view = QWidget()
+                self.graph_view_layout = QVBoxLayout(self.graph_view)
+                self.graph_view_layout.setContentsMargins(0, 0, 0, 0)
+                self.graph_view_layout.setSpacing(0)
+                self.graph_view_layout.addWidget(scroll, 1)
+                self.result_tabs.addTab(self.graph_view, title)
+            else:
+                self.result_tabs.addTab(scroll, title)
+            self._result_view_layouts.append(body_layout)
+            self._result_view_scrolls.append(scroll)
+            return scroll, body_layout
+
+        self.results_header = QWidget()
+        header = QHBoxLayout(self.results_header)
+        header.setContentsMargins(0, 0, 0, 0)
+        self.results_source = label("No analysis results", "muted")
+        header.addWidget(self.results_source, 1)
+        actions = QWidget()
+        action_layout = QHBoxLayout(actions)
+        action_layout.setContentsMargins(12, 0, 0, 0)
+        self.export_button = button("Export…", self.choose_export)
+        self.export_button.setAccessibleName("Export results")
+        self.export_button.setEnabled(False)
+        action_layout.addWidget(self.export_button)
+        self.result_tabs.setCornerWidget(actions, Qt.TopRightCorner)
+        self.detail_controls = QWidget()
+        controls_layout = QVBoxLayout(self.detail_controls)
+        controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        settings = QHBoxLayout()
+        self.table_actions_layout = settings
+        self.dataset = self.combo()
+        self.dataset.setParent(self.detail_controls)
+        self.dataset.hide()  # Linked graph/table state; the visible selector is scoped by output type.
+        self.table_dataset = self.combo()
+        self.table_dataset.setMinimumWidth(180)
+        self.dataset_field = field("Output table", self.table_dataset)
+        settings.addWidget(self.dataset_field, 2)
+        self.timing_toggle = QCheckBox("Timing details")
+        self.timing_toggle.setToolTip(
+            "Add display-only dates and gait timing estimates; original output columns stay unchanged."
+        )
+        settings.addWidget(self.timing_toggle)
+        self.y_column = self.combo()
+        # Kept as internal metric state for linked table/graph inspection.
+        # Plot series is the user-facing metric selector.
+        self.y_column.setParent(self.detail_controls)
+        self.y_column.hide()
+        settings.addStretch()
+        controls_layout.addLayout(settings)
+        self.selection_note = label("No detailed output", "muted")
+        controls_layout.addWidget(self.selection_note)
+        self.table_module_tabs = ModuleTabBar()
+        self.table_module_tabs.setExpanding(False)
+        for title in MODULE_NAMES.values():
+            self.table_module_tabs.addTab(title)
+        self.table_module_tabs.setCurrentIndex(0)
+        controls_layout.insertWidget(0, self.table_module_tabs)
+        self.overview_scroll, overview_body = view("Overview")
+        self.overview_content = QWidget()
+        self.overview_layout = QVBoxLayout(self.overview_content)
+        self.overview_layout.setContentsMargins(0, 0, 0, 0)
+        self.overview_layout.setSpacing(16)
+        overview_body.addWidget(self.overview_content, 1)
+        _, graph_body = view("Graphs", pinned=True)
+        self.graph_view_controls = QWidget()
+        view_row = QHBoxLayout(self.graph_view_controls)
+        view_row.setContentsMargins(0, 0, 0, 0)
+        view_row.addWidget(label("View", "muted"))
+        self.result_graph_view = self.combo(["Detailed", "30-minute epochs"])
+        self.result_graph_view.setAccessibleName("Graph time view for all selected series")
+        self.result_graph_view.setMinimumWidth(190)
+        self.result_graph_view.setToolTip(
+            "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
+            "Gait and filtered gait percentages use the same jointly observed time; filtered positives are a subset of gait.\n"
+            "Gait range of motion / peak velocity and tremor power require at least 90 seconds of presence per epoch.\n"
+            "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
+            "Bins use calendar half-hours when dates are known; first/last epochs may be partial."
+        )
+        view_row.addWidget(self.result_graph_view)
+        graphs = QWidget()
+        # The wrapped source label makes the enclosing layout height-for-width.
+        # Let the plot viewport shrink below the canvas's preferred size; its
+        # own scroll area handles tall figures without spilling over the ruler.
+        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        graph_layout = QHBoxLayout(graphs)
+        graph_layout.setContentsMargins(0, 0, 0, 0)
+        self.result_series = SeriesTree()
+        self.result_series.setIndentation(12)
+        self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 3px; }")
+        self.result_series.setHeaderLabel("Plot series")
+        self.result_series.setPalette(light_palette())
+        self.result_series.setMinimumWidth(190)
+        self.result_series.setMaximumWidth(285)
+        self.result_series.setWordWrap(True)
+        self.result_series.setTextElideMode(Qt.ElideNone)
+        self.result_series.setAccessibleName("Results to plot simultaneously")
+        graph = QWidget()
+        plots = QVBoxLayout(graph)
+        plots.setContentsMargins(0, 0, 0, 0)
+        self.figure = Figure(layout="constrained")
+        self.canvas = ScrollableFigureCanvas(self.figure)
+        self.canvas.defer_when_hidden = True
+        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
+        self.canvas.pinned_time_axis = True
+        self.plot_toolbar = GraphToolbar(self.canvas, self)
+        self.figure_actions = FigureActionBar(self.plot_toolbar)
+        self.figure_actions.set_context(self.graph_view_controls)
+        self.figure_actions_layout = self.figure_actions.primary
+        graph_body.addWidget(self.figure_actions)
+        graph_body.addWidget(self.plot_toolbar.settings)
+        graph_scroll = QScrollArea()
+        graph_scroll.setFrameShape(QFrame.NoFrame)
+        graph_scroll.setWidgetResizable(True)
+        graph_scroll.setWidget(self.canvas)
+        self.graph_scroll = graph_scroll
+        self.canvas.scroll_area = graph_scroll
+        self.canvas.outer_scroll_area = self._result_view_scrolls[1]
+        plots.addWidget(graph_scroll, 1)
+        graph_layout.addWidget(graph, 1)
+        self.canvas.setToolTip("Click a point to select its detailed output row.")
+        graphs.setMinimumHeight(310)
+        self.graphs_workspace = graphs
+        graph_body.addWidget(graphs, 1)
+        self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
+        # The selector spans the plot viewport and its pinned time ruler.
+        # It must not end above a blank rectangle the height of the ruler.
+        plot_view = QWidget()
+        plot_view_layout = QVBoxLayout(plot_view)
+        plot_view_layout.setContentsMargins(0, 0, 0, 0)
+        plot_view_layout.setSpacing(0)
+        scroll = self._result_view_scrolls[1]
+        self.graph_view_layout.removeWidget(scroll)
+        # Figure actions retain the full page width, including at 960 px.
+        # Otherwise the selector can hide the toolbar's settings/save buttons.
+        graph_body.removeWidget(self.figure_actions)
+        graph_body.removeWidget(self.plot_toolbar.settings)
+        self.graph_view_layout.addWidget(self.figure_actions)
+        self.graph_view_layout.addWidget(self.plot_toolbar.settings)
+        plot_view_layout.addWidget(scroll, 1)
+        plot_view_layout.addWidget(self.time_axis)
+        self.graph_footer = QWidget()
+        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
+        self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)
+        self.recording_time_label = label("", "muted")
+        self.recording_time_label.setWordWrap(True)
+        self.recording_time_label.setAlignment(Qt.AlignCenter)
+        self.recording_time_label.setAccessibleName("Recording time axis label")
+        self.graph_footer_layout.addWidget(self.recording_time_label, 1)
+        self.time_axis.label_changed.connect(self.recording_time_label.setText)
+        plot_view_layout.addWidget(self.graph_footer)
+        workspace = QWidget()
+        workspace_layout = QHBoxLayout(workspace)
+        workspace_layout.setContentsMargins(12, 0, 0, 12)
+        workspace_layout.setSpacing(10)
+        workspace_layout.addWidget(self.result_series)
+        workspace_layout.addWidget(plot_view, 1)
+        self.graph_view_layout.addWidget(workspace, 1)
+        graph_body.setContentsMargins(0, 0, 12, 0)
+        self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
+        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
+            self.time_axis.synchronize
+        )
+        _, table_body = view("Tables")
+        self.result_table = table()
+        self.result_table.setMinimumHeight(200)
+        self.aggregation_table = table()
+        self.table_stack = QStackedWidget()
+        self.table_stack.addWidget(self.result_table)
+        self.table_stack.addWidget(self.aggregation_table)
+        table_body.addWidget(self.table_stack, 1)
+        self.sensor_panel, sensor_layout = card()
+        self.sensor_note = label("", "muted")
+        sensor_header = QHBoxLayout()
+        sensor_header.addWidget(self.sensor_note, 1)
+        sensor_header.addWidget(button("Close", self.hide_sensor_context))
+        sensor_layout.addLayout(sensor_header)
+        self.sensor_tabs = QTabWidget()
+        self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        (
+            sensor_graph,
+            self.sensor_channels,
+            self.sensor_figure,
+            self.sensor_canvas,
+            self.sensor_toolbar,
+        ) = self.channel_graph(self.set_sensor_channels, "Original sensor channels to plot")
+        self._sensor_channel_colors = {}
+        self.sensor_tabs.addTab(sensor_graph, "Graphs")
+        self.sensor_table = table()
+        self.sensor_tabs.addTab(self.sensor_table, "Tables")
+        _, sensor_body = view("Sensor context")
+        sensor_body.addWidget(self.sensor_panel)
+        sensor_body.addWidget(self.sensor_tabs, 1)
+        self.sensor_tab_index = 3
+        self.result_tabs.setTabVisible(self.sensor_tab_index, False)
+        context = QHBoxLayout()
+        context.setContentsMargins(0, 0, 0, 0)
+        self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
+        self.context_button.setEnabled(False)
+        self.context_button.setToolTip("Select a result row or click a graph point")
+        context.addWidget(self.context_button)
+        self.context_radius = QDoubleSpinBox()
+        self.context_radius.setRange(0.1, 120)
+        self.context_radius.setValue(2)
+        self.context_radius.setSuffix(" s")
+        self.context_radius.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.context_radius.setAccessibleName("Sensor context radius")
+        self.context_radius.setToolTip(
+            "Original samples within this radius of the selected time; not an analysis window."
+        )
+        context.addWidget(label("±", "muted"))
+        context.addWidget(self.context_radius)
+        self.context_controls = QWidget()
+        self.context_controls.setLayout(context)
+        self.result_tabs.currentChanged.connect(self.results_tab_changed)
+        self.results_tab_changed(0)
+
+    def _build_runs(self):
+        layout = self.page()
+        split = QSplitter(Qt.Vertical)
+        panel, content = card()
+        self.run_table = table()
+        self.run_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.run_table.setAccessibleName("Runs; use Ctrl or Shift to select multiple runs")
+        content.addWidget(self.run_table, 1)
+        actions = QHBoxLayout()
+        self.open_run_button = button("Open results", self.open_run)
+        self.use_parameters_button = button("Use these parameters", self.use_run_parameters)
+        actions.addWidget(self.open_run_button)
+        actions.addWidget(self.use_parameters_button)
+        self.delete_run_button = button("Delete Run…", self.delete_run)
+        actions.addWidget(self.delete_run_button)
+        self.clear_runs_button = button("Clear all…", self.clear_runs)
+        actions.addWidget(self.clear_runs_button)
+        actions.addStretch()
+        self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
+        self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        self.delete_run_shortcut.activated.connect(self.delete_run)
+        content.addLayout(actions)
+        split.addWidget(panel)
+        panel, content = card()
+        self.run_heading = label("Select a run", "sectionTitle")
+        content.addWidget(self.run_heading)
+        self.run_summary = label("", "muted")
+        self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        content.addWidget(self.run_summary)
+        self.run_detail_tabs = QTabWidget()
+        self.run_details, self.run_warnings, self.run_errors, self.run_outputs = (
+            readout(),
+            readout(),
+            readout(),
+            readout(),
+        )
+        self.log = readout()
+        for widget, title in (
+            (self.run_details, "Parameters"),
+            (self.run_warnings, "Warnings"),
+            (self.run_errors, "Errors"),
+            (self.run_outputs, "Outputs"),
+            (self.log, "Processing log"),
+        ):
+            self.run_detail_tabs.addTab(widget, title)
+        content.addWidget(self.run_detail_tabs, 1)
+        split.addWidget(panel)
+        split.setSizes([300, 360])
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 1)
+        layout.addWidget(split, 1)
+        self.history_location = label(str(self.history.directory), "muted")
+        self.history_location.setToolTip("Local run history")
+        self.history_location.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(self.history_location)

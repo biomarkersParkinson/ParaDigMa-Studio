@@ -1,4 +1,5 @@
 """Cached, replaceable UI previews; scientific analysis has its own worker."""
+
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +8,7 @@ from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
 
 class CachedPreview(QObject):
     """Compute one preview at a time, delivering only the latest requested value."""
+
     value_ready = Signal(object)
     failed = Signal(str)
     _completed = Signal(object)
@@ -72,7 +74,9 @@ class CachedPreview(QObject):
         if key == self._published:
             return
         if self._executor is None:
-            self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="paradigma-preview")
+            self._executor = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="paradigma-preview"
+            )
         self._future = self._executor.submit(operation)
 
         def completed(future):
@@ -94,14 +98,15 @@ class CachedPreview(QObject):
         if self._closed:
             return
         key, value, error = payload
-        if key[0] == self._generation:
+        if key[0] == self._generation and error is None:
             self._cache[key] = value
             self._cache.move_to_end(key)
             while len(self._cache) > self._capacity:
                 self._cache.popitem(last=False)
         if self._desired is not None and self._desired[0] == key:
-            self._published = key
+            self._published = key if error is None else None
             if error:
+                self._desired = None
                 self.failed.emit(error)
             self.value_ready.emit(value)
         elif self._desired is not None and not self._timer.isActive():

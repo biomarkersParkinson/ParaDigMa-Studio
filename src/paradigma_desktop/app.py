@@ -1,7 +1,6 @@
 """Native scientific workspace with separate configuration and exploration."""
+
 import json
-from html import escape
-import logging
 from threading import Event
 from collections import OrderedDict
 import sys
@@ -11,108 +10,75 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import Qt, QThread, Signal, QStandardPaths, QUrl, QItemSelectionModel
-from PySide6.QtGui import QAction, QIcon, QColor, QShortcut, QKeySequence
+from PySide6.QtCore import Qt, QStandardPaths, QItemSelectionModel
+from PySide6.QtGui import QIcon, QColor
 from PySide6.QtWidgets import (
-    QApplication, QAbstractItemView, QCheckBox, QDoubleSpinBox,
-    QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar,
-    QScrollArea, QSplitter, QStackedWidget, QListView,
-    QTabBar, QTabWidget, QVBoxLayout, QWidget, QListWidget, QListWidgetItem, QTreeWidgetItem, QGridLayout, QLayout, QSizePolicy,
+    QApplication,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QTreeWidgetItem,
+    QGridLayout,
 )
-from .plot_cache import configure_plot_cache
+from .bootstrap import PLOT_CACHE_DIRECTORY as PLOT_CACHE_DIRECTORY
 
-PLOT_CACHE_DIRECTORY = configure_plot_cache(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation))
-
-from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
-from matplotlib import colormaps, dates
 
 from .core import (
-    analyze, export_results, export_table_csv, load_sensor_file, result_tables,
-    validate_column_mapping, validate_orientation,
+    analyze as analyze,
+    export_results,
+    export_table_csv,
+    load_sensor_file as load_sensor_file,
+    validate_column_mapping,
+    validate_orientation,
 )
-from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
-from .recordings import load_recordings, align_recordings, source_key, timeline_offsets
-from .history import RunHistory, failure_log, error_summary, merge_errors, run_status, load_result_export, new_run, now
-from .inspection import TIME_NAMES, inspect_recording, sensor_descriptives, time_descriptives
-from .plot_controls import GraphToolbar, add_graph_controls
-from .plotting import GRAPH_COLORS, ScrollableFigureCanvas, SelectionOverlay, binary_indicator, plot_signal, plot_states, plot_bars, autoscale_bars, time_coordinates
+from .exploration import gait_context, source_timeline
+from .recordings import load_recordings, align_recordings, source_key
+from .history import RunHistory, merge_errors, run_status, load_result_export, new_run, now
+from .inspection import inspect_recording, sensor_descriptives, time_descriptives
 from .results_view import (
-    MODULE_NAMES, clock_times, clock_origin, aggregation_tables, binary_interval_ends, detail_tables, detail_timing, flat_values, analysis_alignment,
-    output_label, plot_metrics, plot_tables, preferred_metric, recording_clock, time_bound, normalise_clock, readable_key, gait_model_threshold, tremor_overview_entries,
+    MODULE_NAMES,
+    clock_times,
+    clock_origin,
+    flat_values,
+    analysis_alignment,
+    output_label,
+    plot_metrics,
+    preferred_metric,
+    recording_clock,
+    normalise_clock,
+    readable_key,
+    gait_model_threshold,
+    tremor_overview_entries,
 )
-from .theme import STYLESHEET, light_palette, style_axes, module_color, style_result_heading
-from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
-from .time_controls import TimeField
-from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
-from .availability import availability_views
-from .epochs import epoch_phase, epoch_summary, availability_epoch_summary, require_epoch_presence
-from .gait_presence import gait_presence_intervals, gait_epoch_summaries
+from .theme import STYLESHEET, light_palette, module_color
+from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
-from .analysis_process import AnalysisCancelled, run_isolated_analysis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, AdaptiveFormColumns, FigureActionBar, SeriesTree, label, button, card, table, readout, field
+from .analysis_process import run_isolated_analysis
+from .result_data import prepare_result_data, detail_table_view
+from .assets import DATA_DIRECTORY
+from .ui.layout import WorkspaceLayout
+from .ui.result_graphs import ResultGraphs
+from .channels import selected_channels, check_channels, populate_channels, plot_channel_signals
+from .jobs import Worker, SignalHandler as SignalHandler
+from .widgets import ReadableTable as ReadableTable
+
+from .widgets import FrameModel, WrappedForm, label, card
 
 
-class SignalHandler(logging.Handler):
-    def __init__(self, signal, warning=None, error=None):
-        super().__init__()
-        self.signal = signal
-        self.warning = warning
-        self.error = error
+class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
+    selected_channels = staticmethod(selected_channels)
+    check_channels = staticmethod(check_channels)
+    populate_channels = staticmethod(populate_channels)
+    plot_channel_signals = staticmethod(plot_channel_signals)
 
-    def emit(self, record):
-        self.signal.emit(self.format(record))
-        if error_summary(record.getMessage()):
-            return  # Keep the log; count the individual pipeline failures.
-        if record.levelno >= logging.ERROR or failure_log(record.getMessage()):
-            if self.error is not None:
-                self.error.emit(record.getMessage())
-        elif self.warning is not None and record.levelno >= logging.WARNING:
-            self.warning.emit(record.getMessage())
-
-
-class Worker(QThread):
-    completed = Signal(object)
-    failed = Signal(str)
-    message = Signal(str)
-    warning = Signal(str)
-    error = Signal(str)
-    cancelled = Signal()
-
-    def __init__(self, operation):
-        super().__init__()
-        self.operation = operation
-
-    def run(self):
-        logger = logging.Logger("paradigma-desktop", logging.INFO)
-        handler = SignalHandler(self.message, self.warning, self.error)
-        logger.addHandler(handler)
-        package_logger = logging.getLogger("paradigma")
-        previous_level = package_logger.level
-        package_logger.setLevel(logging.INFO)
-        package_logger.addHandler(handler)
-        try:
-            self.completed.emit(self.operation(logger))
-        except AnalysisCancelled:
-            self.cancelled.emit()
-        except Exception as exc:
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
-        finally:
-            package_logger.removeHandler(handler)
-            package_logger.setLevel(previous_level)
-            handler.close()
-
-
-class MainWindow(QMainWindow):
     SECTIONS = ("Data", "Analyze", "Results", "Runs")
     MODULES = {"Gait": "gait", "Tremor": "tremor", "Pulse rate": "pulse_rate"}
 
     def __init__(self, history_dir=None):
         super().__init__()
         self.setWindowTitle("ParaDigMa • Sensor analysis")
-        self.setWindowIcon(QIcon(str(Path(__file__).with_name("data") / "app-icon.png")))
+        self.setWindowIcon(QIcon(str(DATA_DIRECTORY / "app-icon.png")))
         self.resize(1450, 920)
         self.setMinimumSize(960, 650)
         self.setPalette(light_palette())
@@ -125,7 +91,7 @@ class MainWindow(QMainWindow):
         self.tables, self.provenance = {}, {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
-        self._interval_ends = {}
+        self._interval_ends, self._bar_bounds = {}, {}
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self._plot_signature = None
@@ -157,7 +123,12 @@ class MainWindow(QMainWindow):
         self.sensor_frame = None
         self.active_run = self.current_run = self.selected_run = None
         self.sidebar_collapsed = True
-        directory = history_dir or Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / "ParaDigMaDesktop" / "runs"
+        directory = (
+            history_dir
+            or Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
+            / "ParaDigMaDesktop"
+            / "runs"
+        )
         self.history = RunHistory(directory)
         self.runs, history_issues = self.history.load()
         self._build_shell()
@@ -174,400 +145,6 @@ class MainWindow(QMainWindow):
         if history_issues:
             self.show_notice("\n".join(history_issues))
 
-    @staticmethod
-    def combo(items=()):
-        combo = ReadableComboBox()
-        # A Qt list view and explicit palette avoid native dark-theme popups
-        # combining dark selection backgrounds with inherited dark text.
-        view = QListView()
-        view.setUniformItemSizes(True)
-        view.setPalette(light_palette())
-        combo.setView(view)
-        combo.setPalette(light_palette())
-        combo.setMaxVisibleItems(12)
-        combo.addItems(items)
-        return combo
-
-    def _build_shell(self):
-        root = QWidget()
-        root.setObjectName("workspace")
-        self.setCentralWidget(root)
-        shell = QHBoxLayout(root)
-        shell.setContentsMargins(0, 0, 0, 0)
-        shell.setSpacing(0)
-        self.sidebar = HoverSidebar(root)
-        self.sidebar.setObjectName("sidebar")
-        navigation = QVBoxLayout(self.sidebar.content)
-        navigation.setContentsMargins(12, 20, 12, 18)
-        navigation.setSpacing(8)
-        brand_row = QHBoxLayout()
-        self.brand_icon = label()
-        self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
-        self.brand_icon.setFixedSize(28, 28)
-        self.brand_icon.setToolTip("ParaDigMa")
-        brand_row.addWidget(self.brand_icon)
-        self.brand = label("ParaDigMa", "brand")
-        self.brand.setWordWrap(False)
-        brand_row.addWidget(self.brand, 1)
-        navigation.addLayout(brand_row)
-        self.brand_caption = label("SENSOR ANALYSIS", "muted")
-        self.brand_caption.setWordWrap(False)
-        for widget in (self.brand, self.brand_caption):
-            policy = widget.sizePolicy()
-            policy.setRetainSizeWhenHidden(True)
-            widget.setSizePolicy(policy)
-        navigation.addWidget(self.brand_caption)
-        navigation.addSpacing(24)
-        self.nav_buttons = []
-        for index, section in enumerate(self.SECTIONS):
-            item = button(f"{index + 1}    {section}", lambda checked=False, i=index: self.navigate(i))
-            item.setCheckable(True)
-            item.setToolTip(section)
-            item.setAccessibleName(section)
-            item.setShortcut(f"Alt+{index + 1}")
-            navigation.addWidget(item)
-            self.nav_buttons.append(item)
-        navigation.addStretch()
-        self.about_button = button("About", self.show_acknowledgements)
-        self.about_button.setObjectName("about")
-        self.about_button.setShortcut("F1")
-        navigation.addWidget(self.about_button)
-        rail = QWidget()
-        rail.setFixedWidth(self.sidebar.rail_width)
-        shell.addWidget(rail)
-        self.sidebar.fit_content()
-        self.sidebar.expandedChanged.connect(self.sidebar_expanded)
-        self.sidebar_expanded(False)
-        center = QWidget()
-        center_layout = QVBoxLayout(center)
-        center_layout.setContentsMargins(24, 20, 20, 12)
-        center_layout.setSpacing(14)
-        heading = QHBoxLayout()
-        self.page_title = label("", "pageTitle")
-        heading.addWidget(self.page_title, 1)
-        center_layout.addLayout(heading)
-        self.notice = label("", "notice")
-        self.notice.hide()
-        center_layout.addWidget(self.notice)
-        self.pages = QStackedWidget()
-        center_layout.addWidget(self.pages, 1)
-        self.progress = QProgressBar()
-        self.progress.setTextVisible(False)
-        self.progress.hide()
-        center_layout.addWidget(self.progress)
-        self.status = label("Open a sensor file.", "muted")
-        self.status_row = QWidget()
-        self.status_layout = QHBoxLayout(self.status_row)
-        self.status_layout.setContentsMargins(0, 0, 0, 0)
-        self.status_layout.setSpacing(10)
-        self.status_layout.addWidget(self.status, 1)
-        center_layout.addWidget(self.status_row)
-        shell.addWidget(center, 1)
-        self.sidebar.raise_()
-
-    def page(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
-        self.pages.addWidget(widget)
-        return layout
-
-    def _build_data(self):
-        layout = self.page()
-        panel, content = card()
-        row = QHBoxLayout()
-        self.file_label = label("No recording loaded", "sectionTitle")
-        row.addWidget(self.file_label, 1)
-        self.input_recording = self.combo()
-        self.input_recording.setAccessibleName("Recording to inspect")
-        self.input_recording.hide()
-        self.input_recording.currentIndexChanged.connect(self.inspect_input_recording)
-        row.addWidget(self.input_recording, 1)
-        self.open_button = button("Open sensor files…", self.open_file, primary=True)
-        self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
-        self.open_action = QAction("Open recording", self)
-        self.open_action.setShortcut("Ctrl+O")
-        self.open_action.triggered.connect(self.open_file)
-        self.addAction(self.open_action)
-        row.addWidget(self.open_button)
-        content.addLayout(row)
-        layout.addWidget(panel)
-        self.data_tabs = QTabWidget()
-        overview = QWidget()
-        overview_layout = QVBoxLayout(overview)
-        overview_layout.setContentsMargins(18, 18, 18, 18)
-        overview_layout.setSpacing(16)
-        metrics = QHBoxLayout()
-        self.data_values = []
-        for title in ("Sensor samples", "Channels", "Missing values"):
-            panel, content = card()
-            content.addWidget(label(title, "muted"))
-            value = label("—", "metricValue")
-            content.addWidget(value)
-            self.data_values.append(value)
-            metrics.addWidget(panel, 1)
-        overview_layout.addLayout(metrics)
-        details = self.data_details = QSplitter(Qt.Horizontal)
-        details.setHandleWidth(12)
-        panel, content = card()
-        content.addWidget(label("Sensor channels", "sectionTitle"))
-        self.channel_table = table()
-        content.addWidget(self.channel_table, 1)
-        details.addWidget(panel)
-        panel, content = card()
-        time_controls = QHBoxLayout()
-        content.addWidget(label("Time channel", "sectionTitle"))
-        self.data_time_channel = self.combo()
-        self.data_time_channel.setPlaceholderText("Select time column")
-        self.data_time_channel.setToolTip("Time column inspected here. Analysis uses its column mapping.")
-        time_controls.addWidget(self.data_time_channel, 1)
-        self.data_time_unit = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
-        self.data_time_unit.setToolTip("Units for inspecting the raw time column. Analysis parameters are set on Analyze.")
-        time_controls.addWidget(self.data_time_unit)
-        content.addLayout(time_controls)
-        self.time_table = table()
-        content.addWidget(self.time_table, 1)
-        details.addWidget(panel)
-        details.setSizes([660, 400])
-        overview_layout.addWidget(details, 1)
-        self.data_tabs.addTab(overview, "Overview")
-        preview, self.data_channels, self.data_figure, self.data_canvas, self.data_toolbar = self.channel_graph(
-            self.set_input_channels, "Sensor channels to plot")
-        self._channel_colors = {}
-        self.data_tabs.addTab(preview, "Graphs")
-        self.input_table = table()
-        self.data_tabs.addTab(self.input_table, "Tables")
-        layout.addWidget(self.data_tabs, 1)
-        self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
-        self.continue_button.setEnabled(False)
-        self.status_layout.addWidget(self.continue_button)
-
-    def channel_graph(self, select_channels, accessible_name):
-        """Shared raw-sensor workspace: a channel list beside a fitted graph."""
-        preview = QWidget()
-        preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        preview_layout = QHBoxLayout(preview)
-        channels = QWidget()
-        channels.setMinimumWidth(190)
-        channels.setMaximumWidth(260)
-        channel_layout = QVBoxLayout(channels)
-        heading = label("Channels", "sectionTitle")
-        heading.setWordWrap(False)
-        channel_layout.addWidget(heading)
-        selection = QHBoxLayout()
-        channel_list = QListWidget()
-        selection.addWidget(button("Select all", lambda: select_channels([
-            channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())])))
-        selection.addWidget(button("Clear", lambda: select_channels([])))
-        channel_layout.addLayout(selection)
-        channel_list.setPalette(light_palette())
-        channel_list.setSelectionMode(QAbstractItemView.NoSelection)
-        channel_list.setTextElideMode(Qt.ElideNone)
-        channel_list.setAccessibleName(accessible_name)
-        channel_layout.addWidget(channel_list, 1)
-        preview_layout.addWidget(channels)
-        graph = QWidget()
-        graph_layout = QVBoxLayout(graph)
-        figure = Figure(layout="constrained")
-        canvas = ScrollableFigureCanvas(figure)
-        canvas.defer_when_hidden = True
-        # Use the available height instead of imposing the canvas's preferred
-        # 480-pixel height on the enclosing page or clipping its time axis.
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        toolbar = add_graph_controls(graph_layout, canvas, self)
-        graph_layout.addWidget(canvas, 1)
-        preview_layout.addWidget(graph, 1)
-        return preview, channel_list, figure, canvas, toolbar
-
-    def _build_analyze(self):
-        layout = self.page()
-        layout.setSpacing(12)
-        scroll = self.analysis_scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        body = QWidget()
-        body.setObjectName("analysisBody")
-        content = QVBoxLayout(body)
-        content.setContentsMargins(0, 0, 4, 0)
-        content.setSpacing(16)
-        content.setSizeConstraint(QLayout.SetMinimumSize)
-        panel, input_layout = card()
-        input_layout.setContentsMargins(18, 14, 18, 14)
-        input_row = QHBoxLayout()
-        input_row.addWidget(label("Selected input", "muted"))
-        self.analysis_input = label("No recording loaded", "sectionTitle")
-        input_row.addWidget(self.analysis_input, 1)
-        self.analysis_input_detail = label("", "muted")
-        input_row.addWidget(self.analysis_input_detail)
-        input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
-        input_layout.addLayout(input_row)
-        content.addWidget(panel)
-        # The full stack, including wrapped help, must reserve its real height.
-        # Otherwise native controls can grow while the parent still allocates
-        # a smaller preferred height, consuming the gap below the parameters.
-        self.analysis_controls = WrappedForm()
-        controls = QVBoxLayout(self.analysis_controls)
-        controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(16)
-        # WrappedForm already reserves exactly the stack's required height.
-        # AlignTop would cap the layout rectangle at its preferred size hint,
-        # compressing spacing when help is taller at the current width.
-        self.analysis_help = {}
-        self.analysis_help_sections = {}
-        self._updating_analysis_help = False
-        modules = QHBoxLayout()
-        module_heading = self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True)
-        modules.addWidget(module_heading)
-        self.module_requirements = label("", "muted")
-        self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.module_buttons = {}
-        for name in ("Gait", "Tremor", "Pulse rate"):
-            item = button(name)
-            item.setObjectName("module")
-            item.setProperty("analysisModule", self.MODULES[name])
-            item.setCheckable(True)
-            self.module_buttons[name] = item
-            modules.addWidget(item, 1)
-        self.module_buttons["Gait"].setChecked(True)
-        controls.addLayout(modules)
-        self.settings_panel, parameter_card = card()
-        parameter_card.setContentsMargins(18, 16, 18, 16)
-        parameter_card.setSpacing(14)
-        parameter_card.setAlignment(Qt.AlignTop)
-        # Reserve the form's actual minimum before help changes the outer
-        # layout. Otherwise Qt briefly clips the bottom rows while settling.
-        parameter_card.setSizeConstraint(QLayout.SetMinimumSize)
-        self.analysis_parameter_fields = WrappedForm()
-        self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        parameters = QVBoxLayout(self.analysis_parameter_fields)
-        parameters.setContentsMargins(0, 0, 0, 0)
-        parameters.setSpacing(14)
-        parameters.setAlignment(Qt.AlignTop)
-        parameter_card.addWidget(self.analysis_parameter_fields, alignment=Qt.AlignTop)
-        parameter_header = QHBoxLayout()
-        parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
-        parameter_header.addWidget(self.module_requirements, 1)
-        parameters.addLayout(parameter_header)
-        left = QFormLayout()
-        right = QFormLayout()
-        columns = AdaptiveFormColumns(left, right)
-        for form in (left, right):
-            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
-            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            form.setHorizontalSpacing(10)
-            form.setVerticalSpacing(12)
-        self.side = self.combo(["left", "right"])
-        self.acc = self.combo(["g", "m/s^2"])
-        self.gyro = self.combo(["deg/s", "rad/s"])
-        self.time = self.combo(["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"])
-        for widget in (self.side, self.acc, self.gyro, self.time):
-            widget.setMinimumWidth(160)
-        self.orientation = QLineEdit("x,y,z")
-        for title, widget in (("Watch side", self.side), ("Acceleration units", self.acc),
-                              ("Gyroscope units", self.gyro), ("Time units", self.time)):
-            self.analysis_field(title, widget, form=left)
-        self.prepared = QCheckBox("Already prepared (skip conversion)")
-        self.gaps = QCheckBox("Split recordings at time gaps")
-        self.drop_missing = QCheckBox("Exclude missing sensor samples")
-        self.drop_missing.setChecked(True)
-        for widget in (self.prepared, self.gaps, self.drop_missing):
-            widget.setPalette(light_palette())
-        right.addRow(self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True))
-        self.segmentation_controls = WrappedForm()
-        sections = QGridLayout(self.segmentation_controls)
-        sections.setContentsMargins(0, 0, 0, 0)
-        sections.setColumnStretch(1, 1)
-        sections.setHorizontalSpacing(10)
-        sections.setVerticalSpacing(12)
-        sections.addWidget(self.analysis_field("Split recordings at time gaps", self.gaps, inline=True), 0, 0, 1, 2)
-        self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
-        self.section_reset_buttons = {}
-        for title, widget, default in (("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),
-                                        ("Minimum section duration", self.min_segment, DEFAULT_MIN_SECTION_SECONDS)):
-            widget.setRange(0.01, 86400)
-            widget.setValue(default)
-            widget.setSuffix(" s")
-            widget.setDecimals(2)
-            widget.setAccessibleName(title)
-            reset = button("Default", lambda checked=False, spin=widget, value=default: spin.setValue(value))
-            reset.setAccessibleName(f"Reset {title.lower()} to the official default")
-            self.section_reset_buttons[title] = reset
-            row = QWidget()
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.addWidget(widget, 1)
-            row_layout.addWidget(reset)
-            self.analysis_field(title, row, form=sections)
-        right.addRow(self.segmentation_controls)
-        parameters.addLayout(columns)
-        self.mapping = QPlainTextEdit("{}")
-        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
-        self.mapping.setFixedHeight(60)
-        # Each column flows independently, so short fields use available space.
-        self.analysis_field("Device axes", self.orientation, form=left)
-        self.analysis_field("Column mapping (JSON)", self.mapping, form=sections)
-        left.setFormAlignment(Qt.AlignTop)
-        right.setFormAlignment(Qt.AlignTop)
-        sections.setAlignment(Qt.AlignTop)
-        self.clock_input = TimeField("Time origin", origin=True)
-        self.clock_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.origin_reset = button("Default", self.reset_origin)
-        origin_row = WrappedForm()
-        clock_group, reset_group = QHBoxLayout(), QHBoxLayout()
-        clock_group.addWidget(self.clock_input)
-        reset_group.addWidget(self.origin_reset, alignment=Qt.AlignRight)
-        origin_layout = AdaptiveFormColumns(clock_group, reset_group, right_stretch=0)
-        origin_layout.setSpacing(12)
-        origin_row.setLayout(origin_layout)
-        origin_form = QFormLayout()
-        origin_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
-        origin_form.setHorizontalSpacing(10)
-        origin_form.setVerticalSpacing(12)
-        origin_form.setFormAlignment(Qt.AlignTop)
-        self.analysis_field("Time origin", origin_row, form=origin_form)
-        parameters.addLayout(origin_form)
-        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
-        # Help belongs below the complete parameter card. Expanding a field's row changes
-        # QFormLayout alignment and column widths, shifting unrelated labels.
-        self.analysis_help_panel, help_layout = card()
-        help_layout.setSpacing(12)
-        for title, (info, description) in self.analysis_help.items():
-            section = QWidget()
-            section_layout = QVBoxLayout(section)
-            section_layout.setContentsMargins(0, 0, 0, 0)
-            section_layout.setSpacing(4)
-            section_layout.addWidget(label(title, "sectionTitle"))
-            section_layout.addWidget(description)
-            section.hide()
-            self.analysis_help_sections[title] = section
-            info.toggled.connect(lambda checked, title=title: self.toggle_analysis_help(title, checked))
-            help_layout.addWidget(section)
-        self.analysis_help_panel.hide()
-        controls.addWidget(self.settings_panel)
-        controls.addWidget(self.analysis_help_panel)
-        content.addWidget(self.analysis_controls)
-        content.addStretch()
-        self.run_button = button("Run Analysis", self.run_analysis, primary=True)
-        self.run_button.setShortcut("Ctrl+Return")
-        self.run_button.setEnabled(False)
-        self.run_button.setMinimumWidth(170)
-        self.stop_button = button("Stop Analysis", self.stop_analysis)
-        self.stop_button.setEnabled(False)
-        self.status_layout.addWidget(self.stop_button)
-        self.status_layout.addWidget(self.run_button)
-        # Keep the footer height stable when navigation hides its actions.
-        # Otherwise Results can resize/repaint after its first row selection.
-        self.status_row.setMinimumHeight(max(control.sizeHint().height() for control in
-                                            (self.continue_button, self.stop_button, self.run_button)))
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        bar = scroll.verticalScrollBar()
-        bar.rangeChanged.connect(lambda low, high: bar.setStyleSheet(
-            "QScrollBar::handle:vertical { background: transparent; }" if high == low else ""))
-        bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
-        scroll.setWidget(body)
-        layout.addWidget(scroll, 1)
-
     def toggle_analysis_help(self, title, checked):
         if self._updating_analysis_help:
             return
@@ -583,7 +160,9 @@ class MainWindow(QMainWindow):
             for name, (info, description) in self.analysis_help.items():
                 description.setVisible(info.isChecked())
                 self.analysis_help_sections[name].setVisible(info.isChecked())
-            self.analysis_help_panel.setVisible(any(info.isChecked() for info, _ in self.analysis_help.values()))
+            self.analysis_help_panel.setVisible(
+                any(info.isChecked() for info, _ in self.analysis_help.values())
+            )
             # Fit the fixed-height wrapper synchronously. Activating its layout
             # alone still uses the old height until a queued LayoutRequest,
             # which can paint the help over the parameter card in the meantime.
@@ -594,335 +173,6 @@ class MainWindow(QMainWindow):
         finally:
             body.setUpdatesEnabled(updates)
             self._updating_analysis_help = False
-
-    def analysis_field(self, title, control, *, form=None, inline=False):
-        """Accessible help toggles; explanations are kept outside the form rows."""
-        text, reference = FIELD_HELP[title]
-        info = button("i")
-        info.setObjectName("helpInfo")
-        info.setFixedSize(22, 22)
-        info.setCheckable(True)
-        info.setAccessibleName(f"Information: {title}")
-        url = reference if reference.startswith("https://") else SOURCE + reference
-        visual = ""
-        link_title = "ParaDigMa documentation"
-        if title == "Device axes":
-            image = QUrl.fromLocalFile(str(Path(__file__).with_name("data") / "directions_axes.png")).toString()
-            visual = (f'<p><img src="{image}" width="260" height="247"></p>'
-                      '<p>Reference figure: ParaDigMa Coordinate System guide.</p>')
-            link_title = "ParaDigMa documentation · Coordinate System guide"
-        description = QLabel(f'{escape(text)}{visual}<br><a style="color: #1E609E; text-decoration: underline;" '
-                             f'href="{url}">{link_title}</a>')
-        description.setWordWrap(True)
-        description.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        description.setTextFormat(Qt.RichText)
-        description.setOpenExternalLinks(True)
-        description.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        description.setAccessibleName(f"Help: {title}")
-        description.setObjectName("fieldHelp")
-        description.hide()
-        self.analysis_help[title] = (info, description)
-        control.setAccessibleName(title)
-        heading = QWidget()
-        row = QHBoxLayout(heading)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(6)
-        title_label = control if inline else label(title, "muted")
-        if not inline:
-            title_label.setBuddy(control)
-        row.addWidget(title_label)
-        row.addWidget(info, alignment=Qt.AlignVCenter)
-        row.addStretch()
-        body = QWidget()
-        content = QVBoxLayout(body)
-        content.setContentsMargins(0, 0, 0, 0)
-        content.setSpacing(4)
-        content.setSizeConstraint(QLayout.SetMinimumSize)
-        if form is not None:
-            content.setAlignment(Qt.AlignTop)
-            content.addWidget(control, alignment=Qt.AlignTop)
-            if isinstance(form, QGridLayout):
-                index = form.rowCount()
-                form.addWidget(heading, index, 0, Qt.AlignTop)
-                form.addWidget(body, index, 1, Qt.AlignTop)
-            else:
-                form.addRow(heading, body)
-        else:
-            content.addWidget(heading)
-            if not inline:
-                content.addWidget(control)
-        return body
-
-    def _build_results(self):
-        layout = self.page()
-        self.result_tabs = QTabWidget()
-        self.result_tabs.tabBar().setExpanding(False)
-        self.result_tabs.setMinimumHeight(200)
-        layout.addWidget(self.result_tabs, 1)
-        self._result_view_layouts, self._result_view_scrolls = [], []
-
-        def view(title, pinned=False):
-            scroll = QScrollArea()
-            scroll.setFrameShape(QFrame.NoFrame)
-            scroll.setWidgetResizable(True)
-            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            body = QWidget()
-            body_layout = QVBoxLayout(body)
-            body_layout.setContentsMargins(12, 12, 12, 12)
-            body_layout.setSpacing(12)
-            body_layout.setSizeConstraint(QLayout.SetMinimumSize)
-            scroll.setWidget(body)
-            if pinned:
-                self.graph_view = QWidget()
-                self.graph_view_layout = QVBoxLayout(self.graph_view)
-                self.graph_view_layout.setContentsMargins(0, 0, 0, 0)
-                self.graph_view_layout.setSpacing(0)
-                self.graph_view_layout.addWidget(scroll, 1)
-                self.result_tabs.addTab(self.graph_view, title)
-            else:
-                self.result_tabs.addTab(scroll, title)
-            self._result_view_layouts.append(body_layout)
-            self._result_view_scrolls.append(scroll)
-            return scroll, body_layout
-
-        self.results_header = QWidget()
-        header = QHBoxLayout(self.results_header)
-        header.setContentsMargins(0, 0, 0, 0)
-        self.results_source = label("No analysis results", "muted")
-        header.addWidget(self.results_source, 1)
-        actions = QWidget()
-        action_layout = QHBoxLayout(actions)
-        action_layout.setContentsMargins(12, 0, 0, 0)
-        self.export_button = button("Export…", self.choose_export)
-        self.export_button.setAccessibleName("Export results")
-        self.export_button.setEnabled(False)
-        action_layout.addWidget(self.export_button)
-        self.result_tabs.setCornerWidget(actions, Qt.TopRightCorner)
-        self.detail_controls = QWidget()
-        controls_layout = QVBoxLayout(self.detail_controls)
-        controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
-        controls_layout.setContentsMargins(0, 0, 0, 0)
-        settings = QHBoxLayout()
-        self.table_actions_layout = settings
-        self.dataset = self.combo()
-        self.dataset.setParent(self.detail_controls)
-        self.dataset.hide()  # Linked graph/table state; the visible selector is scoped by output type.
-        self.table_dataset = self.combo()
-        self.table_dataset.setMinimumWidth(180)
-        self.dataset_field = field("Output table", self.table_dataset)
-        settings.addWidget(self.dataset_field, 2)
-        self.timing_toggle = QCheckBox("Timing details")
-        self.timing_toggle.setToolTip("Add display-only dates and gait timing estimates; original output columns stay unchanged.")
-        settings.addWidget(self.timing_toggle)
-        self.y_column = self.combo()
-        # Kept as internal metric state for linked table/graph inspection.
-        # Plot series is the user-facing metric selector.
-        self.y_column.setParent(self.detail_controls)
-        self.y_column.hide()
-        settings.addStretch()
-        controls_layout.addLayout(settings)
-        self.selection_note = label("No detailed output", "muted")
-        controls_layout.addWidget(self.selection_note)
-        self.table_module_tabs = ModuleTabBar()
-        self.table_module_tabs.setExpanding(False)
-        for title in MODULE_NAMES.values():
-            self.table_module_tabs.addTab(title)
-        self.table_module_tabs.setCurrentIndex(0)
-        controls_layout.insertWidget(0, self.table_module_tabs)
-        self.overview_scroll, overview_body = view("Overview")
-        self.overview_content = QWidget()
-        self.overview_layout = QVBoxLayout(self.overview_content)
-        self.overview_layout.setContentsMargins(0, 0, 0, 0)
-        self.overview_layout.setSpacing(16)
-        overview_body.addWidget(self.overview_content, 1)
-        _, graph_body = view("Graphs", pinned=True)
-        self.graph_view_controls = QWidget()
-        view_row = QHBoxLayout(self.graph_view_controls)
-        view_row.setContentsMargins(0, 0, 0, 0)
-        view_row.addWidget(label("View", "muted"))
-        self.result_graph_view = self.combo(["Detailed", "30-minute epochs"])
-        self.result_graph_view.setAccessibleName("Graph time view for all selected series")
-        self.result_graph_view.setMinimumWidth(190)
-        self.result_graph_view.setToolTip(
-            "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
-            "Gait and filtered gait percentages use the same jointly observed time; filtered positives are a subset of gait.\n"
-            "Gait range of motion / peak velocity and tremor power require at least 90 seconds of presence per epoch.\n"
-            "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
-            "Bins use calendar half-hours when dates are known; first/last epochs may be partial.")
-        view_row.addWidget(self.result_graph_view)
-        graphs = QWidget()
-        # The wrapped source label makes the enclosing layout height-for-width.
-        # Let the plot viewport shrink below the canvas's preferred size; its
-        # own scroll area handles tall figures without spilling over the ruler.
-        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        graph_layout = QHBoxLayout(graphs)
-        graph_layout.setContentsMargins(0, 0, 0, 0)
-        self.result_series = SeriesTree()
-        self.result_series.setIndentation(12)
-        self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 3px; }")
-        self.result_series.setHeaderLabel("Plot series")
-        self.result_series.setPalette(light_palette())
-        self.result_series.setMinimumWidth(190)
-        self.result_series.setMaximumWidth(285)
-        self.result_series.setWordWrap(True)
-        self.result_series.setTextElideMode(Qt.ElideNone)
-        self.result_series.setAccessibleName("Results to plot simultaneously")
-        graph = QWidget()
-        plots = QVBoxLayout(graph)
-        plots.setContentsMargins(0, 0, 0, 0)
-        self.figure = Figure(layout="constrained")
-        self.canvas = ScrollableFigureCanvas(self.figure)
-        self.canvas.defer_when_hidden = True
-        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
-        self.canvas.pinned_time_axis = True
-        self.plot_toolbar = GraphToolbar(self.canvas, self)
-        self.figure_actions = FigureActionBar(self.plot_toolbar)
-        self.figure_actions.set_context(self.graph_view_controls)
-        self.figure_actions_layout = self.figure_actions.primary
-        graph_body.addWidget(self.figure_actions)
-        graph_body.addWidget(self.plot_toolbar.settings)
-        graph_scroll = QScrollArea()
-        graph_scroll.setFrameShape(QFrame.NoFrame)
-        graph_scroll.setWidgetResizable(True)
-        graph_scroll.setWidget(self.canvas)
-        self.graph_scroll = graph_scroll
-        self.canvas.scroll_area = graph_scroll
-        self.canvas.outer_scroll_area = self._result_view_scrolls[1]
-        plots.addWidget(graph_scroll, 1)
-        graph_layout.addWidget(graph, 1)
-        self.canvas.setToolTip("Click a point to select its detailed output row.")
-        graphs.setMinimumHeight(310)
-        self.graphs_workspace = graphs
-        graph_body.addWidget(graphs, 1)
-        self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
-        # The selector spans the plot viewport and its pinned time ruler.
-        # It must not end above a blank rectangle the height of the ruler.
-        plot_view = QWidget()
-        plot_view_layout = QVBoxLayout(plot_view)
-        plot_view_layout.setContentsMargins(0, 0, 0, 0)
-        plot_view_layout.setSpacing(0)
-        scroll = self._result_view_scrolls[1]
-        self.graph_view_layout.removeWidget(scroll)
-        # Figure actions retain the full page width, including at 960 px.
-        # Otherwise the selector can hide the toolbar's settings/save buttons.
-        graph_body.removeWidget(self.figure_actions)
-        graph_body.removeWidget(self.plot_toolbar.settings)
-        self.graph_view_layout.addWidget(self.figure_actions)
-        self.graph_view_layout.addWidget(self.plot_toolbar.settings)
-        plot_view_layout.addWidget(scroll, 1)
-        plot_view_layout.addWidget(self.time_axis)
-        self.graph_footer = QWidget()
-        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
-        self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)
-        self.recording_time_label = label('', 'muted')
-        self.recording_time_label.setWordWrap(True)
-        self.recording_time_label.setAlignment(Qt.AlignCenter)
-        self.recording_time_label.setAccessibleName('Recording time axis label')
-        self.graph_footer_layout.addWidget(self.recording_time_label, 1)
-        self.time_axis.label_changed.connect(self.recording_time_label.setText)
-        plot_view_layout.addWidget(self.graph_footer)
-        workspace = QWidget()
-        workspace_layout = QHBoxLayout(workspace)
-        workspace_layout.setContentsMargins(12, 0, 0, 12)
-        workspace_layout.setSpacing(10)
-        workspace_layout.addWidget(self.result_series)
-        workspace_layout.addWidget(plot_view, 1)
-        self.graph_view_layout.addWidget(workspace, 1)
-        graph_body.setContentsMargins(0, 0, 12, 0)
-        self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
-        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
-        _, table_body = view("Tables")
-        self.result_table = table()
-        self.result_table.setMinimumHeight(200)
-        self.aggregation_table = table()
-        self.table_stack = QStackedWidget()
-        self.table_stack.addWidget(self.result_table)
-        self.table_stack.addWidget(self.aggregation_table)
-        table_body.addWidget(self.table_stack, 1)
-        self.sensor_panel, sensor_layout = card()
-        self.sensor_note = label("", "muted")
-        sensor_header = QHBoxLayout()
-        sensor_header.addWidget(self.sensor_note, 1)
-        sensor_header.addWidget(button("Close", self.hide_sensor_context))
-        sensor_layout.addLayout(sensor_header)
-        self.sensor_tabs = QTabWidget()
-        self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        sensor_graph, self.sensor_channels, self.sensor_figure, self.sensor_canvas, self.sensor_toolbar = self.channel_graph(
-            self.set_sensor_channels, "Original sensor channels to plot")
-        self._sensor_channel_colors = {}
-        self.sensor_tabs.addTab(sensor_graph, "Graphs")
-        self.sensor_table = table()
-        self.sensor_tabs.addTab(self.sensor_table, "Tables")
-        _, sensor_body = view("Sensor context")
-        sensor_body.addWidget(self.sensor_panel)
-        sensor_body.addWidget(self.sensor_tabs, 1)
-        self.sensor_tab_index = 3
-        self.result_tabs.setTabVisible(self.sensor_tab_index, False)
-        context = QHBoxLayout()
-        context.setContentsMargins(0, 0, 0, 0)
-        self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
-        self.context_button.setEnabled(False)
-        self.context_button.setToolTip("Select a result row or click a graph point")
-        context.addWidget(self.context_button)
-        self.context_radius = QDoubleSpinBox()
-        self.context_radius.setRange(0.1, 120)
-        self.context_radius.setValue(2)
-        self.context_radius.setSuffix(" s")
-        self.context_radius.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        self.context_radius.setAccessibleName("Sensor context radius")
-        self.context_radius.setToolTip("Original samples within this radius of the selected time; not an analysis window.")
-        context.addWidget(label("±", "muted"))
-        context.addWidget(self.context_radius)
-        self.context_controls = QWidget()
-        self.context_controls.setLayout(context)
-        self.result_tabs.currentChanged.connect(self.results_tab_changed)
-        self.results_tab_changed(0)
-
-    def _build_runs(self):
-        layout = self.page()
-        split = QSplitter(Qt.Vertical)
-        panel, content = card()
-        self.run_table = table()
-        self.run_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.run_table.setAccessibleName("Runs; use Ctrl or Shift to select multiple runs")
-        content.addWidget(self.run_table, 1)
-        actions = QHBoxLayout()
-        self.open_run_button = button("Open results", self.open_run)
-        self.use_parameters_button = button("Use these parameters", self.use_run_parameters)
-        actions.addWidget(self.open_run_button)
-        actions.addWidget(self.use_parameters_button)
-        self.delete_run_button = button("Delete Run…", self.delete_run)
-        actions.addWidget(self.delete_run_button)
-        self.clear_runs_button = button("Clear all…", self.clear_runs)
-        actions.addWidget(self.clear_runs_button)
-        actions.addStretch()
-        self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
-        self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-        self.delete_run_shortcut.activated.connect(self.delete_run)
-        content.addLayout(actions)
-        split.addWidget(panel)
-        panel, content = card()
-        self.run_heading = label("Select a run", "sectionTitle")
-        content.addWidget(self.run_heading)
-        self.run_summary = label("", "muted")
-        self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        content.addWidget(self.run_summary)
-        self.run_detail_tabs = QTabWidget()
-        self.run_details, self.run_warnings, self.run_errors, self.run_outputs = readout(), readout(), readout(), readout()
-        self.log = readout()
-        for widget, title in ((self.run_details, "Parameters"), (self.run_warnings, "Warnings"),
-                              (self.run_errors, "Errors"), (self.run_outputs, "Outputs"), (self.log, "Processing log")):
-            self.run_detail_tabs.addTab(widget, title)
-        content.addWidget(self.run_detail_tabs, 1)
-        split.addWidget(panel)
-        split.setSizes([300, 360])
-        split.setStretchFactor(0, 1)
-        split.setStretchFactor(1, 1)
-        layout.addWidget(split, 1)
-        self.history_location = label(str(self.history.directory), "muted")
-        self.history_location.setToolTip("Local run history")
-        self.history_location.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.history_location)
 
     def _connect(self):
         self.result_graph_view.currentIndexChanged.connect(self.plot)
@@ -968,6 +218,7 @@ class MainWindow(QMainWindow):
     def show_acknowledgements(self):
         if getattr(self, "_acknowledgements_dialog", None) is None:
             from .acknowledgements import AcknowledgementsDialog
+
             self._acknowledgements_dialog = AcknowledgementsDialog(self)
         self._acknowledgements_dialog.show()
         self._acknowledgements_dialog.raise_()
@@ -991,7 +242,9 @@ class MainWindow(QMainWindow):
         self.notice.setVisible(bool(message))
 
     def selected_modules(self):
-        return [self.MODULES[name] for name, item in self.module_buttons.items() if item.isChecked()]
+        return [
+            self.MODULES[name] for name, item in self.module_buttons.items() if item.isChecked()
+        ]
 
     def set_modules(self, pipelines):
         selected = set(pipelines)
@@ -1012,8 +265,12 @@ class MainWindow(QMainWindow):
         if "pulse_rate" in selected:
             requirements.append("raw green PPG")
         text = ", ".join(requirements)
-        self.module_requirements.setText(text[0].upper() + text[1:] + " required." if text else "Select an analysis module.")
-        self.run_button.setEnabled(self.frame is not None and bool(selected) and self.worker is None)
+        self.module_requirements.setText(
+            text[0].upper() + text[1:] + " required." if text else "Select an analysis module."
+        )
+        self.run_button.setEnabled(
+            self.frame is not None and bool(selected) and self.worker is None
+        )
         self.update_origin_default()
 
     def preparation_changed(self, *_):
@@ -1027,9 +284,20 @@ class MainWindow(QMainWindow):
     def start_job(self, operation, completed):
         if self.worker is not None:
             return
-        for widget in (self.open_button, self.run_button, self.settings_panel, self.analysis_controls,
-                       self.export_button, self.open_run_button, self.use_parameters_button, self.delete_run_button, self.clear_runs_button,
-                       self.data_time_channel, self.data_time_unit, self.input_recording):
+        for widget in (
+            self.open_button,
+            self.run_button,
+            self.settings_panel,
+            self.analysis_controls,
+            self.export_button,
+            self.open_run_button,
+            self.use_parameters_button,
+            self.delete_run_button,
+            self.clear_runs_button,
+            self.data_time_channel,
+            self.data_time_unit,
+            self.input_recording,
+        ):
             widget.setEnabled(False)
         self.progress.setRange(0, 0)
         self.progress.show()
@@ -1083,7 +351,9 @@ class MainWindow(QMainWindow):
     def update_run_problems(self):
         record = self.active_run
         if self.selected_run is record:
-            self.run_warnings.setPlainText("\n\n".join(record["warnings"]) or "No recorded warnings.")
+            self.run_warnings.setPlainText(
+                "\n\n".join(record["warnings"]) or "No recorded warnings."
+            )
             self.run_errors.setPlainText("\n\n".join(record["errors"]) or "No recorded errors.")
             self.run_summary.setText(self.run_summary_text(record))
         model = self.run_table.model()
@@ -1099,7 +369,9 @@ class MainWindow(QMainWindow):
         try:
             self.history.save(record)
         except (OSError, ValueError, TypeError) as exc:
-            self.show_notice(f"Analysis remains available, but run history could not be saved: {exc}")
+            self.show_notice(
+                f"Analysis remains available, but run history could not be saved: {exc}"
+            )
 
     def finish_run(self, status, errors=()):
         if self.active_run is None:
@@ -1121,6 +393,8 @@ class MainWindow(QMainWindow):
 
     def clear_results(self):
         self._plot_signature = None
+        self._result_shared_axes = None
+        self._result_selection_artists.clear()
         self._epoch_views.clear()
         self._epoch_presence_views.clear()
         self._gait_presence_cache = self._gait_epoch_cache = None
@@ -1132,7 +406,7 @@ class MainWindow(QMainWindow):
         self.tables = {}
         self.aggregation_tables, self._table_choices = {}, {}
         self._timings, self._detail_selections, self._series_items = {}, {}, {}
-        self._interval_ends = {}
+        self._interval_ends, self._bar_bounds = {}, {}
         self._plot_tables, self._plot_labels = {}, {}
         self.result_series.blockSignals(True)
         self.result_series.clear()
@@ -1144,6 +418,9 @@ class MainWindow(QMainWindow):
         self.build_result_overview()
         self.export_button.setEnabled(False)
         self.hide_sensor_context()
+        self.display_frame = self.sensor_frame = self.sensor_times = None
+        self.sensor_table.setModel(None)
+        self.sensor_figure.clear()
         self.context_button.setEnabled(False)
         self.figure.clear()
         self.time_axis.bind(None)
@@ -1152,25 +429,35 @@ class MainWindow(QMainWindow):
     def open_file(self):
         if self.worker is not None:
             return
-        paths, _ = QFileDialog.getOpenFileNames(self, "Open recordings for the same subject", "",
-            "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)")
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Open recordings for the same subject",
+            "",
+            "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)",
+        )
         if not paths:
             return
         allow_pickle = False
         if any(Path(path).suffix.lower() in (".pkl", ".pickle") for path in paths):
-            reply = QMessageBox.warning(self, "Trusted pickle files only",
+            reply = QMessageBox.warning(
+                self,
+                "Trusted pickle files only",
                 "Pickle files can execute code when opened. Only continue if you trust every selected pickle file's source.",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
             if reply != QMessageBox.Yes:
                 return
             allow_pickle = True
         self.show_notice("")
         self.status.setText("Loading recordings…")
         unit = self.time.currentText()
+
         def load(logger):
             sources, frames = load_recordings(paths, allow_pickle=allow_pickle, logger=logger)
             descriptions = {key: inspect_recording(frame, unit) for key, frame in frames.items()}
             return sources, frames, descriptions
+
         self.start_job(load, self.loaded_recordings)
 
     def loaded_recordings(self, payload):
@@ -1205,7 +492,9 @@ class MainWindow(QMainWindow):
         self.file_label.setText(f"{len(self.recordings)} recordings")
         self.file_label.setToolTip("\n".join(self.sources.values()))
         self.analysis_input.setText(f"{len(self.recordings)} recordings · One subject")
-        self.analysis_input_detail.setText(f"{sum(len(frame) for frame in self.recordings.values()):,} samples")
+        self.analysis_input_detail.setText(
+            f"{sum(len(frame) for frame in self.recordings.values()):,} samples"
+        )
 
     def loaded(self, payload):
         self._origin_preview.clear()
@@ -1216,14 +505,22 @@ class MainWindow(QMainWindow):
         self.sources, self.recordings = {"recording_001": self.source}, {}
         self._input_descriptions = {}
         self.input_recording.hide()
-        description = payload[2] if len(payload) > 2 else inspect_recording(self.frame, self.time.currentText())
+        description = (
+            payload[2]
+            if len(payload) > 2
+            else inspect_recording(self.frame, self.time.currentText())
+        )
         self.display_input_recording(description, new_selection=True)
         self.modules_changed()
         self.show_notice("")
         self.navigate(0)
-        if self.frame.attrs.get("source_format") == "empatica" and not any(f"gyroscope_{axis}" in self.frame for axis in "xyz"):
-            message = ("Empatica accelerometer samples loaded. Gait and tremor require gyroscope data; "
-                       "pulse rate requires raw green PPG. This import contains neither.")
+        if self.frame.attrs.get("source_format") == "empatica" and not any(
+            f"gyroscope_{axis}" in self.frame for axis in "xyz"
+        ):
+            message = (
+                "Empatica accelerometer samples loaded. Gait and tremor require gyroscope data; "
+                "pulse rate requires raw green PPG. This import contains neither."
+            )
             self.status.setText(message)
             self.show_notice(message)
             self.append_log(message)
@@ -1243,7 +540,9 @@ class MainWindow(QMainWindow):
         self.file_label.setText(Path(self.source).name)
         self.file_label.setToolTip(self.source)
         self.analysis_input.setText(Path(self.source).name)
-        self.analysis_input_detail.setText(f"{len(self.frame):,} samples · {len(self.frame.columns)} channels")
+        self.analysis_input_detail.setText(
+            f"{len(self.frame):,} samples · {len(self.frame.columns)} channels"
+        )
         self.data_values[0].setText(f"{len(self.frame):,}")
         self.data_values[1].setText(str(len(self.frame.columns)))
         self.data_values[2].setText(f"{description['missing']:,}")
@@ -1251,13 +550,19 @@ class MainWindow(QMainWindow):
         self.data_time_channel.clear()
         for column in self.frame:
             self.data_time_channel.addItem(str(column), column)
-        self.data_time_channel.setCurrentIndex(self.data_time_channel.findData(description["time_column"]))
+        self.data_time_channel.setCurrentIndex(
+            self.data_time_channel.findData(description["time_column"])
+        )
         self.data_time_channel.blockSignals(False)
         self.data_time_unit.blockSignals(True)
         self.data_time_unit.setCurrentText(description["time_unit"])
         self.data_time_unit.blockSignals(False)
         self.channel_table.setModel(FrameModel(description["sensors"], compact=True))
-        self.time_table.setModel(FrameModel(description["time"], compact=True) if description["time"] is not None else None)
+        self.time_table.setModel(
+            FrameModel(description["time"], compact=True)
+            if description["time"] is not None
+            else None
+        )
         self.update_time_unit_control()
         self.populate_input_channels(channels)
         if new_selection or self.data_tabs.currentIndex() == 1:
@@ -1272,9 +577,14 @@ class MainWindow(QMainWindow):
 
     def update_time_unit_control(self):
         column = self.data_time_channel.currentData()
-        numeric_time = self.frame is not None and column in self.frame and not (
-            pd.api.types.is_datetime64_any_dtype(self.frame[column].dtype)
-            or pd.api.types.is_timedelta64_dtype(self.frame[column].dtype))
+        numeric_time = (
+            self.frame is not None
+            and column in self.frame
+            and not (
+                pd.api.types.is_datetime64_any_dtype(self.frame[column].dtype)
+                or pd.api.types.is_timedelta64_dtype(self.frame[column].dtype)
+            )
+        )
         self.data_time_unit.setVisible(numeric_time)
         self.data_time_unit.setEnabled(self.worker is None)
 
@@ -1282,7 +592,9 @@ class MainWindow(QMainWindow):
         if self.frame is not None:
             frame, column = self.frame, self.data_time_channel.currentData()
             self.channel_table.setEnabled(False)
-            self._sensor_preview.request((self.source, column), lambda: sensor_descriptives(frame, column))
+            self._sensor_preview.request(
+                (self.source, column), lambda: sensor_descriptives(frame, column)
+            )
             self.populate_input_channels(self.selected_input_channels())
             self.update_time_statistics()
             if self.data_tabs.currentIndex() == 1:
@@ -1291,7 +603,9 @@ class MainWindow(QMainWindow):
                 self._data_plot_dirty = True
 
     def apply_sensor_preview(self, description):
-        self.channel_table.setModel(FrameModel(description, compact=True) if description is not None else None)
+        self.channel_table.setModel(
+            FrameModel(description, compact=True) if description is not None else None
+        )
         self.channel_table.setEnabled(True)
 
     def update_time_statistics(self, *_):
@@ -1299,7 +613,9 @@ class MainWindow(QMainWindow):
         if self.frame is not None and column in self.frame:
             frame, unit = self.frame, self.data_time_unit.currentText()
             self.time_table.setEnabled(False)
-            self._time_preview.request((self.source, column, unit), lambda: time_descriptives(frame[column], unit))
+            self._time_preview.request(
+                (self.source, column, unit), lambda: time_descriptives(frame[column], unit)
+            )
         else:
             self._time_preview.cancel_pending()
             self.time_table.setModel(None)
@@ -1307,55 +623,25 @@ class MainWindow(QMainWindow):
         self.update_time_unit_control()
 
     def apply_time_preview(self, description):
-        self.time_table.setModel(FrameModel(description, compact=True) if description is not None else None)
+        self.time_table.setModel(
+            FrameModel(description, compact=True) if description is not None else None
+        )
         self.time_table.setEnabled(True)
 
     def selected_input_channels(self):
         return self.selected_channels(self.data_channels)
-
-    @staticmethod
-    def selected_channels(channel_list):
-        return [channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())
-                if channel_list.item(i).checkState() == Qt.Checked]
-
-    @staticmethod
-    def check_channels(channel_list, channels):
-        channels = set(channels)
-        blocked = channel_list.blockSignals(True)
-        for i in range(channel_list.count()):
-            item = channel_list.item(i)
-            item.setCheckState(Qt.Checked if item.data(Qt.UserRole) in channels else Qt.Unchecked)
-        channel_list.blockSignals(blocked)
 
     def set_input_channels(self, channels):
         self.check_channels(self.data_channels, channels)
         self.plot_input()
 
     def populate_input_channels(self, selection=None):
-        self._channel_colors = self.populate_channels(self.data_channels, self.frame,
-            excluded={self.data_time_channel.currentData()}, selection=selection)
-
-    @staticmethod
-    def populate_channels(channel_list, frame, *, excluded=(), selection=None):
-        numeric = [column for column, dtype in frame.dtypes.items()
-                   if pd.api.types.is_numeric_dtype(dtype)
-                   if str(column).lower() not in TIME_NAMES
-                   and not pd.api.types.is_complex_dtype(dtype)]
-        colors = GRAPH_COLORS if len(numeric) <= len(GRAPH_COLORS) else colormaps["tab20"].colors if len(numeric) <= 20 else colormaps["turbo"](np.linspace(.05, .95, len(numeric)))
-        channel_colors = {column: colors[i] for i, column in enumerate(numeric)}
-        blocked = channel_list.blockSignals(True)
-        channel_list.clear()
-        for column in numeric:
-            if column in excluded:
-                continue
-            item = QListWidgetItem(str(column), channel_list)
-            item.setData(Qt.UserRole, column)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if selection is not None and column in selection else Qt.Unchecked)
-        if selection is None and channel_list.count():
-            channel_list.item(0).setCheckState(Qt.Checked)
-        channel_list.blockSignals(blocked)
-        return channel_colors
+        self._channel_colors = self.populate_channels(
+            self.data_channels,
+            self.frame,
+            excluded={self.data_time_channel.currentData()},
+            selection=selection,
+        )
 
     def plot_input(self, *_):
         self._data_plot_dirty = False
@@ -1373,51 +659,19 @@ class MainWindow(QMainWindow):
                     times = pd.to_numeric(series, errors="coerce")
         usable = times is not None and times.notna().all()
         xs = times if usable else np.arange(len(self.frame)) if self.frame is not None else []
-        self.plot_channel_signals(self.data_figure, self.frame, channels, self._channel_colors, xs,
-            time_label if usable else "Sample position", timezone=timezone,
+        self.plot_channel_signals(
+            self.data_figure,
+            self.frame,
+            channels,
+            self._channel_colors,
+            xs,
+            time_label if usable else "Sample position",
+            timezone=timezone,
             calendar=usable and pd.api.types.is_datetime64_any_dtype(times.dtype),
-            empty_text="Open a recording with numeric sensor channels")
+            empty_text="Open a recording with numeric sensor channels",
+        )
         self.data_toolbar.refresh()
         self.data_canvas.draw_idle()
-
-    @staticmethod
-    def plot_channel_signals(figure, frame, channels, colors, xs, time_label, *, calendar=False,
-                             timezone=None, empty_text="No original samples in this context"):
-        figure.clear()
-        if frame is None or frame.empty or not channels:
-            ax = style_axes(figure)
-            ax.text(.5, .5, "Select sensor channels" if frame is not None and not frame.empty else empty_text,
-                    ha="center", transform=ax.transAxes, color="#60728A")
-        else:
-            flags = [c for c in channels if binary_indicator(frame[c], c)]
-            signals = [c for c in channels if c not in flags]
-            groups = ([signals] if signals else []) + [[flag] for flag in flags]
-            first_axes = None
-            grid = figure.add_gridspec(len(groups), 1, height_ratios=[.55 if group[0] in flags else 1 for group in groups])
-            for index, group in enumerate(groups):
-                ax = style_axes(figure, position=(grid[index],), sharex=first_axes)
-                if first_axes is None:
-                    first_axes = ax
-                for channel in group:
-                    if channel in flags:
-                        plot_states(ax, xs, frame[channel].to_numpy(dtype=float, na_value=np.nan), colors[channel], label=str(channel))
-                        ax.set_title(str(channel), loc="left", fontsize=10, fontweight="semibold", color="#243C57", pad=12)
-                    else:
-                        step = max(1, int(np.ceil(len(frame) / 20000)))
-                        plot_signal(ax, xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
-                                    frame[channel].iloc[::step], colors[channel], label=str(channel))
-                        ax.set_ylabel(str(group[0]) if len(group) == 1 else "Sensor values (file units)")
-                if len(group) > 1:
-                    ax.legend(loc="upper right", ncols=min(3, len(group)), frameon=True, facecolor="white",
-                              edgecolor="#E0E7EF", framealpha=.95, fontsize=9)
-                if calendar:
-                    locator = dates.AutoDateLocator(tz=timezone)
-                    ax.xaxis.set_major_locator(locator)
-                    ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-                ax.set_xlabel(time_label)
-                ax.tick_params(axis="x", labelbottom=index == len(groups) - 1)
-                ax.xaxis.label.set_visible(index == len(groups) - 1)
-                ax.xaxis.offsetText.set_visible(index == len(groups) - 1)
 
     def origin_edited(self):
         self._origin_override = True
@@ -1432,9 +686,13 @@ class MainWindow(QMainWindow):
         if self._origin_override or self.frame is None:
             return
         try:
-            settings = {"time_input_unit": self.time.currentText(), "skip_preparation": self.prepared.isChecked(),
-                        "column_mapping": validate_column_mapping(json.loads(self.mapping.toPlainText())),
-                        "pipelines": self.selected_modules(), "drop_missing_samples": self.drop_missing.isChecked()}
+            settings = {
+                "time_input_unit": self.time.currentText(),
+                "skip_preparation": self.prepared.isChecked(),
+                "column_mapping": validate_column_mapping(json.loads(self.mapping.toPlainText())),
+                "pipelines": self.selected_modules(),
+                "drop_missing_samples": self.drop_missing.isChecked(),
+            }
         except (ValueError, TypeError, KeyError, OverflowError):
             self._origin_preview.cancel_pending()
             self.apply_origin_preview(None)
@@ -1443,11 +701,13 @@ class MainWindow(QMainWindow):
         key = json.dumps(settings, sort_keys=True)
         if self._origin_preview.is_requested(key):
             return
+
         def preview():
             if recordings:
                 return align_recordings(recordings, settings, {})[3]
             timeline = analysis_alignment(frame, settings, {})[0]
             return recording_clock(frame, settings, timeline)
+
         self.clock_input.setEnabled(False)
         self._origin_preview.request(key, preview)
 
@@ -1465,8 +725,16 @@ class MainWindow(QMainWindow):
         if not entered:
             return {"mode": "elapsed"}
         clock = self.clock_input._clock
-        return {"mode": "custom", "clock": normalise_clock({"origin": entered, "source": "User supplied",
-                        "timezone": clock.get("timezone") if clock else None})}
+        return {
+            "mode": "custom",
+            "clock": normalise_clock(
+                {
+                    "origin": entered,
+                    "source": "User supplied",
+                    "timezone": clock.get("timezone") if clock else None,
+                }
+            ),
+        }
 
     def stop_analysis(self):
         cancel = getattr(self, "_analysis_stop", None)
@@ -1495,17 +763,33 @@ class MainWindow(QMainWindow):
             return
         try:
             mapping = validate_column_mapping(json.loads(self.mapping.toPlainText()))
-            axes = (["x", "y", "z"] if self.prepared.isChecked() else
-                    validate_orientation([v.strip() for v in self.orientation.text().split(",")]))
-            settings = dict(pipelines=pipelines, watch_side=self.side.currentText(),
-                            accelerometer_units=self.acc.currentText(), gyroscope_units=self.gyro.currentText(),
-                            time_input_unit=self.time.currentText(), device_orientation=axes,
-                            column_mapping=mapping, skip_preparation=self.prepared.isChecked(),
-                            split_by_gaps=self.gaps.isChecked(), drop_missing_samples=self.drop_missing.isChecked(),
-                            max_gap_seconds=self.max_gap.value(), min_segment_seconds=self.min_segment.value())
+            axes = (
+                ["x", "y", "z"]
+                if self.prepared.isChecked()
+                else validate_orientation([v.strip() for v in self.orientation.text().split(",")])
+            )
+            settings = dict(
+                pipelines=pipelines,
+                watch_side=self.side.currentText(),
+                accelerometer_units=self.acc.currentText(),
+                gyroscope_units=self.gyro.currentText(),
+                time_input_unit=self.time.currentText(),
+                device_orientation=axes,
+                column_mapping=mapping,
+                skip_preparation=self.prepared.isChecked(),
+                split_by_gaps=self.gaps.isChecked(),
+                drop_missing_samples=self.drop_missing.isChecked(),
+                max_gap_seconds=self.max_gap.value(),
+                min_segment_seconds=self.min_segment.value(),
+            )
             settings["plot_time_origin"] = self.origin_setting()
             if self.prepared.isChecked():
-                settings.update(accelerometer_units="g", gyroscope_units="deg/s", time_input_unit="relative_s", split_by_gaps=False)
+                settings.update(
+                    accelerometer_units="g",
+                    gyroscope_units="deg/s",
+                    time_input_unit="relative_s",
+                    split_by_gaps=False,
+                )
         except (ValueError, KeyError) as exc:
             self.failure(str(exc))
             return
@@ -1518,7 +802,12 @@ class MainWindow(QMainWindow):
         record["_frame"] = frame
         self.runs.insert(0, record)
         self.active_run = self.current_run = self.selected_run = record
-        self.provenance = {"source": self.source, "paradigma_version": record["paradigma_version"], "settings": settings, "run_id": record["id"]}
+        self.provenance = {
+            "source": self.source,
+            "paradigma_version": record["paradigma_version"],
+            "settings": settings,
+            "run_id": record["id"],
+        }
         self.result_source_frame = frame
         self.result_timeline = None
         self.clear_results()
@@ -1533,7 +822,10 @@ class MainWindow(QMainWindow):
         core_settings.pop("plot_time_origin", None)
         self._analysis_stop = Event()
         cancel = self._analysis_stop
-        self.start_job(lambda logger: run_isolated_analysis(frame, core_settings, logger, cancel), self.analyzed)
+        self.start_job(
+            lambda logger: run_isolated_analysis(frame, core_settings, logger, cancel),
+            self.analyzed,
+        )
         self.stop_button.setEnabled(self.worker is not None)
 
     def results_tab_changed(self, index):
@@ -1569,12 +861,18 @@ class MainWindow(QMainWindow):
     def sync_table_outputs(self, force_detail=False):
         names = [*self.tables, *self.aggregation_tables]
         name = self.dataset.currentText()
-        if (force_detail and name in self.tables and name == self.table_dataset.currentData()
-                and tuple(names) == getattr(self, "_table_output_names", None)):
+        if (
+            force_detail
+            and name in self.tables
+            and name == self.table_dataset.currentData()
+            and tuple(names) == getattr(self, "_table_output_names", None)
+        ):
             return
         self._table_output_names = tuple(names)
         modules = list(dict.fromkeys([*MODULE_NAMES, *(name.split("/")[1] for name in names)]))
-        available = {module: any(name.split("/")[1] == module for name in names) for module in modules}
+        available = {
+            module: any(name.split("/")[1] == module for name in names) for module in modules
+        }
         current = self.table_module_tabs.tabData(self.table_module_tabs.currentIndex())
         name = self.dataset.currentText()
         if force_detail and name in self.tables:
@@ -1583,11 +881,15 @@ class MainWindow(QMainWindow):
         if not available.get(current):
             current = next((module for module in modules if available[module]), modules[0])
         previous = self.table_module_tabs.blockSignals(True)
-        if modules != [self.table_module_tabs.tabData(i) for i in range(self.table_module_tabs.count())]:
+        if modules != [
+            self.table_module_tabs.tabData(i) for i in range(self.table_module_tabs.count())
+        ]:
             while self.table_module_tabs.count():
                 self.table_module_tabs.removeTab(0)
             for module in modules:
-                index = self.table_module_tabs.addTab(MODULE_NAMES.get(module, module.replace("_", " ").title()))
+                index = self.table_module_tabs.addTab(
+                    MODULE_NAMES.get(module, module.replace("_", " ").title())
+                )
                 self.table_module_tabs.setTabData(index, module)
         for index, module in enumerate(modules):
             self.table_module_tabs.setTabEnabled(index, available[module])
@@ -1605,8 +907,14 @@ class MainWindow(QMainWindow):
         names = [name for name in tables if name.split("/")[1] == module]
         preferred = self._table_choices.get(module)
         if preferred not in names:
-            preferred = next((name for name in names if name.startswith("quantifications/") and len(tables[name])),
-                             names[0] if names else None)
+            preferred = next(
+                (
+                    name
+                    for name in names
+                    if name.startswith("quantifications/") and len(tables[name])
+                ),
+                names[0] if names else None,
+            )
         previous = self.table_dataset.blockSignals(True)
         self.table_dataset.clear()
         for name in names:
@@ -1685,17 +993,36 @@ class MainWindow(QMainWindow):
                 else:
                     grid.addWidget(box, index // 3, index % 3)
                     if title.endswith("Gaps"):
-                        box.setToolTip("Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps.")
+                        box.setToolTip(
+                            "Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps."
+                        )
                     index += 1
             content.addLayout(grid)
             self.overview_layout.addWidget(panel)
-        modules = list(dict.fromkeys([*results.get("aggregations", {}), *results.get("metadata", {}),
-                                     *results.get("quantifications", {}), *results.get("classifications", {})]))
-        modules = [name for name in modules if name in MODULE_NAMES or
-                   not name.startswith("desktop_") and any(name in results.get(stage, {}) for stage in
-                   ("classifications", "quantifications", "aggregations"))]
+        modules = list(
+            dict.fromkeys(
+                [
+                    *results.get("aggregations", {}),
+                    *results.get("metadata", {}),
+                    *results.get("quantifications", {}),
+                    *results.get("classifications", {}),
+                ]
+            )
+        )
+        modules = [
+            name
+            for name in modules
+            if name in MODULE_NAMES
+            or not name.startswith("desktop_")
+            and any(
+                name in results.get(stage, {})
+                for stage in ("classifications", "quantifications", "aggregations")
+            )
+        ]
         if not modules:
-            self.overview_layout.addWidget(label("Run an analysis to see module aggregates.", "muted"))
+            self.overview_layout.addWidget(
+                label("Run an analysis to see module aggregates.", "muted")
+            )
         for module in modules:
             panel, content = card()
             panel.setProperty("analysisModule", module)
@@ -1704,21 +1031,25 @@ class MainWindow(QMainWindow):
             heading.setProperty("analysisModule", module)
             content.addWidget(heading)
             for error in results.get("errors", []):
-                if isinstance(error, dict) and (error.get("pipeline") == module or module in error.get("pipelines", [])):
+                if isinstance(error, dict) and (
+                    error.get("pipeline") == module or module in error.get("pipelines", [])
+                ):
                     content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
-            if module == 'tremor':
+            if module == "tremor":
                 grid = QGridLayout()
                 grid.setSpacing(10)
-                for index, (group, path, title, value, explanation) in enumerate(tremor_overview_entries(results)):
+                for index, (group, path, title, value, explanation) in enumerate(
+                    tremor_overview_entries(results)
+                ):
                     box, inside = card()
                     box.setToolTip(explanation)
-                    inside.addWidget(label(title, 'muted'))
+                    inside.addWidget(label(title, "muted"))
                     try:
                         number = float(value)
-                        text = f'{number:.2f}' if np.isfinite(number) else '—'
+                        text = f"{number:.2f}" if np.isfinite(number) else "—"
                     except (TypeError, ValueError, OverflowError):
-                        text = '—'
-                    display = label(text, 'metricValue')
+                        text = "—"
+                    display = label(text, "metricValue")
                     display.setToolTip(str(value))
                     inside.addWidget(display)
                     self.overview_values[module, group, path] = display
@@ -1729,18 +1060,25 @@ class MainWindow(QMainWindow):
             aggregate_entries = list(flat_values(results.get("aggregations", {}).get(module, {})))
             if module == "gait":
                 from .gait_overview import build_gait_charts
+
                 charts, self.overview_gait_charts, chart_paths = build_gait_charts(
                     results.get("aggregations", {}).get(module, {}),
-                    metadata=results.get("metadata", {}).get(module, {}), scroll_area=self._result_view_scrolls[0])
+                    metadata=results.get("metadata", {}).get(module, {}),
+                    scroll_area=self._result_view_scrolls[0],
+                )
                 for chart in charts:
                     content.addWidget(chart)
-                aggregate_entries = [(path, value) for path, value in aggregate_entries if path not in chart_paths]
+                aggregate_entries = [
+                    (path, value) for path, value in aggregate_entries if path not in chart_paths
+                ]
             groups = [("Aggregates", aggregate_entries)]
             metadata = results.get("metadata", {}).get(module, {})
             groups.append(("Metadata", list(flat_values(metadata))))
             for heading, entries in groups:
                 if not entries:
-                    if heading == "Aggregates" and not (module == "gait" and self.overview_gait_charts):
+                    if heading == "Aggregates" and not (
+                        module == "gait" and self.overview_gait_charts
+                    ):
                         content.addWidget(label("No aggregates returned for this module.", "muted"))
                     continue
                 content.addWidget(label(heading, "sectionTitle"))
@@ -1751,7 +1089,11 @@ class MainWindow(QMainWindow):
                     title = " · ".join(readable_key(part) for part in path) or "Value"
                     box.setToolTip(" / ".join(path))
                     inside.addWidget(label(title, "muted"))
-                    if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
+                    if (
+                        value is None
+                        or isinstance(value, (float, np.floating))
+                        and not np.isfinite(value)
+                    ):
                         text = "—"
                     elif isinstance(value, (float, np.floating)):
                         text = f"{value:.5g}"
@@ -1772,9 +1114,16 @@ class MainWindow(QMainWindow):
         self._series_items = {}
         roots, default_modules = {}, set()
         title_counts = {}
-        module_order = {module: index for index, module in enumerate((*MODULE_NAMES, 'preparation'))}
-        names = sorted(self._plot_tables, key=lambda name: module_order.get(
-            'preparation' if name.startswith('preparation/') else name.split('/')[1], len(module_order)))
+        module_order = {
+            module: index for index, module in enumerate((*MODULE_NAMES, "preparation"))
+        }
+        names = sorted(
+            self._plot_tables,
+            key=lambda name: module_order.get(
+                "preparation" if name.startswith("preparation/") else name.split("/")[1],
+                len(module_order),
+            ),
+        )
         for name in names:
             frame = self._plot_tables[name]
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
@@ -1785,34 +1134,67 @@ class MainWindow(QMainWindow):
             frame = self._plot_tables[name]
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
             if module not in roots:
-                root = QTreeWidgetItem(self.result_series, [MODULE_NAMES.get(module, "Data coverage" if module == "preparation" else module.title())])
+                root = QTreeWidgetItem(
+                    self.result_series,
+                    [
+                        MODULE_NAMES.get(
+                            module, "Data coverage" if module == "preparation" else module.title()
+                        )
+                    ],
+                )
                 root.setForeground(0, QColor(module_color(module)))
                 root.setExpanded(True)
                 roots[module] = root
             metrics = plot_metrics(name, frame)
             default = preferred_metric(name, frame)
             # Favor unfiltered gait and quantified outputs for initial plots.
-            choose = (len(frame) > 0 and name.startswith("quantifications/") and module not in default_modules
-                      and (not name.endswith("/filtered") or not len(self.tables.get("quantifications/gait/unfiltered", []))))
+            choose = (
+                len(frame) > 0
+                and name.startswith("quantifications/")
+                and module not in default_modules
+                and (
+                    not name.endswith("/filtered")
+                    or not len(self.tables.get("quantifications/gait/unfiltered", []))
+                )
+            )
             for metric in metrics:
                 title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-                if module != "preparation" and len(name.split("/")) > 2 and not (
-                        module == "gait" and (name, metric) in self._plot_labels):
-                    title += " (" + " / ".join(part.replace("_", " ").title() for part in name.split("/")[2:]) + ")"
+                if (
+                    module != "preparation"
+                    and len(name.split("/")) > 2
+                    and not (module == "gait" and (name, metric) in self._plot_labels)
+                ):
+                    title += (
+                        " ("
+                        + " / ".join(part.replace("_", " ").title() for part in name.split("/")[2:])
+                        + ")"
+                    )
                 elif title_counts[module, title] > 1:
                     title += " (" + output_label(name).split(" · ", 1)[-1] + ")"
                 item = QTreeWidgetItem(roots[module], [title])
                 item.setData(0, Qt.UserRole, (name, metric))
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(0, Qt.Checked if name.startswith("preparation/") or choose and metric == default else Qt.Unchecked)
+                item.setCheckState(
+                    0,
+                    Qt.Checked
+                    if name.startswith("preparation/") or choose and metric == default
+                    else Qt.Unchecked,
+                )
                 if module == "preparation":
-                    tooltip = title + "\nCoverage of the prepared samples supplied to these pipelines."
+                    tooltip = (
+                        title + "\nCoverage of the prepared samples supplied to these pipelines."
+                    )
                 elif name.startswith("classifications/gait/") and metric in (
-                        "pred_gait_window", "pred_no_other_arm_activity_window"):
+                    "pred_gait_window",
+                    "pred_no_other_arm_activity_window",
+                ):
                     threshold = gait_model_threshold(name.rsplit("/", 1)[-1])
-                    tooltip = (title + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
-                               "\nThese window predictions precede the final merged sample labels."
-                               "\nFiltered presence is intersected with detected gait. Both epoch percentages use the same observed time.")
+                    tooltip = (
+                        title
+                        + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
+                        "\nThese window predictions precede the final merged sample labels."
+                        "\nFiltered presence is intersected with detected gait. Both epoch percentages use the same observed time."
+                    )
                 else:
                     tooltip = f"{name}\n{metric}"
                 item.setToolTip(0, tooltip)
@@ -1855,11 +1237,22 @@ class MainWindow(QMainWindow):
         batch_clock = None
         self._recording_bases = {}
         if isinstance(self.result_source_frame, dict):
-            self.result_timeline, self._source_timelines, self._display_offsets, batch_clock, self._recording_bases = align_recordings(
-                self.result_source_frame, settings, results)
+            (
+                self.result_timeline,
+                self._source_timelines,
+                self._display_offsets,
+                batch_clock,
+                self._recording_bases,
+            ) = align_recordings(self.result_source_frame, settings, results)
         else:
-            self.result_timeline, self._source_timelines, self._display_offsets = analysis_alignment(
-                self.result_source_frame, settings, results, self.provenance.get("display_offsets"))
+            self.result_timeline, self._source_timelines, self._display_offsets = (
+                analysis_alignment(
+                    self.result_source_frame,
+                    settings,
+                    results,
+                    self.provenance.get("display_offsets"),
+                )
+            )
         if self._display_offsets:
             self.provenance["display_offsets"] = dict(self._display_offsets)
         extent = recording_extent(self.result_timeline, self._recording_bases)
@@ -1870,11 +1263,16 @@ class MainWindow(QMainWindow):
             try:
                 self.display_clock = normalise_clock(self.provenance["display_clock"])
             except (ValueError, TypeError, KeyError, OverflowError):
-                self.append_log("Stored recording clock is invalid; using available recording timing.")
+                self.append_log(
+                    "Stored recording clock is invalid; using available recording timing."
+                )
                 self.provenance.pop("display_clock", None)
         if self.display_clock is None:
-            self.display_clock = (batch_clock if isinstance(self.result_source_frame, dict) else
-                                  recording_clock(self.result_source_frame, settings, self.result_timeline))
+            self.display_clock = (
+                batch_clock
+                if isinstance(self.result_source_frame, dict)
+                else recording_clock(self.result_source_frame, settings, self.result_timeline)
+            )
         origin = settings.get("plot_time_origin", {})
         if not self.provenance.get("display_clock") and origin.get("mode") == "custom":
             self.display_clock = normalise_clock(origin["clock"])
@@ -1886,49 +1284,40 @@ class MainWindow(QMainWindow):
             self.active_run["_results"] = results
             self.active_run["_provenance"] = dict(self.provenance)
         self._detail_selections = {}
-        self.tables = detail_tables(results)
-        self._plot_tables, self._plot_labels = plot_tables(self.tables)
-        self.aggregation_tables = aggregation_tables(results)
-        self._timings = {name: detail_timing(results, name, frame) for name, frame in self.tables.items()}
-        for name, timing in self._timings.items():
-            timing["Timeline time (s)"] = timing["Analysis time (s)"] + timeline_offsets(name, self.tables[name], self._display_offsets)
-        self._interval_ends = {name: binary_interval_ends(name, self.tables[name], timing["Timeline time (s)"])
-                               for name, timing in self._timings.items()}
-        self._bar_bounds = {}
-        for name, timing in self._timings.items():
-            starts = timing["Timeline time (s)"].to_numpy().copy()
-            ends = self._interval_ends[name].copy()
-            gaps = np.diff(np.unique(starts[np.isfinite(starts)]))
-            if len(gaps):
-                # Isolated participant/file groups can still use the observed
-                # output cadence; values must not disappear from bar plots.
-                ends = np.where(ends > starts, ends, starts + np.median(gaps))
-            if name.startswith("quantifications/gait/") and "time" not in self.tables[name]:
-                frame = self.tables[name]
-                keys = [key for key in ("file_key", "gait_segment_nr") if key in frame]
-                counts = frame.groupby(keys, dropna=False)[keys[0]].transform("size").to_numpy() if keys else np.full(len(frame), len(frame))
-                width = (timing["Segment end (s)"].to_numpy() - timing["Segment start (s)"].to_numpy()) / np.maximum(counts, 1)
-                starts -= width / 2
-                ends = starts + width
-            self._bar_bounds[name] = starts, ends
-        coverage, labels = availability_views(results, self._display_offsets)
-        self._plot_tables.update(coverage)
-        self._plot_labels.update(labels)
-        for name, frame in coverage.items():
-            self._timings[name] = pd.DataFrame({"Timeline time (s)": frame.time})
-            self._interval_ends[name] = frame.end.to_numpy()
+        data = prepare_result_data(results, self._display_offsets)
+        self.tables, self.aggregation_tables = data.tables, data.aggregates
+        self._plot_tables, self._plot_labels = data.plot_frames, data.plot_labels
+        self._timings, self._interval_ends = data.timings, data.interval_ends
+        self._bar_bounds = data.bar_bounds
+        coverage, labels = data.coverage, data.coverage_labels
         sources = self.provenance.get("sources", {})
-        self.results_source.setText(f"{len(sources)} recordings · One subject" if len(sources) > 1 else
-                                    Path(self.provenance.get("source", self.source)).name or "Current analysis")
+        self.results_source.setText(
+            f"{len(sources)} recordings · One subject"
+            if len(sources) > 1
+            else Path(self.provenance.get("source", self.source)).name or "Current analysis"
+        )
         self.build_result_overview((coverage, labels))
         self.populate_result_series()
         self.dataset.blockSignals(True)
         self.dataset.clear()
         self.dataset.addItems(self.tables)
-        preferred = next((name for name, _ in self.selected_result_series() if name.startswith("quantifications/")), None)
+        preferred = next(
+            (
+                name
+                for name, _ in self.selected_result_series()
+                if name.startswith("quantifications/")
+            ),
+            None,
+        )
         if preferred is None:
-            preferred = next((name for name, frame in self.tables.items()
-                              if name.startswith("quantifications/") and len(frame)), None)
+            preferred = next(
+                (
+                    name
+                    for name, frame in self.tables.items()
+                    if name.startswith("quantifications/") and len(frame)
+                ),
+                None,
+            )
         if preferred:
             self.dataset.setCurrentText(preferred)
         self.dataset.blockSignals(False)
@@ -1944,8 +1333,14 @@ class MainWindow(QMainWindow):
             self.show_notice(message, "error")
             self.finish_run("Partial", errors)
         else:
-            has_rows = any(len(v) for k, v in self.tables.items() if k.startswith("quantifications/"))
-            message = "Analysis completed." if has_rows else "No quantified windows. See Runs for details."
+            has_rows = any(
+                len(v) for k, v in self.tables.items() if k.startswith("quantifications/")
+            )
+            message = (
+                "Analysis completed."
+                if has_rows
+                else "No quantified windows. See Runs for details."
+            )
             if not has_rows:
                 self.capture_warning(message)
             record = self.active_run or self.current_run
@@ -1968,37 +1363,57 @@ class MainWindow(QMainWindow):
         frame = self.tables.get(name)
         self.hide_sensor_context()
         self.context_button.setEnabled(False)
-        self.context_button.setToolTip("Select a result row or click a graph point" if self.result_source_frame is not None else "Original sensor data unavailable")
+        self.context_button.setToolTip(
+            "Select a result row or click a graph point"
+            if self.result_source_frame is not None
+            else "Original sensor data unavailable"
+        )
         self.y_column.blockSignals(True)
         self.y_column.clear()
         if frame is not None:
             plot_frame = self._plot_tables[name]
             for column in plot_metrics(name, plot_frame):
                 self.y_column.addItem(str(column), column)
-            preferred = next((metric for dataset, metric in self.selected_result_series() if dataset == name),
-                             preferred_metric(name, plot_frame))
+            preferred = next(
+                (metric for dataset, metric in self.selected_result_series() if dataset == name),
+                preferred_metric(name, plot_frame),
+            )
             if preferred is not None:
                 self.y_column.setCurrentIndex(self.y_column.findData(preferred))
         self.y_column.blockSignals(False)
-        self.apply_filters()
+        self.activate_dataset_rows()
         self.sync_table_outputs(force_detail=True)
-        if self.result_tabs.currentIndex() != 1 and not any(dataset == name for dataset, metric in self.selected_result_series()):
+        if self.result_tabs.currentIndex() != 1 and not any(
+            dataset == name for dataset, metric in self.selected_result_series()
+        ):
             item = self._series_items.get((name, self.y_column.currentData()))
             if item is not None:
                 item.setCheckState(0, Qt.Checked)
 
-    def apply_filters(self, *_):
+    def activate_dataset_rows(self, *_):
         # All official output rows are available; zooming changes only the plot.
         if not self._detail_selections:
-            self._detail_selections = {key: (self.tables.get(key, frame), np.arange(len(frame))) for key, frame in self._plot_tables.items()}
-        self.active_frame, self.active_positions = self._detail_selections.get(self.dataset.currentText(), (None, np.array([], dtype=int)))
+            self._detail_selections = {
+                key: (self.tables.get(key, frame), np.arange(len(frame)))
+                for key, frame in self._plot_tables.items()
+            }
+        self.active_frame, self.active_positions = self._detail_selections.get(
+            self.dataset.currentText(), (None, np.array([], dtype=int))
+        )
         self.active_selection = {}
         self.refresh_detail_table()
         self.plot()
 
+    # Compatibility for existing integrations; there are no row filters.
+    apply_filters = activate_dataset_rows
+
     def refresh_detail_table(self):
         self.context_button.setEnabled(False)
-        self.context_button.setToolTip("Select a result row or click a graph point" if self.result_source_frame is not None else "Original sensor data unavailable")
+        self.context_button.setToolTip(
+            "Select a result row or click a graph point"
+            if self.result_source_frame is not None
+            else "Original sensor data unavailable"
+        )
         frame = self.active_frame
         if frame is None:
             self.display_frame = None
@@ -2009,21 +1424,8 @@ class MainWindow(QMainWindow):
         key = name, self.timing_toggle.isChecked()
         view = self._table_views.get(key)
         if view is None:
-            view = frame.copy(deep=False)
-        if key not in self._table_views and self.timing_toggle.isChecked():
-            timing = self._timings[name].iloc[self.active_positions]
-            fields = {"Analysis time (s)": timing["Analysis time (s)"].to_numpy(),
-                      "Time basis": timing["Time basis"].to_numpy()}
-            if any(offset != 0. for offset in self._display_offsets.values()):
-                fields = {"Timeline time (s)": timing["Timeline time (s)"].to_numpy(), **fields}
-            if self.display_clock is not None:
-                fields = {"Recording date/time": clock_times(timing["Timeline time (s)"].to_numpy(), self.display_clock), **fields}
-            if name.startswith("quantifications/gait/"):
-                fields.update({"Segment start (s)": timing["Segment start (s)"].to_numpy(),
-                               "Segment end (s)": timing["Segment end (s)"].to_numpy()})
-            for field, values in reversed(list(fields.items())):
-                field_name = field if field not in view else f"Display · {field}"
-                view.insert(0, field_name, values)
+            timing = self._timings[name].iloc[self.active_positions] if key[1] else None
+            view = detail_table_view(frame, name, timing, self._display_offsets, self.display_clock)
         self._table_views[key] = view
         self._table_views.move_to_end(key)
         while len(self._table_views) > 4:
@@ -2037,13 +1439,18 @@ class MainWindow(QMainWindow):
         name, frame = self.dataset.currentText(), self.active_frame
         if frame is None:
             return
-        clock_note = (f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
-                      if self.display_clock else "Elapsed time · Set a time origin in Analyze to display dates")
+        clock_note = (
+            f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+            if self.display_clock
+            else "Elapsed time · Set a time origin in Analyze to display dates"
+        )
         if self.display_clock is None and len(self.provenance.get("sources", {})) > 1:
             clock_note = "File-order timeline · Recording clocks unavailable"
         estimated = name.startswith("quantifications/gait/") and "time" not in frame
-        self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows · {clock_note}"
-                                    + (" · Gait positions estimated within segments" if estimated else ""))
+        self.selection_note.setText(
+            f"{len(frame):,} / {len(self.tables[name]):,} rows · {clock_note}"
+            + (" · Gait positions estimated within segments" if estimated else "")
+        )
         if not self.timing_toggle.isChecked():
             self.selection_note.setText(f"{len(frame):,} / {len(self.tables[name]):,} rows")
         if self.table_dataset.currentData() in self.aggregation_tables:
@@ -2060,392 +1467,6 @@ class MainWindow(QMainWindow):
                     candidate.setCheckState(0, Qt.Checked if previous == key else Qt.Unchecked)
             self.result_series.blockSignals(False)
         self.plot()
-
-    def gait_plot_presence(self):
-        if self._gait_presence_cache is None:
-            def frame(stage, metric):
-                name = 'classifications/gait/' + stage
-                source = self._plot_tables.get(name)
-                if source is None or metric not in source:
-                    return None
-                data = pd.DataFrame({'start': self._timings[name]['Timeline time (s)'].to_numpy(),
-                                     'end': self._interval_ends[name],
-                                     'state': source[metric].to_numpy(dtype=float, na_value=np.nan)})
-                for key in ('file_key', *PARTICIPANT_COLUMNS):
-                    if key in source:
-                        data[key] = source[key].to_numpy()
-                return data
-            detection = frame('detection', 'pred_gait_window')
-            self._gait_presence_cache = gait_presence_intervals(
-                detection if detection is not None else pd.DataFrame(columns=['start', 'end', 'state']),
-                frame('arm_activity', 'pred_no_other_arm_activity_window'))
-        return self._gait_presence_cache
-
-    def epoch_plot_data(self, name, metric, positions, binary):
-        key = name, metric, id(positions)
-        if key not in self._epoch_views:
-            times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            phase = epoch_phase(self.display_clock)
-            if name.startswith('classifications/gait/') and metric in ('pred_gait_window', 'pred_no_other_arm_activity_window'):
-                if self._gait_epoch_cache is None:
-                    self._gait_epoch_cache = gait_epoch_summaries(self.gait_plot_presence(), phase)
-                frame = self._gait_epoch_cache['gait' if metric == 'pred_gait_window' else 'filtered']
-            elif name.startswith("preparation/"):
-                extent = self.provenance.get("recording_extent", {})
-                try:
-                    bounds = float(extent["start_s"]), float(extent["end_s"])
-                except (KeyError, TypeError, ValueError, OverflowError):
-                    bounds = None
-                frame = availability_epoch_summary(times, self._interval_ends[name][positions], phase=phase, bounds=bounds)
-            else:
-                values = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
-                frame = epoch_summary(times, values, binary=binary, phase=phase)
-                if (name.startswith('quantifications/gait/') and
-                        any(part in str(metric) for part in ('range_of_motion', 'peak_velocity')) or
-                        name.startswith('quantifications/tremor') and 'tremor_power' in str(metric)):
-                    frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
-            self._epoch_views[key] = frame
-        return self._epoch_views[key]
-
-    def epoch_metric_presence(self, name):
-        if name not in self._epoch_presence_views:
-            pairs = np.empty((0, 2))
-            if name.startswith('quantifications/gait/'):
-                filtered = name.endswith('/filtered')
-                stage = 'classifications/gait/' + ('arm_activity' if filtered else 'detection')
-                indicator = 'pred_no_other_arm_activity_window' if filtered else 'pred_gait_window'
-                if stage in self._plot_tables and indicator in self._plot_tables[stage]:
-                    if filtered:
-                        pairs = self.gait_plot_presence()['filtered']
-                    else:
-                        # Unfiltered gait does not require an arm-filter label.
-                        source = self._plot_tables[stage]
-                        positive = source.pred_gait_window.eq(1).fillna(False).to_numpy(dtype=bool)
-                        pairs = np.column_stack((self._timings[stage]['Timeline time (s)'].to_numpy()[positive],
-                                                 self._interval_ends[stage][positive]))
-                elif 'gait_segment_nr' in self._plot_tables[name]:
-                    # Older saved runs may only contain quantified segments.
-                    # Their known full bounds, not swing counts, establish time.
-                    timing = self._timings[name]
-                    offset = timing['Timeline time (s)'] - timing['Analysis time (s)']
-                    pairs = np.column_stack((timing['Segment start (s)'] + offset,
-                                             timing['Segment end (s)'] + offset))
-            else:
-                for candidate in ('classifications/tremor', name):
-                    source = self._plot_tables.get(candidate)
-                    if source is not None and 'pred_tremor_checked' in source:
-                        positive = source.pred_tremor_checked.eq(1).fillna(False).to_numpy(dtype=bool)
-                        pairs = np.column_stack((self._timings[candidate]['Timeline time (s)'].to_numpy()[positive],
-                                                 self._interval_ends[candidate][positive]))
-                        break
-            self._epoch_presence_views[name] = availability_epoch_summary(
-                pairs[:, 0], pairs[:, 1], phase=epoch_phase(self.display_clock))
-        return self._epoch_presence_views[name]
-
-    def plot(self, *_):
-        chosen = self.selected_result_series()
-        epochs = self.result_graph_view.currentIndex() == 1
-        signature = epochs, tuple(chosen)
-        if self._plot_signature == signature and self.figure.axes:
-            self.highlight_result_row()
-            return
-        previous_mode, previous_chosen = self._plot_signature or (None, ())
-        changed = set(chosen).symmetric_difference(previous_chosen)
-        coverage_only = (self._plot_signature is not None and bool(changed)
-                         and epochs == previous_mode and bool(set(chosen).intersection(previous_chosen))
-                         and all(name.startswith("preparation/") for name, metric in changed))
-        viewport = None
-        previous_y = {}
-        if self._plot_signature is not None and self.figure.axes:
-            source = self.figure.axes[0]
-            if coverage_only or not source.get_autoscalex_on():
-                viewport = source.get_xlim(), source.get_autoscalex_on()
-            if coverage_only:
-                previous_y = {(ax._paradigma_dataset, ax._paradigma_metric):
-                              (ax.get_ylim(), ax.get_autoscaley_on())
-                              for ax in self.figure.axes if hasattr(ax, "_paradigma_dataset")}
-        self._plot_signature = signature
-        self.result_overlay.invalidate()
-        for artist in self._result_selection_artists:
-            artist.remove()
-        self._result_selection_artists = []
-        existing = {(ax._paradigma_dataset, ax._paradigma_metric): ax
-                    for ax in self.figure.axes if hasattr(ax, '_paradigma_dataset')}
-        # Keep already plotted arrays, paths and axes settings when adding a
-        # series. A changed result or view still needs fresh scientific data.
-        shared = self._result_shared_axes
-        reuse = (previous_mode == epochs and shared in self.figure.axes and shared is not None and
-                 (getattr(shared, '_paradigma_dataset', None),
-                  getattr(shared, '_paradigma_metric', None)) in chosen)
-        if reuse:
-            # Remove/re-add in tree order using the public Figure API. Rejoin
-            # the existing X master after delaxes disconnects sharing groups.
-            for ax in tuple(self.figure.axes):
-                self.figure.delaxes(ax)
-            existing = {key: ax for key, ax in existing.items() if key in chosen}
-        else:
-            self.figure.clear()
-            existing = {}
-            shared = None
-        actual_binaries = [(name.startswith('classifications/gait/') and metric in
-                            ('pred_gait_window', 'pred_no_other_arm_activity_window')) or
-                           binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
-        binaries = [False] * len(chosen) if epochs else actual_binaries
-        compact_states = bool(binaries) and all(binaries)
-        height = max(100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries))
-        self.canvas.setMinimumHeight(height)
-        self.canvas.setMaximumHeight(height if compact_states else 16777215)
-        self.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
-        if not chosen:
-            ax = style_axes(self.figure)
-            ax.text(.5, .5, "Select metrics to plot", ha="center", transform=ax.transAxes, color="#68778c")
-        first_axes = None
-        grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.34 if binary else 1 for binary in binaries]) if chosen else None
-        for index, (name, metric) in enumerate(chosen):
-            ax = existing.get((name, metric))
-            if ax is not None:
-                ax.set_subplotspec(grid[index])
-                self.figure.add_axes(ax)
-                if ax is not shared:
-                    ax.sharex(shared)
-            else:
-                ax = style_axes(self.figure, position=(grid[index],), sharex=shared or first_axes)
-            if first_axes is None:
-                first_axes = ax
-            if (name, metric) in existing:
-                continue
-            ax._paradigma_dataset = name
-            ax._paradigma_metric = metric
-            selected, positions = self._detail_selections.get(name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int)))
-            times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            binary = actual_binaries[index]
-            percentage = binary or name.startswith("preparation/")
-            ys = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
-            xs = clock_times(times, self.display_clock)
-            ax._paradigma_epoch = epochs
-            if epochs:
-                summary = self.epoch_plot_data(name, metric, positions, binary)
-                ax._paradigma_epoch_data = summary
-                color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
-                if len(summary):
-                    plot_bars(ax, clock_times(summary.start_s, self.display_clock),
-                              clock_times(summary.end_s, self.display_clock), summary.value, color)
-                if not len(summary) or not np.isfinite(summary.value).any():
-                    if 'presence_s' in summary:
-                        subject = ('filtered gait' if name.endswith('/filtered') else 'gait') if '/gait/' in name else 'tremor'
-                        message = f"No epochs with ≥90 s of {subject} presence and valid outcomes"
-                    else:
-                        message = "No valid outputs"
-                    ax.text(.5, .5, message, ha="center", transform=ax.transAxes, color="#68778c", fontsize=9)
-                if percentage:
-                    ax.set_ylim(0, 100)
-            elif len(selected) and np.isfinite(times).any():
-                color = module_color("preparation" if name.startswith("preparation/") else name.split("/")[1])
-                if binary:
-                    if name == 'classifications/gait/arm_activity' and metric == 'pred_no_other_arm_activity_window':
-                        presence = self.gait_plot_presence()
-                        pairs = presence['filtered']
-                        plot_states(ax, clock_times(pairs[:, 0], self.display_clock), np.ones(len(pairs)), color,
-                                    ends=clock_times(pairs[:, 1], self.display_clock))
-                        domain = presence['domain']
-                        if len(domain):
-                            extent = time_coordinates(clock_times([domain[:, 0].min(), domain[:, 1].max()], self.display_clock))
-                            ax.update_datalim(np.column_stack((extent, [1, 1])))
-                            ax.autoscale_view(scaley=False)
-                    else:
-                        stops = clock_times(self._interval_ends[name][positions], self.display_clock)
-                        plot_states(ax, xs, ys, color, ends=stops)
-                else:
-                    starts, ends = self._bar_bounds[name]
-                    plot_bars(ax, clock_times(starts[positions], self.display_clock),
-                              clock_times(ends[positions], self.display_clock), ys, color)
-            else:
-                ax.text(.5, .5, "No timed outputs", ha="center", transform=ax.transAxes, color="#68778c")
-            if epochs or not binary:
-                ax.set_ylabel(("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
-                              if epochs and percentage else "Median" if epochs else str(metric).replace("_", " "), fontsize=9)
-            item = self._series_items.get((name, metric))
-            metric_title = item.text(0) if item is not None else self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
-            style_result_heading(ax, metric_title, module, MODULE_NAMES.get(module,
-                                 "Data coverage" if module == "preparation" else module.title()))
-            if self.display_clock is not None:
-                timezone = clock_origin(self.display_clock).tz
-                locator = dates.AutoDateLocator(tz=timezone)
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-                ax.set_xlabel(f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})")
-                ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime("%d %b %Y %H:%M:%S")
-            else:
-                ax.set_xlabel("File-order timeline (s)" if len(self.provenance.get("sources", {})) > 1 else "Elapsed analysis time (s)")
-            ax.tick_params(axis="x", labelbottom=False)
-            ax.xaxis.label.set_visible(False)
-            ax.xaxis.offsetText.set_visible(False)
-        # Recompute the shared full extent even if the retained master was
-        # zoomed. The current zoom is restored below, while Home sees all data.
-        self._result_shared_axes = shared or first_axes
-        if first_axes is not None:
-            first_axes.set_autoscalex_on(True)
-            first_axes.autoscale_view(scaley=False)
-        # Shared X limits settle only after every series has been added.
-        # Fit each automatic Y range against that final shared view.
-        for ax in self.figure.axes:
-            autoscale_bars(ax)
-        self.time_axis.bind(first_axes)
-        self.plot_toolbar.refresh()
-        if viewport is not None and first_axes is not None:
-            # Keep Home as the full extent, while coverage toggles retain the
-            # user's current view instead of making outcomes appear to change.
-            self.plot_toolbar.push_current()
-            limits, automatic_x = viewport
-            first_axes.set_xlim(*limits, auto=automatic_x)
-            for ax in self.figure.axes:
-                previous = previous_y.get((ax._paradigma_dataset, ax._paradigma_metric))
-                if previous is not None and not previous[1]:
-                    ax.set_ylim(*previous[0], auto=False)
-                autoscale_bars(ax)
-            self.plot_toolbar.push_current()
-        self.highlight_result_row()
-        self.canvas.draw_idle()
-
-    def result_row_changed(self, current, previous):
-        frame = self.active_frame
-        valid_row = current.isValid() and frame is not None
-        timestamp = (valid_row and "time" in frame and pd.api.types.is_numeric_dtype(frame["time"].dtype)
-                     and pd.notna(frame["time"].iloc[current.row()]) and np.isfinite(frame["time"].iloc[current.row()]))
-        segment = gait_context(self.results, self.dataset.currentText(), frame.iloc[current.row()]) if valid_row else None
-        usable = self.result_source_frame is not None and (timestamp or segment is not None)
-        self.context_button.setEnabled(bool(usable))
-        self.context_radius.setEnabled(bool(timestamp))
-        self.context_button.setText("Inspect gait segment" if segment is not None and not timestamp else "Inspect sensor context")
-        if valid_row:
-            self.context_button.setToolTip("Inspect original samples for the selected result row")
-        if valid_row and not timestamp and segment is None:
-            self.context_button.setToolTip("No sensor timing available")
-        if self.result_source_frame is None:
-            self.context_button.setToolTip("Original sensor data unavailable")
-        self.highlight_result_row()
-
-    def highlight_result_row(self):
-        with self.result_overlay.edit():
-            self.update_result_marker()
-        self.result_overlay.paint()
-
-    def update_result_marker(self):
-        """Link a table row to all plots without changing their data or limits."""
-        for artist in self._result_selection_artists:
-            artist.remove()
-        self._result_selection_artists = []
-        self.time_axis.set_selection(None)
-        name, frame = self.dataset.currentText(), self.active_frame
-        current = self.result_table.currentIndex()
-        if frame is None or not current.isValid() or name not in self._timings:
-            return
-        row = current.row()
-        position = self.active_positions[row]
-        timing = self._timings[name].iloc[position]
-        seconds = float(timing["Timeline time (s)"])
-        if not np.isfinite(seconds):
-            return
-        if self.display_clock is not None:
-            timestamp = clock_times([seconds], self.display_clock)[0]
-            x = float(dates.date2num(timestamp.to_pydatetime(warn=False)))
-            label = timestamp.strftime("%d %b %Y %H:%M:%S.%f").rstrip("0").rstrip(".")
-        else:
-            x, label = seconds, f"{seconds:.6g} s"
-        estimated = "Estimated" in str(timing["Time basis"])
-        label = f"Row {row + 1} · {label}" + (" · Estimated" if estimated else "")
-        self.time_axis.set_selection(x, label)
-        for ax in self.figure.axes:
-            if not hasattr(ax, "_paradigma_dataset"):
-                continue
-            line = Line2D([x, x], [0, 1], transform=ax.get_xaxis_transform(),
-                          color="#465B73", linewidth=1.1, linestyle=(0, (3, 3)), alpha=.75, zorder=7)
-            line.set_gid("selected-result-time")
-            line.set_animated(self.canvas.supports_blit)
-            ax.add_artist(line)
-            self._result_selection_artists.append(line)
-            if ax._paradigma_dataset != name:
-                continue
-            if getattr(ax, "_paradigma_epoch", False):
-                summary = ax._paradigma_epoch_data
-                selected = summary.loc[(summary.start_s <= seconds) & (seconds < summary.end_s)]
-                value = selected.value.iloc[0] if len(selected) else np.nan
-            else:
-                value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
-                if name == 'classifications/gait/arm_activity' and ax._paradigma_metric == 'pred_no_other_arm_activity_window':
-                    pairs = self.gait_plot_presence()['filtered']
-                    if not ((pairs[:, 0] <= seconds) & (seconds < pairs[:, 1])).any():
-                        continue
-            if (pd.isna(value) or not np.isfinite(float(value))
-                    or getattr(ax, "_paradigma_binary", False) and float(value) != 1.):
-                continue
-            point = Line2D([x], [float(value)], linestyle="none", marker="o", markersize=9,
-                           markerfacecolor="white", markeredgecolor=module_color(name.split("/")[1]),
-                           markeredgewidth=2, zorder=8)
-            point.set_gid("selected-result-point")
-            point.set_animated(self.canvas.supports_blit)
-            ax.add_artist(point)
-            self._result_selection_artists.append(point)
-
-    def graph_clicked(self, event):
-        if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
-            return
-        name = getattr(event.inaxes, "_paradigma_dataset", self.dataset.currentText())
-        if name not in self.tables:
-            return
-        anchor = float(event.xdata)
-        if self.display_clock is not None:
-            anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"])))*86400
-            # Matplotlib stores dates as floats in days; recover exact nearby
-            # output anchors before choosing the interval that contains a click.
-            all_times = self._timings[name]["Timeline time (s)"].to_numpy()
-            close = np.flatnonzero(np.isfinite(all_times) & (np.abs(all_times - anchor) < 1e-5))
-            if len(close):
-                anchor = float(all_times[close[0]])
-        self.dataset.setCurrentText(name)
-        self.sync_table_outputs(force_detail=True)
-        metric = getattr(event.inaxes, "_paradigma_metric", None)
-        if metric is not None:
-            self.y_column.blockSignals(True)
-            self.y_column.setCurrentIndex(self.y_column.findData(metric))
-            self.y_column.blockSignals(False)
-        frame = self.active_frame
-        if frame is None or frame.empty:
-            return
-        times = self._timings[name]["Timeline time (s)"].to_numpy()[self.active_positions]
-        distances = np.abs(times - anchor)
-        finite = np.isfinite(distances)
-        if not finite.any():
-            return
-        row = int(np.argmin(np.where(finite, distances, np.inf)))
-        if getattr(event.inaxes, "_paradigma_epoch", False):
-            summary = event.inaxes._paradigma_epoch_data
-            epoch = summary.loc[(summary.start_s <= anchor) & (anchor < summary.end_s)]
-            if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
-                return
-            observed = self._plot_tables[name][metric].iloc[self.active_positions].to_numpy(dtype=float, na_value=np.nan)
-            matching = finite & np.isfinite(observed) & (times >= epoch.start_s.iloc[0]) & (times < epoch.end_s.iloc[0])
-            if not matching.any():
-                return
-            row = int(np.argmin(np.where(matching, distances, np.inf)))
-        elif (getattr(event.inaxes, "_paradigma_binary", False) or getattr(event.inaxes, "_paradigma_bars", False)) and metric in self._plot_tables[name]:
-            ends = self._interval_ends[name][self.active_positions]
-            present = self._plot_tables[name][metric].iloc[self.active_positions].eq(1).fillna(False).to_numpy(dtype=bool)
-            if getattr(event.inaxes, "_paradigma_bars", False):
-                starts, all_ends = self._bar_bounds[name]
-                times, ends = starts[self.active_positions], all_ends[self.active_positions]
-                present = self._plot_tables[name][metric].iloc[self.active_positions].notna().to_numpy()
-            covering = np.flatnonzero(present & (times <= anchor) & (anchor < ends))
-            if len(covering):
-                row = int(covering[-1])
-        self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
-        self.result_table.selectRow(row)
-        self.result_table.scrollTo(self.result_table.currentIndex())
-        self.plot_toolbar.active_axes = next((ax for ax in self.figure.axes
-            if getattr(ax, "_paradigma_dataset", None) == name and getattr(ax, "_paradigma_metric", None) == metric), None)
-        if self.plot_toolbar.settings_action.isChecked():
-            self.plot_toolbar.settings.read_axes()
 
     def inspect_sensor_context(self):
         row = self.result_table.currentIndex().row()
@@ -2464,7 +1485,9 @@ class MainWindow(QMainWindow):
                 display_timeline = common + self._recording_bases[key]
             else:
                 if self.result_timeline is None:
-                    self.result_timeline = source_timeline(source_frame, self.provenance.get("settings", {}))
+                    self.result_timeline = source_timeline(
+                        source_frame, self.provenance.get("settings", {})
+                    )
                 module_timeline = self._source_timelines.get(module, self.result_timeline)
                 display_timeline = self.result_timeline
             segment = gait_context(self.results, self.dataset.currentText(), selected)
@@ -2475,7 +1498,11 @@ class MainWindow(QMainWindow):
                 description = f"near {anchor:.4g} s (±{radius:g} s). This is timestamp context, not the algorithm's exact window."
             elif segment is not None:
                 start, end, number = segment
-                mask = np.isfinite(module_timeline) & (module_timeline >= start) & (module_timeline < end)
+                mask = (
+                    np.isfinite(module_timeline)
+                    & (module_timeline >= start)
+                    & (module_timeline < end)
+                )
                 description = f"from gait segment {number}, {start:.4g}–{end:.4g} s, using toolbox metadata. Individual arm-swing timestamps are not provided."
             else:
                 raise ValueError("No explicit sensor time context is available.")
@@ -2483,7 +1510,9 @@ class MainWindow(QMainWindow):
             self.sensor_times = display_timeline[mask]
             self.sensor_table.setModel(FrameModel(self.sensor_frame))
             self.populate_sensor_channels()
-            self.sensor_note.setText(f"{len(self.sensor_frame):,} original samples {description} Original units; horizontal axis aligned to analysis time.")
+            self.sensor_note.setText(
+                f"{len(self.sensor_frame):,} original samples {description} Original units; horizontal axis aligned to analysis time."
+            )
             if isinstance(self.result_source_frame, dict):
                 path = self.provenance.get("sources", {}).get(key, key)
                 self.sensor_note.setText(f"{Path(path).name} · " + self.sensor_note.text())
@@ -2510,31 +1539,67 @@ class MainWindow(QMainWindow):
     def populate_sensor_channels(self):
         selection = self.selected_sensor_channels() if self.sensor_channels.count() else None
         mapping = self.provenance.get("settings", {}).get("column_mapping", {})
-        self._sensor_channel_colors = self.populate_channels(self.sensor_channels, self.sensor_frame,
-            excluded={column for column, target in mapping.items() if target == "time"}, selection=selection)
+        self._sensor_channel_colors = self.populate_channels(
+            self.sensor_channels,
+            self.sensor_frame,
+            excluded={column for column, target in mapping.items() if target == "time"},
+            selection=selection,
+        )
         # Keep the chosen channels across context windows. A different recording
         # with no matching channels gets its first channel; an explicit Clear
         # remains empty until the user selects channels again.
         if selection and not self.selected_sensor_channels() and self.sensor_channels.count():
-            self.check_channels(self.sensor_channels, [self.sensor_channels.item(0).data(Qt.UserRole)])
+            self.check_channels(
+                self.sensor_channels, [self.sensor_channels.item(0).data(Qt.UserRole)]
+            )
 
     def plot_sensor(self, *_):
-        xs = clock_times(self.sensor_times, self.display_clock) if self.sensor_frame is not None else []
+        xs = (
+            clock_times(self.sensor_times, self.display_clock)
+            if self.sensor_frame is not None
+            else []
+        )
         calendar = self.display_clock is not None
-        self.plot_channel_signals(self.sensor_figure, self.sensor_frame, self.selected_sensor_channels(),
-            self._sensor_channel_colors, xs, "Recording date/time" if calendar else "Analysis time (s)",
-            calendar=calendar, timezone=clock_origin(self.display_clock).tz if calendar else None)
+        self.plot_channel_signals(
+            self.sensor_figure,
+            self.sensor_frame,
+            self.selected_sensor_channels(),
+            self._sensor_channel_colors,
+            xs,
+            "Recording date/time" if calendar else "Analysis time (s)",
+            calendar=calendar,
+            timezone=clock_origin(self.display_clock).tz if calendar else None,
+        )
         self.sensor_toolbar.refresh()
         self.sensor_canvas.draw_idle()
 
     def refresh_runs(self):
         selected_ids = {record["id"] for record in self.selected_run_records()}
-        if self.selected_run is not None and not any(record is self.selected_run for record in getattr(self, "_run_row_records", ())):
+        if self.selected_run is not None and not any(
+            record is self.selected_run for record in getattr(self, "_run_row_records", ())
+        ):
             selected_ids = {self.selected_run["id"]}
-        data = pd.DataFrame([{"Started": datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y · %H:%M"), "Status": run_status(record),
-            "Input": (f"{len(record['sources'])} recordings" if len(record.get("sources", {})) > 1 else Path(record["source"]).name), "Modules": ", ".join(record["settings"].get("pipelines", [])),
-            "Warnings": len(record["warnings"]), "Errors": len(record.get("errors", [])), "Exports": len(record["outputs"])} for record in self.runs],
-            columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"])
+        data = pd.DataFrame(
+            [
+                {
+                    "Started": datetime.fromisoformat(record["started"])
+                    .astimezone()
+                    .strftime("%d %b %Y · %H:%M"),
+                    "Status": run_status(record),
+                    "Input": (
+                        f"{len(record['sources'])} recordings"
+                        if len(record.get("sources", {})) > 1
+                        else Path(record["source"]).name
+                    ),
+                    "Modules": ", ".join(record["settings"].get("pipelines", [])),
+                    "Warnings": len(record["warnings"]),
+                    "Errors": len(record.get("errors", [])),
+                    "Exports": len(record["outputs"]),
+                }
+                for record in self.runs
+            ],
+            columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"],
+        )
         self._run_row_records = tuple(self.runs)
         self.run_table.setModel(FrameModel(data))
         self.run_table.setColumnWidth(0, 176)
@@ -2542,13 +1607,22 @@ class MainWindow(QMainWindow):
         self.run_table.selectionModel().currentRowChanged.connect(self.select_run)
         self.run_table.selectionModel().selectionChanged.connect(self.update_run_actions)
         if self.runs:
-            index = next((i for i, record in enumerate(self.runs) if record is self.selected_run), 0)
+            index = next(
+                (i for i, record in enumerate(self.runs) if record is self.selected_run), 0
+            )
             selection = self.run_table.selectionModel()
             selection.blockSignals(True)
-            selection.setCurrentIndex(self.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate)
-            rows = [i for i, record in enumerate(self.runs) if record["id"] in selected_ids] or [index]
+            selection.setCurrentIndex(
+                self.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate
+            )
+            rows = [i for i, record in enumerate(self.runs) if record["id"] in selected_ids] or [
+                index
+            ]
             for row in rows:
-                selection.select(self.run_table.model().index(row, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+                selection.select(
+                    self.run_table.model().index(row, 0),
+                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
+                )
             selection.blockSignals(False)
             self.select_run(selection.currentIndex(), None)
         else:
@@ -2560,43 +1634,82 @@ class MainWindow(QMainWindow):
             return
         record = self.runs[current.row()]
         self.selected_run = record
-        self.run_heading.setText(f"{run_status(record)} · " + (f"{len(record['sources'])} recordings" if len(record.get("sources", {})) > 1 else Path(record["source"]).name))
+        self.run_heading.setText(
+            f"{run_status(record)} · "
+            + (
+                f"{len(record['sources'])} recordings"
+                if len(record.get("sources", {})) > 1
+                else Path(record["source"]).name
+            )
+        )
         self.run_heading.setToolTip(f"Run ID: {record['id']}")
         self.run_summary.setText(self.run_summary_text(record))
-        self.run_details.setPlainText("\n".join(f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}" for key, value in record["settings"].items()))
-        self.run_warnings.setPlainText("\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings.")
+        self.run_details.setPlainText(
+            "\n".join(
+                f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}"
+                for key, value in record["settings"].items()
+            )
+        )
+        self.run_warnings.setPlainText(
+            "\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings."
+        )
         self.run_errors.setPlainText("\n\n".join(record.get("errors", [])) or "No recorded errors.")
-        self.run_outputs.setPlainText("\n\n".join(f"{item.get('kind', 'Export')}: {item.get('path', '')}" for item in record["outputs"]) or "No exports saved.")
+        self.run_outputs.setPlainText(
+            "\n\n".join(
+                f"{item.get('kind', 'Export')}: {item.get('path', '')}"
+                for item in record["outputs"]
+            )
+            or "No exports saved."
+        )
         self.log.setPlainText(record.get("log", ""))
         self.update_run_actions()
 
     @staticmethod
     def run_summary_text(record):
-        started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
-        finished = datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S") if record.get("finished") else "—"
-        return (f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
-                f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}")
+        started = (
+            datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
+        )
+        finished = (
+            datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S")
+            if record.get("finished")
+            else "—"
+        )
+        return (
+            f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
+            f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}"
+        )
 
     def selected_run_records(self):
         selection = self.run_table.selectionModel()
         rows = selection.selectedRows() if selection is not None else []
         records = getattr(self, "_run_row_records", ())
-        return [records[index.row()] for index in sorted(rows, key=lambda index: index.row()) if index.row() < len(records)]
+        return [
+            records[index.row()]
+            for index in sorted(rows, key=lambda index: index.row())
+            if index.row() < len(records)
+        ]
 
     def update_run_actions(self, *_):
         records = self.selected_run_records()
         count = len(records)
         current = self.run_table.currentIndex()
-        desired = records[0] if count == 1 else (
-            self._run_row_records[current.row()] if count > 1 and current.isValid() else None)
+        desired = (
+            records[0]
+            if count == 1
+            else (self._run_row_records[current.row()] if count > 1 and current.isValid() else None)
+        )
         if desired is not None and self.selected_run is not desired:
             row = next(i for i, record in enumerate(self._run_row_records) if record is desired)
             self.select_run(self.run_table.model().index(row, 0), None)
             return
         record = self.selected_run
-        available = record is not None and ("_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"]))
+        available = record is not None and (
+            "_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"])
+        )
         self.open_run_button.setEnabled(bool(available) and count == 1 and self.worker is None)
-        self.use_parameters_button.setEnabled(record is not None and count == 1 and self.worker is None)
+        self.use_parameters_button.setEnabled(
+            record is not None and count == 1 and self.worker is None
+        )
         self.delete_run_button.setEnabled(count > 0 and self.worker is None)
         self.delete_run_button.setText(f"Delete {count} Runs…" if count > 1 else "Delete Run…")
         self.clear_runs_button.setEnabled(bool(self.runs) and self.worker is None)
@@ -2611,25 +1724,56 @@ class MainWindow(QMainWindow):
         if not records or self.worker is not None:
             return
         original_runs = list(self.runs)
-        protected = [self.source, *self.sources.values(), *self.provenance.get("sources", {}).values()]
+        protected = [
+            self.source,
+            *self.sources.values(),
+            *self.provenance.get("sources", {}).values(),
+        ]
         removed = []
         try:
-            files = list(dict.fromkeys(path for record in records for path in
-                         self.history.removal_files(record, original_runs, protected, removing=records)))
+            files = list(
+                dict.fromkeys(
+                    path
+                    for record in records
+                    for path in self.history.removal_files(
+                        record, original_runs, protected, removing=records
+                    )
+                )
+            )
             warning = QMessageBox(self)
             warning.setPalette(light_palette())
             warning.setStyleSheet(STYLESHEET)
             warning.setIcon(QMessageBox.Warning)
-            warning.setWindowTitle("Clear all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run")
-            warning.setText("Delete all runs and their associated exports?" if clear_all else
-                            f"Delete these {len(records)} runs and their associated exports?" if len(records) > 1 else
-                            "Delete this run and its associated exports?")
-            warning.setInformativeText(f"{len(records)} history entry/entries and {len(files)} export file(s) will be permanently deleted. "
-                                      "Original sensor files and exports referenced by runs you keep are preserved.")
-            warning.setDetailedText("\n".join(str(path) for path in files) or "No associated export files exist.")
+            warning.setWindowTitle(
+                "Clear all runs"
+                if clear_all
+                else "Delete runs"
+                if len(records) > 1
+                else "Delete run"
+            )
+            warning.setText(
+                "Delete all runs and their associated exports?"
+                if clear_all
+                else f"Delete these {len(records)} runs and their associated exports?"
+                if len(records) > 1
+                else "Delete this run and its associated exports?"
+            )
+            warning.setInformativeText(
+                f"{len(records)} history entry/entries and {len(files)} export file(s) will be permanently deleted. "
+                "Original sensor files and exports referenced by runs you keep are preserved."
+            )
+            warning.setDetailedText(
+                "\n".join(str(path) for path in files) or "No associated export files exist."
+            )
             warning.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
             warning.setDefaultButton(QMessageBox.Cancel)
-            warning.button(QMessageBox.Yes).setText("Delete all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run")
+            warning.button(QMessageBox.Yes).setText(
+                "Delete all runs"
+                if clear_all
+                else "Delete runs"
+                if len(records) > 1
+                else "Delete run"
+            )
             if warning.exec() != QMessageBox.Yes:
                 return
             for record in records:
@@ -2637,7 +1781,9 @@ class MainWindow(QMainWindow):
                 removed.append(record["id"])
             self.status.setText(f"{len(removed)} run(s) and associated exports deleted.")
         except (OSError, ValueError) as exc:
-            self.show_notice(f"Could not finish deleting runs ({len(removed)} deleted): {exc}", "error")
+            self.show_notice(
+                f"Could not finish deleting runs ({len(removed)} deleted): {exc}", "error"
+            )
         finally:
             if removed:
                 self.runs[:] = [record for record in self.runs if record["id"] not in removed]
@@ -2652,7 +1798,13 @@ class MainWindow(QMainWindow):
                 if not self.runs:
                     self.run_heading.setText("Select a run")
                     self.run_summary.clear()
-                    for view in (self.run_details, self.run_warnings, self.run_errors, self.run_outputs, self.log):
+                    for view in (
+                        self.run_details,
+                        self.run_warnings,
+                        self.run_errors,
+                        self.run_outputs,
+                        self.log,
+                    ):
                         view.clear()
 
     def open_run(self):
@@ -2662,16 +1814,25 @@ class MainWindow(QMainWindow):
         if "_results" in record:
             self.restore_run((record["id"], record.get("_provenance", {}), record["_results"]))
             return
-        output = next((item for item in reversed(record["outputs"]) if item.get("kind") == "JSON"), None)
+        output = next(
+            (item for item in reversed(record["outputs"]) if item.get("kind") == "JSON"), None
+        )
         if output:
             self.status.setText("Opening exported results…")
-            self.start_job(lambda logger: (record["id"], *load_result_export(output["path"])), self.restore_run)
+            self.start_job(
+                lambda logger: (record["id"], *load_result_export(output["path"])), self.restore_run
+            )
 
     def restore_run(self, payload):
         run_id, provenance, results = payload
         record = next(record for record in self.runs if record["id"] == run_id)
         self.current_run = record
-        self.provenance = provenance or {"source": record["source"], "settings": record["settings"], "paradigma_version": record["paradigma_version"], "sources": record.get("sources", {})}
+        self.provenance = provenance or {
+            "source": record["source"],
+            "settings": record["settings"],
+            "paradigma_version": record["paradigma_version"],
+            "sources": record.get("sources", {}),
+        }
         self.result_source_frame = record.get("_frame")
         self.result_timeline = None
         record["_results"], record["_provenance"] = results, self.provenance
@@ -2684,7 +1845,12 @@ class MainWindow(QMainWindow):
             return
         settings = self.selected_run["settings"]
         self.set_modules(settings.get("pipelines", ["gait"]))
-        for widget, key in ((self.side, "watch_side"), (self.acc, "accelerometer_units"), (self.gyro, "gyroscope_units"), (self.time, "time_input_unit")):
+        for widget, key in (
+            (self.side, "watch_side"),
+            (self.acc, "accelerometer_units"),
+            (self.gyro, "gyroscope_units"),
+            (self.time, "time_input_unit"),
+        ):
             if key in settings:
                 widget.setCurrentText(str(settings[key]))
         self.orientation.setText(",".join(settings.get("device_orientation") or ["x", "y", "z"]))
@@ -2692,8 +1858,13 @@ class MainWindow(QMainWindow):
         self.prepared.setChecked(settings.get("skip_preparation", False))
         self.gaps.setChecked(settings.get("split_by_gaps", False))
         self.drop_missing.setChecked(settings.get("drop_missing_samples", False))
-        self.max_gap.setValue(settings.get("max_gap_seconds", DEFAULT_MAX_GAP_SECONDS) or DEFAULT_MAX_GAP_SECONDS)
-        self.min_segment.setValue(settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS) or DEFAULT_MIN_SECTION_SECONDS)
+        self.max_gap.setValue(
+            settings.get("max_gap_seconds", DEFAULT_MAX_GAP_SECONDS) or DEFAULT_MAX_GAP_SECONDS
+        )
+        self.min_segment.setValue(
+            settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS)
+            or DEFAULT_MIN_SECTION_SECONDS
+        )
         origin = settings.get("plot_time_origin", {"mode": "automatic"})
         self._origin_override = origin.get("mode") != "automatic"
         if self._origin_override:
@@ -2712,21 +1883,40 @@ class MainWindow(QMainWindow):
     def record_output(self, path, kind):
         if self.current_run is not None:
             name, frame = self.selected_export_table()
-            self.current_run["outputs"].append({"kind": kind, "path": str(Path(path).resolve()), "saved": now(), "dataset": name if kind == "CSV" else "all results"})
+            self.current_run["outputs"].append(
+                {
+                    "kind": kind,
+                    "path": str(Path(path).resolve()),
+                    "saved": now(),
+                    "dataset": name if kind == "CSV" else "all results",
+                }
+            )
             if kind == "CSV":
                 aggregation = name.startswith("aggregations/")
-                self.current_run["outputs"][-1].update(selected_rows=len(frame),
-                    selection={"scope": "Full run"} if aggregation else self.active_selection)
+                self.current_run["outputs"][-1].update(
+                    selected_rows=len(frame),
+                    selection={"scope": "Full run"} if aggregation else self.active_selection,
+                )
             self.persist_run(self.current_run)
             self.refresh_runs()
 
     def export(self):
         if self.results is None or self.worker is not None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export complete results", "paradigma-results.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export complete results", "paradigma-results.json", "JSON (*.json)"
+        )
         if path:
             try:
-                export_results(path, self.results, self.provenance, protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
+                export_results(
+                    path,
+                    self.results,
+                    self.provenance,
+                    protected_sources=[
+                        *self.sources.values(),
+                        *self.provenance.get("sources", {}).values(),
+                    ],
+                )
                 self.record_output(path, "JSON")
                 self.status.setText(f"Results exported to {path}")
             except Exception as exc:
@@ -2736,12 +1926,17 @@ class MainWindow(QMainWindow):
         if self.results is None or self.worker is not None:
             return
         from .exports import ExportDialog, export_selection
+
         dialog = ExportDialog(self.results, self)
         if not dialog.exec():
             return
         extension = dialog.extension()
-        path, _ = QFileDialog.getSaveFileName(self, "Export results", f"paradigma-results.{extension}",
-                                             f"{extension.upper()} (*.{extension})")
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export results",
+            f"paradigma-results.{extension}",
+            f"{extension.upper()} (*.{extension})",
+        )
         if not path:
             return
         selected, format_name = dialog.selected(), dialog.format.currentText()
@@ -2749,14 +1944,16 @@ class MainWindow(QMainWindow):
         protected = [*self.sources.values(), *provenance.get("sources", {}).values()]
 
         def write(logger):
-            export_selection(path, results, provenance, selected, format_name,
-                             protected_sources=protected)
+            export_selection(
+                path, results, provenance, selected, format_name, protected_sources=protected
+            )
             return str(Path(path).resolve())
 
         def completed(output_path):
             if run is not None:
-                run["outputs"].append({"kind": format_name, "path": output_path,
-                                       "saved": now(), "selected": selected})
+                run["outputs"].append(
+                    {"kind": format_name, "path": output_path, "saved": now(), "selected": selected}
+                )
                 self.persist_run(run)
                 self.refresh_runs()
             self.status.setText(f"Results exported to {output_path}")
@@ -2768,10 +1965,20 @@ class MainWindow(QMainWindow):
         name, frame = self.selected_export_table()
         if frame is None or self.worker is not None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export selected rows", "output.csv", "CSV (*.csv)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export selected rows", "output.csv", "CSV (*.csv)"
+        )
         if path:
             try:
-                export_table_csv(path, frame, source=self.provenance.get("source", self.source), protected_sources=[*self.sources.values(), *self.provenance.get("sources", {}).values()])
+                export_table_csv(
+                    path,
+                    frame,
+                    source=self.provenance.get("source", self.source),
+                    protected_sources=[
+                        *self.sources.values(),
+                        *self.provenance.get("sources", {}).values(),
+                    ],
+                )
                 self.record_output(path, "CSV")
                 self.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
             except Exception as exc:
@@ -2779,7 +1986,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():
-            QMessageBox.information(self, "Processing in progress", "Wait for processing to finish before closing.")
+            QMessageBox.information(
+                self, "Processing in progress", "Wait for processing to finish before closing."
+            )
             event.ignore()
         else:
             self._origin_preview.shutdown()
@@ -2795,8 +2004,9 @@ class MainWindow(QMainWindow):
             orientation = Qt.Horizontal if self.width() >= 1280 else Qt.Vertical
             if self.data_details.orientation() != orientation:
                 self.data_details.setOrientation(orientation)
-                self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
-
+                self.data_details.setSizes(
+                    [660, 400] if orientation == Qt.Horizontal else [220, 300]
+                )
 
 
 def main():
@@ -2808,8 +2018,10 @@ def main():
     screen = app.primaryScreen()
     if screen is not None:
         available = screen.availableGeometry()
-        window.resize(max(window.minimumWidth(), min(window.width(), available.width() - 48)),
-                      max(window.minimumHeight(), min(window.height(), available.height() - 48)))
+        window.resize(
+            max(window.minimumWidth(), min(window.width(), available.width() - 48)),
+            max(window.minimumHeight(), min(window.height(), available.height() - 48)),
+        )
     app.setWindowIcon(window.windowIcon())
     window.show()
     sys.exit(app.exec())

@@ -1,4 +1,5 @@
 """Interruptible analysis with parent-owned temporary files and process cleanup."""
+
 import logging
 import multiprocessing
 from pathlib import Path
@@ -23,6 +24,7 @@ class QueueLogHandler(logging.Handler):
 def _analyze_child(input_path, output_path, settings, queue):
     try:
         from .core import analyze
+
         logger = logging.Logger("paradigma-desktop", logging.INFO)
         logger.addHandler(QueueLogHandler(queue))
         # These private files are created by this process's parent, never user inputs.
@@ -48,18 +50,28 @@ def run_isolated_analysis(frame, settings, logger, cancel):
         queue = context.Queue()
         # All toolbox intermediate files live under the parent's temporary root,
         # so they are removed even when the child is interrupted mid-calculation.
-        process = context.Process(target=_analyze_child, args=(str(input_path), str(output_path),
-                      {**settings, "output_dir": str(Path(directory) / "outputs")}, queue), daemon=True)
+        process = context.Process(
+            target=_analyze_child,
+            args=(
+                str(input_path),
+                str(output_path),
+                {**settings, "output_dir": str(Path(directory) / "outputs")},
+                queue,
+            ),
+            daemon=True,
+        )
         try:
             process.start()
             while True:
                 if cancel.is_set():
                     raise AnalysisCancelled()
                 try:
-                    event = queue.get(timeout=.1)
+                    event = queue.get(timeout=0.1)
                 except Empty:
                     if not process.is_alive():
-                        raise RuntimeError(f"Analysis process exited unexpectedly ({process.exitcode}).")
+                        raise RuntimeError(
+                            f"Analysis process exited unexpectedly ({process.exitcode})."
+                        )
                     continue
                 if event[0] == "log":
                     logger.log(event[1], event[2])

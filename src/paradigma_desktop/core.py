@@ -1,52 +1,67 @@
-"""File loading, analysis and lossless tabular result export."""
-import json
-import csv
+"""Official file loading, preparation and analysis; compatible export aliases."""
+
 import logging
 import re
-import os
 import tempfile
-import math
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from .serialization import (
+    json_value as json_value,
+    export_results as export_results,
+    export_table_csv as export_table_csv,
+)
 from .availability import prepared_availability
 from .empatica import load_empatica_imu
 
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
-TIME_UNITS = {"relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"}
+TIME_UNITS = {
+    "relative_s",
+    "relative_ms",
+    "absolute_s",
+    "absolute_ms",
+    "difference_s",
+    "difference_ms",
+}
 
 
 def load_single_data_file(*args, **kwargs):
     # ParaDigMa's package initializer imports every pipeline. Defer that work
     # until file loading/analysis, which the GUI already performs in a worker.
     from paradigma.load import load_single_data_file as official
+
     return official(*args, **kwargs)
 
 
 def run_paradigma(*args, **kwargs):
     from paradigma.orchestrator import run_paradigma as official
+
     return official(*args, **kwargs)
 
 
 def prepare_raw_data(*args, **kwargs):
     from paradigma.prepare_data import prepare_raw_data as official
+
     return official(*args, **kwargs)
 
 
 def correct_watch_orientation(*args, **kwargs):
     from paradigma.prepare_data import correct_watch_orientation as official
+
     return official(*args, **kwargs)
 
 
 def create_segments(*args, **kwargs):
     from paradigma.segmenting import create_segments as official
+
     return official(*args, **kwargs)
 
 
 def discard_segments(*args, **kwargs):
     from paradigma.segmenting import discard_segments as official
+
     return official(*args, **kwargs)
 
 
@@ -62,15 +77,24 @@ def validate_column_mapping(mapping):
 def validate_orientation(axes):
     if axes is None:
         return None
-    if not isinstance(axes, (list, tuple)) or len(axes) != 3 or any(
-        not isinstance(axis, str) or axis not in {"x", "y", "z", "-x", "-y", "-z"} for axis in axes
-    ) or sorted(axis[-1] for axis in axes) != ["x", "y", "z"]:
-        raise ValueError("Device axes must contain x, y and z once each, optionally prefixed with '-'.")
+    if (
+        not isinstance(axes, (list, tuple))
+        or len(axes) != 3
+        or any(
+            not isinstance(axis, str) or axis not in {"x", "y", "z", "-x", "-y", "-z"}
+            for axis in axes
+        )
+        or sorted(axis[-1] for axis in axes) != ["x", "y", "z"]
+    ):
+        raise ValueError(
+            "Device axes must contain x, y and z once each, optionally prefixed with '-'."
+        )
     return list(axes)
 
 
 class _PipelineFailures(logging.Handler):
     """Recover failures that ParaDigMa 1.1.2 logs but omits from results.errors."""
+
     def __init__(self):
         super().__init__(logging.WARNING)
         self.errors = []
@@ -80,7 +104,11 @@ class _PipelineFailures(logging.Handler):
         for pipeline in ("tremor", "pulse_rate"):
             prefix = f"{pipeline} pipeline returned error: "
             if message.startswith(prefix):
-                error = {"pipeline": pipeline, "stage": "pipeline_execution", "error": message[len(prefix):]}
+                error = {
+                    "pipeline": pipeline,
+                    "stage": "pipeline_execution",
+                    "error": message[len(prefix) :],
+                }
                 if error not in self.errors:
                     self.errors.append(error)
 
@@ -102,7 +130,9 @@ def load_sensor_file(path, *, allow_pickle=False):
     return frame
 
 
-def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings):
+def analyze(
+    frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings
+):
     if isinstance(pipelines, str):
         pipelines = [pipelines]
     if not pipelines:
@@ -111,18 +141,40 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
         raise ValueError("Unknown pipeline. Choose gait, tremor or pulse_rate.")
     if "pulse_rate" in pipelines and len(pipelines) > 1:
         groups = [[pipeline for pipeline in pipelines if pipeline != "pulse_rate"], ["pulse_rate"]]
-        combined = {"quantifications": {}, "classifications": {}, "aggregations": {}, "metadata": {}, "errors": []}
+        combined = {
+            "quantifications": {},
+            "classifications": {},
+            "aggregations": {},
+            "metadata": {},
+            "errors": [],
+        }
         preparation = {}
         for group in groups:
-            (logger or logging.getLogger("paradigma")).info("Running selected modules: %s", ", ".join(group))
+            (logger or logging.getLogger("paradigma")).info(
+                "Running selected modules: %s", ", ".join(group)
+            )
             try:
-                output = analyze(frame, pipelines=group, column_mapping=column_mapping, logger=logger,
-                                 drop_missing_samples=drop_missing_samples, **settings)
+                output = analyze(
+                    frame,
+                    pipelines=group,
+                    column_mapping=column_mapping,
+                    logger=logger,
+                    drop_missing_samples=drop_missing_samples,
+                    **settings,
+                )
             except Exception as exc:
-                combined["errors"].append({"pipelines": group, "stage": "desktop_execution", "error": f"{type(exc).__name__}: {exc}"})
+                combined["errors"].append(
+                    {
+                        "pipelines": group,
+                        "stage": "desktop_execution",
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
                 for pipeline in group:
                     combined["aggregations"][pipeline] = {}
-                (logger or logging.getLogger("paradigma")).error("Modules %s failed: %s", ", ".join(group), exc)
+                (logger or logging.getLogger("paradigma")).error(
+                    "Modules %s failed: %s", ", ".join(group), exc
+                )
                 continue
             for category in ("quantifications", "classifications", "aggregations"):
                 combined[category].update(output.get(category, {}))
@@ -133,42 +185,73 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
             recording_details = metadata.pop("desktop_recordings", None)
             if recording_details:
                 previous = combined["metadata"].get("desktop_recordings", {})
-                combined["metadata"]["desktop_recordings"] = {**recording_details,
-                    "sections": {**previous.get("sections", {}), **recording_details["sections"]}}
+                combined["metadata"]["desktop_recordings"] = {
+                    **recording_details,
+                    "sections": {**previous.get("sections", {}), **recording_details["sections"]},
+                }
             coverage = metadata.pop("desktop_availability", {})
             combined["metadata"].setdefault("desktop_availability", {}).update(coverage)
             combined["metadata"].update(metadata)
             combined["errors"].extend(output.get("errors", []))
-        combined["metadata"]["desktop_preparation"] = {"analysis_groups": groups, "by_module": preparation}
+        combined["metadata"]["desktop_preparation"] = {
+            "analysis_groups": groups,
+            "by_module": preparation,
+        }
         return combined
     recordings = None
     if isinstance(frame, dict):
-        if not frame or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", key)
-                            or not isinstance(value, pd.DataFrame) for key, value in frame.items()):
-            raise ValueError("Recordings must be a non-empty mapping of safe identifiers to sensor tables.")
+        if not frame or any(
+            not isinstance(key, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", key)
+            or not isinstance(value, pd.DataFrame)
+            for key, value in frame.items()
+        ):
+            raise ValueError(
+                "Recordings must be a non-empty mapping of safe identifiers to sensor tables."
+            )
         inputs, sections, preparation = {}, {}, {}
         for key, recording in frame.items():
-            (logger or logging.getLogger("paradigma")).info("Preparing recording %s (%s samples)", key, len(recording))
+            (logger or logging.getLogger("paradigma")).info(
+                "Preparing recording %s (%s samples)", key, len(recording)
+            )
             try:
-                prepared, excluded, count = _prepare_recording(recording, pipelines, column_mapping, logger,
-                                                              drop_missing_samples, dict(settings))
+                prepared, excluded, count = _prepare_recording(
+                    recording,
+                    pipelines,
+                    column_mapping,
+                    logger,
+                    drop_missing_samples,
+                    dict(settings),
+                )
             except (ValueError, TypeError) as exc:
                 raise ValueError(f"{key}: {exc}") from exc
             pieces = prepared if isinstance(prepared, dict) else {"": prepared}
             for section, data in pieces.items():
                 file_key = f"{key}__{section}" if section else key
                 if file_key in inputs:
-                    raise ValueError("Recording identifiers overlap with generated section identifiers.")
+                    raise ValueError(
+                        "Recording identifiers overlap with generated section identifiers."
+                    )
                 inputs[file_key], sections[file_key] = data, key
-            preparation[key] = {**(excluded or {}), "input_samples": len(recording),
-                                "analyzed_samples": count, "continuous_sections": len(pieces)}
+            preparation[key] = {
+                **(excluded or {}),
+                "input_samples": len(recording),
+                "analyzed_samples": count,
+                "continuous_sections": len(pieces),
+            }
         recordings = {"recordings": list(frame), "sections": sections}
-        exclusion = {"by_recording": preparation, "input_samples": sum(len(data) for data in frame.values()),
-                     "excluded_samples": sum(data.get("excluded_samples", 0) for data in preparation.values())}
+        exclusion = {
+            "by_recording": preparation,
+            "input_samples": sum(len(data) for data in frame.values()),
+            "excluded_samples": sum(
+                data.get("excluded_samples", 0) for data in preparation.values()
+            ),
+        }
         analyzed_samples = sum(data["analyzed_samples"] for data in preparation.values())
     else:
-        inputs, exclusion, analyzed_samples = _prepare_recording(frame, pipelines, column_mapping, logger,
-                                                                 drop_missing_samples, settings)
+        inputs, exclusion, analyzed_samples = _prepare_recording(
+            frame, pipelines, column_mapping, logger, drop_missing_samples, settings
+        )
         exclusion = exclusion or {"input_samples": len(frame), "excluded_samples": 0}
 
     coverage = prepared_availability(inputs, pipelines)
@@ -180,7 +263,11 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
         package_logger = logging.getLogger("paradigma")
-        active_logger = logger if logger is not None else logging.Logger("paradigma-desktop-analysis", logging.INFO)
+        active_logger = (
+            logger
+            if logger is not None
+            else logging.Logger("paradigma-desktop-analysis", logging.INFO)
+        )
         recorder = _PipelineFailures()
         loggers = {package_logger, active_logger}
         for target in loggers:
@@ -188,21 +275,36 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
         handlers_before = set(package_logger.handlers)
         try:
             results = run_paradigma(
-                dfs=inputs, pipelines=pipelines, column_mapping=None,
-                save_intermediate=["classification"], return_intermediate=["classification", "quantification"],
-                custom_logger=active_logger, **{**settings, "output_dir": run_directory,
-                                               "skip_preparation": True, "split_by_gaps": False},
+                dfs=inputs,
+                pipelines=pipelines,
+                column_mapping=None,
+                save_intermediate=["classification"],
+                return_intermediate=["classification", "quantification"],
+                custom_logger=active_logger,
+                **{
+                    **settings,
+                    "output_dir": run_directory,
+                    "skip_preparation": True,
+                    "split_by_gaps": False,
+                },
             )
-            files = {"gait": {"detection": "gait_predictions.parquet", "arm_activity": "arm_activity_predictions.parquet"},
-                     "tremor": {"": "tremor_predictions.parquet"},
-                     "pulse_rate": {"": "ppg_quality_predictions.parquet"}}
+            files = {
+                "gait": {
+                    "detection": "gait_predictions.parquet",
+                    "arm_activity": "arm_activity_predictions.parquet",
+                },
+                "tremor": {"": "tremor_predictions.parquet"},
+                "pulse_rate": {"": "ppg_quality_predictions.parquet"},
+            }
             keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
             classifications = {}
             for pipeline in pipelines:
                 for name, filename in files[pipeline].items():
                     frames = []
                     for key in keys:
-                        path = run_directory / "individual_files" / key / "classification" / filename
+                        path = (
+                            run_directory / "individual_files" / key / "classification" / filename
+                        )
                         if path.is_file():
                             classified = pd.read_parquet(path)
                             if len(keys) > 1 or recordings is not None:
@@ -224,7 +326,8 @@ def analyze(frame, *, pipelines, column_mapping=None, logger=None, drop_missing_
                     results["errors"].append(error)
             if exclusion:
                 results.setdefault("metadata", {})["desktop_preparation"] = {
-                    **exclusion, "analyzed_samples": analyzed_samples,
+                    **exclusion,
+                    "analyzed_samples": analyzed_samples,
                     "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
                 }
             if recordings is not None:
@@ -271,7 +374,6 @@ def result_tables(value, path=""):
     return tables
 
 
-
 def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
     mapping = validate_column_mapping(column_mapping)
     axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
@@ -301,16 +403,24 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
         raise ValueError(message)
     if len(mapped) < 2:
         raise ValueError("At least two samples are required.")
-    if pd.api.types.is_datetime64_any_dtype(mapped["time"].dtype) or pd.api.types.is_timedelta64_dtype(mapped["time"].dtype):
-        raise ValueError("Time must use numeric seconds or milliseconds; convert datetime values before analysis.")
+    if pd.api.types.is_datetime64_any_dtype(
+        mapped["time"].dtype
+    ) or pd.api.types.is_timedelta64_dtype(mapped["time"].dtype):
+        raise ValueError(
+            "Time must use numeric seconds or milliseconds; convert datetime values before analysis."
+        )
     time_unit = settings.get("time_input_unit", "relative_s")
     if time_unit not in TIME_UNITS:
         raise ValueError("Select a supported numeric time unit.")
     if settings.get("skip_preparation", False) and time_unit != "relative_s":
-        raise ValueError("Prepared data must use relative seconds. Enable preparation to convert time units.")
+        raise ValueError(
+            "Prepared data must use relative seconds. Enable preparation to convert time units."
+        )
     values = mapped[sorted(required)].apply(pd.to_numeric, errors="raise")
     if any(pd.api.types.is_complex_dtype(dtype) for dtype in values.dtypes):
-        raise ValueError("Required sensor channels must contain finite real numbers without missing values.")
+        raise ValueError(
+            "Required sensor channels must contain finite real numbers without missing values."
+        )
     values = values.astype(float)
     finite = np.isfinite(values.to_numpy())
     invalid = ~finite.all(axis=1)
@@ -327,35 +437,56 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
         # Convert the complete difference timeline before removing sensor rows.
         if time_unit.startswith("difference"):
             if not np.isfinite(values["time"]).all():
-                raise ValueError("Missing time differences cannot be excluded; supply a valid relative or absolute timeline.")
+                raise ValueError(
+                    "Missing time differences cannot be excluded; supply a valid relative or absolute timeline."
+                )
             if values["time"].iloc[0] < 0 or not (values["time"].iloc[1:] > 0).all():
-                raise ValueError("Time differences must be positive after the first sample, which can be zero.")
+                raise ValueError(
+                    "Time differences must be positive after the first sample, which can be zero."
+                )
             elapsed = values["time"].cumsum() - values["time"].iloc[0]
             values["time"] = elapsed / (1000 if time_unit == "difference_ms" else 1)
             time_unit = "relative_s"
             settings["time_input_unit"] = time_unit
         positions = np.flatnonzero(~invalid)
         if len(positions) < 2:
-            raise ValueError("At least two valid samples must remain after excluding missing sensor samples.")
+            raise ValueError(
+                "At least two valid samples must remain after excluding missing sensor samples."
+            )
         mapped = mapped.iloc[positions].copy().reset_index(drop=True)
         values = values.iloc[positions].reset_index(drop=True)
         boundaries = np.r_[True, np.diff(positions) > 1]
         if "data_segment_nr" in mapped:
-            boundaries |= mapped["data_segment_nr"].ne(mapped["data_segment_nr"].shift()).fillna(True).to_numpy(dtype=bool)
+            boundaries |= (
+                mapped["data_segment_nr"]
+                .ne(mapped["data_segment_nr"].shift())
+                .fillna(True)
+                .to_numpy(dtype=bool)
+            )
         mapped["data_segment_nr"] = np.cumsum(boundaries)
-        exclusion = {"input_samples": len(frame), "excluded_samples": excluded_count,
-                     "samples_after_exclusion": len(mapped), "invalid_columns": bad_columns,
-                     "split_at_excluded_samples": True}
+        exclusion = {
+            "input_samples": len(frame),
+            "excluded_samples": excluded_count,
+            "samples_after_exclusion": len(mapped),
+            "invalid_columns": bad_columns,
+            "split_at_excluded_samples": True,
+        }
         (logger or logging.getLogger("paradigma")).info(
             "Excluded %s of %s samples with missing/non-finite values in %s; processing valid sections separately.",
-            excluded_count, len(frame), ", ".join(bad_columns),
+            excluded_count,
+            len(frame),
+            ", ".join(bad_columns),
         )
     if time_unit.startswith("difference"):
         if values["time"].iloc[0] < 0 or not (values["time"].iloc[1:] > 0).all():
-            raise ValueError("Time differences must be positive after the first sample, which can be zero.")
+            raise ValueError(
+                "Time differences must be positive after the first sample, which can be zero."
+            )
     else:
         if not values["time"].is_monotonic_increasing or not values["time"].is_unique:
-            raise ValueError("Time must be strictly increasing; remove duplicates or sort the file.")
+            raise ValueError(
+                "Time must be strictly increasing; remove duplicates or sort the file."
+            )
 
     # Pass the validated numeric values, rather than the original object columns.
     for column in required:
@@ -366,124 +497,52 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
         # accelerometer/orientation settings for some pipelines and passes None
         # as gap defaults. Continue to use the official preparation functions.
         prepared = prepare_raw_data(
-            df=mapped, accelerometer_units=settings.get("accelerometer_units", "g"),
+            df=mapped,
+            accelerometer_units=settings.get("accelerometer_units", "g"),
             gyroscope_units=settings.get("gyroscope_units", "deg/s"),
-            time_input_unit=time_unit, device_orientation=None,
+            time_input_unit=time_unit,
+            device_orientation=None,
         )
         for sensor in ("accelerometer", "gyroscope"):
             if all(f"{sensor}_{axis}" in prepared for axis in "xyz"):
-                prepared = correct_watch_orientation(prepared, device_orientation=axes, sensor=sensor)
+                prepared = correct_watch_orientation(
+                    prepared, device_orientation=axes, sensor=sensor
+                )
         if settings.get("split_by_gaps", False):
             max_gap = settings.get("max_gap_seconds")
             minimum = settings.get("min_segment_seconds")
             max_gap = 1.5 if max_gap is None else float(max_gap)
             minimum = 1.5 if minimum is None else float(minimum)
             if not np.isfinite(max_gap) or not np.isfinite(minimum) or max_gap <= 0 or minimum <= 0:
-                raise ValueError("Gap and minimum segment durations must be positive finite seconds.")
+                raise ValueError(
+                    "Gap and minimum segment durations must be positive finite seconds."
+                )
             intervals = np.diff(prepared["time"].to_numpy())
             frequency = 1 / np.median(intervals)
-            gaps = pd.Series(create_segments(prepared["time"].to_numpy(), max_segment_gap_s=max_gap), index=prepared.index)
+            gaps = pd.Series(
+                create_segments(prepared["time"].to_numpy(), max_segment_gap_s=max_gap),
+                index=prepared.index,
+            )
             boundaries = gaps.ne(gaps.shift())
             if "data_segment_nr" in prepared:
-                boundaries |= prepared["data_segment_nr"].ne(prepared["data_segment_nr"].shift()).fillna(True)
+                boundaries |= (
+                    prepared["data_segment_nr"].ne(prepared["data_segment_nr"].shift()).fillna(True)
+                )
             prepared["data_segment_nr"] = boundaries.cumsum()
-            prepared = discard_segments(prepared, "data_segment_nr", minimum, frequency).reset_index(drop=True)
+            prepared = discard_segments(
+                prepared, "data_segment_nr", minimum, frequency
+            ).reset_index(drop=True)
 
     # The pinned preprocessing code otherwise interpolates across gaps even
     # when data_segment_nr is present. Give the orchestrator separate contiguous
     # frames so filtering and feature windows cannot bridge missing recordings.
     inputs = prepared
     if "data_segment_nr" in prepared:
-        inputs = {f"segment_{i + 1}": group.reset_index(drop=True)
-                  for i, (_, group) in enumerate(prepared.groupby("data_segment_nr", sort=False, dropna=False))}
+        inputs = {
+            f"segment_{i + 1}": group.reset_index(drop=True)
+            for i, (_, group) in enumerate(
+                prepared.groupby("data_segment_nr", sort=False, dropna=False)
+            )
+        }
 
     return inputs, exclusion, len(prepared)
-
-
-def json_value(value):
-    if isinstance(value, pd.DataFrame):
-        return {"columns": [json_value(column) for column in value.columns],
-                "data": json_value(value.to_dict(orient="records"))}
-    if isinstance(value, dict):
-        return {str(k): json_value(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [json_value(v) for v in value]
-    if isinstance(value, np.generic):
-        return json_value(value.item())
-    if value is pd.NA or value is pd.NaT:
-        return None
-    if isinstance(value, float) and not math.isfinite(value):
-        return None
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return str(value)
-
-
-def _write_export(path, writer, *, source=None, protected_sources=(), binary=False):
-    target = Path(path)
-    for protected in [source, *protected_sources]:
-        if not protected:
-            continue
-        original = Path(protected)
-        originals = [original]
-        if original.suffix.lower() == ".json":
-            prefix = original.stem.replace("_meta", "")
-            originals.extend(original.parent / f"{prefix}_{suffix}.bin" for suffix in ("time", "values"))
-        for original_file in originals:
-            same_file = target.resolve() == original_file.resolve()
-            if target.exists() and original_file.exists():
-                same_file = same_file or target.samefile(original_file)
-            if same_file:
-                raise ValueError("An export cannot overwrite the loaded sensor file or its companion binaries. Choose another filename.")
-    # Write completely before replacing the chosen destination. A failed export
-    # leaves any existing file intact and does not leave a partial output behind.
-    fd, temporary = tempfile.mkstemp(prefix=".paradigma-export-", suffix=".tmp", dir=target.parent)
-    try:
-        options = {} if binary else {"encoding": "utf-8", "newline": ""}
-        with os.fdopen(fd, "wb" if binary else "w", **options) as stream:
-            writer(stream)
-        os.replace(temporary, target)
-    finally:
-        Path(temporary).unlink(missing_ok=True)
-
-
-def _write_json(stream, value):
-    """Lossless standard JSON, bounding temporary row objects to one table batch."""
-    encode = lambda child: json.dumps(child, allow_nan=False, separators=(",", ":"))
-    if isinstance(value, pd.DataFrame):
-        stream.write('{"columns":' + encode(json_value(list(value.columns))) + ',"data":[')
-        for start in range(0, len(value), 5000):
-            if start:
-                stream.write(",")
-            records = json_value(value.iloc[start:start + 5000].to_dict(orient="records"))
-            stream.write(encode(records)[1:-1])
-        stream.write("]}")
-    elif isinstance(value, dict):
-        stream.write("{")
-        for index, (key, child) in enumerate({str(key): child for key, child in value.items()}.items()):
-            if index:
-                stream.write(",")
-            stream.write(encode(str(key)) + ":")
-            _write_json(stream, child)
-        stream.write("}")
-    else:
-        stream.write(encode(json_value(value)))
-
-
-def export_results(path, results, provenance, *, protected_sources=()):
-    _write_export(path, lambda stream: _write_json(stream,
-        {"analysis": provenance, "results": results}), source=provenance.get("source"), protected_sources=protected_sources)
-
-
-def _spreadsheet_text(value):
-    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
-
-
-def export_table_csv(path, frame, *, source=None, protected_sources=()):
-    """Neutralize formula-like text while retaining actual numeric values."""
-    safe = frame.map(_spreadsheet_text)
-    safe.columns = [_spreadsheet_text(str(column)) for column in frame.columns]
-    _write_export(path, lambda stream: safe.to_csv(stream, index=False, quoting=csv.QUOTE_ALL),
-                  source=source, protected_sources=protected_sources)

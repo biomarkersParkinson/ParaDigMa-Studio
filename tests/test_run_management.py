@@ -1,6 +1,6 @@
 """Cancellation, process cleanup and confirmed deletion of owned exports."""
+
 import logging
-from pathlib import Path
 from threading import Event
 import time
 
@@ -25,7 +25,7 @@ def wait_for(predicate, seconds=20):
     deadline = time.monotonic() + seconds
     while not predicate() and time.monotonic() < deadline:
         QApplication.processEvents()
-        time.sleep(.01)
+        time.sleep(0.01)
     assert predicate()
 
 
@@ -33,10 +33,18 @@ def test_stopping_an_owned_analysis_process_cleans_temporary_files(monkeypatch, 
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(analysis_process, "_analyze_child", slow_child)
     original = analysis_process.tempfile.TemporaryDirectory
-    monkeypatch.setattr(analysis_process.tempfile, "TemporaryDirectory", lambda **kwargs: original(dir=tmp_path, **kwargs))
+    monkeypatch.setattr(
+        analysis_process.tempfile,
+        "TemporaryDirectory",
+        lambda **kwargs: original(dir=tmp_path, **kwargs),
+    )
     cancel = Event()
     messages, cancelled, completed, failed = [], [], [], []
-    worker = Worker(lambda logger: analysis_process.run_isolated_analysis(pd.DataFrame({"time": [0.]}), {}, logger, cancel))
+    worker = Worker(
+        lambda logger: analysis_process.run_isolated_analysis(
+            pd.DataFrame({"time": [0.0]}), {}, logger, cancel
+        )
+    )
     worker.message.connect(messages.append)
     worker.cancelled.connect(lambda: cancelled.append(True))
     worker.completed.connect(completed.append)
@@ -56,14 +64,16 @@ def test_stopping_an_owned_analysis_process_cleans_temporary_files(monkeypatch, 
 
 
 def test_stop_button_cancels_run_without_error_and_controls_recover(monkeypatch, tmp_path):
-    app = QApplication.instance() or QApplication([])
+    _app = QApplication.instance() or QApplication([])
     window = MainWindow(history_dir=tmp_path / "runs")
+
     def run(frame, settings, logger, cancel):
-        while not cancel.wait(.01):
+        while not cancel.wait(0.01):
             pass
         raise analysis_process.AnalysisCancelled()
+
     monkeypatch.setattr(desktop, "run_isolated_analysis", run)
-    window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0]})))
     window.run_analysis()
     assert window.stop_button.isEnabled() and not window.run_button.isEnabled()
     assert window.stop_button.parentWidget() is window.status_row
@@ -91,7 +101,9 @@ def test_history_removal_protects_sources_companions_shared_outputs_and_director
     directory.mkdir()
     first, second = new_run(str(source), {}), new_run(str(source), {})
     first["status"], second["status"] = "Cancelled", "Completed"
-    first["outputs"] = [{"kind": "CSV", "path": str(path)} for path in (source, binary, export, shared, directory)]
+    first["outputs"] = [
+        {"kind": "CSV", "path": str(path)} for path in (source, binary, export, shared, directory)
+    ]
     second["outputs"] = [{"kind": "JSON", "path": str(shared)}]
     history.save(first)
     history.save(second)
@@ -117,6 +129,7 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
     window.runs = [record]
     window.refresh_runs()
     prompts = []
+
     def answer(dialog):
         prompts.append(dialog)
         assert dialog.defaultButton().text() == "Cancel"
@@ -124,6 +137,7 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
         assert "Original sensor files" in dialog.informativeText()
         assert "color: #22324a" in dialog.styleSheet()
         return QMessageBox.Yes if confirm else QMessageBox.Cancel
+
     monkeypatch.setattr(QMessageBox, "exec", answer)
     window.navigate(3)
     window.show()

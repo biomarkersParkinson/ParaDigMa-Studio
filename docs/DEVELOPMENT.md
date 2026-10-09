@@ -25,6 +25,8 @@ still check or block native dependencies. See [signing](../SIGNING.md) and
 Build on Windows; a Linux build does not generate a Windows executable.
 
 ```powershell
+.\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
+.\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe scripts/build_desktop.py
 .\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
@@ -37,7 +39,12 @@ scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
 The build also places the ParaDigMa acknowledgement, licence and citation files
 beside the executable; keep these with any redistributed bundle.
 
-The **Windows desktop** GitHub workflow runs tests and dependency auditing,
+Both Windows workflows enforce the pinned Ruff formatter and import/error checks.
+Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
+Qt platform initialization and Matplotlib cache configuration ahead of the
+imports that depend on them; do not reorder those imports automatically.
+
+The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
 and records startup measurements, package versions, source commit and checksums.
 Artifacts include the app folder and a separate JUnit test report. These checks
@@ -49,6 +56,8 @@ do not replace a publisher signature.
 python -m venv .venv
 .venv/bin/python -m pip install --upgrade 'pip>=26.2,<27'
 .venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m ruff check src scripts tests desktop.py
+.venv/bin/python -m ruff format --check src scripts tests desktop.py
 QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest -q
 .venv/bin/python desktop.py
 ```
@@ -66,7 +75,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -m scientific -q
 
 See [scientific test methodology](SCIENTIFIC_TESTS.md) for independent references,
 fixtures, tolerances and limits. App tests cover imports, preparation settings,
-background error handling, navigation, filters, graph/table values, presentation
+background error handling, navigation, selection, graph/table values, presentation
 controls, history and exports. The frozen-app check loads bundled classifiers,
 runs real pipelines, renders graphs and reopens exported results.
 

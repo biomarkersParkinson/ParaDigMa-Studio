@@ -1,4 +1,5 @@
 """Sensor drill-down shares Data's multi-channel workspace without page scrolling."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,14 +17,28 @@ def window(tmp_path):
     app = QApplication.instance() or QApplication([])
     widget = MainWindow(tmp_path)
     time = np.arange(1001) / 100
-    frame = pd.DataFrame({"time": time, **{
-        f"{sensor}_{axis}": np.sin(time * (i + 1)) + i
-        for i, (sensor, axis) in enumerate((sensor, axis)
-            for sensor in ("accelerometer", "gyroscope") for axis in "xyz")}})
+    frame = pd.DataFrame(
+        {
+            "time": time,
+            **{
+                f"{sensor}_{axis}": np.sin(time * (i + 1)) + i
+                for i, (sensor, axis) in enumerate(
+                    (sensor, axis) for sensor in ("accelerometer", "gyroscope") for axis in "xyz"
+                )
+            },
+        }
+    )
     widget.loaded(("subject.csv", frame))
     widget.provenance = {"source": "subject.csv", "settings": {"skip_preparation": True}}
-    widget.analyzed({"quantifications": {"tremor": pd.DataFrame({
-        "time": [2., 4., 8.], "tremor_power": [10., 20., 30.]})}})
+    widget.analyzed(
+        {
+            "quantifications": {
+                "tremor": pd.DataFrame(
+                    {"time": [2.0, 4.0, 8.0], "tremor_power": [10.0, 20.0, 30.0]}
+                )
+            }
+        }
+    )
     widget.result_table.setCurrentIndex(widget.result_table.model().index(0, 0))
     widget.inspect_sensor_context()
     yield widget
@@ -58,7 +73,10 @@ def test_context_checkboxes_and_bulk_actions_preserve_selection_across_drilldown
     window.result_table.setCurrentIndex(window.result_table.model().index(1, 0))
     window.inspect_sensor_context()
     assert window.selected_sensor_channels() == ["accelerometer_x", "gyroscope_x", "gyroscope_z"]
-    actions = {button.text(): button for button in window.sensor_channels.parentWidget().findChildren(QPushButton)}
+    actions = {
+        button.text(): button
+        for button in window.sensor_channels.parentWidget().findChildren(QPushButton)
+    }
     actions["Select all"].click()
     assert len(window.sensor_figure.axes[0].lines) == 6
     actions["Clear"].click()
@@ -76,10 +94,16 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
     window.provenance["settings"]["column_mapping"] = {"source_clock": "time"}
     window.display_clock = {"origin": "2026-10-09T13:00:00+02:00", "timezone": "Europe/Amsterdam"}
     window.populate_sensor_channels()
-    available = [window.sensor_channels.item(i).data(Qt.UserRole) for i in range(window.sensor_channels.count())]
+    available = [
+        window.sensor_channels.item(i).data(Qt.UserRole)
+        for i in range(window.sensor_channels.count())
+    ]
     assert "source_clock" not in available and "complex_signal" not in available
     window.set_sensor_channels(["gyroscope_x", "gyroscope_y"])
-    expected = dates.date2num(pd.Timestamp(window.display_clock["origin"]) + pd.to_timedelta(window.sensor_times, unit="s"))
+    expected = dates.date2num(
+        pd.Timestamp(window.display_clock["origin"])
+        + pd.to_timedelta(window.sensor_times, unit="s")
+    )
     for line in window.sensor_figure.axes[0].lines:
         np.testing.assert_allclose(dates.date2num(line.get_xdata()), expected)
     assert window.sensor_figure.axes[0].get_xlabel() == "Recording date/time"
@@ -87,7 +111,9 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
 
 @pytest.mark.parametrize("size", [(960, 650), (1450, 920)])
 @pytest.mark.parametrize("font_size", [13, 18])
-def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(window, size, font_size):
+def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
+    window, size, font_size
+):
     if font_size != 13:
         window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
     window.navigate(2)

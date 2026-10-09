@@ -1,4 +1,5 @@
 """Selection helpers shared by result graphs, summaries and tables."""
+
 import numpy as np
 import pandas as pd
 
@@ -7,9 +8,13 @@ PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject",
 
 
 def measurement_columns(frame):
-    return [column for column in frame.select_dtypes(include=["number", "bool"]).columns
-            if column != "time" and column not in PARTICIPANT_COLUMNS
-            and not str(column).endswith(("_id", "_nr"))]
+    return [
+        column
+        for column in frame.select_dtypes(include=["number", "bool"]).columns
+        if column != "time"
+        and column not in PARTICIPANT_COLUMNS
+        and not str(column).endswith(("_id", "_nr"))
+    ]
 
 
 def gait_context(results, dataset, row):
@@ -32,8 +37,17 @@ def gait_context(results, dataset, row):
     return None
 
 
-def select_rows(frame, *, participant_column=None, participant=None, segment=None,
-                column=None, text="", minimum="", maximum=""):
+def select_rows(
+    frame,
+    *,
+    participant_column=None,
+    participant=None,
+    segment=None,
+    column=None,
+    text="",
+    minimum="",
+    maximum="",
+):
     """Return a positional selection without altering scientific outputs."""
     mask = np.ones(len(frame), dtype=bool)
     if participant_column is not None and participant is not None:
@@ -45,9 +59,15 @@ def select_rows(frame, *, participant_column=None, participant=None, segment=Non
             raise ValueError("Select a filter column first.")
         series = frame[column]
         if text:
-            mask &= series.astype("string").str.contains(text, case=False, regex=False, na=False).to_numpy(dtype=bool)
+            mask &= (
+                series.astype("string")
+                .str.contains(text, case=False, regex=False, na=False)
+                .to_numpy(dtype=bool)
+            )
         if minimum or maximum:
-            if not pd.api.types.is_numeric_dtype(series.dtype) or pd.api.types.is_complex_dtype(series.dtype):
+            if not pd.api.types.is_numeric_dtype(series.dtype) or pd.api.types.is_complex_dtype(
+                series.dtype
+            ):
                 raise ValueError("Numeric bounds require a real numeric column.")
             low, high = None, None
             try:

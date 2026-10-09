@@ -1,4 +1,5 @@
 """Multiple same-subject recordings, pooled outputs and source-safe exploration."""
+
 from conftest import wait_for_previews
 from copy import deepcopy
 from pathlib import Path
@@ -10,13 +11,12 @@ import pandas as pd
 import pytest
 from matplotlib import dates
 from PySide6.QtCore import Qt
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from paradigma_desktop import app as desktop
 from paradigma_desktop import core
 from paradigma_desktop.app import MainWindow
-from paradigma_desktop.history import RunHistory, load_result_export, new_run
+from paradigma_desktop.history import load_result_export, new_run
 from paradigma_desktop.inspection import inspect_recording
 from paradigma_desktop.recordings import align_recordings, load_recordings
 
@@ -35,7 +35,7 @@ def wait_for_worker(window):
     deadline = time.monotonic() + 30
     while window.worker is not None and time.monotonic() < deadline:
         QApplication.instance().processEvents()
-        time.sleep(.01)  # Let Python loader/import work run in the Qt worker.
+        time.sleep(0.01)  # Let Python loader/import work run in the Qt worker.
     assert window.worker is None, "Background load/analysis did not finish"
 
 
@@ -43,36 +43,71 @@ def inputs(tmp_path, *, clocks=True):
     frames, sources = {}, {}
     for index in (1, 2):
         key = f"recording_{index:03d}"
-        frame = pd.DataFrame({"time": [0., 1., 2.],
-                              **{f"gyroscope_{axis}": [index * 10., index * 10. + 1, index * 10. + 2] for axis in "xyz"}})
+        frame = pd.DataFrame(
+            {
+                "time": [0.0, 1.0, 2.0],
+                **{
+                    f"gyroscope_{axis}": [index * 10.0, index * 10.0 + 1, index * 10.0 + 2]
+                    for axis in "xyz"
+                },
+            }
+        )
         if clocks:
-            frame["time_dt"] = pd.Timestamp(f"2026-10-0{6 + index}T13:00:00+02:00") + pd.to_timedelta(frame.time, unit="s")
+            frame["time_dt"] = pd.Timestamp(
+                f"2026-10-0{6 + index}T13:00:00+02:00"
+            ) + pd.to_timedelta(frame.time, unit="s")
         frames[key], sources[key] = frame, str(tmp_path / f"sensor-{index}.parquet")
     return sources, frames
 
 
 def output():
-    frame = pd.DataFrame({"time": [0., 1., 0., 1.], "power": [1., 2., 3., 4.],
-                          "pred_event": [1., 0., 1., 0.],
-                          "file_key": ["recording_001"] * 2 + ["recording_002"] * 2})
-    return {"quantifications": {"tremor": frame}, "aggregations": {"tremor": {"median": 2.5}},
-            "metadata": {"desktop_recordings": {"recordings": ["recording_001", "recording_002"],
-                         "sections": {key: key for key in ("recording_001", "recording_002")}}}, "errors": []}
+    frame = pd.DataFrame(
+        {
+            "time": [0.0, 1.0, 0.0, 1.0],
+            "power": [1.0, 2.0, 3.0, 4.0],
+            "pred_event": [1.0, 0.0, 1.0, 0.0],
+            "file_key": ["recording_001"] * 2 + ["recording_002"] * 2,
+        }
+    )
+    return {
+        "quantifications": {"tremor": frame},
+        "aggregations": {"tremor": {"median": 2.5}},
+        "metadata": {
+            "desktop_recordings": {
+                "recordings": ["recording_001", "recording_002"],
+                "sections": {key: key for key in ("recording_001", "recording_002")},
+            }
+        },
+        "errors": [],
+    }
 
 
 def load(window, sources, frames):
-    window.loaded_recordings((sources, frames, {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}))
+    window.loaded_recordings(
+        (
+            sources,
+            frames,
+            {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()},
+        )
+    )
     wait_for_previews(window)
-    window.provenance = {"source": next(iter(sources.values())), "sources": sources,
-                         "settings": {"pipelines": ["tremor"], "skip_preparation": True}}
+    window.provenance = {
+        "source": next(iter(sources.values())),
+        "sources": sources,
+        "settings": {"pipelines": ["tremor"], "skip_preparation": True},
+    }
 
 
-def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(window, tmp_path, monkeypatch):
+def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
+    window, tmp_path, monkeypatch
+):
     sources, frames = inputs(tmp_path)
     for key, path in sources.items():
         frames[key].to_parquet(path)
         frames[key] = pd.read_parquet(path)  # Parquet restores an equivalent fixed-offset tz type.
-    monkeypatch.setattr(desktop.QFileDialog, "getOpenFileNames", lambda *args: (list(sources.values()), ""))
+    monkeypatch.setattr(
+        desktop.QFileDialog, "getOpenFileNames", lambda *args: (list(sources.values()), "")
+    )
     window.open_file()
     wait_for_worker(window)
     assert window.input_recording.count() == 2 and not window.input_recording.isHidden()
@@ -82,11 +117,17 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(wi
     assert "2 recordings" in window.analysis_input.text()
     assert "6 samples" in window.analysis_input_detail.text()
     captured = []
+
     def analyze(recordings, **settings):
         captured.append((deepcopy(recordings), settings))
         return output()
+
     monkeypatch.setattr(desktop, "analyze", analyze)
-    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings))
+    monkeypatch.setattr(
+        desktop,
+        "run_isolated_analysis",
+        lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings),
+    )
     window.set_modules(["tremor"])
     window.prepared.setChecked(True)
     window.run_analysis()
@@ -102,7 +143,9 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(wi
     assert not issues and saved[0]["sources"] == sources
 
 
-def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_and_channels(window, tmp_path, monkeypatch):
+def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_and_channels(
+    window, tmp_path, monkeypatch
+):
     sources, frames = inputs(tmp_path)
     original = deepcopy(frames)
     load(window, sources, frames)
@@ -110,9 +153,15 @@ def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_an
     window.set_input_channels(["gyroscope_y", "gyroscope_z"])
     plots = []
     plot = window.plot_input
-    monkeypatch.setattr(window, "plot_input", lambda *args: (plots.append(window.source), plot(*args)))
+    monkeypatch.setattr(
+        window, "plot_input", lambda *args: (plots.append(window.source), plot(*args))
+    )
+
     def unexpected(*args, **kwargs):
-        pytest.fail("Inspecting an already loaded recording must not recompute batch alignment or descriptives.")
+        pytest.fail(
+            "Inspecting an already loaded recording must not recompute batch alignment or descriptives."
+        )
+
     for name in ("align_recordings", "analysis_alignment", "inspect_recording"):
         monkeypatch.setattr(desktop, name, unexpected)
     window.input_recording.setCurrentIndex(1)
@@ -138,9 +187,13 @@ def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path,
     original = deepcopy(results)
     window.analyzed(results)
     name = "quantifications/tremor"
-    np.testing.assert_array_equal(window._timings[name]["Timeline time (s)"], [0., 1., 86400., 86401.])
+    np.testing.assert_array_equal(
+        window._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
+    )
     assert window.display_clock["origin"] == "2026-10-07T13:00:00+02:00"
-    pd.testing.assert_frame_equal(window.result_table.model().frame, results["quantifications"]["tremor"])
+    pd.testing.assert_frame_equal(
+        window.result_table.model().frame, results["quantifications"]["tremor"]
+    )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
     for key, item in window._series_items.items():
@@ -150,40 +203,53 @@ def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path,
     axis = window.figure.axes[0]
     anchor = dates.date2num(pd.Timestamp("2026-10-08T13:00:00+02:00"))
     np.testing.assert_allclose(axis.collections[0].get_paths()[-1].vertices[:, 0].min(), anchor)
-    window.graph_clicked(SimpleNamespace(inaxes=axis, xdata=anchor + .5 / 86400))
-    assert window.active_frame.file_key.iloc[window.result_table.currentIndex().row()] == "recording_002"
+    window.graph_clicked(SimpleNamespace(inaxes=axis, xdata=anchor + 0.5 / 86400))
+    assert (
+        window.active_frame.file_key.iloc[window.result_table.currentIndex().row()]
+        == "recording_002"
+    )
     window.inspect_sensor_context()
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, frames["recording_002"])
     assert Path(sources["recording_002"]).name in window.sensor_note.text()
-    np.testing.assert_array_equal(window.sensor_times, [86400., 86401., 86402.])
+    np.testing.assert_array_equal(window.sensor_times, [86400.0, 86401.0, 86402.0])
     path = tmp_path / "combined.json"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export()
     provenance, restored = load_result_export(path)
     assert provenance["sources"] == sources
-    pd.testing.assert_frame_equal(restored["quantifications"]["tremor"], original["quantifications"]["tremor"])
+    pd.testing.assert_frame_equal(
+        restored["quantifications"]["tremor"], original["quantifications"]["tremor"]
+    )
     record = new_run(next(iter(sources.values())), provenance["settings"])
     window.runs = [record]
     window.restore_run((record["id"], provenance, restored))
     assert window.result_source_frame is None
-    np.testing.assert_array_equal(window._timings[name]["Timeline time (s)"], [0., 1., 86400., 86401.])
+    np.testing.assert_array_equal(
+        window._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
+    )
     assert window.display_clock["origin"] == provenance["display_clock"]["origin"]
 
 
 @pytest.mark.parametrize("clocks", [False, "mixed", "incompatible"])
-def test_unknown_or_incomparable_clocks_use_explicit_file_order_without_fabricated_dates(tmp_path, clocks):
+def test_unknown_or_incomparable_clocks_use_explicit_file_order_without_fabricated_dates(
+    tmp_path, clocks
+):
     _, frames = inputs(tmp_path, clocks=bool(clocks))
     if clocks == "mixed":
         frames["recording_002"] = frames["recording_002"].drop(columns="time_dt")
     elif clocks == "incompatible":
         frames["recording_002"]["time_dt"] = frames["recording_002"].time_dt.dt.tz_localize(None)
-    common, modules, offsets, clock, bases = align_recordings(frames, {"pipelines": ["tremor"], "skip_preparation": True}, output())
-    assert clock is None and bases == {"recording_001": 0., "recording_002": 3.}
+    common, modules, offsets, clock, bases = align_recordings(
+        frames, {"pipelines": ["tremor"], "skip_preparation": True}, output()
+    )
+    assert clock is None and bases == {"recording_001": 0.0, "recording_002": 3.0}
     assert offsets["tremor"] == bases
-    np.testing.assert_array_equal(common["recording_002"], [0., 1., 2.])
+    np.testing.assert_array_equal(common["recording_002"], [0.0, 1.0, 2.0])
 
 
-def test_export_protects_every_loaded_source_even_when_another_file_is_selected(window, tmp_path, monkeypatch):
+def test_export_protects_every_loaded_source_even_when_another_file_is_selected(
+    window, tmp_path, monkeypatch
+):
     sources, frames = inputs(tmp_path)
     for key, path in sources.items():
         frames[key].to_parquet(path)
@@ -203,38 +269,53 @@ def test_multiple_clocks_preserve_named_timezone_and_actual_dst_spacing(tmp_path
     for key, day in (("recording_001", 24), ("recording_002", 25)):
         start = pd.Timestamp(f"2026-10-{day}T13:00:00", tz="Europe/Amsterdam")
         frames[key]["time_dt"] = start + pd.to_timedelta(frames[key].time, unit="s")
-    _, _, offsets, clock, _ = align_recordings(frames, {"pipelines": ["tremor"], "skip_preparation": True}, output())
+    _, _, offsets, clock, _ = align_recordings(
+        frames, {"pipelines": ["tremor"], "skip_preparation": True}, output()
+    )
     assert clock["timezone"] == "Europe/Amsterdam"
     assert offsets["tremor"]["recording_002"] == 25 * 3600
 
 
-def test_each_file_prepares_and_splits_independently_with_unique_section_keys(tmp_path, monkeypatch):
+def test_each_file_prepares_and_splits_independently_with_unique_section_keys(
+    tmp_path, monkeypatch
+):
     time = np.arange(8, dtype=float) * 10
     frame = pd.DataFrame({"time": time, **{f"gyroscope_{axis}": np.ones(8) for axis in "xyz"}})
     frame.loc[3, "gyroscope_x"] = np.nan
     frames = {"first": frame.copy(), "second": frame.copy()}
     captured = []
+
     def run(**settings):
         captured.append(settings["dfs"])
         return {"errors": [], "quantifications": {}, "metadata": {}}
+
     monkeypatch.setattr(core, "run_paradigma", run)
-    results = core.analyze(frames, pipelines=["tremor"], time_input_unit="relative_ms", drop_missing_samples=True)
-    assert list(captured[0]) == ["first__segment_1", "first__segment_2", "second__segment_1", "second__segment_2"]
+    results = core.analyze(
+        frames, pipelines=["tremor"], time_input_unit="relative_ms", drop_missing_samples=True
+    )
+    assert list(captured[0]) == [
+        "first__segment_1",
+        "first__segment_2",
+        "second__segment_1",
+        "second__segment_2",
+    ]
     for key, prepared in captured[0].items():
-        expected = [0., .01, .02] if key.endswith("segment_1") else [.04, .05, .06, .07]
+        expected = [0.0, 0.01, 0.02] if key.endswith("segment_1") else [0.04, 0.05, 0.06, 0.07]
         np.testing.assert_array_equal(prepared.time, expected)
     assert results["metadata"]["desktop_preparation"]["excluded_samples"] == 2
     assert results["metadata"]["desktop_recordings"]["sections"]["second__segment_2"] == "second"
     bad = frame.drop(columns="gyroscope_z")
     with pytest.raises(ValueError, match="second: Missing sensor columns"):
-        core.analyze({"first": frame, "second": bad}, pipelines=["tremor"], drop_missing_samples=True)
+        core.analyze(
+            {"first": frame, "second": bad}, pipelines=["tremor"], drop_missing_samples=True
+        )
     with pytest.raises(ValueError, match="safe identifiers"):
         core.analyze({"../escape": frame}, pipelines=["tremor"])
 
 
 def test_loader_deduplicates_paths_and_identifies_failed_files(tmp_path):
     source = tmp_path / "sample.csv"
-    pd.DataFrame({"time": [0., 1.], "green": [1., 2.]}).to_csv(source, index=False)
+    pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0]}).to_csv(source, index=False)
     sources, frames = load_recordings([source, source])
     assert list(sources) == ["recording_001"] and len(frames) == 1
     with pytest.raises(ValueError, match="missing.csv"):
@@ -242,10 +323,18 @@ def test_loader_deduplicates_paths_and_identifies_failed_files(tmp_path):
 
 
 def test_collection_keeps_source_identifiers_even_for_one_recording(monkeypatch):
-    frame = pd.DataFrame({"time": np.arange(10) / 10, **{f"gyroscope_{axis}": np.ones(10) for axis in "xyz"}})
+    frame = pd.DataFrame(
+        {"time": np.arange(10) / 10, **{f"gyroscope_{axis}": np.ones(10) for axis in "xyz"}}
+    )
+
     def run(**settings):
         assert list(settings["dfs"]) == ["only"]
-        return {"quantifications": {"tremor": pd.DataFrame({"time": [0.], "power": [2.]})}, "metadata": {}, "errors": []}
+        return {
+            "quantifications": {"tremor": pd.DataFrame({"time": [0.0], "power": [2.0]})},
+            "metadata": {},
+            "errors": [],
+        }
+
     monkeypatch.setattr(core, "run_paradigma", run)
     result = core.analyze({"only": frame}, pipelines=["tremor"])
     assert result["quantifications"]["tremor"].file_key.tolist() == ["only"]

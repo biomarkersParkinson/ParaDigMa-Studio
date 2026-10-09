@@ -1,4 +1,5 @@
 """Check startup isolation in a fresh interpreter, independent of test imports."""
+
 import json
 import os
 import subprocess
@@ -53,8 +54,10 @@ def test_font_cache_falls_back_when_version_metadata_is_missing(tmp_path, monkey
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "app" / "_internal"), raising=False)
     monkeypatch.setenv("MPLCONFIGDIR", str(tmp_path / "temporary"))
+
     def missing_metadata(package):
         raise plot_cache.PackageNotFoundError(package)
+
     monkeypatch.setattr(plot_cache, "version", missing_metadata)
     assert configure_plot_cache(tmp_path / "cache") is None
     assert os.environ["MPLCONFIGDIR"] == str(tmp_path / "temporary")
@@ -65,12 +68,16 @@ def test_first_window_does_not_load_analysis_stack(tmp_path):
     report = tmp_path / "startup.json"
     result = subprocess.run(
         [sys.executable, str(root / "desktop.py"), "--startup-test", str(report)],
-        cwd=tmp_path, env={**os.environ, "QT_QPA_PLATFORM": "offscreen",
-                           "MPLCONFIGDIR": str(tmp_path / "mpl")},
-        capture_output=True, text=True, timeout=45,
+        cwd=tmp_path,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "MPLCONFIGDIR": str(tmp_path / "mpl")},
+        capture_output=True,
+        text=True,
+        timeout=45,
     )
-    assert result.returncode == 0, result.stdout + result.stderr + (
-        report.read_text() if report.exists() else "No startup report"
+    assert result.returncode == 0, (
+        result.stdout
+        + result.stderr
+        + (report.read_text() if report.exists() else "No startup report")
     )
     data = json.loads(report.read_text())
     assert data["status"] == "passed"

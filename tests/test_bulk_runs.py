@@ -1,4 +1,5 @@
 """Native multi-selection and confirmed deletion without losing other data."""
+
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -29,8 +30,12 @@ def window(tmp_path):
 
 def click_row(window, row, modifier=Qt.NoModifier):
     index = window.run_table.model().index(row, 0)
-    QTest.mouseClick(window.run_table.viewport(), Qt.LeftButton, modifier,
-                     window.run_table.visualRect(index).center())
+    QTest.mouseClick(
+        window.run_table.viewport(),
+        Qt.LeftButton,
+        modifier,
+        window.run_table.visualRect(index).center(),
+    )
     QApplication.processEvents()
 
 
@@ -55,13 +60,17 @@ def test_ctrl_shift_selection_survives_refresh_and_single_run_actions_follow_sel
 
 
 @pytest.mark.parametrize("confirm", [False, True])
-def test_bulk_delete_key_confirms_once_and_respects_shared_exports(window, tmp_path, monkeypatch, confirm):
+def test_bulk_delete_key_confirms_once_and_respects_shared_exports(
+    window, tmp_path, monkeypatch, confirm
+):
     selected_shared, retained_shared = tmp_path / "selected.json", tmp_path / "retained.json"
     selected_shared.write_text("shared only by runs being deleted")
     retained_shared.write_text("also used by a run being kept")
     original_runs = list(window.runs)
     for record in original_runs[:2]:
-        record["outputs"] = [{"kind": "JSON", "path": str(path)} for path in (selected_shared, retained_shared)]
+        record["outputs"] = [
+            {"kind": "JSON", "path": str(path)} for path in (selected_shared, retained_shared)
+        ]
         record["outputs"].append({"kind": "CSV", "path": record["source"]})
         window.history.save(record)
     original_runs[2]["outputs"] = [{"kind": "JSON", "path": str(retained_shared)}]
@@ -70,6 +79,7 @@ def test_bulk_delete_key_confirms_once_and_respects_shared_exports(window, tmp_p
     click_row(window, 0)
     click_row(window, 1, Qt.ControlModifier)
     prompts = []
+
     def answer(dialog):
         prompts.append(dialog)
         assert dialog.defaultButton().text() == "Cancel"
@@ -79,6 +89,7 @@ def test_bulk_delete_key_confirms_once_and_respects_shared_exports(window, tmp_p
         assert str(retained_shared) not in dialog.detailedText()
         assert "color: #22324a" in dialog.styleSheet()
         return QMessageBox.Yes if confirm else QMessageBox.Cancel
+
     monkeypatch.setattr(QMessageBox, "exec", answer)
     window.run_table.setFocus()
     QTest.keyClick(window.run_table, Qt.Key_Delete)
@@ -89,11 +100,15 @@ def test_bulk_delete_key_confirms_once_and_respects_shared_exports(window, tmp_p
     assert retained_shared.exists()
     assert (tmp_path / "sensor.csv").read_text() == "original sensor data"
     for record in original_runs:
-        assert (window.history.directory / (record["id"] + ".json")).exists() == (not confirm or record in original_runs[2:])
+        assert (window.history.directory / (record["id"] + ".json")).exists() == (
+            not confirm or record in original_runs[2:]
+        )
 
 
 @pytest.mark.parametrize("confirm", [False, True])
-def test_clear_all_deletes_every_run_after_one_readable_confirmation(window, tmp_path, monkeypatch, confirm):
+def test_clear_all_deletes_every_run_after_one_readable_confirmation(
+    window, tmp_path, monkeypatch, confirm
+):
     output = tmp_path / "shared.json"
     output.write_text("export")
     for record in window.runs:
@@ -102,6 +117,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(window, tmp
     window.current_run = window.runs[0]
     window.results = {}
     prompts = []
+
     def answer(dialog):
         prompts.append(dialog)
         assert "all runs" in dialog.text()
@@ -110,6 +126,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(window, tmp
         assert "Original sensor files" in dialog.informativeText()
         assert dialog.defaultButton().text() == "Cancel"
         return QMessageBox.Yes if confirm else QMessageBox.Cancel
+
     monkeypatch.setattr(QMessageBox, "exec", answer)
     window.clear_runs_button.click()
     assert len(prompts) == 1
@@ -125,10 +142,12 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(window, tmp
 def test_partial_deletion_error_keeps_ui_in_sync_and_reports_error(window, monkeypatch):
     original_runs = list(window.runs)
     remove = window.history.remove
+
     def fail_second(record, *args, **kwargs):
         if record is original_runs[1]:
             raise OSError("export is locked")
         return remove(record, *args, **kwargs)
+
     monkeypatch.setattr(window.history, "remove", fail_second)
     monkeypatch.setattr(QMessageBox, "exec", lambda _: QMessageBox.Yes)
     window.clear_runs_button.click()

@@ -1,13 +1,29 @@
 """Selective native-result exports and a single export chooser."""
+
 import csv
 import json
 import re
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+)
 
-from .core import _spreadsheet_text, _write_export, export_results, export_table_csv, json_value
+from .serialization import (
+    _spreadsheet_text,
+    _write_export,
+    export_results,
+    export_table_csv,
+    json_value,
+)
 from .results_view import aggregation_tables, detail_tables, output_label, readable_key
 from .widgets import ReadableComboBox
 
@@ -41,10 +57,21 @@ def export_selection(path, results, provenance, selected, format, *, protected_s
     if not selected or any(name not in tables and name not in metadata for name in selected):
         raise ValueError("Select at least one available table or metadata group.")
     if format == "JSON":
-        export_results(path, selected_results(results, selected), provenance, protected_sources=protected_sources)
+        export_results(
+            path,
+            selected_results(results, selected),
+            provenance,
+            protected_sources=protected_sources,
+        )
     elif format == "CSV" and len(selected) == 1 and selected[0] in tables:
-        export_table_csv(path, tables[selected[0]], source=provenance.get("source"), protected_sources=protected_sources)
+        export_table_csv(
+            path,
+            tables[selected[0]],
+            source=provenance.get("source"),
+            protected_sources=protected_sources,
+        )
     elif format == "CSV":
+
         def write(stream):
             with ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
                 for index, name in enumerate(selected):
@@ -53,12 +80,27 @@ def export_selection(path, results, provenance, selected, format, *, protected_s
                     frame = tables[name].map(_spreadsheet_text)
                     frame.columns = [_spreadsheet_text(str(column)) for column in frame.columns]
                     filename = re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
-                    archive.writestr(f"{index + 1:03d}_{filename}.csv", frame.to_csv(index=False, quoting=csv.QUOTE_ALL))
+                    archive.writestr(
+                        f"{index + 1:03d}_{filename}.csv",
+                        frame.to_csv(index=False, quoting=csv.QUOTE_ALL),
+                    )
                 chosen_metadata = {name: metadata[name] for name in selected if name in metadata}
                 if chosen_metadata:
-                    archive.writestr("metadata.json", json.dumps(json_value(chosen_metadata), indent=2, allow_nan=False))
-                archive.writestr("analysis.json", json.dumps(json_value(provenance), indent=2, allow_nan=False))
-        _write_export(path, write, source=provenance.get("source"), protected_sources=protected_sources, binary=True)
+                    archive.writestr(
+                        "metadata.json",
+                        json.dumps(json_value(chosen_metadata), indent=2, allow_nan=False),
+                    )
+                archive.writestr(
+                    "analysis.json", json.dumps(json_value(provenance), indent=2, allow_nan=False)
+                )
+
+        _write_export(
+            path,
+            write,
+            source=provenance.get("source"),
+            protected_sources=protected_sources,
+            binary=True,
+        )
     else:
         raise ValueError("Choose JSON or CSV.")
 
@@ -89,10 +131,18 @@ class ExportDialog(QDialog):
                 root.setFlags(root.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
                 root.setExpanded(True)
                 roots[stage] = root
-            metadata_titles = {"desktop_recordings": "Recording sources", "desktop_preparation": "Input preparation",
-                               "desktop_availability": "Prepared-input availability", "errors": "Processing errors"}
+            metadata_titles = {
+                "desktop_recordings": "Recording sources",
+                "desktop_preparation": "Input preparation",
+                "desktop_availability": "Prepared-input availability",
+                "errors": "Processing errors",
+            }
             key = name.split("/")[-1]
-            title = output_label(name) if name in tables else metadata_titles.get(key, readable_key(key))
+            title = (
+                output_label(name)
+                if name in tables
+                else metadata_titles.get(key, readable_key(key))
+            )
             item = QTreeWidgetItem(roots[stage], [title])
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(0, Qt.Checked)
@@ -128,10 +178,20 @@ class ExportDialog(QDialog):
 
     def extension(self):
         selected = self.selected()
-        return "json" if self.format.currentText() == "JSON" else "csv" if len(selected) == 1 and selected[0] in self._tables else "zip"
+        return (
+            "json"
+            if self.format.currentText() == "JSON"
+            else "csv"
+            if len(selected) == 1 and selected[0] in self._tables
+            else "zip"
+        )
 
     def update_choice(self, *_):
         self.buttons.button(QDialogButtonBox.Save).setEnabled(bool(self.selected()))
-        self.note.setText("Selected outputs and analysis parameters in one JSON file." if self.extension() == "json" else
-                          "One CSV file with the original output columns." if self.extension() == "csv" else
-                          "A ZIP containing separate CSV tables, selected metadata and analysis parameters as JSON.")
+        self.note.setText(
+            "Selected outputs and analysis parameters in one JSON file."
+            if self.extension() == "json"
+            else "One CSV file with the original output columns."
+            if self.extension() == "csv"
+            else "A ZIP containing separate CSV tables, selected metadata and analysis parameters as JSON."
+        )

@@ -1,4 +1,5 @@
 """Graph settings change presentation without changing sensor or result data."""
+
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -32,8 +33,9 @@ def window(tmp_path):
 
 
 def recording(window):
-    frame = pd.DataFrame({"time": [0., 1., 2.], "gyroscope_x": [1., 2., 3.],
-                          "gyroscope_y": [3., 2., 1.]})
+    frame = pd.DataFrame(
+        {"time": [0.0, 1.0, 2.0], "gyroscope_x": [1.0, 2.0, 3.0], "gyroscope_y": [3.0, 2.0, 1.0]}
+    )
     window.loaded(("sensor.csv", frame))
     window.set_input_channels(["gyroscope_x", "gyroscope_y"])
     window.data_tabs.setCurrentIndex(1)
@@ -50,8 +52,12 @@ def test_each_graph_has_one_inline_settings_control_under_dark_system_palette(wi
         toolbar.settings_action.setChecked(True)
         assert not toolbar.settings.isHidden()
         assert toolbar.settings.palette().color(QPalette.Text) == QColor("#22324a")
-        assert toolbar.settings.title.palette().color(QPalette.Active, QPalette.Base) == QColor("#ffffff")
-        assert toolbar.settings.title.palette().color(QPalette.Active, QPalette.Text) == QColor("#22324a")
+        assert toolbar.settings.title.palette().color(QPalette.Active, QPalette.Base) == QColor(
+            "#ffffff"
+        )
+        assert toolbar.settings.title.palette().color(QPalette.Active, QPalette.Text) == QColor(
+            "#22324a"
+        )
         toolbar.settings_action.setChecked(False)
         assert toolbar.settings.isHidden()
     # The single panel remains usable in the compact Data graph workspace.
@@ -82,7 +88,7 @@ def test_graph_settings_apply_reset_and_invalid_bounds_preserve_original_values(
     panel.grid.setChecked(False)
     panel.legend.setChecked(False)
     panel.apply_button.click()
-    assert axes.get_xlim() == pytest.approx((.5, 1.5))
+    assert axes.get_xlim() == pytest.approx((0.5, 1.5))
     assert axes.get_title(loc="left") == "Selected motion channels"
     assert axes.get_xlabel() == "Time (s)"
     assert not axes.get_legend().get_visible()
@@ -95,7 +101,7 @@ def test_graph_settings_apply_reset_and_invalid_bounds_preserve_original_values(
     panel.title.setText("Do not apply this")
     panel.apply_button.click()
     assert not panel.error.isHidden()
-    assert axes.get_xlim() == pytest.approx((.5, 1.5))
+    assert axes.get_xlim() == pytest.approx((0.5, 1.5))
     assert axes.get_title(loc="left") == "Selected motion channels"
     panel.reset_button.click()
     assert panel.error.isHidden()
@@ -107,8 +113,13 @@ def test_graph_settings_apply_reset_and_invalid_bounds_preserve_original_values(
 
 
 def test_date_limits_accept_iso_timestamps_and_graph_changes_refresh_settings(window):
-    frame = pd.DataFrame({"time": pd.date_range("2026-10-07", periods=3, freq="1s", tz="Europe/Amsterdam"),
-                          "gyroscope_x": [1., 2., 3.], "gyroscope_y": [3., 2., 1.]})
+    frame = pd.DataFrame(
+        {
+            "time": pd.date_range("2026-10-07", periods=3, freq="1s", tz="Europe/Amsterdam"),
+            "gyroscope_x": [1.0, 2.0, 3.0],
+            "gyroscope_y": [3.0, 2.0, 1.0],
+        }
+    )
     window.loaded(("dated.csv", frame))
     window.data_toolbar.settings_action.setChecked(True)
     panel = window.data_toolbar.settings
@@ -129,7 +140,7 @@ def test_date_limits_accept_iso_timestamps_and_graph_changes_refresh_settings(wi
 
 def test_result_and_sensor_context_settings_use_current_graph_without_mutating_tables(window):
     recording(window)
-    result = pd.DataFrame({"time": [0., 1., 2.], "metric": [10., 20., 30.]})
+    result = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [10.0, 20.0, 30.0]})
     window.analyzed({"quantifications": {"tremor": result}})
     window.plot_toolbar.settings_action.setChecked(True)
     panel = window.plot_toolbar.settings
@@ -146,4 +157,6 @@ def test_result_and_sensor_context_settings_use_current_graph_without_mutating_t
     panel.y_label.setText("Raw sensor")
     panel.apply()
     assert window.sensor_figure.axes[0].get_ylabel() == "Raw sensor"
-    np.testing.assert_array_equal(window.sensor_figure.axes[0].lines[0].get_ydata(), window.frame.gyroscope_x)
+    np.testing.assert_array_equal(
+        window.sensor_figure.axes[0].lines[0].get_ydata(), window.frame.gyroscope_x
+    )

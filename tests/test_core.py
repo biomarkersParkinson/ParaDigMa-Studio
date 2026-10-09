@@ -20,16 +20,25 @@ def sensor():
 @pytest.mark.parametrize("suffix", ["csv", "parquet", "pkl"])
 def test_loading(tmp_path, sensor, suffix):
     path = tmp_path / f"sensor.{suffix}"
-    {"csv": lambda: sensor.to_csv(path, index=False),
-     "parquet": lambda: sensor.to_parquet(path),
-     "pkl": lambda: sensor.to_pickle(path)}[suffix]()
-    pd.testing.assert_frame_equal(load_sensor_file(path, allow_pickle=suffix == "pkl"), sensor, check_exact=False)
+    {
+        "csv": lambda: sensor.to_csv(path, index=False),
+        "parquet": lambda: sensor.to_parquet(path),
+        "pkl": lambda: sensor.to_pickle(path),
+    }[suffix]()
+    pd.testing.assert_frame_equal(
+        load_sensor_file(path, allow_pickle=suffix == "pkl"), sensor, check_exact=False
+    )
 
 
 def test_real_tremor_pipeline(tmp_path, sensor):
     path = tmp_path / "sensor.csv"
     sensor.to_csv(path, index=False)
-    results = analyze(load_sensor_file(path), pipelines=["tremor"], skip_preparation=False, output_dir=tmp_path / "pipeline")
+    results = analyze(
+        load_sensor_file(path),
+        pipelines=["tremor"],
+        skip_preparation=False,
+        output_dir=tmp_path / "pipeline",
+    )
     assert results["errors"] == []
     tables = result_tables(results)
     quantification = tables["quantifications/tremor"]
@@ -57,7 +66,10 @@ def test_combined_workflows_retain_success_when_other_group_lacks_channels(senso
     assert len(result["errors"]) == 1
     assert result["errors"][0]["pipelines"] == ["pulse_rate"]
     assert "Missing sensor columns" in result["errors"][0]["error"]
-    assert result["metadata"]["desktop_preparation"]["analysis_groups"] == [["tremor"], ["pulse_rate"]]
+    assert result["metadata"]["desktop_preparation"]["analysis_groups"] == [
+        ["tremor"],
+        ["pulse_rate"],
+    ]
 
 
 def test_duplicate_time(sensor):
@@ -68,8 +80,12 @@ def test_duplicate_time(sensor):
 
 def test_nested_gait_results():
     frame = pd.DataFrame({"time": [1], "range_of_motion": [20]})
-    tables = result_tables({"quantifications": {"gait": {"filtered": frame, "unfiltered": frame}},
-                            "aggregations": {"gait": {"filtered": {"median": 20}}}})
+    tables = result_tables(
+        {
+            "quantifications": {"gait": {"filtered": frame, "unfiltered": frame}},
+            "aggregations": {"gait": {"filtered": {"median": 20}}},
+        }
+    )
     assert "quantifications/gait/filtered" in tables
     assert "quantifications/gait/unfiltered" in tables
     assert tables["aggregations/gait/filtered"].iloc[0]["value"] == 20
@@ -77,7 +93,9 @@ def test_nested_gait_results():
 
 def test_real_gait_pipeline(tmp_path, sensor):
     for axis in "xyz":
-        sensor[f"accelerometer_{axis}"] = (1 if axis == "z" else 0) + 0.1 * np.sin(2 * np.pi * 1.5 * sensor["time"])
+        sensor[f"accelerometer_{axis}"] = (1 if axis == "z" else 0) + 0.1 * np.sin(
+            2 * np.pi * 1.5 * sensor["time"]
+        )
     result = analyze(sensor, pipelines=["gait"], watch_side="left", output_dir=tmp_path)
     assert result["errors"] == []
     assert set(result["quantifications"]["gait"]) == {"filtered", "unfiltered"}
@@ -87,10 +105,15 @@ def test_real_gait_pipeline(tmp_path, sensor):
 
 def test_real_pulse_rate_rejects_synthetic_signal(tmp_path):
     t = np.arange(3600) / 30
-    frame = pd.DataFrame({"time": t, "green": np.sin(2 * np.pi * 1.2 * t),
-                          "accelerometer_x": np.sin(t) * 0.01,
-                          "accelerometer_y": np.cos(t) * 0.01,
-                          "accelerometer_z": np.ones(len(t))})
+    frame = pd.DataFrame(
+        {
+            "time": t,
+            "green": np.sin(2 * np.pi * 1.2 * t),
+            "accelerometer_x": np.sin(t) * 0.01,
+            "accelerometer_y": np.cos(t) * 0.01,
+            "accelerometer_z": np.ones(len(t)),
+        }
+    )
     result = analyze(frame, pipelines=["pulse_rate"], output_dir=tmp_path)
     assert result["errors"] == []
     # A pure sine wave is not a physiological PPG recording: the quality

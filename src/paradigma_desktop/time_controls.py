@@ -1,8 +1,17 @@
 """Optional calendar/clock filters, preserving untouched source-clock precision."""
+
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QDateTime, QTimeZone, Qt, Signal
-from PySide6.QtWidgets import QCalendarWidget, QCheckBox, QDateTimeEdit, QDoubleSpinBox, QHBoxLayout, QStackedWidget, QWidget
+from PySide6.QtWidgets import (
+    QCalendarWidget,
+    QCheckBox,
+    QDateTimeEdit,
+    QDoubleSpinBox,
+    QHBoxLayout,
+    QStackedWidget,
+    QWidget,
+)
 
 from .results_view import clock_origin, clock_times, time_bound
 from .theme import light_palette
@@ -79,7 +88,11 @@ class TimeField(QWidget):
         if self.editors.currentWidget() is self.seconds:
             self._text = str(self.seconds.value())
         else:
-            format = Qt.ISODateWithMs if self._clock and self._clock.get("timezone") else "yyyy-MM-ddTHH:mm:ss.zzz"
+            format = (
+                Qt.ISODateWithMs
+                if self._clock and self._clock.get("timezone")
+                else "yyyy-MM-ddTHH:mm:ss.zzz"
+            )
             self._text = self.calendar.dateTime().toString(format)
         self.valueEdited.emit()
 
@@ -110,7 +123,9 @@ class TimeField(QWidget):
                 stamp = stamp.tz_localize("UTC")
             zone = self._zone()
             self.calendar.setTimeZone(zone)
-            self.calendar.setDateTime(QDateTime.fromMSecsSinceEpoch(int(stamp.value // 1_000_000), zone))
+            self.calendar.setDateTime(
+                QDateTime.fromMSecsSinceEpoch(int(stamp.value // 1_000_000), zone)
+            )
         except (ValueError, TypeError, OverflowError):
             pass  # Validation remains atomic in the shared filter operation.
         finally:
@@ -120,7 +135,11 @@ class TimeField(QWidget):
         if not self._clock or not self._clock.get("timezone"):
             return QTimeZone.utc()
         zone = QTimeZone(self._clock["timezone"].encode())
-        return zone if zone.isValid() else QTimeZone(int(clock_origin(self._clock).utcoffset().total_seconds()))
+        return (
+            zone
+            if zone.isValid()
+            else QTimeZone(int(clock_origin(self._clock).utcoffset().total_seconds()))
+        )
 
     def set_clock(self, clock):
         old, text = self._clock, self._text
@@ -130,7 +149,9 @@ class TimeField(QWidget):
             except (ValueError, TypeError):
                 pass
         self._clock = clock
-        self.editors.setCurrentWidget(self.calendar if self.origin or clock is not None else self.seconds)
+        self.editors.setCurrentWidget(
+            self.calendar if self.origin or clock is not None else self.seconds
+        )
         self.setText(text)
         if not text and self._default_seconds is not None:
             self.clear()

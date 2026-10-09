@@ -86,7 +86,7 @@ not raw green PPG, and its gyroscope stream is empty.
 - [User guide](docs/USER_GUIDE.md): units, preparation, statistics, exports and common issues.
 - [Official ParaDigMa documentation](https://biomarkersparkinson.github.io/paradigma/): scientific methods and device requirements.
 - [Scientific validation](docs/SCIENTIFIC_TESTS.md): comparisons with the official processing workflow.
-- [Development and building](docs/DEVELOPMENT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
+- [Development and building](docs/DEVELOPMENT.md), [codebase audit](docs/CODEBASE_AUDIT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
 
 ## Acknowledgement and citation
 
@@ -98,7 +98,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.22**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.23**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
-
-[Performance review and measurements](docs/PERFORMANCE.md).

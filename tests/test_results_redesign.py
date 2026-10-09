@@ -1,4 +1,5 @@
 """Prepared coverage, truthful bars, date labels and selective exports."""
+
 from copy import deepcopy
 import json
 from zipfile import ZipFile
@@ -20,7 +21,7 @@ from paradigma_desktop.history import load_result_export
 from paradigma_desktop.overview import recording_summary
 from paradigma_desktop.plotting import plot_bars
 from paradigma_desktop.time_axis import RecordingTimeFormatter
-from conftest import bar_values, bar_starts, bar_centers, wait_for_previews
+from conftest import bar_values, bar_starts, wait_for_previews
 
 
 @pytest.fixture
@@ -34,10 +35,17 @@ def window(tmp_path):
 
 
 def outputs():
-    return {"classifications": {"tremor": pd.DataFrame({"time": [0., 4., 8.], "pred_tremor_checked": [1, 0, 1]})},
-            "quantifications": {"tremor": pd.DataFrame({"time": [0., 4., 8.], "tremor_power": [2., np.nan, 5.]})},
-            "aggregations": {"tremor": {"perc_windows_tremor": 2 / 3 * 100, "count": 2**60 + 1}},
-            "metadata": {"tremor": {"windows": 3}}, "errors": []}
+    return {
+        "classifications": {
+            "tremor": pd.DataFrame({"time": [0.0, 4.0, 8.0], "pred_tremor_checked": [1, 0, 1]})
+        },
+        "quantifications": {
+            "tremor": pd.DataFrame({"time": [0.0, 4.0, 8.0], "tremor_power": [2.0, np.nan, 5.0]})
+        },
+        "aggregations": {"tremor": {"perc_windows_tremor": 2 / 3 * 100, "count": 2**60 + 1}},
+        "metadata": {"tremor": {"windows": 3}},
+        "errors": [],
+    }
 
 
 def test_continuous_bars_show_exact_values_leave_missing_gaps_and_retain_zero(window):
@@ -46,62 +54,95 @@ def test_continuous_bars_show_exact_values_leave_missing_gaps_and_retain_zero(wi
     window.analyzed(result)
     axis = window.figure.axes[0]
     assert not axis.lines
-    np.testing.assert_array_equal(bar_values(axis), [2., 5.])
-    np.testing.assert_allclose(bar_starts(axis), [0., 8.], atol=1e-12)
-    assert not any(path.contains_point((6., 1.)) for path in axis.collections[0].get_paths())
+    np.testing.assert_array_equal(bar_values(axis), [2.0, 5.0])
+    np.testing.assert_allclose(bar_starts(axis), [0.0, 8.0], atol=1e-12)
+    assert not any(path.contains_point((6.0, 1.0)) for path in axis.collections[0].get_paths())
     axis.set_xlim(8.5, 9.5)
     window.canvas.draw()
-    assert axis.collections[0].get_paths()[1].contains_point((9., 1.))
-    pd.testing.assert_frame_equal(result["quantifications"]["tremor"], original["quantifications"]["tremor"])
+    assert axis.collections[0].get_paths()[1].contains_point((9.0, 1.0))
+    pd.testing.assert_frame_equal(
+        result["quantifications"]["tremor"], original["quantifications"]["tremor"]
+    )
     figure = Figure()
     axes = figure.add_subplot()
-    plot_bars(axes, [0., 1., 2.], [1., 2., 3.], [-2., 0., np.nan], "#477DA3")
-    np.testing.assert_array_equal(bar_values(axes), [-2., 0.])
-    assert len(axes.collections[1].get_segments()) == 1  # Actual zero stays distinguishable from missing.
+    plot_bars(axes, [0.0, 1.0, 2.0], [1.0, 2.0, 3.0], [-2.0, 0.0, np.nan], "#477DA3")
+    np.testing.assert_array_equal(bar_values(axes), [-2.0, 0.0])
+    assert (
+        len(axes.collections[1].get_segments()) == 1
+    )  # Actual zero stays distinguishable from missing.
 
 
 def test_prepared_coverage_retains_real_gaps_sections_offsets_and_distinct_pipeline_inputs(window):
-    inputs = {"recording_001": pd.DataFrame({"time": [0., .01, .02, 1., 1.01]}),
-              "recording_002": pd.DataFrame({"time": [0., .01]})}
+    inputs = {
+        "recording_001": pd.DataFrame({"time": [0.0, 0.01, 0.02, 1.0, 1.01]}),
+        "recording_002": pd.DataFrame({"time": [0.0, 0.01]}),
+    }
     coverage = prepared_availability(inputs, ["gait", "tremor"])
-    np.testing.assert_allclose(coverage["gait"]["recording_001"]["intervals"], [[0., .03], [1., 1.02]])
-    coverage.update(prepared_availability({"recording_001": pd.DataFrame({"time": [0., .01]})}, ["pulse_rate"]))
+    np.testing.assert_allclose(
+        coverage["gait"]["recording_001"]["intervals"], [[0.0, 0.03], [1.0, 1.02]]
+    )
+    coverage.update(
+        prepared_availability(
+            {"recording_001": pd.DataFrame({"time": [0.0, 0.01]})}, ["pulse_rate"]
+        )
+    )
     result = outputs()
     result["metadata"]["desktop_availability"] = coverage
-    offsets = {"gait": {"recording_001": 2., "recording_002": 10.}, "tremor": {"recording_001": 2., "recording_002": 10.}, "pulse_rate": 0.}
+    offsets = {
+        "gait": {"recording_001": 2.0, "recording_002": 10.0},
+        "tremor": {"recording_001": 2.0, "recording_002": 10.0},
+        "pulse_rate": 0.0,
+    }
     views, labels = availability_views(result, offsets)
     assert set(views) == {"preparation/gait_tremor", "preparation/pulse_rate"}
-    np.testing.assert_allclose(views["preparation/gait_tremor"].time, [2., 3., 10.])
+    np.testing.assert_allclose(views["preparation/gait_tremor"].time, [2.0, 3.0, 10.0])
     assert "Gait, Tremor" in labels[("preparation/gait_tremor", "available")]
     window.provenance = {"display_offsets": offsets}
     window.analyzed(result)
-    names = [name for name, metric in window.selected_result_series() if name.startswith("preparation/")]
+    names = [
+        name for name, metric in window.selected_result_series() if name.startswith("preparation/")
+    ]
     assert len(names) == 2
     assert not any(name.startswith("preparation/") for name in window.tables)
-    axis = next(ax for ax in window.figure.axes if ax._paradigma_dataset == "preparation/gait_tremor")
+    axis = next(
+        ax for ax in window.figure.axes if ax._paradigma_dataset == "preparation/gait_tremor"
+    )
     assert axis._paradigma_binary
     assert len(axis.collections[0].get_paths()) == 3
 
 
 def test_availability_matches_exact_prepared_inputs_and_excludes_discarded_sections(monkeypatch):
     from paradigma_desktop import core
-    times = np.r_[np.arange(100) / 100, 5., 5.01]
-    raw = pd.DataFrame({"time": times, **{f"gyroscope_{axis}": np.ones(len(times)) for axis in "xyz"}})
+
+    times = np.r_[np.arange(100) / 100, 5.0, 5.01]
+    raw = pd.DataFrame(
+        {"time": times, **{f"gyroscope_{axis}": np.ones(len(times)) for axis in "xyz"}}
+    )
     raw.loc[50, "gyroscope_x"] = np.nan
     captured = []
+
     def orchestrator(**kwargs):
         captured.append(kwargs["dfs"])
         return {"metadata": {}, "quantifications": {}, "aggregations": {}, "errors": []}
+
     monkeypatch.setattr(core, "run_paradigma", orchestrator)
-    result = core.analyze(raw, pipelines=["tremor"], drop_missing_samples=True, split_by_gaps=True,
-                          max_gap_seconds=1.5, min_segment_seconds=.1)
+    result = core.analyze(
+        raw,
+        pipelines=["tremor"],
+        drop_missing_samples=True,
+        split_by_gaps=True,
+        max_gap_seconds=1.5,
+        min_segment_seconds=0.1,
+    )
     prepared = captured[0]
     assert isinstance(prepared, dict) and len(prepared) == 2  # Official missing-sample splitting.
     np.testing.assert_array_equal(pd.concat(prepared.values()).time, np.delete(times[:100], 50))
     coverage = result["metadata"]["desktop_availability"]["tremor"]
     assert sum(section["samples"] for section in coverage.values()) == 99
-    np.testing.assert_allclose([interval for section in coverage.values() for interval in section["intervals"]],
-                               [[0., .5], [.51, 1.]])
+    np.testing.assert_allclose(
+        [interval for section in coverage.values() for interval in section["intervals"]],
+        [[0.0, 0.5], [0.51, 1.0]],
+    )
     assert raw.gyroscope_x.isna().sum() == 1
 
 
@@ -109,11 +150,15 @@ def test_module_help_keeps_all_module_buttons_stationary_and_spacing(window):
     window.navigate(1)
     window.resize(960, 650)
     QTest.qWait(30)
-    positions = [button.mapTo(window, button.rect().topLeft()) for button in window.module_buttons.values()]
+    positions = [
+        button.mapTo(window, button.rect().topLeft()) for button in window.module_buttons.values()
+    ]
     sizes = [button.size() for button in window.module_buttons.values()]
     window.analysis_help["Analysis modules"][0].click()
     QTest.qWait(30)
-    assert positions == [button.mapTo(window, button.rect().topLeft()) for button in window.module_buttons.values()]
+    assert positions == [
+        button.mapTo(window, button.rect().topLeft()) for button in window.module_buttons.values()
+    ]
     assert sizes == [button.size() for button in window.module_buttons.values()]
     assert window.analysis_controls.layout().spacing() == 16
 
@@ -124,37 +169,68 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
     QTest.qWait(30)
     fields = [window.side, window.acc, window.gyro, window.time, window.orientation]
     assert len({field.mapTo(window, field.rect().topLeft()).x() for field in fields}) == 1
-    assert window.orientation.mapTo(window, window.orientation.rect().topLeft()).y() > window.time.mapTo(window, window.time.rect().bottomLeft()).y()
-    assert window.mapping.mapTo(window, window.mapping.rect().topLeft()).y() > window.min_segment.mapTo(window, window.min_segment.rect().bottomLeft()).y()
+    assert (
+        window.orientation.mapTo(window, window.orientation.rect().topLeft()).y()
+        > window.time.mapTo(window, window.time.rect().bottomLeft()).y()
+    )
+    assert (
+        window.mapping.mapTo(window, window.mapping.rect().topLeft()).y()
+        > window.min_segment.mapTo(window, window.min_segment.rect().bottomLeft()).y()
+    )
     for info, description in window.analysis_help.values():
         assert "color: #1E609E" in description.text()
     info, description = window.analysis_help["Device axes"]
     info.click()
     assert '<img src="' in description.text() and "directions_axes.png" in description.text()
-    assert "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html" in description.text()
+    assert (
+        "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html"
+        in description.text()
+    )
 
 
 def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation(window):
     result = outputs()
-    preparation = {"input_samples": 100, "analyzed_samples": 90, "excluded_samples": 10, "continuous_sections": 2}
-    result["metadata"].update(desktop_recordings={"recordings": ["a", "b"], "sections": {"a": "a"}},
-                               desktop_preparation={"input_samples": 100, "analysis_groups": [["gait", "tremor"]],
-                                                    "by_module": {"gait": preparation, "tremor": preparation}})
+    preparation = {
+        "input_samples": 100,
+        "analyzed_samples": 90,
+        "excluded_samples": 10,
+        "continuous_sections": 2,
+    }
+    result["metadata"].update(
+        desktop_recordings={"recordings": ["a", "b"], "sections": {"a": "a"}},
+        desktop_preparation={
+            "input_samples": 100,
+            "analysis_groups": [["gait", "tremor"]],
+            "by_module": {"gait": preparation, "tremor": preparation},
+        },
+    )
     provenance = {"sources": {"a": "/recordings/a.csv", "b": "/recordings/b.csv"}}
     entries = recording_summary(result, provenance, None)
-    assert not any(title in ("Recordings", "Files") or title.endswith("Input samples") for title, _ in entries)
+    assert not any(
+        title in ("Recordings", "Files") or title.endswith("Input samples") for title, _ in entries
+    )
     assert ("Gait, Tremor · Prepared samples", "90") in entries
-    assert not any("section" in title.lower() and isinstance(value, dict) for title, value in entries)
+    assert not any(
+        "section" in title.lower() and isinstance(value, dict) for title, value in entries
+    )
     window.provenance = provenance
     window.analyzed(result)
     assert set(window.overview_module_cards) == {"tremor"}
-    assert sum(label.text() == "Recording & preparation" for label in window.overview_content.findChildren(QLabel)) == 1
+    assert (
+        sum(
+            label.text() == "Recording & preparation"
+            for label in window.overview_content.findChildren(QLabel)
+        )
+        == 1
+    )
 
 
 def test_time_formatter_separates_time_date_at_midnight_and_keeps_date_when_zoomed():
     figure = Figure()
     axis = figure.add_subplot()
-    values = dates.date2num(pd.to_datetime(["2026-10-07T23:59:55Z", "2026-10-08T00:00:00Z", "2026-10-08T00:00:05Z"]))
+    values = dates.date2num(
+        pd.to_datetime(["2026-10-07T23:59:55Z", "2026-10-08T00:00:00Z", "2026-10-08T00:00:05Z"])
+    )
     axis.set_xlim(values[0], values[-1])
     formatter = RecordingTimeFormatter("UTC")
     axis.xaxis.set_major_formatter(formatter)
@@ -181,15 +257,27 @@ def test_selective_json_csv_zip_preserve_native_outputs_precision_and_metadata(t
     saved_provenance, saved = load_result_export(path)
     assert saved_provenance == provenance
     assert not saved["classifications"]
-    pd.testing.assert_frame_equal(saved["quantifications"]["tremor"], result["quantifications"]["tremor"])
+    pd.testing.assert_frame_equal(
+        saved["quantifications"]["tremor"], result["quantifications"]["tremor"]
+    )
     assert saved["aggregations"]["tremor"]["count"] == 2**60 + 1
     export_selection(tmp_path / "selection.zip", result, provenance, names, "CSV")
     with ZipFile(tmp_path / "selection.zip") as archive:
-        assert set(archive.namelist()) == {"001_quantifications_tremor.csv", "002_aggregations_tremor.csv", "metadata.json", "analysis.json"}
-        pd.testing.assert_frame_equal(pd.read_csv(archive.open("001_quantifications_tremor.csv")), result["quantifications"]["tremor"])
+        assert set(archive.namelist()) == {
+            "001_quantifications_tremor.csv",
+            "002_aggregations_tremor.csv",
+            "metadata.json",
+            "analysis.json",
+        }
+        pd.testing.assert_frame_equal(
+            pd.read_csv(archive.open("001_quantifications_tremor.csv")),
+            result["quantifications"]["tremor"],
+        )
         assert json.loads(archive.read("metadata.json")) == {"metadata/tremor": {"windows": 3}}
     export_selection(tmp_path / "single.csv", result, provenance, [names[0]], "CSV")
-    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "single.csv"), result["quantifications"]["tremor"])
+    pd.testing.assert_frame_equal(
+        pd.read_csv(tmp_path / "single.csv"), result["quantifications"]["tremor"]
+    )
 
 
 def test_export_dialog_and_single_button_are_consistent_across_tabs(window):
@@ -211,11 +299,18 @@ def test_export_dialog_and_single_button_are_consistent_across_tabs(window):
     dialog.close()
 
 
-def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments(window, monkeypatch):
+def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments(
+    window, monkeypatch
+):
     from paradigma_desktop import app as desktop
-    original = pd.DataFrame({"time": [0., .01, .02], "time_dt": pd.date_range(
-        "2026-10-07T12:00:00.123456789Z", periods=3, freq="10ms"),
-        **{f"gyroscope_{axis}": [1., 2., 3.] for axis in "xyz"}})
+
+    original = pd.DataFrame(
+        {
+            "time": [0.0, 0.01, 0.02],
+            "time_dt": pd.date_range("2026-10-07T12:00:00.123456789Z", periods=3, freq="10ms"),
+            **{f"gyroscope_{axis}": [1.0, 2.0, 3.0] for axis in "xyz"},
+        }
+    )
     window.set_modules(["tremor"])
     window.loaded(("sensor.csv", original))
     wait_for_previews(window)
@@ -224,68 +319,79 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
     window.clock_input.setText("2020-01-01T08:00:00+02:00")
     window.origin_edited()
     captured = []
-    monkeypatch.setattr(desktop, "run_isolated_analysis", lambda frame, settings, logger, cancel: captured.append((frame, settings)))
+    monkeypatch.setattr(
+        desktop,
+        "run_isolated_analysis",
+        lambda frame, settings, logger, cancel: captured.append((frame, settings)),
+    )
     monkeypatch.setattr(window, "start_job", lambda function, callback: function(None))
     window.run_analysis()
     assert len(captured) == 1 and "plot_time_origin" not in captured[0][1]
     pd.testing.assert_frame_equal(captured[0][0], original)
     clock = window.current_run["settings"]["plot_time_origin"]["clock"]
     assert pd.Timestamp(clock["origin"]) == pd.Timestamp("2020-01-01T08:00:00+02:00")
-    assert clock["timezone"] == "UTC"  # Preserve the recording zone while accepting an explicit offset.
+    assert (
+        clock["timezone"] == "UTC"
+    )  # Preserve the recording zone while accepting an explicit offset.
     window.reset_origin()
     assert window.clock_input.text() == derived_origin
     assert window.origin_setting() == {"mode": "automatic"}
 
 
-def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or_overriding_manual_limits(window):
-    frame = pd.DataFrame({"time": [0., 4., 8., 12.], "tremor_power": [2., 3., 200., np.nan]})
+def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or_overriding_manual_limits(
+    window,
+):
+    frame = pd.DataFrame({"time": [0.0, 4.0, 8.0, 12.0], "tremor_power": [2.0, 3.0, 200.0, np.nan]})
     window.analyzed({"quantifications": {"tremor": frame}})
     axes = window.figure.axes[0]
-    assert axes.get_ylim() == pytest.approx((0., 216.))
-    axes.set_xlim(.5, 7.5)
-    assert axes.get_ylim() == pytest.approx((0., 3.24))
-    axes.set_xlim(8.5, 9.)
-    assert axes.get_ylim() == pytest.approx((0., 216.))  # The full extreme remains when visible.
-    axes.set_ylim(-10., 500.)
-    axes.set_xlim(.5, 7.5)
-    assert axes.get_ylim() == (-10., 500.)
+    assert axes.get_ylim() == pytest.approx((0.0, 216.0))
+    axes.set_xlim(0.5, 7.5)
+    assert axes.get_ylim() == pytest.approx((0.0, 3.24))
+    axes.set_xlim(8.5, 9.0)
+    assert axes.get_ylim() == pytest.approx((0.0, 216.0))  # The full extreme remains when visible.
+    axes.set_ylim(-10.0, 500.0)
+    axes.set_xlim(0.5, 7.5)
+    assert axes.get_ylim() == (-10.0, 500.0)
     panel = window.plot_toolbar.settings
     panel.read_axes()
     panel.bounds["y"][0].setChecked(True)
     panel.apply()
-    assert axes.get_ylim() == pytest.approx((0., 3.24))
-    axes.set_xlim(12., 14.)
-    assert axes.get_ylim() == (0., 1.)  # A missing bar never retains the preceding extreme.
-    np.testing.assert_array_equal(bar_values(axes), [2., 3., 200.])
+    assert axes.get_ylim() == pytest.approx((0.0, 3.24))
+    axes.set_xlim(12.0, 14.0)
+    assert axes.get_ylim() == (0.0, 1.0)  # A missing bar never retains the preceding extreme.
+    np.testing.assert_array_equal(bar_values(axes), [2.0, 3.0, 200.0])
     pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame)
 
 
 @pytest.mark.parametrize("automatic", [True, False])
 @pytest.mark.parametrize("action", ["zoom", "pan"])
 def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, automatic, action):
-    frame = pd.DataFrame({"time": [0., 4., 8.], "tremor_power": [2., 3., 200.]})
+    frame = pd.DataFrame({"time": [0.0, 4.0, 8.0], "tremor_power": [2.0, 3.0, 200.0]})
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_tabs.setCurrentIndex(1)
     window.canvas.draw()
     axes = window.figure.axes[0]
     if not automatic:
-        axes.set_ylim(0., 500.)
+        axes.set_ylim(0.0, 500.0)
     toolbar = window.plot_toolbar
     if action == "zoom":
         toolbar.zoom()
-        first = axes.transData.transform((.5, axes.get_ylim()[1] * .1))
-        last = axes.transData.transform((7.5, axes.get_ylim()[1] * .9))
+        first = axes.transData.transform((0.5, axes.get_ylim()[1] * 0.1))
+        last = axes.transData.transform((7.5, axes.get_ylim()[1] * 0.9))
         toolbar.press_zoom(MouseEvent("button_press_event", window.canvas, *first, button=1))
         toolbar.release_zoom(MouseEvent("button_release_event", window.canvas, *last, button=1))
     else:
         toolbar.pan()
-        first = axes.transData.transform((.5, axes.get_ylim()[1] * .5))
-        last = axes.transData.transform((7.5, axes.get_ylim()[1] * .5))
+        first = axes.transData.transform((0.5, axes.get_ylim()[1] * 0.5))
+        last = axes.transData.transform((7.5, axes.get_ylim()[1] * 0.5))
         toolbar.press_pan(MouseEvent("button_press_event", window.canvas, *first, button=1))
         toolbar.drag_pan(MouseEvent("motion_notify_event", window.canvas, *last, buttons={1}))
         toolbar.release_pan(MouseEvent("button_release_event", window.canvas, *last, button=1))
     assert axes.get_autoscaley_on() == automatic
-    assert (axes.get_ylim()[1] < 4 if automatic else axes.get_ylim()[1] > 100), (axes.get_xlim(), axes.get_ylim())
+    assert axes.get_ylim()[1] < 4 if automatic else axes.get_ylim()[1] > 100, (
+        axes.get_xlim(),
+        axes.get_ylim(),
+    )
     limits = axes.get_ylim()
     toolbar.back()
     assert axes.get_autoscaley_on() == automatic
@@ -297,10 +403,18 @@ def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, a
 def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(window):
     window.navigate(1)
     window.resize(1450, 920)
-    heading = next(label for label in window.settings_panel.findChildren(QLabel) if label.text() == "Column mapping (JSON)")
+    heading = next(
+        label
+        for label in window.settings_panel.findChildren(QLabel)
+        if label.text() == "Column mapping (JSON)"
+    )
+
     def positions():
         QTest.qWait(30)
-        return heading.mapTo(window, heading.rect().topLeft()).y(), window.mapping.mapTo(window, window.mapping.rect().topLeft()).y()
+        return heading.mapTo(window, heading.rect().topLeft()).y(), window.mapping.mapTo(
+            window, window.mapping.rect().topLeft()
+        ).y()
+
     initial = positions()
     for name in ("Device axes", "Minimum section duration", "Column mapping (JSON)"):
         window.analysis_help[name][0].click()
@@ -310,7 +424,9 @@ def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(wi
 
 
 def test_overview_clock_is_one_field_and_run_buttons_are_adjacent(window):
-    entries = recording_summary({}, {}, {"origin": "2026-10-07T12:00:00+02:00", "timezone": "Europe/Amsterdam"})
+    entries = recording_summary(
+        {}, {}, {"origin": "2026-10-07T12:00:00+02:00", "timezone": "Europe/Amsterdam"}
+    )
     assert entries == [("Time origin", "07 Oct 2026, 12:00:00 · Europe/Amsterdam")]
     window.navigate(3)
     QTest.qWait(30)
@@ -320,12 +436,24 @@ def test_overview_clock_is_one_field_and_run_buttons_are_adjacent(window):
 
 def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metadata(window):
     result = outputs()
-    result["quantifications"]["gait"] = {"unfiltered": pd.DataFrame({
-        "gait_segment_nr": [1, 1], "range_of_motion": [5., 8.], "peak_velocity": [25., 40.]})}
-    result["metadata"]["gait"] = {"unfiltered": {"per_segment": {1: {"start_s": 0., "end_s": 4., "duration_s": 4.}}}}
+    result["quantifications"]["gait"] = {
+        "unfiltered": pd.DataFrame(
+            {
+                "gait_segment_nr": [1, 1],
+                "range_of_motion": [5.0, 8.0],
+                "peak_velocity": [25.0, 40.0],
+            }
+        )
+    }
+    result["metadata"]["gait"] = {
+        "unfiltered": {"per_segment": {1: {"start_s": 0.0, "end_s": 4.0, "duration_s": 4.0}}}
+    }
     window.analyzed(result)
-    chosen = {("quantifications/gait/unfiltered", "range_of_motion"),
-              ("quantifications/gait/unfiltered", "peak_velocity"), ("classifications/tremor", "pred_tremor_checked")}
+    chosen = {
+        ("quantifications/gait/unfiltered", "range_of_motion"),
+        ("quantifications/gait/unfiltered", "peak_velocity"),
+        ("classifications/tremor", "pred_tremor_checked"),
+    }
     window.result_series.blockSignals(True)
     for key, item in window._series_items.items():
         item.setCheckState(0, Qt.Checked if key in chosen else Qt.Unchecked)
@@ -338,13 +466,20 @@ def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metada
     assert axes["peak_velocity"].get_title(loc="right") == "Gait"
     indicator = axes["pred_tremor_checked"]
     assert not indicator.texts and not indicator.get_yticks().size
-    assert indicator.get_position().height < axes["range_of_motion"].get_position().height * .5
-    assert np.ptp(indicator.collections[0].get_paths()[0].vertices[:, 1]) == pytest.approx(.48)
-    assert window._timings["quantifications/gait/unfiltered"]["Time basis"].str.contains("Estimated").all()
+    assert indicator.get_position().height < axes["range_of_motion"].get_position().height * 0.5
+    assert np.ptp(indicator.collections[0].get_paths()[0].vertices[:, 1]) == pytest.approx(0.48)
+    assert (
+        window._timings["quantifications/gait/unfiltered"]["Time basis"]
+        .str.contains("Estimated")
+        .all()
+    )
 
 
 def test_zip_export_protects_sources_and_neutralizes_formula_text(tmp_path):
-    result = {"quantifications": {"tremor": pd.DataFrame({"time": [0.], "=header": ["=cmd()"]})}, "metadata": {"tremor": {}}}
+    result = {
+        "quantifications": {"tremor": pd.DataFrame({"time": [0.0], "=header": ["=cmd()"]})},
+        "metadata": {"tremor": {}},
+    }
     source = tmp_path / "source.csv"
     source.write_text("original")
     names = ["quantifications/tremor", "metadata/tremor"]

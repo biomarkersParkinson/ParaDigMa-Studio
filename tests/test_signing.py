@@ -1,4 +1,5 @@
 """Signing policy checks; cryptographic operations require Windows."""
+
 import copy
 import os
 import struct
@@ -8,27 +9,38 @@ import sys
 import pytest
 
 from scripts.signing_bundle import (
-    make_plan, native_files, read_signatures, refresh_hashes, validate_config,
-    validate_signed, validate_unchanged_assets,
+    make_plan,
+    native_files,
+    read_signatures,
+    refresh_hashes,
+    validate_config,
+    validate_signed,
+    validate_unchanged_assets,
 )
 
 
 def signature(path, signed=False, subject="CN=Example Publisher"):
-    return {"path": path, "status": "Valid" if signed else "NotSigned",
-            "signature_type": "Authenticode" if signed else "None",
-            "subject": subject if signed else None,
-            "thumbprint": "example" if signed else None,
-            "timestamp_subject": "CN=Timestamp" if signed else None,
-            "sha256": "before"}
+    return {
+        "path": path,
+        "status": "Valid" if signed else "NotSigned",
+        "signature_type": "Authenticode" if signed else "None",
+        "subject": subject if signed else None,
+        "thumbprint": "example" if signed else None,
+        "timestamp_subject": "CN=Timestamp" if signed else None,
+        "sha256": "before",
+    }
 
 
 def config():
-    return {"AZURE_CLIENT_ID": "11111111-1111-1111-1111-111111111111",
-            "AZURE_TENANT_ID": "22222222-2222-2222-2222-222222222222",
-            "AZURE_SUBSCRIPTION_ID": "33333333-3333-3333-3333-333333333333",
-            "SIGNING_ENDPOINT": "https://weu.codesigning.azure.net/",
-            "SIGNING_ACCOUNT_NAME": "example-account", "SIGNING_CERTIFICATE_PROFILE": "example-profile",
-            "SIGNING_PUBLISHER_SUBJECT": "CN=Example Publisher"}
+    return {
+        "AZURE_CLIENT_ID": "11111111-1111-1111-1111-111111111111",
+        "AZURE_TENANT_ID": "22222222-2222-2222-2222-222222222222",
+        "AZURE_SUBSCRIPTION_ID": "33333333-3333-3333-3333-333333333333",
+        "SIGNING_ENDPOINT": "https://weu.codesigning.azure.net/",
+        "SIGNING_ACCOUNT_NAME": "example-account",
+        "SIGNING_CERTIFICATE_PROFILE": "example-profile",
+        "SIGNING_PUBLISHER_SUBJECT": "CN=Example Publisher",
+    }
 
 
 def test_missing_account_cannot_be_mistaken_for_signed_configuration():
@@ -37,9 +49,15 @@ def test_missing_account_cannot_be_mistaken_for_signed_configuration():
     validate_config(config())
 
 
-@pytest.mark.parametrize("endpoint", ["http://weu.codesigning.azure.net/", "https://example.com/",
-                                    "https://weu.codesigning.azure.net.example.com/",
-                                    "https://user:password@weu.codesigning.azure.net/"])
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://weu.codesigning.azure.net/",
+        "https://example.com/",
+        "https://weu.codesigning.azure.net.example.com/",
+        "https://user:password@weu.codesigning.azure.net/",
+    ],
+)
 def test_signing_account_endpoint_is_not_arbitrary(endpoint):
     values = config()
     values["SIGNING_ENDPOINT"] = endpoint
@@ -60,7 +78,10 @@ def test_native_inventory_includes_hidden_libraries_pyd_and_other_pe_files(tmp_p
     (libraries / "native.unusual").write_bytes(header)
     (libraries / "model.pkl").write_bytes(b"not executable")
     assert {file.name for file in native_files(tmp_path)} == {
-        "ParaDigMaDesktop.exe", "vcomp140.dll", "extension.pyd", "native.unusual",
+        "ParaDigMaDesktop.exe",
+        "vcomp140.dll",
+        "extension.pyd",
+        "native.unusual",
     }
 
 
@@ -70,7 +91,8 @@ def test_existing_vendor_signatures_are_preserved_and_catalog_signatures_are_not
     catalog_signed["signature_type"] = "Catalog"
     plan = make_plan([signature("ParaDigMaDesktop.exe"), vendor, catalog_signed])
     assert [file["path"] for file in plan["files"] if file["needs_signing"]] == [
-        "ParaDigMaDesktop.exe", "_internal/catalog.dll",
+        "ParaDigMaDesktop.exe",
+        "_internal/catalog.dll",
     ]
     invalid = {**vendor, "status": "HashMismatch"}
     with pytest.raises(ValueError, match="invalid or untrusted"):
@@ -78,7 +100,10 @@ def test_existing_vendor_signatures_are_preserved_and_catalog_signatures_are_not
 
 
 def test_publisher_timestamp_inventory_and_vendor_integrity_are_required():
-    original = [signature("ParaDigMaDesktop.exe"), signature("_internal/vendor.dll", True, "CN=Vendor")]
+    original = [
+        signature("ParaDigMaDesktop.exe"),
+        signature("_internal/vendor.dll", True, "CN=Vendor"),
+    ]
     plan = make_plan(original)
     signed = [signature("ParaDigMaDesktop.exe", True), original[1]]
     validate_signed(plan, signed, "CN=Example Publisher")
@@ -103,11 +128,19 @@ def test_windows_reads_real_unsigned_assembly_and_pyd_signatures(tmp_path):
     # Compile an actual unsigned PE assembly. No signing identity or fake
     # certificates are used; this exercises the real Windows signature API.
     library = tmp_path / "probe.dll"
-    subprocess.run([
-        "pwsh", "-NoProfile", "-NonInteractive", "-Command",
-        "Add-Type -TypeDefinition 'public class SigningProbe { public static int Answer = 42; }' "
-        "-OutputAssembly $env:PARADIGMA_SIGNING_TEST_ASSEMBLY",
-    ], env={**os.environ, "PARADIGMA_SIGNING_TEST_ASSEMBLY": str(library)}, check=True, timeout=60)
+    subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Add-Type -TypeDefinition 'public class SigningProbe { public static int Answer = 42; }' "
+            "-OutputAssembly $env:PARADIGMA_SIGNING_TEST_ASSEMBLY",
+        ],
+        env={**os.environ, "PARADIGMA_SIGNING_TEST_ASSEMBLY": str(library)},
+        check=True,
+        timeout=60,
+    )
     (tmp_path / "ParaDigMaDesktop.exe").write_bytes(library.read_bytes())
     (tmp_path / "probe.pyd").write_bytes(library.read_bytes())
     entries = read_signatures(tmp_path)

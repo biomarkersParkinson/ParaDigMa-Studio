@@ -1,4 +1,5 @@
 """Performance regressions: reuse presentation work without losing values."""
+
 import json
 import threading
 import time
@@ -21,7 +22,7 @@ from paradigma_desktop.widgets import FrameModel
 @pytest.fixture
 def window(tmp_path):
     app = QApplication.instance() or QApplication([])
-    widget = MainWindow(history_dir=tmp_path / 'runs')
+    widget = MainWindow(history_dir=tmp_path / "runs")
     widget.show()
     app.processEvents()
     yield widget
@@ -30,18 +31,20 @@ def window(tmp_path):
 
 
 def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch):
-    frame = pd.DataFrame({'time': np.arange(1000.), 'metric': np.arange(1000.) / 10})
-    window.analyzed({'quantifications': {'tremor': frame}})
+    frame = pd.DataFrame({"time": np.arange(1000.0), "metric": np.arange(1000.0) / 10})
+    window.analyzed({"quantifications": {"tremor": frame}})
     window.result_tabs.setCurrentIndex(1)
     app = QApplication.instance()
     app.processEvents()
     window.canvas.draw()
     draws = []
     original = PolyCollection.draw
+
     def record(collection, renderer):
         draws.append(collection)
         return original(collection, renderer)
-    monkeypatch.setattr(PolyCollection, 'draw', record)
+
+    monkeypatch.setattr(PolyCollection, "draw", record)
     for row in (10, 30, 50):
         window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
         app.processEvents()
@@ -56,60 +59,77 @@ def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch)
     app.processEvents()
     assert draws
     stream = BytesIO()
-    window.figure.savefig(stream, format='png')
-    assert stream.getvalue().startswith(b'\x89PNG')
+    window.figure.savefig(stream, format="png")
+    assert stream.getvalue().startswith(b"\x89PNG")
     assert window._result_selection_artists  # Export does not discard selection.
 
 
 def test_batched_json_preserves_schema_values_and_limits_temporary_rows(tmp_path, monkeypatch):
     count = 10003
-    frame = pd.DataFrame({'time': np.arange(count), 'metric': np.resize([np.nan, np.inf, 1.25], count),
-                          'large': [2**60 + 1] * count,
-                          'stamp': pd.date_range('2026-10-25', periods=count, freq='s', tz='Europe/Amsterdam')})
-    expected = core.json_value({'quantifications': {'tremor': frame}})
+    frame = pd.DataFrame(
+        {
+            "time": np.arange(count),
+            "metric": np.resize([np.nan, np.inf, 1.25], count),
+            "large": [2**60 + 1] * count,
+            "stamp": pd.date_range("2026-10-25", periods=count, freq="s", tz="Europe/Amsterdam"),
+        }
+    )
+    expected = core.json_value({"quantifications": {"tremor": frame}})
     batch_sizes = []
     original = pd.DataFrame.to_dict
+
     def observe(self, *args, **kwargs):
         batch_sizes.append(len(self))
         return original(self, *args, **kwargs)
-    monkeypatch.setattr(pd.DataFrame, 'to_dict', observe)
-    destination = tmp_path / 'results.json'
-    core.export_results(destination, {'quantifications': {'tremor': frame}}, {'source': 'sensor.csv'})
+
+    monkeypatch.setattr(pd.DataFrame, "to_dict", observe)
+    destination = tmp_path / "results.json"
+    core.export_results(
+        destination, {"quantifications": {"tremor": frame}}, {"source": "sensor.csv"}
+    )
     value = json.loads(destination.read_text())
-    assert value['results'] == expected
-    assert value['analysis'] == {'source': 'sensor.csv'}
+    assert value["results"] == expected
+    assert value["analysis"] == {"source": "sensor.csv"}
     assert batch_sizes == [5000, 5000, 3]
 
 
 def test_cached_column_values_invalidate_after_model_update():
-    frame = pd.DataFrame({'value': pd.Series([pd.NA, 3], dtype='Int64'), 'name': ['a', 'b']})
+    frame = pd.DataFrame({"value": pd.Series([pd.NA, 3], dtype="Int64"), "name": ["a", "b"]})
     model = FrameModel(frame)
     before = model.data(model.index(1, 0), Qt.DisplayRole)
-    frame['value'] = [1.5, 2.5]
+    frame["value"] = [1.5, 2.5]
     model.dataChanged.emit(model.index(0, 0), model.index(1, 0))
     assert model.data(model.index(1, 0), Qt.DisplayRole) != before
-    assert model.data(model.index(1, 0), Qt.DisplayRole) == '2.5'
+    assert model.data(model.index(1, 0), Qt.DisplayRole) == "2.5"
 
 
 def test_vectorized_plot_dates_preserve_absolute_time_across_dst():
-    timestamps = pd.date_range('2026-10-25T00:30:00Z', periods=5, freq='30min').tz_convert('Europe/Amsterdam')
-    np.testing.assert_allclose(time_coordinates(timestamps), dates.date2num(timestamps.to_pydatetime()), atol=1e-12, rtol=0)
+    timestamps = pd.date_range("2026-10-25T00:30:00Z", periods=5, freq="30min").tz_convert(
+        "Europe/Amsterdam"
+    )
+    np.testing.assert_allclose(
+        time_coordinates(timestamps), dates.date2num(timestamps.to_pydatetime()), atol=1e-12, rtol=0
+    )
 
 
 def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_path, monkeypatch):
-    frame = pd.DataFrame({'time': [0., 1.], 'metric': [2., 3.]})
-    window.analyzed({'quantifications': {'tremor': frame}})
-    path = tmp_path / 'chosen.json'
+    frame = pd.DataFrame({"time": [0.0, 1.0], "metric": [2.0, 3.0]})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    path = tmp_path / "chosen.json"
     started, release = threading.Event(), threading.Event()
     original = exports.export_selection
+
     def slow_export(*args, **kwargs):
         started.set()
         assert release.wait(5)
         return original(*args, **kwargs)
-    monkeypatch.setattr(exports, 'export_selection', slow_export)
-    monkeypatch.setattr(exports.ExportDialog, 'exec', lambda self: True)
-    monkeypatch.setattr(exports.ExportDialog, 'selected', lambda self: ['quantifications/tremor'])
-    monkeypatch.setattr('paradigma_desktop.app.QFileDialog.getSaveFileName', lambda *args: (str(path), 'JSON'))
+
+    monkeypatch.setattr(exports, "export_selection", slow_export)
+    monkeypatch.setattr(exports.ExportDialog, "exec", lambda self: True)
+    monkeypatch.setattr(exports.ExportDialog, "selected", lambda self: ["quantifications/tremor"])
+    monkeypatch.setattr(
+        "paradigma_desktop.app.QFileDialog.getSaveFileName", lambda *args: (str(path), "JSON")
+    )
     window.choose_export()
     try:
         assert started.wait(2)
@@ -122,15 +142,18 @@ def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_
         deadline = time.monotonic() + 5
         while window.worker is not None and time.monotonic() < deadline:
             QApplication.instance().processEvents()
-            time.sleep(.01)
+            time.sleep(0.01)
     assert window.worker is None
-    assert json.loads(path.read_text())['results']['quantifications']['tremor']['data'][1]['metric'] == 3.
+    assert (
+        json.loads(path.read_text())["results"]["quantifications"]["tremor"]["data"][1]["metric"]
+        == 3.0
+    )
 
 
 def test_timing_table_cache_reuses_views_without_modifying_native_outputs(window):
-    frame = pd.DataFrame({'time': [0., 1.], 'metric': [2., 3.]})
+    frame = pd.DataFrame({"time": [0.0, 1.0], "metric": [2.0, 3.0]})
     original = frame.copy()
-    window.analyzed({'quantifications': {'tremor': frame}})
+    window.analyzed({"quantifications": {"tremor": frame}})
     views = {}
     for enabled in (False, True, False, True):
         window.timing_toggle.setChecked(enabled)
@@ -138,5 +161,31 @@ def test_timing_table_cache_reuses_views_without_modifying_native_outputs(window
         if enabled in views:
             assert window.display_frame is views[enabled]
         views[enabled] = window.display_frame
-    assert set(window._table_views) == {('quantifications/tremor', False), ('quantifications/tremor', True)}
+    assert set(window._table_views) == {
+        ("quantifications/tremor", False),
+        ("quantifications/tremor", True),
+    }
     pd.testing.assert_frame_equal(frame, original)
+
+
+def test_discarded_results_release_render_and_sensor_context_views(window):
+    from conftest import wait_for_previews
+
+    frame = pd.DataFrame({"time": np.arange(800.0) / 100.0, "gyroscope_x": np.ones(800)})
+    window.loaded(("sensor.csv", frame))
+    wait_for_previews(window)
+    window.provenance = {"settings": {"skip_preparation": True}}
+    output = pd.DataFrame({"time": [0.0, 4.0], "tremor_power": [1.0, 2.0]})
+    window.analyzed({"quantifications": {"tremor": output}})
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    window.inspect_sensor_context()
+    assert window.sensor_frame is not None
+    assert window._bar_bounds and window._result_shared_axes is not None
+    window.clear_results()
+    assert window.sensor_frame is None and window.display_frame is None
+    assert window.sensor_table.model() is None
+    assert not window.sensor_figure.axes and not window.figure.axes
+    assert not window._bar_bounds and not window._result_selection_artists
+    assert window._result_shared_axes is None
+    # Clearing outputs preserves the loaded source for subsequent analyses.
+    assert window.frame is frame

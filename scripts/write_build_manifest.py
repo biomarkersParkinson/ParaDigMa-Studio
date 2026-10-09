@@ -1,4 +1,5 @@
 """Record provenance and hashes without including credentials or user files."""
+
 import hashlib
 import json
 import platform
@@ -12,8 +13,9 @@ from pathlib import Path
 def main(bundle, audit_report):
     bundle = Path(bundle).resolve()
     root = Path(__file__).resolve().parents[1]
-    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
-                            capture_output=True, text=True, check=True).stdout.strip()
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
+    ).stdout.strip()
     metadata = {
         "source_commit": commit,
         "python": platform.python_version(),

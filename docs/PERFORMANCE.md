@@ -443,3 +443,26 @@ at 960 × 650 and 1450 × 920 with ordinary and enlarged fonts. Local validation
 **382 tests passed**, including all scientific-equivalence tests; one Windows-only
 signature check was skipped. The rebuilt app passed its packaged runtime checks
 on Linux. Native Windows validation runs in GitHub Actions.
+
+
+## Internal quality review (0.5.23)
+
+The [codebase audit](CODEBASE_AUDIT.md) separates page construction, graph
+interactions, presentation data and storage responsibilities without changing
+layout or scientific calculations. Existing caches, plotting reuse, deferred
+imports and streaming exports remain in place. Discarded results now release
+sensor-context and renderer references; transient preview errors can be retried.
+
+Before/after workflow measurements found no material regression. Results loading
+was 0.2394 → 0.2423 seconds; Analyze option changes took 0.0067 → 0.0069 seconds
+for ten actions. Showing Results graphs was 0.4315 → 0.3595 seconds, and selecting
+three epoch series was 0.6889 → 0.5487 seconds. These warm Linux/offscreen medians
+are checks against regression, not a claim of an established Windows speedup.
+The [raw report](performance-review-0.5.23.json) records three repeats for all
+workflows and the final packaged startup measurement. Export byte counts are
+unchanged. Native dependencies and model assets were retained.
+
+All 385 local tests pass, including the 31 scientific-equivalence tests; the
+Windows-only signature check is skipped locally. Twenty screenshots match the
+previous UI pixel for pixel, and the rebuilt executable passes its packaged
+smoke checks. Native Windows checks run in GitHub Actions.

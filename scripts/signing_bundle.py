@@ -1,4 +1,5 @@
 """Plan/verify Windows publisher signing without handling private keys."""
+
 import argparse
 import hashlib
 import json
@@ -13,8 +14,12 @@ from uuid import UUID
 
 
 CONFIG_NAMES = (
-    "AZURE_CLIENT_ID", "AZURE_TENANT_ID", "AZURE_SUBSCRIPTION_ID",
-    "SIGNING_ENDPOINT", "SIGNING_ACCOUNT_NAME", "SIGNING_CERTIFICATE_PROFILE",
+    "AZURE_CLIENT_ID",
+    "AZURE_TENANT_ID",
+    "AZURE_SUBSCRIPTION_ID",
+    "SIGNING_ENDPOINT",
+    "SIGNING_ACCOUNT_NAME",
+    "SIGNING_CERTIFICATE_PROFILE",
     "SIGNING_PUBLISHER_SUBJECT",
 )
 
@@ -22,7 +27,9 @@ CONFIG_NAMES = (
 def validate_config(environment):
     missing = [name for name in CONFIG_NAMES if not environment.get(name, "").strip()]
     if missing:
-        raise ValueError("Configure GitHub environment windows-signing first; missing: " + ", ".join(missing))
+        raise ValueError(
+            "Configure GitHub environment windows-signing first; missing: " + ", ".join(missing)
+        )
     if any(character in environment["SIGNING_PUBLISHER_SUBJECT"] for character in ("\n", "\r")):
         raise ValueError("SIGNING_PUBLISHER_SUBJECT must be a single certificate subject line.")
     for name in CONFIG_NAMES[:3]:
@@ -31,10 +38,19 @@ def validate_config(environment):
         except ValueError as error:
             raise ValueError(f"{name} must be an Azure GUID.") from error
     endpoint = urlparse(environment["SIGNING_ENDPOINT"])
-    if (endpoint.scheme != "https" or not (endpoint.hostname or "").endswith(".codesigning.azure.net")
-            or endpoint.username or endpoint.password or endpoint.port
-            or endpoint.path not in ("", "/") or endpoint.query or endpoint.fragment):
-        raise ValueError("SIGNING_ENDPOINT must be the HTTPS regional codesigning.azure.net endpoint.")
+    if (
+        endpoint.scheme != "https"
+        or not (endpoint.hostname or "").endswith(".codesigning.azure.net")
+        or endpoint.username
+        or endpoint.password
+        or endpoint.port
+        or endpoint.path not in ("", "/")
+        or endpoint.query
+        or endpoint.fragment
+    ):
+        raise ValueError(
+            "SIGNING_ENDPOINT must be the HTTPS regional codesigning.azure.net endpoint."
+        )
 
 
 def native_files(bundle):
@@ -59,7 +75,9 @@ def native_files(bundle):
                 raise ValueError("A native filename cannot be represented in the signing catalog.")
             paths.append(path)
     if not paths or not (bundle / "ParaDigMaDesktop.exe").is_file():
-        raise ValueError("Signing input must include ParaDigMaDesktop.exe and its native dependencies.")
+        raise ValueError(
+            "Signing input must include ParaDigMaDesktop.exe and its native dependencies."
+        )
     return paths
 
 
@@ -71,22 +89,41 @@ def read_signatures(bundle):
     with tempfile.TemporaryDirectory(prefix="paradigma-signatures-") as directory:
         inventory = Path(directory) / "inventory.json"
         report = Path(directory) / "signatures.json"
-        inventory.write_text(json.dumps([
-            {"path": path.relative_to(bundle).as_posix(), "absolute_path": str(path)}
-            for path in paths
-        ]), encoding="utf-8")
-        subprocess.run([
-            "pwsh", "-NoProfile", "-NonInteractive", "-File",
-            str(Path(__file__).with_name("windows_signatures.ps1")),
-            "-Inventory", str(inventory), "-Report", str(report),
-        ], check=True, timeout=180)
+        inventory.write_text(
+            json.dumps(
+                [
+                    {"path": path.relative_to(bundle).as_posix(), "absolute_path": str(path)}
+                    for path in paths
+                ]
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                "pwsh",
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(Path(__file__).with_name("windows_signatures.ps1")),
+                "-Inventory",
+                str(inventory),
+                "-Report",
+                str(report),
+            ],
+            check=True,
+            timeout=180,
+        )
         records = json.loads(report.read_text(encoding="utf-8-sig"))
     by_path = {entry["path"]: entry for entry in records}
-    if len(by_path) != len(paths) or set(by_path) != {path.relative_to(bundle).as_posix() for path in paths}:
+    if len(by_path) != len(paths) or set(by_path) != {
+        path.relative_to(bundle).as_posix() for path in paths
+    }:
         raise ValueError("Windows signature report does not cover every native file.")
     for path in paths:
         with path.open("rb") as stream:
-            by_path[path.relative_to(bundle).as_posix()]["sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+            by_path[path.relative_to(bundle).as_posix()]["sha256"] = hashlib.file_digest(
+                stream, "sha256"
+            ).hexdigest()
     return records
 
 
@@ -97,7 +134,9 @@ def make_plan(records):
     for record in records:
         status = record["status"]
         if status not in {"Valid", "NotSigned"}:
-            raise ValueError(f"Refusing to sign an invalid or untrusted existing signature: {record['path']} ({status})")
+            raise ValueError(
+                f"Refusing to sign an invalid or untrusted existing signature: {record['path']} ({status})"
+            )
         # A catalog on the runner's OS is not part of the portable bundle.
         needs_signing = status == "NotSigned" or record["signature_type"] != "Authenticode"
         planned.append({**record, "needs_signing": needs_signing})
@@ -118,7 +157,10 @@ def validate_signed(plan, records, publisher):
             if entry["subject"] != publisher or not entry["timestamp_subject"]:
                 raise ValueError(f"Publisher or trusted timestamp mismatch: {name}")
         else:
-            if entry["sha256"] != original[name]["sha256"] or entry["thumbprint"] != original[name]["thumbprint"]:
+            if (
+                entry["sha256"] != original[name]["sha256"]
+                or entry["thumbprint"] != original[name]["thumbprint"]
+            ):
                 raise ValueError(f"An existing vendor-signed file changed: {name}")
 
 
@@ -127,7 +169,9 @@ def verify_with_signtool(bundle, records):
     candidates = list(kits.glob("*/x64/signtool.exe"))
     if not candidates:
         raise RuntimeError("Install the Windows SDK signing tools to verify Authenticode chains.")
-    tool = max(candidates, key=lambda path: tuple(int(part) for part in path.parent.parent.name.split(".")))
+    tool = max(
+        candidates, key=lambda path: tuple(int(part) for part in path.parent.parent.name.split("."))
+    )
     # Batches keep the command below Windows' command-line length limit.
     batch = []
     length = 0
@@ -142,8 +186,9 @@ def verify_with_signtool(bundle, records):
 
 
 def _verify_batch(tool, paths):
-    result = subprocess.run([str(tool), "verify", "/pa", "/all", *paths],
-                            capture_output=True, text=True, timeout=180)
+    result = subprocess.run(
+        [str(tool), "verify", "/pa", "/all", *paths], capture_output=True, text=True, timeout=180
+    )
     if result.returncode:
         raise RuntimeError("SignTool rejected a signature chain:\n" + result.stdout + result.stderr)
 
@@ -163,10 +208,16 @@ def validate_unchanged_assets(bundle, plan):
     """Signing must not change classifier pickles, resources or provenance."""
     bundle = Path(bundle).resolve()
     natives = {entry["path"] for entry in plan["files"]}
-    entries = [line.split("  ", 1) for line in (bundle / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines()]
+    entries = [
+        line.split("  ", 1)
+        for line in (bundle / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines()
+    ]
     reports = {"security/signing-plan.json", "security/windows-signatures.json"}
-    actual = {path.relative_to(bundle).as_posix() for path in bundle.rglob("*")
-              if path.is_file() and path.name != "SHA256SUMS.txt"} - reports
+    actual = {
+        path.relative_to(bundle).as_posix()
+        for path in bundle.rglob("*")
+        if path.is_file() and path.name != "SHA256SUMS.txt"
+    } - reports
     if actual != {name for _, name in entries} - reports:
         raise ValueError("The bundle asset inventory changed during signing.")
     for expected, name in entries:
@@ -190,7 +241,9 @@ def main():
         validate_config(os.environ)
         if os.environ.get("GITHUB_OUTPUT"):
             with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
-                stream.write("publisher_subject=" + os.environ["SIGNING_PUBLISHER_SUBJECT"].strip() + "\n")
+                stream.write(
+                    "publisher_subject=" + os.environ["SIGNING_PUBLISHER_SUBJECT"].strip() + "\n"
+                )
         print("Signing configuration is present. Publisher verification remains enforced by Azure.")
         return
     if not args.bundle:
@@ -205,11 +258,17 @@ def main():
         plan = make_plan(read_signatures(bundle))
         plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
         catalog = Path(args.catalog).resolve()
-        catalog.write_text("".join(
-            os.path.relpath(bundle / entry["path"], catalog.parent) + "\n"
-            for entry in plan["files"] if entry["needs_signing"]
-        ), encoding="utf-8")
-        print(f"Prepared {sum(entry['needs_signing'] for entry in plan['files'])} native files for publisher signing.")
+        catalog.write_text(
+            "".join(
+                os.path.relpath(bundle / entry["path"], catalog.parent) + "\n"
+                for entry in plan["files"]
+                if entry["needs_signing"]
+            ),
+            encoding="utf-8",
+        )
+        print(
+            f"Prepared {sum(entry['needs_signing'] for entry in plan['files'])} native files for publisher signing."
+        )
     else:
         publisher = os.environ.get("SIGNING_PUBLISHER_SUBJECT", "").strip()
         if not publisher:
@@ -219,10 +278,19 @@ def main():
         validate_signed(plan, records, publisher)
         validate_unchanged_assets(bundle, plan)
         verify_with_signtool(bundle, records)
-        (security / "windows-signatures.json").write_text(json.dumps({
-            "status": "passed", "publisher_subject": publisher, "native_files": len(records),
-            "signtool_chain_verification": True, "files": records,
-        }, indent=2), encoding="utf-8")
+        (security / "windows-signatures.json").write_text(
+            json.dumps(
+                {
+                    "status": "passed",
+                    "publisher_subject": publisher,
+                    "native_files": len(records),
+                    "signtool_chain_verification": True,
+                    "files": records,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         refresh_hashes(bundle)
         print(f"Verified {len(records)} embedded signatures and refreshed bundle hashes.")
 

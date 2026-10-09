@@ -1,4 +1,5 @@
 """Concise recording-level metadata, without repeating pipeline bookkeeping."""
+
 import json
 import math
 
@@ -24,8 +25,8 @@ def recording_extent(timelines, bases=None):
             continue
         steps = np.diff(times)
         steps = steps[np.isfinite(steps) & (steps > 0)]
-        step = float(np.median(steps)) if len(steps) else 0.
-        offset = (bases or {}).get(key, 0.)
+        step = float(np.median(steps)) if len(steps) else 0.0
+        offset = (bases or {}).get(key, 0.0)
         bounds.append((float(finite.min() + offset), float(finite.max() + step + offset)))
     if not bounds:
         return None
@@ -77,33 +78,51 @@ def _timespan(bounds, clock, file_order=False):
 
 def _hours(seconds):
     # Small example files must not appear to contain zero hours of data.
-    value = f"{seconds / 3600:,.2f}" if seconds >= 36 else f"{seconds / 3600:.6f}".rstrip("0").rstrip(".")
+    value = (
+        f"{seconds / 3600:,.2f}"
+        if seconds >= 36
+        else f"{seconds / 3600:.6f}".rstrip("0").rstrip(".")
+    )
     return value + " h"
 
 
 def recording_summary(results, provenance, clock, prepared_views=None):
     metadata = results.get("metadata", {})
-    sources = provenance.get("sources", {}) or ({"recording_001": provenance["source"]} if provenance.get("source") else {})
+    sources = provenance.get("sources", {}) or (
+        {"recording_001": provenance["source"]} if provenance.get("source") else {}
+    )
     entries = []
     bounds = _bounds(provenance)
     if bounds:
         entries.append(("Recording timespan", _timespan(bounds, clock, len(sources) > 1)))
     elif clock:
-        entries.append(("Time origin", clock_origin(clock).strftime("%d %b %Y, %H:%M:%S")
-                        + " · " + (clock.get("timezone") or "Time zone unspecified")))
+        entries.append(
+            (
+                "Time origin",
+                clock_origin(clock).strftime("%d %b %Y, %H:%M:%S")
+                + " · "
+                + (clock.get("timezone") or "Time zone unspecified"),
+            )
+        )
     preparation = metadata.get("desktop_preparation", {})
     for path, value in flat_values(metadata.get("recording", {})):
         if path[-1] not in ("start_time", "end_time", "duration_s", "sampling_rate_hz"):
             continue
         if not bounds:
             entries.append((" · ".join(readable_key(key) for key in path), value))
-    coverage, labels = (prepared_views if prepared_views is not None else
-                        availability_views(results, provenance.get("display_offsets", {})))
+    coverage, labels = (
+        prepared_views
+        if prepared_views is not None
+        else availability_views(results, provenance.get("display_offsets", {}))
+    )
     covered_labels = set()
     for name, frame in coverage.items():
         prefix = labels[(name, "available")].removesuffix(" input available")
         covered_labels.update(prefix.split(", "))
-        title = lambda text: f"{prefix} · {text}" if prefix else text
+
+        def title(text):
+            return f"{prefix} · {text}" if prefix else text
+
         intervals = _interval_union(frame, bounds)
         seconds = sum(end - start for start, end in intervals)
         value = _hours(seconds)
@@ -123,12 +142,23 @@ def recording_summary(results, provenance, clock, prepared_views=None):
     for group in unique.values():
         prefix = ", ".join(group["modules"])
         values = group["values"]
-        for key, title in (("analyzed_samples", "Prepared samples"),
-                           ("excluded_samples", "Excluded missing samples"), ("continuous_sections", "Prepared sections")):
+        for key, title in (
+            ("analyzed_samples", "Prepared samples"),
+            ("excluded_samples", "Excluded missing samples"),
+            ("continuous_sections", "Prepared sections"),
+        ):
             value = values.get(key)
-            if coverage and key in ("analyzed_samples", "continuous_sections") and (
-                    not prefix or all(module in covered_labels for module in group["modules"])):
+            if (
+                coverage
+                and key in ("analyzed_samples", "continuous_sections")
+                and (not prefix or all(module in covered_labels for module in group["modules"]))
+            ):
                 continue
             if value is not None and (key != "excluded_samples" or value):
-                entries.append((f"{prefix} · {title}" if prefix else title, f"{value:,}" if isinstance(value, int) else value))
+                entries.append(
+                    (
+                        f"{prefix} · {title}" if prefix else title,
+                        f"{value:,}" if isinstance(value, int) else value,
+                    )
+                )
     return entries

@@ -1,24 +1,27 @@
 """Display-only half-hour summaries; official outputs are never modified."""
+
 import numpy as np
 import pandas as pd
 
 from .results_view import clock_origin
 
 
-EPOCH_SECONDS = 1800.
-MIN_PRESENCE_SECONDS = EPOCH_SECONDS * .05
+EPOCH_SECONDS = 1800.0
+MIN_PRESENCE_SECONDS = EPOCH_SECONDS * 0.05
 
 
 def epoch_phase(clock):
     """Shared elapsed offset for local :00/:30 boundaries, including DST."""
     if clock is None:
-        return 0.
+        return 0.0
     origin = clock_origin(clock)
-    within_hour = origin.minute * 60 + origin.second + origin.microsecond / 1e6 + origin.nanosecond / 1e9
+    within_hour = (
+        origin.minute * 60 + origin.second + origin.microsecond / 1e6 + origin.nanosecond / 1e9
+    )
     return -(within_hour % EPOCH_SECONDS)
 
 
-def epoch_summary(times, values, *, binary=False, phase=0.):
+def epoch_summary(times, values, *, binary=False, phase=0.0):
     """Median, or positive percentage of finite observations, by timestamp.
 
     Missing outcomes do not become absence; empty epochs stay blank. Estimated
@@ -29,18 +32,24 @@ def epoch_summary(times, values, *, binary=False, phase=0.):
     values = values[finite_time].copy()
     values[~np.isfinite(values)] = np.nan
     if binary:
-        values[~np.isin(values, [0., 1.])] = np.nan
+        values[~np.isin(values, [0.0, 1.0])] = np.nan
     bins = np.floor((times[finite_time] - phase) / EPOCH_SECONDS)
-    frame = pd.DataFrame({'epoch': bins, 'value': values})
-    grouped = frame.groupby('epoch', sort=True).agg(
-        value=('value', 'mean' if binary else 'median'), n_observations=('value', 'count'))
+    frame = pd.DataFrame({"epoch": bins, "value": values})
+    grouped = frame.groupby("epoch", sort=True).agg(
+        value=("value", "mean" if binary else "median"), n_observations=("value", "count")
+    )
     starts = grouped.index.to_numpy(dtype=float) * EPOCH_SECONDS + phase
-    return pd.DataFrame({'start_s': starts, 'end_s': starts + EPOCH_SECONDS,
-                         'value': grouped.value.to_numpy() * (100 if binary else 1),
-                         'n_observations': grouped.n_observations.to_numpy()})
+    return pd.DataFrame(
+        {
+            "start_s": starts,
+            "end_s": starts + EPOCH_SECONDS,
+            "value": grouped.value.to_numpy() * (100 if binary else 1),
+            "n_observations": grouped.n_observations.to_numpy(),
+        }
+    )
 
 
-def availability_epoch_summary(starts, ends, *, phase=0., bounds=None):
+def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
     """Covered time per epoch; union overlaps and retain real recording gaps.
 
     First/last epochs use the recording's partial timespan as their denominator.
@@ -51,11 +60,11 @@ def availability_epoch_summary(starts, ends, *, phase=0., bounds=None):
     starts, ends = starts[valid], ends[valid]
     if bounds is None:
         if not len(starts):
-            return pd.DataFrame(columns=['start_s', 'end_s', 'value', 'covered_s', 'observed_s'])
+            return pd.DataFrame(columns=["start_s", "end_s", "value", "covered_s", "observed_s"])
         bounds = float(starts.min()), float(ends.max())
     low, high = bounds
     if not np.isfinite([low, high]).all() or high <= low:
-        return pd.DataFrame(columns=['start_s', 'end_s', 'value', 'covered_s', 'observed_s'])
+        return pd.DataFrame(columns=["start_s", "end_s", "value", "covered_s", "observed_s"])
     first = int(np.floor((low - phase) / EPOCH_SECONDS))
     last = int(np.ceil((high - phase) / EPOCH_SECONDS))
     epoch_starts = np.arange(first, last, dtype=float) * EPOCH_SECONDS + phase
@@ -83,9 +92,15 @@ def availability_epoch_summary(starts, ends, *, phase=0., bounds=None):
         np.add.at(difference, right[cross], -EPOCH_SECONDS)
         covered += np.cumsum(difference[:-1])
     observed = np.minimum(epoch_ends, high) - np.maximum(epoch_starts, low)
-    return pd.DataFrame({'start_s': epoch_starts, 'end_s': epoch_ends,
-                         'value': np.clip(100 * covered / observed, 0, 100),
-                         'covered_s': covered, 'observed_s': observed})
+    return pd.DataFrame(
+        {
+            "start_s": epoch_starts,
+            "end_s": epoch_ends,
+            "value": np.clip(100 * covered / observed, 0, 100),
+            "covered_s": covered,
+            "observed_s": observed,
+        }
+    )
 
 
 def require_epoch_presence(summary, presence):
@@ -96,7 +111,9 @@ def require_epoch_presence(summary, presence):
     Missing presence is insufficient evidence, rather than inferred presence.
     """
     result = summary.copy()
-    seconds = presence.set_index('start_s').covered_s.reindex(result.start_s, fill_value=0.).to_numpy()
-    result['presence_s'] = seconds
-    result.loc[seconds < MIN_PRESENCE_SECONDS - 1e-9, 'value'] = np.nan
+    seconds = (
+        presence.set_index("start_s").covered_s.reindex(result.start_s, fill_value=0.0).to_numpy()
+    )
+    result["presence_s"] = seconds
+    result.loc[seconds < MIN_PRESENCE_SECONDS - 1e-9, "value"] = np.nan
     return result

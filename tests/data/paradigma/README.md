@@ -30,12 +30,15 @@ destination = Path("tests/data/paradigma")
 for sensor, limit in [("imu", None), ("ppg", 18000)]:
     source = upstream / "tests/data/1.prepared_data" / sensor
     metadata = tsdf.load_metadata_from_path(source / f"{sensor}_meta.json")
-    frame = tsdf.load_dataframe_from_binaries(
-        [metadata[f"{sensor}_time.bin"], metadata[f"{sensor}_values.bin"]],
-        ConcatenationType.columns,
-    ).iloc[:limit].copy()
-    frame.to_parquet(destination / f"prepared_{sensor}.parquet",
-                     index=False, compression="zstd")
+    frame = (
+        tsdf.load_dataframe_from_binaries(
+            [metadata[f"{sensor}_time.bin"], metadata[f"{sensor}_values.bin"]],
+            ConcatenationType.columns,
+        )
+        .iloc[:limit]
+        .copy()
+    )
+    frame.to_parquet(destination / f"prepared_{sensor}.parquet", index=False, compression="zstd")
 ```
 
 Parquet file bytes may change with writer versions. Verify decoded values against

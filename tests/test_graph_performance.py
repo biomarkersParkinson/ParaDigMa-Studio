@@ -1,4 +1,5 @@
 """Bound rendering work without sampling, changing values or losing intervals."""
+
 from io import BytesIO
 
 import numpy as np
@@ -26,15 +27,17 @@ def window(tmp_path):
 
 
 @pytest.mark.parametrize("binary", [False, True])
-def test_zoom_renders_only_intersecting_intervals_and_restores_all_original_values(binary, monkeypatch):
+def test_zoom_renders_only_intersecting_intervals_and_restores_all_original_values(
+    binary, monkeypatch
+):
     figure = Figure()
     canvas = FigureCanvasAgg(figure)
     axes = figure.add_subplot()
     starts = np.arange(5000, dtype=float)
-    values = np.ones(len(starts)) if binary else starts * .1
+    values = np.ones(len(starts)) if binary else starts * 0.1
     # Include an interval whose start is outside the view but whose end is inside.
-    ends = starts + 1.
-    ends[10] = 25.
+    ends = starts + 1.0
+    ends[10] = 25.0
     if binary:
         plot_states(axes, starts, values, "#168B82", ends=ends)
     else:
@@ -56,15 +59,18 @@ def test_zoom_renders_only_intersecting_intervals_and_restores_all_original_valu
         # All these states touch: one opaque rectangle fills exactly the same
         # presence area, with all original intervals retained below.
         assert len(drawn[-1]) == 1
-        assert drawn[-1][0][:, 0].min() == 0.
-        assert drawn[-1][0][:, 0].max() == 5000.
+        assert drawn[-1][0][:, 0].min() == 0.0
+        assert drawn[-1][0][:, 0].max() == 5000.0
     else:
         assert len(drawn[-1]) == 4  # Three nearby intervals and the straddling interval.
-        expected = [vertices for vertices in original
-                    if vertices[:, 0].max() >= 20.25 and vertices[:, 0].min() <= 22.75]
+        expected = [
+            vertices
+            for vertices in original
+            if vertices[:, 0].max() >= 20.25 and vertices[:, 0].min() <= 22.75
+        ]
         np.testing.assert_array_equal(drawn[-1], expected)
     np.testing.assert_array_equal([path.vertices for path in collection.get_paths()], original)
-    axes.set_xlim(-1., 5001.)
+    axes.set_xlim(-1.0, 5001.0)
     canvas.draw()
     assert len(drawn[-1]) == (1 if binary else len(starts))
     # Rasterized exports must keep working through the optimized draw method.
@@ -79,9 +85,9 @@ def test_failed_render_does_not_discard_offscreen_data(monkeypatch):
     canvas = FigureCanvasAgg(figure)
     axes = figure.add_subplot()
     starts = np.arange(1000, dtype=float)
-    collection = plot_bars(axes, starts, starts + 1., starts, "#168B82")
+    collection = plot_bars(axes, starts, starts + 1.0, starts, "#168B82")
     original = collection.get_paths()
-    axes.set_xlim(10., 15.)
+    axes.set_xlim(10.0, 15.0)
 
     def fail_draw(*_):
         raise RuntimeError("Renderer unavailable")
@@ -94,7 +100,7 @@ def test_failed_render_does_not_discard_offscreen_data(monkeypatch):
 
 
 def test_changing_active_table_keeps_graph_zoom_settings_and_cached_row_selection(window):
-    frame = pd.DataFrame({"time": [0., 1., 2.], "metric": [2., 3., 4.]})
+    frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [2.0, 3.0, 4.0]})
     window.analyzed({"quantifications": {"tremor": frame, "pulse_rate": frame.copy()}})
     window.result_tabs.setCurrentIndex(1)
     for item in window._series_items.values():
@@ -102,26 +108,29 @@ def test_changing_active_table_keeps_graph_zoom_settings_and_cached_row_selectio
     app = QApplication.instance()
     app.processEvents()
     axes = tuple(window.figure.axes)
-    axes[0].set_xlim(.25, 1.75)
+    axes[0].set_xlim(0.25, 1.75)
     axes[0].set_ylabel("Custom label")
     selection = window._detail_selections
     for table in ("quantifications/pulse_rate", "quantifications/tremor"):
         window.dataset.setCurrentText(table)
         app.processEvents()
         assert tuple(window.figure.axes) == axes
-        assert axes[0].get_xlim() == pytest.approx((.25, 1.75))
+        assert axes[0].get_xlim() == pytest.approx((0.25, 1.75))
         assert axes[0].get_ylabel() == "Custom label"
         assert window._detail_selections is selection
         pd.testing.assert_frame_equal(window.active_frame, frame)
     # New results with identical metric names must invalidate the old plot.
-    replacement = frame.assign(metric=[100., 200., 300.])
+    replacement = frame.assign(metric=[100.0, 200.0, 300.0])
     window.analyzed({"quantifications": {"tremor": replacement}})
     assert window.figure.axes[0] is not axes[0]
-    np.testing.assert_array_equal([path.vertices[1, 1] for path in window.figure.axes[0].collections[0].get_paths()], replacement.metric)
+    np.testing.assert_array_equal(
+        [path.vertices[1, 1] for path in window.figure.axes[0].collections[0].get_paths()],
+        replacement.metric,
+    )
 
 
 def test_hidden_graphs_defer_paint_then_display_and_export_fresh_results(window, monkeypatch):
-    frame = pd.DataFrame({"time": [0., 1., 2.], "metric": [2., 3., 4.]})
+    frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [2.0, 3.0, 4.0]})
     paints = []
     real_draw = window.canvas.draw
 
@@ -142,7 +151,10 @@ def test_hidden_graphs_defer_paint_then_display_and_export_fresh_results(window,
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
     assert window.canvas.isVisible() and paints
-    np.testing.assert_array_equal([path.vertices[1, 1] for path in window.figure.axes[0].collections[0].get_paths()], frame.metric)
+    np.testing.assert_array_equal(
+        [path.vertices[1, 1] for path in window.figure.axes[0].collections[0].get_paths()],
+        frame.metric,
+    )
     paints.clear()
     window.result_tabs.setCurrentIndex(0)
     QApplication.instance().processEvents()
@@ -152,42 +164,44 @@ def test_hidden_graphs_defer_paint_then_display_and_export_fresh_results(window,
 
 
 def test_repeated_axis_sync_and_selection_do_not_repaint_unchanged_ruler(window, monkeypatch):
-    frame = pd.DataFrame({"time": [0., 1., 2.], "metric": [2., 3., 4.]})
+    frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [2.0, 3.0, 4.0]})
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
     window.canvas.draw()
     ruler = window.time_axis
     ruler.synchronize()
-    ruler.set_selection(1., "Selected row")
+    ruler.set_selection(1.0, "Selected row")
     redraws = []
     monkeypatch.setattr(ruler, "draw_idle", lambda: redraws.append(True))
     for _ in range(20):
         ruler.synchronize()
-        ruler.set_selection(1., "Selected row")
+        ruler.set_selection(1.0, "Selected row")
     assert not redraws
     old_axes = window.figure.axes[0]
-    old_axes.set_xlim(.5, 1.5)
-    assert redraws and ruler.axes.get_xlim() == pytest.approx((.5, 1.5))
+    old_axes.set_xlim(0.5, 1.5)
+    assert redraws and ruler.axes.get_xlim() == pytest.approx((0.5, 1.5))
     redraws.clear()
     new_axes = Figure().add_subplot()
     ruler.bind(new_axes)
     redraws.clear()
-    old_axes.set_xlim(0., 2.)
+    old_axes.set_xlim(0.0, 2.0)
     assert not redraws  # Old graph callbacks were disconnected.
-    new_axes.set_xlim(10., 20.)
-    assert ruler.axes.get_xlim() == pytest.approx((10., 20.)) and redraws
+    new_axes.set_xlim(10.0, 20.0)
+    assert ruler.axes.get_xlim() == pytest.approx((10.0, 20.0)) and redraws
 
 
-@pytest.mark.parametrize('mode', [0, 1])
+@pytest.mark.parametrize("mode", [0, 1])
 def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, mode):
-    tremor = pd.DataFrame({'time': np.arange(2000.), 'metric': np.arange(2000.) + 2.})
-    gait = pd.DataFrame({'time': [0., 1000., 2000.], 'metric': [20., 30., 40.]})
-    window.analyzed({'quantifications': {'tremor': tremor, 'gait': {'unfiltered': gait}, 'pulse_rate': gait}})
+    tremor = pd.DataFrame({"time": np.arange(2000.0), "metric": np.arange(2000.0) + 2.0})
+    gait = pd.DataFrame({"time": [0.0, 1000.0, 2000.0], "metric": [20.0, 30.0, 40.0]})
+    window.analyzed(
+        {"quantifications": {"tremor": tremor, "gait": {"unfiltered": gait}, "pulse_rate": gait}}
+    )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
     for (name, metric), item in window._series_items.items():
-        item.setCheckState(0, Qt.Checked if name == 'quantifications/tremor' else Qt.Unchecked)
+        item.setCheckState(0, Qt.Checked if name == "quantifications/tremor" else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(mode)
     window.plot()
@@ -195,49 +209,55 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     app.processEvents()
     original = window.figure.axes[0]
     paths = original.collections[0].get_paths()
-    original.set_ylabel('Custom label')
-    original.set_ylim(0., 2500.)
-    original.set_xlim(100., 500.)
+    original.set_ylabel("Custom label")
+    original.set_ylim(0.0, 2500.0)
+    original.set_xlim(100.0, 500.0)
     # Add before and after the retained axis in module order. Paths stay exact
     # and sharing still works after axes are removed/re-added to the Figure.
-    for name in ('quantifications/gait/unfiltered', 'quantifications/pulse_rate'):
-        window._series_items[name, 'metric'].setCheckState(0, Qt.Checked)
+    for name in ("quantifications/gait/unfiltered", "quantifications/pulse_rate"):
+        window._series_items[name, "metric"].setCheckState(0, Qt.Checked)
         app.processEvents()
-        retained = next(ax for ax in window.figure.axes if ax._paradigma_dataset == 'quantifications/tremor')
+        retained = next(
+            ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/tremor"
+        )
         assert retained is original
         assert retained.collections[0].get_paths() is paths
-        assert retained.get_ylabel() == 'Custom label'
-        assert retained.get_ylim() == (0., 2500.)
-        assert all(ax.get_xlim() == (100., 500.) for ax in window.figure.axes)
-        assert [(ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes] == window.selected_result_series()
-    original.set_xlim(200., 400.)
-    assert all(ax.get_xlim() == (200., 400.) for ax in window.figure.axes)
-    assert window.time_axis.axes.get_xlim() == (200., 400.)
+        assert retained.get_ylabel() == "Custom label"
+        assert retained.get_ylim() == (0.0, 2500.0)
+        assert all(ax.get_xlim() == (100.0, 500.0) for ax in window.figure.axes)
+        assert [
+            (ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes
+        ] == window.selected_result_series()
+    original.set_xlim(200.0, 400.0)
+    assert all(ax.get_xlim() == (200.0, 400.0) for ax in window.figure.axes)
+    assert window.time_axis.axes.get_xlim() == (200.0, 400.0)
     output = BytesIO()
-    window.figure.savefig(output, format='png')
-    assert output.getvalue().startswith(b'\x89PNG')
+    window.figure.savefig(output, format="png")
+    assert output.getvalue().startswith(b"\x89PNG")
     assert original.collections[0].get_paths() is paths
     window.plot_toolbar.home()
-    assert window.figure.axes[0].get_xlim()[0] <= 0.
-    assert window.figure.axes[0].get_xlim()[1] >= 2000.
-    window._series_items['quantifications/gait/unfiltered', 'metric'].setCheckState(0, Qt.Unchecked)
-    original.set_xlim(250., 450.)
-    assert all(ax.get_xlim() == (250., 450.) for ax in window.figure.axes)
+    assert window.figure.axes[0].get_xlim()[0] <= 0.0
+    assert window.figure.axes[0].get_xlim()[1] >= 2000.0
+    window._series_items["quantifications/gait/unfiltered", "metric"].setCheckState(0, Qt.Unchecked)
+    original.set_xlim(250.0, 450.0)
+    assert all(ax.get_xlim() == (250.0, 450.0) for ax in window.figure.axes)
 
 
 def test_presence_draw_union_preserves_pixels_real_gaps_and_every_original_interval():
     figure = Figure(figsize=(8, 2), dpi=100)
     canvas = FigureCanvasAgg(figure)
     axes = figure.add_subplot()
-    starts = np.array([0., .25, 1., 1.5, 5., 5.75, 10.])
-    ends = np.array([.25, 1., 1.5, 2., 5.75, 7., 10.5])
-    plot_states(axes, starts, np.ones(len(starts)), '#168B82', ends=ends)
+    starts = np.array([0.0, 0.25, 1.0, 1.5, 5.0, 5.75, 10.0])
+    ends = np.array([0.25, 1.0, 1.5, 2.0, 5.75, 7.0, 10.5])
+    plot_states(axes, starts, np.ones(len(starts)), "#168B82", ends=ends)
     collection = axes.collections[0]
     paths = collection.get_paths()
     merged = collection._render_paths
     assert len(paths) == 7 and len(merged) == 3
-    np.testing.assert_array_equal([[p.vertices[:, 0].min(), p.vertices[:, 0].max()] for p in merged],
-                                  [[0., 2.], [5., 7.], [10., 10.5]])
+    np.testing.assert_array_equal(
+        [[p.vertices[:, 0].min(), p.vertices[:, 0].max()] for p in merged],
+        [[0.0, 2.0], [5.0, 7.0], [10.0, 10.5]],
+    )
     canvas.draw()
     union_pixels = np.asarray(canvas.buffer_rgba()).copy()
     collection._render_paths = paths
