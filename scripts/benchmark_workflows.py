@@ -101,6 +101,11 @@ def benchmark(report_path):
                 item.setCheckState(0, checked)
                 app.processEvents()
         measure('SELECT SERIES 3', lambda: series(Qt.Checked), lambda: series(Qt.Unchecked))
+        window.result_graph_view.setCurrentIndex(1)
+        app.processEvents()
+        measure('SELECT EPOCH SERIES 3', lambda: series(Qt.Checked), lambda: series(Qt.Unchecked))
+        window.result_graph_view.setCurrentIndex(0)
+        app.processEvents()
         measure('SELECT ROWS 10', lambda: [(window.result_table.setCurrentIndex(window.result_table.model().index(index * 10, 0)),
                                            app.processEvents()) for index in range(10)])
         origin = dates.date2num(pd.Timestamp(window.display_clock['origin']))

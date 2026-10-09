@@ -10,22 +10,38 @@ from matplotlib.collections import PolyCollection
 
 class ViewportPolyCollection(PolyCollection):
     """Render visible rectangles while retaining every original interval and value."""
-    def __init__(self, vertices, **kwargs):
+    def __init__(self, vertices, *, merge_presence=False, **kwargs):
         super().__init__(vertices, **kwargs)
         vertices = np.asarray(vertices)
+        self._render_paths = self._paths
+        if merge_presence and len(vertices):
+            # Uniform opaque presence rectangles can share one drawing path
+            # across touching intervals. Retain the individual original paths
+            # for inspection; union only the exact area that is already filled.
+            intervals = np.column_stack((vertices[:, :, 0].min(axis=1), vertices[:, :, 0].max(axis=1)))
+            intervals = intervals[np.argsort(intervals[:, 0], kind='stable')]
+            ends = np.maximum.accumulate(intervals[:, 1])
+            groups = np.r_[0, np.flatnonzero(intervals[1:, 0] > ends[:-1]) + 1]
+            if len(groups) < len(vertices):
+                left, right = intervals[groups, 0], np.maximum.reduceat(intervals[:, 1], groups)
+                merged = np.empty((len(groups), 4, 2))
+                merged[:, :, 0] = np.column_stack((left, left, right, right))
+                merged[:, :, 1] = vertices[0, :, 1]
+                vertices = merged
+                self._render_paths = PolyCollection(merged).get_paths()
         self._starts = vertices[:, :, 0].min(axis=1) if len(vertices) else np.array([])
         self._ends = vertices[:, :, 0].max(axis=1) if len(vertices) else np.array([])
 
     @allow_rasterization
     def draw(self, renderer):
         paths = self._paths
-        if self.axes is None or len(paths) < 512:
-            return super().draw(renderer)
-        low, high = sorted(self.axes.get_xlim())
-        visible = (self._ends >= low) & (self._starts <= high)
-        if visible.all():
-            return super().draw(renderer)
-        self._paths = [paths[index] for index in np.flatnonzero(visible)]
+        draw_paths = self._render_paths
+        if self.axes is not None and len(draw_paths) >= 512:
+            low, high = sorted(self.axes.get_xlim())
+            visible = (self._ends >= low) & (self._starts <= high)
+            if not visible.all():
+                draw_paths = [draw_paths[index] for index in np.flatnonzero(visible)]
+        self._paths = draw_paths
         try:
             return super().draw(renderer)
         finally:
@@ -185,7 +201,10 @@ def plot_states(ax, xs, ys, color, *, label=None, ends=None):
         vertices[:, :, 0] = np.column_stack((xs[valid], xs[valid], ends[valid], ends[valid]))
         vertices[:, :, 1] = [.76, 1.24, 1.24, .76]
         ax.add_collection(ViewportPolyCollection(vertices, facecolors=color, edgecolors="none",
-                                                zorder=3, label=label, rasterized=len(xs) > 2000))
+                                                zorder=3, label=label, rasterized=len(xs) > 2000,
+                                                merge_presence=True), autolim=False)
+        if valid.any():
+            ax.update_datalim([(xs[valid].min(), .76), (ends[valid].max(), 1.24)])
         points = present & ~valid
         if points.any():
             ax.scatter(xs[points], ys[points], color=color, marker="|", s=64,
@@ -223,11 +242,13 @@ def plot_bars(ax, starts, ends, values, color):
     vertices[:, :, 1] = np.column_stack((np.zeros(len(left)), heights, heights, np.zeros(len(left))))
     collection = ViewportPolyCollection(vertices, facecolors=color, edgecolors="none", alpha=.85,
                                 rasterized=len(left) > 2000, zorder=3)
-    ax.add_collection(collection)
+    # Bounds are calculated from the arrays below. Matplotlib's collection
+    # scan otherwise visits every rectangle again before the first draw.
+    ax.add_collection(collection, autolim=False)
     zero = heights == 0
     if zero.any():
         segments = np.stack((np.column_stack((left[zero], heights[zero])), np.column_stack((right[zero], heights[zero]))), axis=1)
-        ax.add_collection(LineCollection(segments, colors=color, linewidths=1, zorder=3))
+        ax.add_collection(LineCollection(segments, colors=color, linewidths=1, zorder=3), autolim=False)
     isolated = np.isfinite(starts) & np.isfinite(ends) & np.isfinite(values) & (ends == starts)
     if isolated.any():
         # No known cadence: retain the value at its timestamp without inventing

@@ -1,0 +1,342 @@
+{
+  "baseline": {
+    "version": "0.5.14",
+    "commit": "f50bed40f9fcc61bb5fc8f2aacedfc386daaaeb5",
+    "report": {
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "python": "3.12.14",
+      "qt_platform": "offscreen",
+      "versions": {
+        "paradigma": "1.1.2",
+        "PySide6": "6.11.2",
+        "matplotlib": "3.11.2",
+        "pandas": "2.3.3",
+        "numpy": "2.5.3"
+      },
+      "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; synthetic inputs and temporary history/exports only.",
+      "sensor_rows": 250000,
+      "output_rows_per_table": 30000,
+      "history_records": 200,
+      "export_bytes": {
+        "JSON": 6065028,
+        "CSV ZIP": 168997
+      },
+      "workflows": {
+        "LOAD UI": {
+          "seconds": [
+            0.051156765985069796,
+            0.0511275370081421,
+            0.05137296099564992
+          ],
+          "median_seconds": 0.051156765985069796
+        },
+        "ANALYZE OPTIONS 10": {
+          "seconds": [
+            0.008855474006850272,
+            0.007587120984680951,
+            0.006937397993169725
+          ],
+          "median_seconds": 0.007587120984680951
+        },
+        "NAVIGATE 12": {
+          "seconds": [
+            0.07971769999130629,
+            0.07548058498650789,
+            0.07612576399696991
+          ],
+          "median_seconds": 0.07612576399696991
+        },
+        "RECORDING SWITCH 12": {
+          "seconds": [
+            0.6170650769781787,
+            0.45478473501862027,
+            0.45281197197618894
+          ],
+          "median_seconds": 0.45478473501862027
+        },
+        "DATA CHANNELS 4": {
+          "seconds": [
+            0.3044490810134448,
+            0.3011000019905623,
+            0.2927618930116296
+          ],
+          "median_seconds": 0.3011000019905623
+        },
+        "RESULTS LOAD": {
+          "seconds": [
+            0.2905564270040486,
+            0.2199707579857204,
+            0.2709557749913074
+          ],
+          "median_seconds": 0.2709557749913074
+        },
+        "GRAPHS SHOW": {
+          "seconds": [
+            0.4089452459884342,
+            0.36440243799006566,
+            0.36540261600748636
+          ],
+          "median_seconds": 0.36540261600748636
+        },
+        "SELECT SERIES 3": {
+          "seconds": [
+            1.9618074940226506,
+            2.05536870501237,
+            2.068878427002346
+          ],
+          "median_seconds": 2.05536870501237
+        },
+        "SELECT EPOCH SERIES 3": {
+          "seconds": [
+            0.6754073190095369,
+            0.6734003250021487,
+            0.6692409240058623
+          ],
+          "median_seconds": 0.6734003250021487
+        },
+        "SELECT ROWS 10": {
+          "seconds": [
+            0.2244679479917977,
+            0.21048611900187097,
+            0.20749303299817257
+          ],
+          "median_seconds": 0.21048611900187097
+        },
+        "GRAPH CLICKS 10": {
+          "seconds": [
+            0.24516854298417456,
+            0.21902089301147498,
+            0.21580919600091875
+          ],
+          "median_seconds": 0.21902089301147498
+        },
+        "TABLE TIMING 4": {
+          "seconds": [
+            0.17338890698738396,
+            0.16006212998763658,
+            0.15502850999473594
+          ],
+          "median_seconds": 0.16006212998763658
+        },
+        "TABLE SWITCH 10": {
+          "seconds": [
+            0.20475476299179718,
+            0.18846582702826709,
+            0.19699130099616013
+          ],
+          "median_seconds": 0.19699130099616013
+        },
+        "EXPORT JSON": {
+          "seconds": [
+            0.2703937870101072,
+            0.26023201501811855,
+            0.26230235598632134
+          ],
+          "median_seconds": 0.26230235598632134
+        },
+        "EXPORT CSV ZIP": {
+          "seconds": [
+            0.1587642069789581,
+            0.1543010440072976,
+            0.1559567920048721
+          ],
+          "median_seconds": 0.1559567920048721
+        },
+        "HISTORY LOAD 200": {
+          "seconds": [
+            0.00598533297306858,
+            0.005303365003783256,
+            0.004469059989787638
+          ],
+          "median_seconds": 0.005303365003783256
+        },
+        "RUNS REFRESH": {
+          "seconds": [
+            0.025092050986131653,
+            0.02520466799614951,
+            0.024062573997071013
+          ],
+          "median_seconds": 0.025092050986131653
+        },
+        "RUNS SELECT 10": {
+          "seconds": [
+            0.04863035399466753,
+            0.05649130599340424,
+            0.05536805299925618
+          ],
+          "median_seconds": 0.05536805299925618
+        }
+      }
+    }
+  },
+  "updated": {
+    "version": "0.5.15",
+    "report": {
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "python": "3.12.14",
+      "qt_platform": "offscreen",
+      "versions": {
+        "paradigma": "1.1.2",
+        "PySide6": "6.11.2",
+        "matplotlib": "3.11.2",
+        "pandas": "2.3.3",
+        "numpy": "2.5.3"
+      },
+      "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; synthetic inputs and temporary history/exports only.",
+      "sensor_rows": 250000,
+      "output_rows_per_table": 30000,
+      "history_records": 200,
+      "export_bytes": {
+        "JSON": 6065028,
+        "CSV ZIP": 168997
+      },
+      "workflows": {
+        "LOAD UI": {
+          "seconds": [
+            0.05086925398791209,
+            0.05038812500424683,
+            0.04919955399236642
+          ],
+          "median_seconds": 0.05038812500424683
+        },
+        "ANALYZE OPTIONS 10": {
+          "seconds": [
+            0.011043782986234874,
+            0.0070536520215682685,
+            0.0067345440038479865
+          ],
+          "median_seconds": 0.0070536520215682685
+        },
+        "NAVIGATE 12": {
+          "seconds": [
+            0.08266303001437336,
+            0.07607576198643073,
+            0.07647114299470559
+          ],
+          "median_seconds": 0.07647114299470559
+        },
+        "RECORDING SWITCH 12": {
+          "seconds": [
+            0.505223889980698,
+            0.4620351050107274,
+            0.45783947201562114
+          ],
+          "median_seconds": 0.4620351050107274
+        },
+        "DATA CHANNELS 4": {
+          "seconds": [
+            0.32049917901167646,
+            0.28694173399708234,
+            0.2936061450163834
+          ],
+          "median_seconds": 0.2936061450163834
+        },
+        "RESULTS LOAD": {
+          "seconds": [
+            0.22044711699709296,
+            0.14267990601365454,
+            0.21003395901061594
+          ],
+          "median_seconds": 0.21003395901061594
+        },
+        "GRAPHS SHOW": {
+          "seconds": [
+            0.3863891600049101,
+            0.3467064120050054,
+            0.3507228850212414
+          ],
+          "median_seconds": 0.3507228850212414
+        },
+        "SELECT SERIES 3": {
+          "seconds": [
+            1.2092158939922228,
+            1.2229401590011548,
+            1.2204078459762968
+          ],
+          "median_seconds": 1.2204078459762968
+        },
+        "SELECT EPOCH SERIES 3": {
+          "seconds": [
+            0.5865928110142704,
+            0.680773040978238,
+            0.5865112520114053
+          ],
+          "median_seconds": 0.5865928110142704
+        },
+        "SELECT ROWS 10": {
+          "seconds": [
+            0.24725140898954123,
+            0.2228757599950768,
+            0.22052403699490242
+          ],
+          "median_seconds": 0.2228757599950768
+        },
+        "GRAPH CLICKS 10": {
+          "seconds": [
+            0.26170896299299784,
+            0.23535327898571268,
+            0.22796696299337782
+          ],
+          "median_seconds": 0.23535327898571268
+        },
+        "TABLE TIMING 4": {
+          "seconds": [
+            0.18555896801990457,
+            0.17107432600460015,
+            0.16760826599784195
+          ],
+          "median_seconds": 0.17107432600460015
+        },
+        "TABLE SWITCH 10": {
+          "seconds": [
+            0.21723106401623227,
+            0.20083939100732096,
+            0.2011653050140012
+          ],
+          "median_seconds": 0.2011653050140012
+        },
+        "EXPORT JSON": {
+          "seconds": [
+            0.2756087239831686,
+            0.26859587800572626,
+            0.2690778309770394
+          ],
+          "median_seconds": 0.2690778309770394
+        },
+        "EXPORT CSV ZIP": {
+          "seconds": [
+            0.15894926799228415,
+            0.15870602399809286,
+            0.15617312901304103
+          ],
+          "median_seconds": 0.15870602399809286
+        },
+        "HISTORY LOAD 200": {
+          "seconds": [
+            0.0061034769751131535,
+            0.005376975983381271,
+            0.004479833005461842
+          ],
+          "median_seconds": 0.005376975983381271
+        },
+        "RUNS REFRESH": {
+          "seconds": [
+            0.02675548498518765,
+            0.026494099001865834,
+            0.02560199800063856
+          ],
+          "median_seconds": 0.026494099001865834
+        },
+        "RUNS SELECT 10": {
+          "seconds": [
+            0.05174492401420139,
+            0.061403873027302325,
+            0.06117059200187214
+          ],
+          "median_seconds": 0.06117059200187214
+        }
+      }
+    }
+  },
+  "comparison": "Same benchmark script, environment and warm caches; separate sequential runs without concurrent tests or builds. Source app on Linux, not native Windows."
+}

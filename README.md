@@ -33,7 +33,9 @@ A verified signing identity must be configured before the signed workflow can pr
    module tabs with each module's classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
    Switch **View** between Detailed and 30-minute epochs (binary percentages
-   and continuous medians). Tables and exports retain the original outputs.
+   and continuous medians). Gait range of motion / peak velocity and tremor
+   power require at least 90 seconds of the corresponding presence per epoch.
+   Tables and exports retain the original outputs.
    Use **Graph settings** or the toolbar to adjust, zoom or save figures.
    **Recording & preparation** shows the recording's start/end, prepared-data
    coverage in hours and percent of the timespan, and interruptions between
@@ -96,7 +98,7 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.14**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.15**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
 
 [Performance review and measurements](docs/PERFORMANCE.md).

@@ -47,7 +47,7 @@ from .analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_
 from .time_controls import TimeField
 from .time_axis import PinnedTimeAxis, RecordingTimeFormatter
 from .availability import availability_views
-from .epochs import epoch_phase, epoch_summary, availability_epoch_summary
+from .epochs import epoch_phase, epoch_summary, availability_epoch_summary, require_epoch_presence
 from .gait_presence import gait_presence_intervals, gait_epoch_summaries
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
@@ -129,7 +129,9 @@ class MainWindow(QMainWindow):
         self._plot_tables, self._plot_labels = {}, {}
         self._result_selection_artists = []
         self._plot_signature = None
+        self._result_shared_axes = None
         self._epoch_views = {}
+        self._epoch_presence_views = {}
         self._gait_presence_cache = None
         self._gait_epoch_cache = None
         self._table_views = OrderedDict()
@@ -254,7 +256,12 @@ class MainWindow(QMainWindow):
         self.progress.hide()
         center_layout.addWidget(self.progress)
         self.status = label("Open a sensor file.", "muted")
-        center_layout.addWidget(self.status)
+        self.status_row = QWidget()
+        self.status_layout = QHBoxLayout(self.status_row)
+        self.status_layout.setContentsMargins(0, 0, 0, 0)
+        self.status_layout.setSpacing(10)
+        self.status_layout.addWidget(self.status, 1)
+        center_layout.addWidget(self.status_row)
         shell.addWidget(center, 1)
         self.sidebar.raise_()
 
@@ -358,7 +365,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.data_tabs, 1)
         self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
         self.continue_button.setEnabled(False)
-        layout.addWidget(self.continue_button, alignment=Qt.AlignRight)
+        self.status_layout.addWidget(self.continue_button)
 
     def _build_analyze(self):
         layout = self.page()
@@ -388,6 +395,8 @@ class MainWindow(QMainWindow):
         controls.setSpacing(16)
         controls.setAlignment(Qt.AlignTop)
         self.analysis_help = {}
+        self.analysis_help_sections = {}
+        self._updating_analysis_help = False
         modules = QHBoxLayout()
         module_heading = self.analysis_field("Analysis modules", label("Analysis modules", "sectionTitle"), inline=True)
         modules.addWidget(module_heading)
@@ -407,6 +416,9 @@ class MainWindow(QMainWindow):
         parameter_card.setContentsMargins(18, 16, 18, 16)
         parameter_card.setSpacing(14)
         parameter_card.setAlignment(Qt.AlignTop)
+        # Reserve the form's actual minimum before help changes the outer
+        # layout. Otherwise Qt briefly clips the bottom rows while settling.
+        parameter_card.setSizeConstraint(QLayout.SetMinimumSize)
         self.analysis_parameter_fields = WrappedForm()
         self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         parameters = QVBoxLayout(self.analysis_parameter_fields)
@@ -509,7 +521,7 @@ class MainWindow(QMainWindow):
             section_layout.addWidget(label(title, "sectionTitle"))
             section_layout.addWidget(description)
             section.hide()
-            info.toggled.connect(section.setVisible)
+            self.analysis_help_sections[title] = section
             info.toggled.connect(lambda checked, title=title: self.toggle_analysis_help(title, checked))
             help_layout.addWidget(section)
         self.analysis_help_panel.hide()
@@ -517,16 +529,18 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.analysis_help_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
-        row = QHBoxLayout()
-        row.addStretch()
         self.run_button = button("Run Analysis", self.run_analysis, primary=True)
         self.run_button.setShortcut("Ctrl+Return")
         self.run_button.setEnabled(False)
         self.run_button.setMinimumWidth(170)
         self.stop_button = button("Stop Analysis", self.stop_analysis)
         self.stop_button.setEnabled(False)
-        row.addWidget(self.stop_button)
-        row.addWidget(self.run_button)
+        self.status_layout.addWidget(self.stop_button)
+        self.status_layout.addWidget(self.run_button)
+        # Keep the footer height stable when navigation hides its actions.
+        # Otherwise Results can resize/repaint after its first row selection.
+        self.status_row.setMinimumHeight(max(control.sizeHint().height() for control in
+                                            (self.continue_button, self.stop_button, self.run_button)))
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         bar = scroll.verticalScrollBar()
         bar.rangeChanged.connect(lambda low, high: bar.setStyleSheet(
@@ -534,14 +548,31 @@ class MainWindow(QMainWindow):
         bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
-        layout.addLayout(row)
 
     def toggle_analysis_help(self, title, checked):
-        if checked:
-            for other_title, (info, _) in self.analysis_help.items():
-                if other_title != title:
-                    info.setChecked(False)
-        self.analysis_help_panel.setVisible(any(info.isChecked() for info, _ in self.analysis_help.values()))
+        if self._updating_analysis_help:
+            return
+        self._updating_analysis_help = True
+        body = self.analysis_scroll.widget()
+        updates = body.updatesEnabled()
+        body.setUpdatesEnabled(False)
+        try:
+            if checked:
+                for other_title, (info, _) in self.analysis_help.items():
+                    if other_title != title:
+                        info.setChecked(False)
+            for name, (info, description) in self.analysis_help.items():
+                description.setVisible(info.isChecked())
+                self.analysis_help_sections[name].setVisible(info.isChecked())
+            self.analysis_help_panel.setVisible(any(info.isChecked() for info, _ in self.analysis_help.values()))
+            # Settle the new help height as one change before repainting. On
+            # Windows, showing two explanations then hiding the old one could
+            # expose intermediate card positions in the backing store.
+            for widget in (self.analysis_help_panel, self.analysis_controls, body):
+                widget.layout().activate()
+        finally:
+            body.setUpdatesEnabled(updates)
+            self._updating_analysis_help = False
 
     def analysis_field(self, title, control, *, form=None, inline=False):
         """Accessible help toggles; explanations are kept outside the form rows."""
@@ -569,7 +600,6 @@ class MainWindow(QMainWindow):
         description.setAccessibleName(f"Help: {title}")
         description.setObjectName("fieldHelp")
         description.hide()
-        info.toggled.connect(description.setVisible)
         self.analysis_help[title] = (info, description)
         control.setAccessibleName(title)
         heading = QWidget()
@@ -695,6 +725,7 @@ class MainWindow(QMainWindow):
         self.result_graph_view.setToolTip(
             "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
             "Gait and filtered gait percentages use the same jointly observed time; filtered positives are a subset of gait.\n"
+            "Gait range of motion / peak velocity and tremor power require at least 90 seconds of presence per epoch.\n"
             "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
             "Bins use calendar half-hours when dates are known; first/last epochs may be partial.")
         view_row.addWidget(self.result_graph_view)
@@ -912,6 +943,9 @@ class MainWindow(QMainWindow):
 
     def navigate(self, index):
         self.pages.setCurrentIndex(index)
+        self.continue_button.setVisible(index == 0)
+        self.stop_button.setVisible(index == 1)
+        self.run_button.setVisible(index == 1)
         self.page_title.setText(self.SECTIONS[index])
         for i, item in enumerate(self.nav_buttons):
             item.setChecked(i == index)
@@ -1073,6 +1107,7 @@ class MainWindow(QMainWindow):
     def clear_results(self):
         self._plot_signature = None
         self._epoch_views.clear()
+        self._epoch_presence_views.clear()
         self._gait_presence_cache = self._gait_epoch_cache = None
         self._table_views.clear()
         self.result_overlay.invalidate()
@@ -1771,6 +1806,7 @@ class MainWindow(QMainWindow):
     def analyzed(self, results):
         self._plot_signature = None
         self._epoch_views.clear()
+        self._epoch_presence_views.clear()
         self._gait_presence_cache = self._gait_epoch_cache = None
         self._table_views.clear()
         self._table_output_names = None
@@ -2026,8 +2062,47 @@ class MainWindow(QMainWindow):
             else:
                 values = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
                 frame = epoch_summary(times, values, binary=binary, phase=phase)
+                if (name.startswith('quantifications/gait/') and
+                        any(part in str(metric) for part in ('range_of_motion', 'peak_velocity')) or
+                        name.startswith('quantifications/tremor') and 'tremor_power' in str(metric)):
+                    frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
             self._epoch_views[key] = frame
         return self._epoch_views[key]
+
+    def epoch_metric_presence(self, name):
+        if name not in self._epoch_presence_views:
+            pairs = np.empty((0, 2))
+            if name.startswith('quantifications/gait/'):
+                filtered = name.endswith('/filtered')
+                stage = 'classifications/gait/' + ('arm_activity' if filtered else 'detection')
+                indicator = 'pred_no_other_arm_activity_window' if filtered else 'pred_gait_window'
+                if stage in self._plot_tables and indicator in self._plot_tables[stage]:
+                    if filtered:
+                        pairs = self.gait_plot_presence()['filtered']
+                    else:
+                        # Unfiltered gait does not require an arm-filter label.
+                        source = self._plot_tables[stage]
+                        positive = source.pred_gait_window.eq(1).fillna(False).to_numpy(dtype=bool)
+                        pairs = np.column_stack((self._timings[stage]['Timeline time (s)'].to_numpy()[positive],
+                                                 self._interval_ends[stage][positive]))
+                elif 'gait_segment_nr' in self._plot_tables[name]:
+                    # Older saved runs may only contain quantified segments.
+                    # Their known full bounds, not swing counts, establish time.
+                    timing = self._timings[name]
+                    offset = timing['Timeline time (s)'] - timing['Analysis time (s)']
+                    pairs = np.column_stack((timing['Segment start (s)'] + offset,
+                                             timing['Segment end (s)'] + offset))
+            else:
+                for candidate in ('classifications/tremor', name):
+                    source = self._plot_tables.get(candidate)
+                    if source is not None and 'pred_tremor_checked' in source:
+                        positive = source.pred_tremor_checked.eq(1).fillna(False).to_numpy(dtype=bool)
+                        pairs = np.column_stack((self._timings[candidate]['Timeline time (s)'].to_numpy()[positive],
+                                                 self._interval_ends[candidate][positive]))
+                        break
+            self._epoch_presence_views[name] = availability_epoch_summary(
+                pairs[:, 0], pairs[:, 1], phase=epoch_phase(self.display_clock))
+        return self._epoch_presence_views[name]
 
     def plot(self, *_):
         chosen = self.selected_result_series()
@@ -2041,10 +2116,9 @@ class MainWindow(QMainWindow):
         coverage_only = (self._plot_signature is not None and bool(changed)
                          and epochs == previous_mode and bool(set(chosen).intersection(previous_chosen))
                          and all(name.startswith("preparation/") for name, metric in changed))
-        mode_changed = self._plot_signature is not None and epochs != previous_mode
         viewport = None
         previous_y = {}
-        if (coverage_only or mode_changed) and self.figure.axes:
+        if self._plot_signature is not None and self.figure.axes:
             source = self.figure.axes[0]
             if coverage_only or not source.get_autoscalex_on():
                 viewport = source.get_xlim(), source.get_autoscalex_on()
@@ -2054,8 +2128,27 @@ class MainWindow(QMainWindow):
                               for ax in self.figure.axes if hasattr(ax, "_paradigma_dataset")}
         self._plot_signature = signature
         self.result_overlay.invalidate()
-        self.figure.clear()
+        for artist in self._result_selection_artists:
+            artist.remove()
         self._result_selection_artists = []
+        existing = {(ax._paradigma_dataset, ax._paradigma_metric): ax
+                    for ax in self.figure.axes if hasattr(ax, '_paradigma_dataset')}
+        # Keep already plotted arrays, paths and axes settings when adding a
+        # series. A changed result or view still needs fresh scientific data.
+        shared = self._result_shared_axes
+        reuse = (previous_mode == epochs and shared in self.figure.axes and shared is not None and
+                 (getattr(shared, '_paradigma_dataset', None),
+                  getattr(shared, '_paradigma_metric', None)) in chosen)
+        if reuse:
+            # Remove/re-add in tree order using the public Figure API. Rejoin
+            # the existing X master after delaxes disconnects sharing groups.
+            for ax in tuple(self.figure.axes):
+                self.figure.delaxes(ax)
+            existing = {key: ax for key, ax in existing.items() if key in chosen}
+        else:
+            self.figure.clear()
+            existing = {}
+            shared = None
         actual_binaries = [(name.startswith('classifications/gait/') and metric in
                             ('pred_gait_window', 'pred_no_other_arm_activity_window')) or
                            binary_indicator(self._plot_tables[name][metric], metric) for name, metric in chosen]
@@ -2071,9 +2164,18 @@ class MainWindow(QMainWindow):
         first_axes = None
         grid = self.figure.add_gridspec(len(chosen), 1, height_ratios=[.34 if binary else 1 for binary in binaries]) if chosen else None
         for index, (name, metric) in enumerate(chosen):
-            ax = style_axes(self.figure, position=(grid[index],), sharex=first_axes)
+            ax = existing.get((name, metric))
+            if ax is not None:
+                ax.set_subplotspec(grid[index])
+                self.figure.add_axes(ax)
+                if ax is not shared:
+                    ax.sharex(shared)
+            else:
+                ax = style_axes(self.figure, position=(grid[index],), sharex=shared or first_axes)
             if first_axes is None:
                 first_axes = ax
+            if (name, metric) in existing:
+                continue
             ax._paradigma_dataset = name
             ax._paradigma_metric = metric
             selected, positions = self._detail_selections.get(name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int)))
@@ -2091,7 +2193,12 @@ class MainWindow(QMainWindow):
                     plot_bars(ax, clock_times(summary.start_s, self.display_clock),
                               clock_times(summary.end_s, self.display_clock), summary.value, color)
                 if not len(summary) or not np.isfinite(summary.value).any():
-                    ax.text(.5, .5, "No valid outputs", ha="center", transform=ax.transAxes, color="#68778c")
+                    if 'presence_s' in summary:
+                        subject = ('filtered gait' if name.endswith('/filtered') else 'gait') if '/gait/' in name else 'tremor'
+                        message = f"No epochs with ≥90 s of {subject} presence and valid outcomes"
+                    else:
+                        message = "No valid outputs"
+                    ax.text(.5, .5, message, ha="center", transform=ax.transAxes, color="#68778c", fontsize=9)
                 if percentage:
                     ax.set_ylim(0, 100)
             elif len(selected) and np.isfinite(times).any():
@@ -2136,6 +2243,12 @@ class MainWindow(QMainWindow):
             ax.tick_params(axis="x", labelbottom=False)
             ax.xaxis.label.set_visible(False)
             ax.xaxis.offsetText.set_visible(False)
+        # Recompute the shared full extent even if the retained master was
+        # zoomed. The current zoom is restored below, while Home sees all data.
+        self._result_shared_axes = shared or first_axes
+        if first_axes is not None:
+            first_axes.set_autoscalex_on(True)
+            first_axes.autoscale_view(scaley=False)
         # Shared X limits settle only after every series has been added.
         # Fit each automatic Y range against that final shared view.
         for ax in self.figure.axes:

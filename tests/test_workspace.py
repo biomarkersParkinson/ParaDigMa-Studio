@@ -119,8 +119,29 @@ def test_run_button_remains_visible_in_compact_analysis_workspace(window):
     window.show()
     app.processEvents()
     assert window.run_button.isVisible()
-    assert window.run_button.parentWidget() is window.pages.widget(1)
-    assert window.run_button.geometry().bottom() <= window.pages.widget(1).height()
+    assert window.run_button.parentWidget() is window.status_row
+    assert not window.pages.widget(1).isAncestorOf(window.run_button)
+    assert window.run_button.geometry().bottom() < window.status_row.height()
+    assert window.run_button.mapTo(window, window.run_button.rect().center()).y() == window.status.mapTo(window, window.status.rect().center()).y()
+
+
+def test_page_actions_share_the_status_row_and_navigation_only_shows_relevant_actions(window):
+    window.resize(1050, 720)
+    window.show()
+    heights = []
+    for index, expected in [(0, [window.continue_button]), (1, [window.stop_button, window.run_button]), (2, []), (3, [])]:
+        window.navigate(index)
+        QApplication.instance().processEvents()
+        heights.append(window.status_row.height())
+        visible = [control for control in (window.continue_button, window.stop_button, window.run_button) if control.isVisible()]
+        assert visible == expected
+        for control in expected:
+            assert control.parentWidget() is window.status_row
+            assert control.mapTo(window, control.rect().center()).y() == window.status.mapTo(window, window.status.rect().center()).y()
+            assert control.visibleRegion().boundingRect().contains(control.rect())
+        bottom = window.pages.mapTo(window, QPoint(0, window.pages.height())).y()
+        assert window.status_row.mapTo(window, QPoint(0, 0)).y() >= bottom
+    assert len(set(heights)) == 1
 
 
 @pytest.mark.parametrize("control_minimum_height, larger_surrounding_controls", [(0, False), (40, False), (44, False), (44, True)])

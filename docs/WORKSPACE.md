@@ -40,7 +40,7 @@ These multi-file examples split the bundled recorded IMU fixture into two files,
 using its documented UTC start. Real recording clocks share one date/time axis;
 files without comparable clocks use an explicitly labeled file-order timeline.
 
-Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel with comfortable spacing and uniform circular **i** buttons for inline documented guidance. Parameters fit together at normal window sizes; smaller windows and expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. Run Analysis and Stop Analysis remain below the settings while the page scrolls. Opening module help leaves the module buttons stationary. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
+Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel with comfortable spacing and uniform circular **i** buttons for inline documented guidance. Parameters fit together at normal window sizes; smaller windows and expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. Run Analysis and Stop Analysis share the fixed status row below the settings; Configure analysis uses the same row on Data. Opening or replacing help leaves the fields stationary and does not briefly clip the lower rows. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
 
 Gap splitting, maximum gap and minimum section duration are grouped together. Splitting defaults to off; both thresholds default to 1.5 seconds, matching the official package, and each has a **Default** button. **Already prepared** is the last field.
 
@@ -82,8 +82,14 @@ the median of finite observations. Gait and filtered-gait predictions instead
 use a shared observed-time denominator: filtered positives are intersected with
 detected gait, so their percentage cannot exceed gait presence. Gait-positive
 time without filtering predictions is excluded from both denominators.
-Missing outputs leave gaps rather than
-becoming zero. Prepared-input availability shows unioned covered time as a
+Gait range of motion and peak velocity medians require at least 90 seconds of
+the corresponding unfiltered or filtered gait presence in that epoch. Tremor
+power medians require at least 90 seconds of checked tremor presence. The same
+threshold applies to partial epochs; overlapping intervals are counted once.
+Presence uses aligned prediction intervals, with known gait-segment bounds as
+a fallback for saved results without classifications. Unknown presence leaves
+the median blank. This rule affects the 30-minute graphs only.
+Missing outputs leave gaps rather than becoming zero. Prepared-input availability shows unioned covered time as a
 percentage of the recording span within each epoch, including partial edge
 epochs. Clicking an epoch bar selects a nearby original output row within it;
 tables, exports and pipeline calculations remain unchanged.

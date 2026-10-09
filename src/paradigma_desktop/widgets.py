@@ -22,13 +22,19 @@ class WrappedForm(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
     def _fit_height(self):
+        height = self.heightForWidth(self.width())
+        if height >= 0 and (self.minimumHeight() != height or self.maximumHeight() != height):
+            self.setFixedHeight(height)
+
+    def heightForWidth(self, width):
+        # Report the same height to parent layouts that we reserve locally.
+        # Qt's default can report less than nested fixed-height forms need,
+        # briefly placing help over the final rows during a layout pass.
         layout = self.layout()
         if layout is None:
-            return
-        height = layout.totalHeightForWidth(self.width()) if layout.hasHeightForWidth() else layout.sizeHint().height()
-        height = max(height, layout.minimumSize().height())
-        if self.minimumHeight() != height or self.maximumHeight() != height:
-            self.setFixedHeight(height)
+            return -1
+        height = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else layout.sizeHint().height()
+        return max(height, layout.minimumSize().height())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -6,6 +6,7 @@ from .results_view import clock_origin
 
 
 EPOCH_SECONDS = 1800.
+MIN_PRESENCE_SECONDS = EPOCH_SECONDS * .05
 
 
 def epoch_phase(clock):
@@ -85,3 +86,17 @@ def availability_epoch_summary(starts, ends, *, phase=0., bounds=None):
     return pd.DataFrame({'start_s': epoch_starts, 'end_s': epoch_ends,
                          'value': np.clip(100 * covered / observed, 0, 100),
                          'covered_s': covered, 'observed_s': observed})
+
+
+def require_epoch_presence(summary, presence):
+    """Hide display medians with under 90 s of presence in their half hour.
+
+    Duration comes from unioned presence intervals, not counts of overlapping
+    windows or the number of swing estimates. Edge epochs use the same 90 s.
+    Missing presence is insufficient evidence, rather than inferred presence.
+    """
+    result = summary.copy()
+    seconds = presence.set_index('start_s').covered_s.reindex(result.start_s, fill_value=0.).to_numpy()
+    result['presence_s'] = seconds
+    result.loc[seconds < MIN_PRESENCE_SECONDS - 1e-9, 'value'] = np.nan
+    return result

@@ -1,10 +1,65 @@
 """Opening help must not reflow the Analyze labels, options or action buttons."""
 import pytest
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, QObject, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 from PySide6.QtTest import QTest
 
 from paradigma_desktop.app import MainWindow
+
+
+@pytest.mark.parametrize('size', [(1200, 900), (960, 650)])
+def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path, size):
+    from paradigma_desktop.theme import STYLESHEET
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(tmp_path)
+    window.setStyleSheet(STYLESHEET)
+    window.navigate(1)
+    window.resize(*size)
+    window.show()
+    QTest.qWait(40)
+    baseline = window.settings_panel.height()
+    events = []
+
+    class LayoutWatch(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() in (QEvent.Resize, QEvent.Paint):
+                if obj is window.settings_panel:
+                    events.append(('card', window.settings_panel.height() >= baseline))
+                if event.type() == QEvent.Paint and (obj is window.analysis_help_panel or
+                        obj in [description for _, description in window.analysis_help.values()]):
+                    events.append(('help', window.analysis_help_panel.y() >= window.settings_panel.y() + window.settings_panel.height()))
+                if obj is window.mapping and event.type() == QEvent.Paint:
+                    child = window.mapping
+                    while child is not window.settings_panel:
+                        parent = child.parentWidget()
+                        events.append(('mapping', 0 <= child.y() and child.y() + child.height() <= parent.height()))
+                        child = parent
+            return False
+
+    watcher = LayoutWatch(window)
+    for widget in (window.settings_panel, window.analysis_help_panel, window.mapping,
+                   *[description for _, description in window.analysis_help.values()]):
+        widget.installEventFilter(watcher)
+    try:
+        for name in ('Watch side', 'Device axes', 'Maximum gap', 'Time origin', 'Analysis modules'):
+            window.analysis_help[name][0].click()
+            QTest.qWait(20)
+            assert window.analysis_scroll.widget().updatesEnabled()
+        window.analysis_help['Analysis modules'][0].click()
+        QTest.qWait(20)
+        # Help is below the viewport in a smaller window. Scroll it into view
+        # so the test checks an actual paint there too, rather than expecting
+        # Qt to paint an offscreen widget.
+        window.analysis_help['Device axes'][0].click()
+        QTest.qWait(20)
+        window.analysis_scroll.ensureWidgetVisible(window.analysis_help_panel)
+        QTest.qWait(20)
+        assert events and all(valid for _, valid in events), events
+        assert {'card', 'mapping', 'help'}.issubset({kind for kind, _ in events})
+    finally:
+        window.close()
+        app.processEvents()
 
 
 def layout_bounds(window, control):

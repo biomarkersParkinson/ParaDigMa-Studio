@@ -279,3 +279,49 @@ Regression checks confirm identical outcome values and bar timestamps across
 repeated toggles, with both absolute and elapsed time. The source suite passed
 282 tests, including 31 scientific-equivalence cases; one Windows-only check was
 skipped locally.
+
+## Plot-series selection (0.5.15)
+
+Adding a result series previously rebuilt every selected axis and its full set
+of data rectangles. Existing plots now retain their axes, original paths and
+settings when another series is added. Module order and the shared time axis
+remain consistent; current zoom is retained and Home still exposes the full
+extent. New results, a changed time view or removal of the shared master rebuild
+the plots as needed. Collection bounds are calculated from the source arrays,
+avoiding Matplotlib's duplicate scan of every rectangle.
+
+Opaque presence tracks draw touching/overlapping positive intervals as their
+exact union. This improves long resting/gait tracks without filling missing or
+negative intervals. Every original interval remains available for inspection.
+Regression checks compare the union rendering with the original rendering pixel
+for pixel, retain the complete path arrays, and verify raster/vector exports.
+Continuous bars retain every original value and interval; no downsampling was
+introduced. Very large full-range plots still require rendering those bars.
+
+The same workflow benchmark compares 0.5.14 (`f50bed4`) with 0.5.15 on Linux,
+Qt offscreen/Fusion at 1450 × 920, pinned dependencies and warm caches. Each
+value is the median of three repetitions including queued Qt painting, with
+30,000 rows per output table. Baseline and updated runs were sequential, without
+concurrent tests/builds. These are **not native Windows timings**.
+
+| Workflow | 0.5.14 | 0.5.15 | Less time |
+| --- | ---: | ---: | ---: |
+| Add 3 series, Detailed | 2.055 s | 1.220 s | 41% |
+| Add 3 series, 30-minute epochs | 0.673 s | 0.587 s | 13% |
+
+[Raw samples and environment details](performance-review-0.5.15.json) include the
+other workflows; small changes there reflect ordinary measurement variation.
+The Windows build workflow records both graph-view measurements as well.
+
+Analysis actions now share a stable-height footer with status text. Help changes
+reserve the parameter card's real minimum and update explanations in one paint
+batch, preserving spacing and avoiding transient clipping of lower fields.
+The 90-second presence rule affects the half-hour metric graphs only; official
+pipeline calculations, raw tables, aggregate outputs and data exports retain
+their original values.
+
+The updated source suite passed **359 tests**, including the official-toolbox
+scientific-equivalence checks; one Windows-only signature check was skipped
+locally. The rebuilt portable app passed its runtime smoke checks with the
+bundled CWA, Empatica and Physilog examples. Native Windows validation remains
+part of the GitHub Actions build.

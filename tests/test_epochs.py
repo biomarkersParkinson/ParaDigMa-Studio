@@ -99,8 +99,10 @@ def select_all(window):
 
 def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_outputs(window):
     times = [10., 20., 1790., 1800., 1810., 4000.]
-    output = {'classifications': {'tremor': pd.DataFrame({'time': times,
-                    'pred_tremor_checked': [0, 1, 1, 0, 0, 1], 'pred_tremor_proba': [.1, .7, .9, .2, .4, .8]})},
+    classification_times = np.r_[np.arange(0., 1800., 4.), 1800., 1810., 4000.]
+    predictions = ((classification_times >= 100) & (classification_times < 200)) | (classification_times == 4000)
+    output = {'classifications': {'tremor': pd.DataFrame({'time': classification_times,
+                    'pred_tremor_checked': predictions.astype(int), 'pred_tremor_proba': predictions.astype(float)})},
               'quantifications': {'tremor': pd.DataFrame({'time': times, 'tremor_power': [1, 100, 5, 2, 8, 20]}),
                                   'pulse_rate': pd.DataFrame({'time': [0., 1800., 4000.], 'pulse_rate': [60., 80., 70.]})},
               'metadata': {'desktop_availability': {'tremor': {'df_1': {'intervals': [[0., 1800.], [3600., 4200.]]}}}}}
@@ -118,9 +120,9 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
         assert ax._left_title.get_bbox_patch() is not None
     assert len({ax.get_xlim() for ax in axes.values()}) == 1
     power = axes['quantifications/tremor', 'tremor_power']
-    np.testing.assert_array_equal(power._paradigma_epoch_data.value, [5, 5, 20])
+    np.testing.assert_array_equal(power._paradigma_epoch_data.value, [5, np.nan, np.nan])
     np.testing.assert_allclose(axes['classifications/tremor', 'pred_tremor_checked']._paradigma_epoch_data.value,
-                               [200 / 3, 0, 100])
+                               [25 / 450 * 100, 0, 100])
     assert ('classifications/tremor', 'pred_tremor_proba') not in axes
     assert ('classifications/tremor', 'pred_tremor_proba') not in window._series_items
     np.testing.assert_array_equal(axes['quantifications/pulse_rate', 'pulse_rate']._paradigma_epoch_data.value, [60, 80, 70])
@@ -167,4 +169,5 @@ def test_view_switch_preserves_manual_time_zoom_and_estimated_gait_bins_and_rese
     np.testing.assert_array_equal(window.figure.axes[0]._paradigma_bar_data[2], [10, 30, 50, 90])
     window.result_graph_view.setCurrentIndex(1)
     window.analyzed({'quantifications': {'gait': {'unfiltered': pd.DataFrame({'time': [0., 1.], 'range_of_motion': [2., 4.]})}}})
-    np.testing.assert_array_equal(window.figure.axes[0]._paradigma_epoch_data.value, [3])
+    # Timestamped values alone cannot establish 90 seconds of gait presence.
+    np.testing.assert_array_equal(window.figure.axes[0]._paradigma_epoch_data.value, [np.nan])

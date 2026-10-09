@@ -66,7 +66,7 @@ def test_stop_button_cancels_run_without_error_and_controls_recover(monkeypatch,
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0., 1.]})))
     window.run_analysis()
     assert window.stop_button.isEnabled() and not window.run_button.isEnabled()
-    assert window.pages.widget(1).isAncestorOf(window.stop_button)
+    assert window.stop_button.parentWidget() is window.status_row
     assert not window.delete_run_button.isEnabled()
     window.stop_button.click()
     wait_for(lambda: window.worker is None)
