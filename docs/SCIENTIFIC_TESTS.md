@@ -152,6 +152,10 @@ The committed fixtures make the suite
 self-contained: no upstream checkout, network download, extra pytest plugin or
 patient recording is required.
 
+The [test suite guide](TEST_SUITE.md) describes the feature-based organization
+and shared UI helpers. All 31 scientific cases, their independent references and
+numerical tolerances are retained through the test cleanup.
+
 These are comparisons with a live independent reference workflow, not frozen
 golden outputs. They detect wrapper differences from the installed official
 version, but cannot detect a change that affects both paths identically.

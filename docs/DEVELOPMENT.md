@@ -82,7 +82,9 @@ runs real pipelines, renders graphs and reopens exported results.
 Public fixture provenance and licenses are under `src/paradigma_desktop/data/`
 and `tests/data/paradigma/`. No patient data or external fixture download is needed.
 
-See the [repository map](REPOSITORY.md) for folder and module responsibilities.
+See the [repository map](REPOSITORY.md) for folder and module responsibilities
+and the [test suite guide](TEST_SUITE.md) for coverage, shared fixtures and
+regression-test maintenance.
 
 Read the [performance review](PERFORMANCE.md) before changing import timing or
 bundle exclusions. Runtime optimization must preserve native libraries, model

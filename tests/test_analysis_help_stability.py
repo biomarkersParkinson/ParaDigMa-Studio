@@ -339,6 +339,7 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
         ]
 
     baseline = positions()
+    assert window.analysis_controls.layout().spacing() == 16
     # Wrapped native fields still fit completely inside their form, including
     # the final rows; scrolling cannot reveal a clipped child of the form.
     for widget in fields:
@@ -354,11 +355,20 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
         layout_bounds(window, window.mapping)
     )
     actions = [window.run_button.pos(), window.stop_button.pos()]
+
+    def module_bounds():
+        return [
+            (button.mapTo(window, QPoint(0, 0)), button.size())
+            for button in window.module_buttons.values()
+        ]
+
+    modules = module_bounds()
     try:
         for title, (info, description) in window.analysis_help.items():
             info.click()
             QTest.qWait(20)
             assert positions() == baseline, title
+            assert module_bounds() == modules, title
             assert [window.run_button.pos(), window.stop_button.pos()] == actions
             assert description.isVisible()
             assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1

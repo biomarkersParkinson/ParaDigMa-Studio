@@ -243,7 +243,7 @@ def test_analyze_origin_calendar_remains_readable_at_windows_control_widths(
     assert not window.result_tabs.isAncestorOf(field)
 
 
-def test_results_tabs_stay_anchored_across_views_filters_and_scrolling(window):
+def test_results_tabs_stay_anchored_across_views_and_scrolling(window):
     window.analyzed(
         {"quantifications": {"tremor": pd.DataFrame({"time": [0.0, 1.0], "power": [2.0, 3.0]})}}
     )
@@ -536,7 +536,7 @@ def test_binary_display_fills_positive_intervals_without_shading_missing_or_zero
     assert axes.get_ylim() == pytest.approx((0.65, 1.35))
 
 
-def test_binary_intervals_respect_gaps_recordings_filters_and_clicks_inside_bars(window):
+def test_binary_intervals_respect_recording_gaps_and_clicks_inside_bars(window):
     frame = pd.DataFrame(
         {
             "time": [0.0, 4.0, 8.0, 100.0, 104.0, 108.0],
@@ -663,7 +663,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
     assert not any(
         line.get_gid() == "selected-result-point" for ax in window.figure.axes for line in ax.lines
     )
-    window.apply_filters()
+    window.activate_dataset_rows()
     assert not window._result_selection_artists
     assert not window.time_axis.selection_marker.get_visible()
     assert not window.context_button.isEnabled()

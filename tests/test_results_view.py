@@ -394,7 +394,7 @@ def test_aggregate_tables_preserve_large_integer_precision_empty_branches_and_ke
     assert tables["aggregations/gait/filtered"].empty
 
 
-def test_multiple_modules_share_absolute_time_axes_filters_tables_and_csv(
+def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_csv(
     window, results, tmp_path, monkeypatch
 ):
     window.timing_toggle.setChecked(True)
@@ -454,7 +454,9 @@ def test_classifications_can_plot_alongside_quantifications_and_click_selects_co
     assert window.context_button.isEnabled()
 
 
-def test_gait_estimates_are_stable_under_filtering_and_unknown_intervals_are_not_invented(results):
+def test_gait_estimates_remain_stable_for_row_subsets_and_unknown_intervals_are_not_invented(
+    results,
+):
     frame = results["quantifications"]["gait"]["unfiltered"]
     original = frame.copy()
     timing = detail_timing(results, "quantifications/gait/unfiltered", frame)

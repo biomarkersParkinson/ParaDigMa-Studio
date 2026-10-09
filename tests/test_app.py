@@ -1,4 +1,4 @@
-from conftest import bar_values, bar_starts
+from conftest import select_plot_metric, bar_values, bar_starts
 import os
 import time
 from importlib.resources import files
@@ -79,7 +79,7 @@ def test_time_plot_handles_numeric_metric_names_without_using_row_numbers_as_tim
         index=["a", "b", "c"],
     )
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
-    window.y_column.setCurrentIndex(window.y_column.findData(0))
+    select_plot_metric(window, "quantifications/test", 0)
     assert list(bar_starts(window.figure.axes[0])) == [10.0, 20.0, 30.0]
     assert list(bar_values(window.figure.axes[0])) == [1.0, 2.0, 3.0]
     pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)

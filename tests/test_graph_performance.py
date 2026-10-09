@@ -264,3 +264,60 @@ def test_presence_draw_union_preserves_pixels_real_gaps_and_every_original_inter
     canvas.draw()
     np.testing.assert_array_equal(canvas.buffer_rgba(), union_pixels)
     assert collection.get_paths() is paths
+
+
+def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch):
+    frame = pd.DataFrame({"time": np.arange(1000.0), "metric": np.arange(1000.0) / 10})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    app = QApplication.instance()
+    app.processEvents()
+    window.canvas.draw()
+    draws = []
+    original = PolyCollection.draw
+
+    def record(collection, renderer):
+        draws.append(collection)
+        return original(collection, renderer)
+
+    monkeypatch.setattr(PolyCollection, "draw", record)
+    for row in (10, 30, 50):
+        window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
+        app.processEvents()
+    assert not draws
+    assert window._result_selection_artists
+    optimized = np.asarray(window.canvas.buffer_rgba()).copy()
+    window.canvas.draw()
+    np.testing.assert_array_equal(np.asarray(window.canvas.buffer_rgba()), optimized)
+    draws.clear()
+    window.figure.axes[0].set_xlim(5, 20)
+    window.highlight_result_row()
+    app.processEvents()
+    assert draws
+    stream = BytesIO()
+    window.figure.savefig(stream, format="png")
+    assert stream.getvalue().startswith(b"\x89PNG")
+    assert window._result_selection_artists  # Export does not discard selection.
+
+
+def test_discarded_results_release_render_and_sensor_context_views(window):
+    from conftest import wait_for_previews
+
+    frame = pd.DataFrame({"time": np.arange(800.0) / 100.0, "gyroscope_x": np.ones(800)})
+    window.loaded(("sensor.csv", frame))
+    wait_for_previews(window)
+    window.provenance = {"settings": {"skip_preparation": True}}
+    output = pd.DataFrame({"time": [0.0, 4.0], "tremor_power": [1.0, 2.0]})
+    window.analyzed({"quantifications": {"tremor": output}})
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    window.inspect_sensor_context()
+    assert window.sensor_frame is not None
+    assert window._bar_bounds and window._result_shared_axes is not None
+    window.clear_results()
+    assert window.sensor_frame is None and window.display_frame is None
+    assert window.sensor_table.model() is None
+    assert not window.sensor_figure.axes and not window.figure.axes
+    assert not window._bar_bounds and not window._result_selection_artists
+    assert window._result_shared_axes is None
+    # Clearing outputs preserves the loaded source for subsequent analyses.
+    assert window.frame is frame

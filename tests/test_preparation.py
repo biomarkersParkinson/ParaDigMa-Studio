@@ -1,6 +1,4 @@
-"""Reproductions of failures found during the additional bug review."""
-
-import json
+"""Preparation, validation, missing data and independent recording sections."""
 
 import numpy as np
 import pandas as pd
@@ -9,25 +7,9 @@ import pytest
 from paradigma_desktop import core
 
 
-@pytest.fixture
-def recording():
-    time = np.arange(12000) / 100
-    random = np.random.default_rng(42)
-    return pd.DataFrame(
-        {
-            "time": time,
-            **{
-                f"gyroscope_{axis}": 0.1 * np.sin(2 * np.pi * 5 * time)
-                + random.normal(0, 0.02, len(time))
-                for axis in "xyz"
-            },
-        }
-    )
-
-
 @pytest.mark.parametrize("prepared", [False, True])
-def test_mapped_numeric_text_runs_real_tremor(recording, prepared):
-    source = recording.rename(columns={"time": "timestamp", "gyroscope_x": "gyr_x"}).astype(str)
+def test_mapped_numeric_text_runs_real_tremor(synthetic_imu, prepared):
+    source = synthetic_imu.rename(columns={"time": "timestamp", "gyroscope_x": "gyr_x"}).astype(str)
     original = source.copy()
     results = core.analyze(
         source,
@@ -40,17 +22,17 @@ def test_mapped_numeric_text_runs_real_tremor(recording, prepared):
     pd.testing.assert_frame_equal(source, original)
 
 
-def test_short_recording_reports_hidden_toolbox_failure(recording):
-    results = core.analyze(recording.iloc[:30], pipelines=["tremor"])
+def test_short_recording_reports_hidden_toolbox_failure(synthetic_imu):
+    results = core.analyze(synthetic_imu.iloc[:30], pipelines=["tremor"])
     assert results["errors"]
     assert results["errors"][0]["pipeline"] == "tremor"
     assert "Classification failed" in results["errors"][0]["error"]
     assert results["quantifications"]["tremor"].empty
 
 
-def test_gap_split_processes_contiguous_recordings_separately(recording):
-    recording.loc[6000:, "time"] += 10
-    results = core.analyze(recording, pipelines=["tremor"], split_by_gaps=True)
+def test_gap_split_processes_contiguous_recordings_separately(synthetic_imu):
+    synthetic_imu.loc[6000:, "time"] += 10
+    results = core.analyze(synthetic_imu, pipelines=["tremor"], split_by_gaps=True)
     assert results["errors"] == []
     quantified = results["quantifications"]["tremor"]
     assert set(quantified["file_key"]) == {"segment_1", "segment_2"}
@@ -125,68 +107,44 @@ def test_prepared_pulse_optional_accelerometer_text_is_converted():
 
 
 @pytest.mark.parametrize("mapping", [[], False, 0, ""])
-def test_falsy_invalid_mapping_is_rejected(recording, mapping):
+def test_falsy_invalid_mapping_is_rejected(synthetic_imu, mapping):
     with pytest.raises(ValueError, match="JSON object"):
-        core.analyze(recording, pipelines=["tremor"], column_mapping=mapping)
+        core.analyze(synthetic_imu, pipelines=["tremor"], column_mapping=mapping)
 
 
 @pytest.mark.parametrize("axes", [["--x", "y", "z"], ["x", "x", "z"]])
-def test_invalid_axes_are_rejected_before_toolbox_execution(recording, axes):
+def test_invalid_axes_are_rejected_before_toolbox_execution(synthetic_imu, axes):
     with pytest.raises(ValueError, match="Device axes"):
-        core.analyze(recording, pipelines=["tremor"], device_orientation=axes)
+        core.analyze(synthetic_imu, pipelines=["tremor"], device_orientation=axes)
 
 
-def test_negative_time_differences_are_rejected(recording):
-    recording["time"] = 0.01
-    recording.loc[1, "time"] = -0.01
+def test_negative_time_differences_are_rejected(synthetic_imu):
+    synthetic_imu["time"] = 0.01
+    synthetic_imu.loc[1, "time"] = -0.01
     with pytest.raises(ValueError, match="Time differences"):
-        core.analyze(recording, pipelines=["tremor"], time_input_unit="difference_s")
+        core.analyze(synthetic_imu, pipelines=["tremor"], time_input_unit="difference_s")
 
 
-def test_nullable_missing_samples_fail_with_clear_validation(recording):
-    recording["gyroscope_x"] = recording["gyroscope_x"].astype("Float64")
-    recording.loc[1, "gyroscope_x"] = pd.NA
+def test_nullable_missing_samples_fail_with_clear_validation(synthetic_imu):
+    synthetic_imu["gyroscope_x"] = synthetic_imu["gyroscope_x"].astype("Float64")
+    synthetic_imu.loc[1, "gyroscope_x"] = pd.NA
     with pytest.raises(ValueError, match="missing values"):
-        core.analyze(recording, pipelines=["tremor"])
+        core.analyze(synthetic_imu, pipelines=["tremor"])
 
 
-def test_datetime_samples_are_not_mistaken_for_numeric_seconds(recording):
-    recording["time"] = pd.to_datetime(recording["time"], unit="s")
+def test_datetime_samples_are_not_mistaken_for_numeric_seconds(synthetic_imu):
+    synthetic_imu["time"] = pd.to_datetime(synthetic_imu["time"], unit="s")
     with pytest.raises(ValueError, match="convert datetime"):
-        core.analyze(recording, pipelines=["tremor"])
+        core.analyze(synthetic_imu, pipelines=["tremor"])
 
 
-def test_absolute_time_with_custom_index_runs(recording):
-    recording["time"] += 1_700_000_000
-    recording.index = pd.RangeIndex(20000, 32000)
-    results = core.analyze(recording, pipelines=["tremor"], time_input_unit="absolute_s")
+def test_absolute_time_with_custom_index_runs(synthetic_imu):
+    synthetic_imu["time"] += 1_700_000_000
+    synthetic_imu.index = pd.RangeIndex(20000, 32000)
+    results = core.analyze(synthetic_imu, pipelines=["tremor"], time_input_unit="absolute_s")
     assert results["errors"] == []
     assert len(results["quantifications"]["tremor"]) > 0
 
 
 def test_empty_error_lists_do_not_create_a_phantom_result():
     assert core.result_tables({"errors": []}) == {}
-
-
-def test_json_export_preserves_float_precision_and_missing_values(tmp_path):
-    path = tmp_path / "results.json"
-    values = [np.nextafter(1.0, 2.0), 1e-20, np.nan]
-    core.export_results(path, {"output": pd.DataFrame({"value": values}), "missing": pd.NA}, {})
-    saved = json.loads(path.read_text())
-    assert [row["value"] for row in saved["results"]["output"]["data"]] == [
-        values[0],
-        values[1],
-        None,
-    ]
-    assert saved["results"]["missing"] is None
-
-
-@pytest.mark.parametrize("suffix", ["time", "values"])
-def test_export_cannot_replace_tsdf_companion_binary(tmp_path, suffix):
-    metadata = tmp_path / "IMU_meta.json"
-    companion = tmp_path / f"IMU_{suffix}.bin"
-    metadata.write_text("{}")
-    companion.write_bytes(b"original sensor samples")
-    with pytest.raises(ValueError, match="companion binaries"):
-        core.export_table_csv(companion, pd.DataFrame({"value": [1]}), source=metadata)
-    assert companion.read_bytes() == b"original sensor samples"

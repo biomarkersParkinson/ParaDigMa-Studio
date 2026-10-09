@@ -151,3 +151,10 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
     assert bool(window.runs) != confirm
     assert (window.history.directory / f"{record['id']}.json").exists() != confirm
     window.close()
+
+
+def test_parameter_and_delete_actions_are_adjacent(window):
+    window.navigate(3)
+    QTest.qWait(30)
+    use, delete = window.use_parameters_button, window.delete_run_button
+    assert delete.y() == use.y() and 0 < delete.x() - (use.x() + use.width()) <= 20

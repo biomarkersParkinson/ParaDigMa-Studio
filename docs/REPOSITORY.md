@@ -68,3 +68,5 @@ escaping and original-input protections compatible with existing saved runs.
 
 Run the [development checks](DEVELOPMENT.md) before submitting changes. The
 [codebase audit](CODEBASE_AUDIT.md) records the refactoring and validation scope.
+The [test suite guide](TEST_SUITE.md) maps checks to current features and records
+the coverage-preserving test cleanup.

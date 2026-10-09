@@ -1,12 +1,10 @@
 """Behavioral checks for navigation, linked exploration and previous runs."""
 
-from conftest import bar_values, bar_starts, wait_for_previews
+from conftest import bar_values, bar_starts, wait_for_previews, select_plot_metric
 import json
-import os
 import time
 from types import SimpleNamespace
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pandas as pd
 import pytest
@@ -17,9 +15,8 @@ from PySide6.QtCore import Qt, QPoint
 
 from paradigma_desktop import app as desktop
 from paradigma_desktop.app import MainWindow
-from paradigma_desktop.core import export_results
 from paradigma_desktop.exploration import source_timeline
-from paradigma_desktop.history import RunHistory, load_result_export, new_run
+from paradigma_desktop.history import RunHistory, new_run
 
 
 @pytest.fixture
@@ -468,7 +465,7 @@ def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(w
     assert window.input_table.columnWidth(0) >= window.input_table._heading_widths[0]
 
 
-def test_metric_and_filter_changes_leave_official_overview_aggregates_unchanged(window):
+def test_metric_selection_and_zoom_leave_official_overview_aggregates_unchanged(window):
     frame = output().assign(other_metric=lambda data: data.metric * 2)
     window.analyzed(
         {
@@ -480,7 +477,7 @@ def test_metric_and_filter_changes_leave_official_overview_aggregates_unchanged(
     aggregate = window.overview_values[("test", "Aggregates", ("median_metric",))]
     assert aggregate.text() == "12.5"
     assert not hasattr(window, "summary_table")
-    window.y_column.setCurrentText("other_metric")
+    select_plot_metric(window, "quantifications/test", "other_metric")
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.other_metric)
     window.figure.axes[0].set_xlim(2.0, 4.0)
     assert window.overview_values[("test", "Aggregates", ("median_metric",))] is aggregate
@@ -598,24 +595,19 @@ def test_graph_zoom_preserves_full_official_table_and_csv(window, tmp_path, monk
     window.timing_toggle.setChecked(True)
     frame = output()
     window.analyzed({"quantifications": {"test": frame}})
-    window.figure.axes[0].set_xlim(4.0, 5.0)
-    np.testing.assert_array_equal(window.active_positions, np.arange(len(frame)))
-    pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
-    np.testing.assert_allclose(bar_starts(window.figure.axes[0]), frame.time, atol=1e-12)
-    np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.metric)
+    assert not hasattr(window, "time_from") and not hasattr(window, "filters_toggle")
+    for limits in ((4.0, 5.0), (9.0, 10.0)):
+        window.figure.axes[0].set_xlim(*limits)
+        np.testing.assert_array_equal(window.active_positions, np.arange(len(frame)))
+        pd.testing.assert_frame_equal(window.active_frame, frame)
+        pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
+        np.testing.assert_allclose(bar_starts(window.figure.axes[0]), frame.time, atol=1e-12)
+        np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.metric)
+        assert len(bar_values(window.figure.axes[0])) == len(frame)
     path = tmp_path / "full.csv"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
     pd.testing.assert_frame_equal(pd.read_csv(path)[frame.columns], frame)
-
-
-def test_results_have_no_time_filters_and_zoom_does_not_remove_rows(window):
-    frame = output()
-    window.analyzed({"quantifications": {"test": frame}})
-    assert not hasattr(window, "time_from") and not hasattr(window, "filters_toggle")
-    window.figure.axes[0].set_xlim(9.0, 10.0)
-    pd.testing.assert_frame_equal(window.active_frame, frame)
-    assert len(bar_values(window.figure.axes[0])) == len(frame)
 
 
 def test_graph_click_selects_nearest_row_within_active_selection(window):
@@ -670,7 +662,7 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
 
 
-def test_time_only_filters_and_missing_original_recording_are_explicit(window):
+def test_missing_original_recording_disables_sensor_context(window):
     window.analyzed(
         {
             "quantifications": {"tremor": pd.DataFrame({"time": [1.0, 2.0], "power": [1.0, 2.0]})},
@@ -876,17 +868,6 @@ def test_history_rejects_damaged_entries_and_marks_unfinished_runs(tmp_path):
     record["outputs"] = ["not an output object"]
     history.save(record)
     assert history.load()[0] == []
-
-
-def test_export_round_trip_preserves_numeric_columns_and_float_values(tmp_path):
-    path = tmp_path / "results.json"
-    frame = pd.DataFrame({0: [np.nextafter(1.0, 2.0), None], "power": [2.0, 3.0]})
-    export_results(
-        path, {"quantifications": {"test": frame}, "errors": []}, {"source": "input.csv"}
-    )
-    provenance, results = load_result_export(path)
-    assert provenance["source"] == "input.csv"
-    pd.testing.assert_frame_equal(results["quantifications"]["test"], frame)
 
 
 @pytest.mark.parametrize("unit", ["difference_s", "difference_ms"])

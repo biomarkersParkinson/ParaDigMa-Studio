@@ -1,7 +1,7 @@
 """Regression checks for unsafe deserialization, exports and diagnostic writes."""
 
-import logging
 import json
+import logging
 import os
 import pickle
 import subprocess
@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 
 from paradigma_desktop import core, serialization
-from scripts.audit_dependencies import is_python_arrow_exception
 from scripts import audit_dependencies
+from scripts.audit_dependencies import is_python_arrow_exception
 
 
 class TouchFileOnUnpickle:
@@ -147,3 +147,14 @@ def test_failed_history_save_keeps_previous_record_and_removes_temporary_file(
         store.save(record)
     assert target.read_bytes() == before
     assert sorted(tmp_path.iterdir()) == [target]
+
+
+@pytest.mark.parametrize("suffix", ["time", "values"])
+def test_export_cannot_replace_tsdf_companion_binary(tmp_path, suffix):
+    metadata = tmp_path / "IMU_meta.json"
+    companion = tmp_path / f"IMU_{suffix}.bin"
+    metadata.write_text("{}")
+    companion.write_bytes(b"original sensor samples")
+    with pytest.raises(ValueError, match="companion binaries"):
+        core.export_table_csv(companion, pd.DataFrame({"value": [1]}), source=metadata)
+    assert companion.read_bytes() == b"original sensor samples"

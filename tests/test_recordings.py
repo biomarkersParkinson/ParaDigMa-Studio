@@ -180,7 +180,9 @@ def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_an
         pd.testing.assert_frame_equal(frames[key], original[key])
 
 
-def test_batch_clock_filters_sensor_context_and_json_reopening(window, tmp_path, monkeypatch):
+def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
+    window, tmp_path, monkeypatch
+):
     sources, frames = inputs(tmp_path)
     load(window, sources, frames)
     results = output()

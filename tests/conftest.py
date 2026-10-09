@@ -72,3 +72,90 @@ def bar_centers(axes):
             for path in axes.collections[0].get_paths()
         ]
     )
+
+
+@pytest.fixture
+def window(tmp_path):
+    """Visible window for UI tests; modules override this for special Qt cases."""
+    from PySide6.QtWidgets import QApplication
+    from paradigma_desktop.app import MainWindow
+
+    application = QApplication.instance() or QApplication([])
+    widget = MainWindow(history_dir=tmp_path / "runs")
+    widget.show()
+    try:
+        yield widget
+    finally:
+        import time
+
+        deadline = time.monotonic() + 10
+        from PySide6.QtTest import QTest
+
+        while widget.worker is not None and time.monotonic() < deadline:
+            QTest.qWait(20)
+        assert widget.worker is None, "Background operation did not finish"
+        widget.close()
+        application.processEvents()
+
+
+@pytest.fixture
+def synthetic_imu():
+    """Fresh, seeded 120-second gyroscope recording shared by preparation tests."""
+    import numpy as np
+    import pandas as pd
+
+    time = np.arange(12000) / 100
+    random = np.random.default_rng(42)
+    return pd.DataFrame(
+        {
+            "time": time,
+            **{
+                f"gyroscope_{axis}": 0.1 * np.sin(2 * np.pi * 5 * time)
+                + random.normal(0, 0.02, len(time))
+                for axis in "xyz"
+            },
+        }
+    )
+
+
+@pytest.fixture
+def tremor_outputs():
+    """Fresh output tables with missing power, binary states and a large integer."""
+    import numpy as np
+    import pandas as pd
+
+    return {
+        "classifications": {
+            "tremor": pd.DataFrame({"time": [0.0, 4.0, 8.0], "pred_tremor_checked": [1, 0, 1]})
+        },
+        "quantifications": {
+            "tremor": pd.DataFrame({"time": [0.0, 4.0, 8.0], "tremor_power": [2.0, np.nan, 5.0]})
+        },
+        "aggregations": {"tremor": {"perc_windows_tremor": 2 / 3 * 100, "count": 2**60 + 1}},
+        "metadata": {"tremor": {"windows": 3}},
+        "errors": [],
+    }
+
+
+def select_plot_metric(window, dataset, metric):
+    """Select a metric through Plot series, retaining selections in other modules."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QTreeWidgetItemIterator
+
+    window.result_tabs.setCurrentIndex(1)
+    iterator = QTreeWidgetItemIterator(window.result_series)
+    entries = []
+    while iterator.value() is not None:
+        item = iterator.value()
+        key = item.data(0, Qt.UserRole)
+        if key is not None:
+            entries.append((key, item))
+        iterator += 1
+    chosen = next(item for key, item in entries if key == (dataset, metric))
+    chosen.parent().setExpanded(True)
+    chosen.setCheckState(0, Qt.Checked)
+    for key, item in entries:
+        if key[0] == dataset and item is not chosen:
+            item.setCheckState(0, Qt.Unchecked)
+    window.result_series.setCurrentItem(chosen)
+    window.result_series.scrollToItem(chosen)

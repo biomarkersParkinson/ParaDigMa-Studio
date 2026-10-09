@@ -233,3 +233,49 @@ def test_multiple_recording_clocks_include_between_file_gaps_in_the_timespan(tmp
     finally:
         window.close()
         app.processEvents()
+
+
+def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation(
+    window, tremor_outputs
+):
+    result = tremor_outputs
+    preparation = {
+        "input_samples": 100,
+        "analyzed_samples": 90,
+        "excluded_samples": 10,
+        "continuous_sections": 2,
+    }
+    result["metadata"].update(
+        desktop_recordings={"recordings": ["a", "b"], "sections": {"a": "a"}},
+        desktop_preparation={
+            "input_samples": 100,
+            "analysis_groups": [["gait", "tremor"]],
+            "by_module": {"gait": preparation, "tremor": preparation},
+        },
+    )
+    provenance = {"sources": {"a": "/recordings/a.csv", "b": "/recordings/b.csv"}}
+    entries = recording_summary(result, provenance, None)
+    assert not any(
+        title in ("Recordings", "Files") or title.endswith("Input samples") for title, _ in entries
+    )
+    assert ("Gait, Tremor · Prepared samples", "90") in entries
+    assert not any(
+        "section" in title.lower() and isinstance(value, dict) for title, value in entries
+    )
+    window.provenance = provenance
+    window.analyzed(result)
+    assert set(window.overview_module_cards) == {"tremor"}
+    assert (
+        sum(
+            label.text() == "Recording & preparation"
+            for label in window.overview_content.findChildren(QLabel)
+        )
+        == 1
+    )
+
+
+def test_overview_time_origin_combines_clock_and_timezone():
+    entries = recording_summary(
+        {}, {}, {"origin": "2026-10-07T12:00:00+02:00", "timezone": "Europe/Amsterdam"}
+    )
+    assert entries == [("Time origin", "07 Oct 2026, 12:00:00 · Europe/Amsterdam")]

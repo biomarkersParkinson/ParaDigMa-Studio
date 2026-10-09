@@ -7,32 +7,22 @@ import pytest
 from paradigma_desktop.core import analyze, export_results, load_sensor_file, result_tables
 
 
-@pytest.fixture
-def sensor():
-    t = np.arange(12000) / 100
-    rng = np.random.default_rng(42)
-    data = {"time": t}
-    for axis in "xyz":
-        data[f"gyroscope_{axis}"] = 0.1 * np.sin(2 * np.pi * 5 * t) + rng.normal(0, 0.02, len(t))
-    return pd.DataFrame(data)
-
-
 @pytest.mark.parametrize("suffix", ["csv", "parquet", "pkl"])
-def test_loading(tmp_path, sensor, suffix):
+def test_loading(tmp_path, synthetic_imu, suffix):
     path = tmp_path / f"sensor.{suffix}"
     {
-        "csv": lambda: sensor.to_csv(path, index=False),
-        "parquet": lambda: sensor.to_parquet(path),
-        "pkl": lambda: sensor.to_pickle(path),
+        "csv": lambda: synthetic_imu.to_csv(path, index=False),
+        "parquet": lambda: synthetic_imu.to_parquet(path),
+        "pkl": lambda: synthetic_imu.to_pickle(path),
     }[suffix]()
     pd.testing.assert_frame_equal(
-        load_sensor_file(path, allow_pickle=suffix == "pkl"), sensor, check_exact=False
+        load_sensor_file(path, allow_pickle=suffix == "pkl"), synthetic_imu, check_exact=False
     )
 
 
-def test_real_tremor_pipeline(tmp_path, sensor):
+def test_real_tremor_pipeline(tmp_path, synthetic_imu):
     path = tmp_path / "sensor.csv"
-    sensor.to_csv(path, index=False)
+    synthetic_imu.to_csv(path, index=False)
     results = analyze(
         load_sensor_file(path),
         pipelines=["tremor"],
@@ -54,13 +44,13 @@ def test_real_tremor_pipeline(tmp_path, sensor):
     assert len(saved["results"]["quantifications"]["tremor"]["data"]) == len(quantification)
 
 
-def test_missing_channels(sensor):
+def test_missing_channels(synthetic_imu):
     with pytest.raises(ValueError, match="Missing sensor columns"):
-        analyze(sensor, pipelines=["gait"])
+        analyze(synthetic_imu, pipelines=["gait"])
 
 
-def test_combined_workflows_retain_success_when_other_group_lacks_channels(sensor, tmp_path):
-    result = analyze(sensor, pipelines=["tremor", "pulse_rate"], output_dir=tmp_path)
+def test_combined_workflows_retain_success_when_other_group_lacks_channels(synthetic_imu, tmp_path):
+    result = analyze(synthetic_imu, pipelines=["tremor", "pulse_rate"], output_dir=tmp_path)
     assert not result["quantifications"]["tremor"].empty
     assert not result["classifications"]["tremor"].empty
     assert len(result["errors"]) == 1
@@ -72,10 +62,10 @@ def test_combined_workflows_retain_success_when_other_group_lacks_channels(senso
     ]
 
 
-def test_duplicate_time(sensor):
-    sensor.loc[1, "time"] = 0
+def test_duplicate_time(synthetic_imu):
+    synthetic_imu.loc[1, "time"] = 0
     with pytest.raises(ValueError, match="strictly increasing"):
-        analyze(sensor, pipelines=["tremor"])
+        analyze(synthetic_imu, pipelines=["tremor"])
 
 
 def test_nested_gait_results():
@@ -91,12 +81,12 @@ def test_nested_gait_results():
     assert tables["aggregations/gait/filtered"].iloc[0]["value"] == 20
 
 
-def test_real_gait_pipeline(tmp_path, sensor):
+def test_real_gait_pipeline(tmp_path, synthetic_imu):
     for axis in "xyz":
-        sensor[f"accelerometer_{axis}"] = (1 if axis == "z" else 0) + 0.1 * np.sin(
-            2 * np.pi * 1.5 * sensor["time"]
+        synthetic_imu[f"accelerometer_{axis}"] = (1 if axis == "z" else 0) + 0.1 * np.sin(
+            2 * np.pi * 1.5 * synthetic_imu["time"]
         )
-    result = analyze(sensor, pipelines=["gait"], watch_side="left", output_dir=tmp_path)
+    result = analyze(synthetic_imu, pipelines=["gait"], watch_side="left", output_dir=tmp_path)
     assert result["errors"] == []
     assert set(result["quantifications"]["gait"]) == {"filtered", "unfiltered"}
     assert isinstance(result["quantifications"]["gait"]["unfiltered"], pd.DataFrame)

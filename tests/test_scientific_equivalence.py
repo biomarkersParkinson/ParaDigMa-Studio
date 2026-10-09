@@ -6,7 +6,7 @@ revision are described in data/paradigma/README.md. Scientific functions are
 never stubbed: observers call the originals and return their outputs unchanged.
 """
 
-from conftest import bar_values, bar_centers
+from conftest import select_plot_metric, bar_values, bar_centers
 from copy import deepcopy
 from functools import wraps
 from importlib.metadata import version
@@ -498,7 +498,7 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
                 actual["classifications"]["gait"][stage], reference, check_exact=True
             )
             assert indicator not in actual["classifications"]["gait"][stage]
-            window.apply_filters()
+            window.activate_dataset_rows()
     finally:
         window.close()
         application.processEvents()
@@ -766,8 +766,7 @@ def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_res
     window = MainWindow(history_dir=tmp_path / "runs")
     try:
         window.analyzed(actual)
-        window.dataset.setCurrentText("quantifications/gait/unfiltered")
-        window.y_column.setCurrentText("range_of_motion")
+        select_plot_metric(window, "quantifications/gait/unfiltered", "range_of_motion")
         reference = expected["quantifications"]["gait"]["unfiltered"]
         reference_times = np.full(len(reference), np.nan)
         for number, rows in reference.groupby("gait_segment_nr", sort=False).indices.items():
@@ -801,7 +800,7 @@ def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_res
             if isinstance(value, (int, float)):
                 shown = window.overview_values[("gait", "Aggregates", ("unfiltered", key))]
                 assert float(shown.toolTip()) == value
-        window.apply_filters()
+        window.activate_dataset_rows()
         assert_equivalent(window.active_frame, reference, "reset selection")
         assert_equivalent(actual, originals, "unaltered scientific results")
     finally:
