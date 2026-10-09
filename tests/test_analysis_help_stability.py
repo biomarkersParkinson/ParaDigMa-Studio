@@ -116,7 +116,8 @@ def layout_bounds(window, control):
 
 
 @pytest.mark.parametrize('calendar_width', [382, 620])
-def test_time_origin_fits_viewport_with_larger_native_editor_widths(tmp_path, calendar_width):
+@pytest.mark.parametrize('reset_width', [0, 200])
+def test_time_origin_fits_viewport_with_larger_native_editor_widths(tmp_path, calendar_width, reset_width):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
     window.setStyleSheet(window.styleSheet() + '\nQWidget { font-size: 18px; }')
@@ -129,6 +130,9 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(tmp_path, ca
     # field. A genuinely wide calendar must remain readable by wrapping its row.
     window.clock_input.seconds.setMinimumWidth(620)
     window.clock_input.calendar.setMinimumWidth(calendar_width)
+    # Native action-button hints can exceed the Linux hints independently of
+    # the date editor. Both must stay reachable without widening the viewport.
+    window.origin_reset.setMinimumWidth(reset_width)
     window.navigate(1)
     window.show()
     try:

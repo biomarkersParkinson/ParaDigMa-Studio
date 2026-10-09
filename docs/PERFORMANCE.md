@@ -381,3 +381,21 @@ unchanged.
 Local validation: **365 tests passed**, with one Windows-only signature check
 skipped. The rebuilt app passed its packaged runtime checks on Linux. Native
 Windows validation remains part of the GitHub Actions build.
+
+## Wide-calendar action row (0.5.20)
+
+Windows passed the original layout cases in 0.5.19. The remaining stress case
+used a 620-pixel calendar: together with the Default button's native hint, the
+compound field still exceeded the available width. The calendar and button now
+use the same wrapping layout as the parameter columns. The editor fills the
+available space on wider rows; on narrow rows, Default moves below it and stays
+right aligned. The row reserves its full wrapped height and preserves spacing.
+
+The regression now varies the action-button width independently of the calendar
+width. The larger-button case fails on 0.5.19 and passes with this correction,
+checking complete visibility, resizing and stable help positions. Calendar
+precision, default-reset behavior and scientific processing are unchanged.
+
+Local validation: **367 tests passed**, with one Windows-only signature check
+skipped. The rebuilt app passed its packaged runtime checks on Linux. Native
+Windows confirmation remains part of the GitHub Actions build.

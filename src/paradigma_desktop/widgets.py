@@ -54,19 +54,19 @@ class WrappedForm(QWidget):
 
 
 class AdaptiveFormColumns(QHBoxLayout):
-    """Keep two forms side by side when they fit, otherwise stack them.
+    """Keep two form sections side by side when they fit, otherwise stack them.
 
     The minimum width is the wider individual form. Reporting the sum would
     force a scroll area's body beyond its viewport before wrapping can occur.
     Height queries do not change direction, so measuring help cannot reflow
     the fields; only the actual layout width determines their arrangement.
     """
-    def __init__(self, left, right):
+    def __init__(self, left, right, *, right_stretch=1):
         super().__init__()
         self.setContentsMargins(0, 0, 0, 0)
         self.setSpacing(20)
         self.addLayout(left, 1)
-        self.addLayout(right, 1)
+        self.addLayout(right, right_stretch)
 
     def minimumSize(self):
         sizes = [self.itemAt(index).minimumSize() for index in range(self.count())]
@@ -79,7 +79,11 @@ class AdaptiveFormColumns(QHBoxLayout):
         if sum(minimums) + self.spacing() > width:
             return None
         available = width - self.spacing()
-        left = max(minimums[0], min(available // 2, available - minimums[1]))
+        # A field with an action gives the action its preferred width, leaving
+        # the rest for the editor. Two parameter columns share available space.
+        preferred_left = (available - self.itemAt(1).sizeHint().width()
+                          if self.stretch(1) == 0 else available // 2)
+        left = max(minimums[0], min(preferred_left, available - minimums[1]))
         return left, available - left
 
     def hasHeightForWidth(self):
