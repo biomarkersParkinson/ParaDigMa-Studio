@@ -571,10 +571,12 @@ class MainWindow(QMainWindow):
                 description.setVisible(info.isChecked())
                 self.analysis_help_sections[name].setVisible(info.isChecked())
             self.analysis_help_panel.setVisible(any(info.isChecked() for info, _ in self.analysis_help.values()))
-            # Settle the new help height as one change before repainting. On
-            # Windows, showing two explanations then hiding the old one could
-            # expose intermediate card positions in the backing store.
+            # Fit the fixed-height wrapper synchronously. Activating its layout
+            # alone still uses the old height until a queued LayoutRequest,
+            # which can paint the help over the parameter card in the meantime.
             for widget in (self.analysis_help_panel, self.analysis_controls, body):
+                if isinstance(widget, WrappedForm):
+                    widget._fit_height()
                 widget.layout().activate()
         finally:
             body.setUpdatesEnabled(updates)

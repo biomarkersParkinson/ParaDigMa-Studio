@@ -399,3 +399,27 @@ precision, default-reset behavior and scientific processing are unchanged.
 Local validation: **367 tests passed**, with one Windows-only signature check
 skipped. The rebuilt app passed its packaged runtime checks on Linux. Native
 Windows confirmation remains part of the GitHub Actions build.
+
+## Help geometry before the first paint (0.5.21)
+
+The remaining Windows failure caught a transient overlap during painting,
+although the settled layout and width checks passed. Activating the layout
+still used the help wrapper's old fixed height; a queued layout event corrected
+that height later. Painting could resume before this correction. Inspecting
+geometry immediately before painting resumed reproduced the overlap locally
+with both Fusion and Windows Qt styles, even with ordinary control sizes.
+
+Help changes now fit the wrapper to its new wrapped height synchronously, then
+activate its layout and the surrounding body before re-enabling painting.
+The parameter positions and the configured 16-pixel gap are preserved.
+
+Eight new cases check this exact transition without waiting for queued events,
+then force an immediate paint. They cover two window sizes, both Qt styles,
+ordinary and enlarged controls, and both paced and rapid help changes. All
+eight fail on 0.5.20 and pass with the correction. Existing layout, visibility
+and paint-event assertions remain enabled. Scientific processing is unchanged.
+
+Local validation: **375 tests passed**, including all 31 scientific-equivalence
+tests, with one Windows-only signature check skipped. The rebuilt app passed
+its packaged runtime checks on Linux. Native Windows confirmation remains part
+of the GitHub Actions build.

@@ -3,6 +3,7 @@ import pytest
 from PySide6.QtCore import QPoint, QObject, QEvent
 from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QSizePolicy
 from PySide6.QtTest import QTest
+from PySide6.QtGui import QPixmap
 
 from paradigma_desktop.app import MainWindow
 from paradigma_desktop.widgets import WrappedForm
@@ -46,6 +47,62 @@ def test_growing_wrapped_stack_updates_its_layout_bounds_without_compressing_spa
     finally:
         stack.close()
         app.processEvents()
+
+
+@pytest.mark.parametrize('style', ['Fusion', 'Windows'])
+@pytest.mark.parametrize('wide_controls', [False, True])
+@pytest.mark.parametrize('size', [(1200, 900), (960, 650)])
+def test_help_geometry_is_ready_before_painting_resumes(tmp_path, style, wide_controls, size):
+    app = QApplication.instance() or QApplication([])
+    original_style = app.style().objectName()
+    app.setStyle(style)
+    window = MainWindow(tmp_path)
+    if wide_controls:
+        window.setStyleSheet(window.styleSheet() + '\nQWidget { font-size: 18px; }')
+        for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+            control.setMinimumWidth(280)
+            control.setMinimumHeight(44)
+        for label in window.analysis_parameter_fields.findChildren(QLabel):
+            label.setMinimumHeight(28)
+        window.clock_input.calendar.setMinimumWidth(620)
+        window.origin_reset.setMinimumWidth(200)
+    window.navigate(1)
+    window.resize(*size)
+    window.show()
+    QTest.qWait(40)
+    body = window.analysis_scroll.widget()
+    resume_updates = body.setUpdatesEnabled
+    snapshots = []
+
+    def observe_first_paint(enabled):
+        if enabled and not window.analysis_help_panel.isHidden():
+            # Do not process events here: the layout must be safe at the point
+            # painting resumes, not only after a queued LayoutRequest fixes it.
+            top = window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y()
+            bottom = window.settings_panel.mapTo(body, QPoint(0, window.settings_panel.height())).y()
+            snapshots.append((top - bottom, window.analysis_controls.rect().contains(
+                window.analysis_help_panel.geometry())))
+        resume_updates(enabled)
+        if enabled and not window.analysis_help_panel.isHidden():
+            # Exercise an immediate paint as well, including offscreen help.
+            target = QPixmap(window.analysis_help_panel.size())
+            window.analysis_help_panel.render(target)
+
+    body.setUpdatesEnabled = observe_first_paint
+    try:
+        for pause in (True, False):
+            for name in ('Watch side', 'Device axes', 'Maximum gap', 'Time origin',
+                         'Analysis modules', 'Analysis modules', 'Device axes', 'Device axes'):
+                window.analysis_help[name][0].click()
+                if pause:
+                    QTest.qWait(20)
+        assert snapshots
+        assert all(gap >= 16 and contained for gap, contained in snapshots), snapshots
+    finally:
+        body.setUpdatesEnabled = resume_updates
+        window.close()
+        app.processEvents()
+        app.setStyle(original_style)
 
 
 @pytest.mark.parametrize('size', [(1200, 900), (960, 650)])
