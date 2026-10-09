@@ -344,3 +344,21 @@ unaffected. Native Windows validation runs in GitHub Actions.
 
 Local validation: **362 tests passed**, with one Windows-only signature check
 skipped. The rebuilt app passed its packaged runtime checks on Linux.
+
+## Parameter columns at larger font sizes (0.5.18)
+
+Windows passed the original spacing cases in 0.5.17, but the larger-font test
+exposed horizontal clipping: the combined minimum widths of both parameter
+columns exceeded the viewport. The columns now stack vertically when their
+minimum widths cannot fit side by side, retaining the same spacing and allowing
+vertical scrolling. Wider windows keep the two-column layout. Help stays below
+the parameter card and does not affect the arrangement.
+
+A regression reproduces the reported 404-pixel editor width locally and checks
+all ancestor bounds and full editor visibility through narrow → wide → narrow
+resizing. Existing native-control, font-size and stable-help checks remain
+enabled. Analysis settings and scientific calculations are unchanged.
+
+Local validation: **363 tests passed**, with one Windows-only signature check
+skipped. The rebuilt app passed its packaged runtime checks on Linux; native
+Windows confirmation remains part of the GitHub Actions build.

@@ -190,10 +190,14 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(tmp_path,
         app.processEvents()
 
 
-@pytest.mark.parametrize('grid_width', [0, 314])
+@pytest.mark.parametrize('grid_width', [0, 314, 404])
 def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_reachable(tmp_path, grid_width):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
+    if grid_width == 404:
+        # Windows' larger-font case required a 404-pixel editor and widened
+        # the whole form beyond the viewport while horizontal scroll was off.
+        window.setStyleSheet(window.styleSheet() + '\nQWidget { font-size: 18px; }')
     for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
         control.setMinimumWidth(280)
         control.setMinimumHeight(30)
@@ -207,22 +211,35 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
     window.show()
     QTest.qWait(40)
     try:
-        for help_name in ('Watch side', 'Device axes', 'Minimum section duration'):
-            for control in (window.mapping, window.max_gap, window.min_segment):
-                # Inspect every ancestor, not only the outer form: a spanned
-                # QFormLayout row previously clipped the grid by twelve pixels.
-                child = control
-                while child is not window.analysis_scroll.widget():
-                    parent = child.parentWidget()
-                    assert child.y() >= 0 and child.y() + child.height() <= parent.height(), (
-                        type(child).__name__, child.geometry(), type(parent).__name__, parent.geometry())
-                    child = parent
-            center = window.mapping.mapTo(window.analysis_scroll.widget(), window.mapping.rect().center())
-            window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, window.mapping.height() // 2 + 8)
-            app.processEvents()
-            assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect())
-            window.analysis_help[help_name][0].click()
+        for size in ((960, 650), (1450, 920), (960, 650)):
+            window.resize(*size)
             QTest.qWait(30)
+            assert window.analysis_scroll.widget().width() <= window.analysis_scroll.viewport().width()
+            if grid_width == 404:
+                form = window.analysis_parameter_fields
+                first_end = window.orientation.mapTo(form, QPoint(0, window.orientation.height()))
+                second_start = window.drop_missing.mapTo(form, QPoint(0, 0))
+                if size[0] == 960:
+                    assert second_start.y() >= first_end.y() + 20
+                else:
+                    assert second_start.x() > first_end.x()
+                    assert second_start.y() < first_end.y()
+            for help_name in ('Watch side', 'Device axes', 'Minimum section duration'):
+                for control in (window.mapping, window.max_gap, window.min_segment):
+                    # Inspect every ancestor: children must fit horizontally
+                    # as well as vertically, including after a width change.
+                    child = control
+                    while child is not window.analysis_scroll.widget():
+                        parent = child.parentWidget()
+                        assert parent.rect().contains(child.geometry()), (
+                            type(child).__name__, child.geometry(), type(parent).__name__, parent.geometry())
+                        child = parent
+                center = window.mapping.mapTo(window.analysis_scroll.widget(), window.mapping.rect().center())
+                window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, window.mapping.height() // 2 + 8)
+                app.processEvents()
+                assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect())
+                window.analysis_help[help_name][0].click()
+                QTest.qWait(30)
     finally:
         window.close()
         app.processEvents()

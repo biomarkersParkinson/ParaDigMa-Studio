@@ -52,7 +52,7 @@ from .gait_presence import gait_presence_intervals, gait_epoch_summaries
 from .previews import CachedPreview
 from .overview import recording_extent, recording_summary
 from .analysis_process import AnalysisCancelled, run_isolated_analysis
-from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, FigureActionBar, SeriesTree, label, button, card, table, readout, field
+from .widgets import HoverSidebar, FrameModel, ReadableComboBox, ReadableTable, ModuleTabBar, WrappedForm, AdaptiveFormColumns, FigureActionBar, SeriesTree, label, button, card, table, readout, field
 
 
 class SignalHandler(logging.Handler):
@@ -436,10 +436,9 @@ class MainWindow(QMainWindow):
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
         parameters.addLayout(parameter_header)
-        columns = QHBoxLayout()
-        columns.setSpacing(20)
         left = QFormLayout()
         right = QFormLayout()
+        columns = AdaptiveFormColumns(left, right)
         for form in (left, right):
             form.setRowWrapPolicy(QFormLayout.WrapLongRows)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -488,8 +487,6 @@ class MainWindow(QMainWindow):
             row_layout.addWidget(reset)
             self.analysis_field(title, row, form=sections)
         right.addRow(self.segmentation_controls)
-        columns.addLayout(left, 1)
-        columns.addLayout(right, 1)
         parameters.addLayout(columns)
         self.mapping = QPlainTextEdit("{}")
         self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')

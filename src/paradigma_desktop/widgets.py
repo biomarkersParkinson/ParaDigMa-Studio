@@ -5,7 +5,7 @@ from PySide6.QtCore import QAbstractAnimation, QAbstractTableModel, QModelIndex,
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QLabel, QPlainTextEdit,
-    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget, QStyledItemDelegate, QStyleOptionViewItem,
+    QPushButton, QTableView, QVBoxLayout, QHBoxLayout, QBoxLayout, QWidget, QTabBar, QStylePainter, QStyleOptionTab, QStyle, QSizePolicy, QTreeWidget, QStyledItemDelegate, QStyleOptionViewItem,
 )
 from .theme import light_palette, module_color
 
@@ -51,6 +51,60 @@ class WrappedForm(QWidget):
         if event.type() == QEvent.LayoutRequest:
             self._fit_height()
         return result
+
+
+class AdaptiveFormColumns(QHBoxLayout):
+    """Keep two forms side by side when they fit, otherwise stack them.
+
+    The minimum width is the wider individual form. Reporting the sum would
+    force a scroll area's body beyond its viewport before wrapping can occur.
+    Height queries do not change direction, so measuring help cannot reflow
+    the fields; only the actual layout width determines their arrangement.
+    """
+    def __init__(self, left, right):
+        super().__init__()
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setSpacing(20)
+        self.addLayout(left, 1)
+        self.addLayout(right, 1)
+
+    def minimumSize(self):
+        sizes = [self.itemAt(index).minimumSize() for index in range(self.count())]
+        margins = self.contentsMargins()
+        return QSize(max(size.width() for size in sizes) + margins.left() + margins.right(),
+                     max(size.height() for size in sizes) + margins.top() + margins.bottom())
+
+    def _column_widths(self, width):
+        minimums = [self.itemAt(index).minimumSize().width() for index in range(self.count())]
+        if sum(minimums) + self.spacing() > width:
+            return None
+        available = width - self.spacing()
+        left = max(minimums[0], min(available // 2, available - minimums[1]))
+        return left, available - left
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        margins = self.contentsMargins()
+        width -= margins.left() + margins.right()
+        widths = self._column_widths(width)
+        heights = []
+        for index in range(self.count()):
+            item = self.itemAt(index)
+            child_width = width if widths is None else widths[index]
+            height = item.heightForWidth(child_width) if item.hasHeightForWidth() else item.sizeHint().height()
+            heights.append(max(height, item.minimumSize().height()))
+        height = sum(heights) + self.spacing() if widths is None else max(heights)
+        return height + margins.top() + margins.bottom()
+
+    def setGeometry(self, rect):
+        margins = self.contentsMargins()
+        width = rect.width() - margins.left() - margins.right()
+        direction = QBoxLayout.TopToBottom if self._column_widths(width) is None else QBoxLayout.LeftToRight
+        if self.direction() != direction:
+            self.setDirection(direction)
+        super().setGeometry(rect)
 
 
 class SeriesLabelDelegate(QStyledItemDelegate):
