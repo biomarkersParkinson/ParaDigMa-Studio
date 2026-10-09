@@ -115,6 +115,54 @@ def layout_bounds(window, control):
     return {"ancestors": ancestors, "scroll": (bar.value(), bar.maximum())}
 
 
+@pytest.mark.parametrize('calendar_width', [382, 620])
+def test_time_origin_fits_viewport_with_larger_native_editor_widths(tmp_path, calendar_width):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(tmp_path)
+    window.setStyleSheet(window.styleSheet() + '\nQWidget { font-size: 18px; }')
+    for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+        control.setMinimumWidth(280)
+        control.setMinimumHeight(44)
+    for label in window.analysis_parameter_fields.findChildren(QLabel):
+        label.setMinimumHeight(28)
+    # The unused numeric editor's large native hint must not widen a calendar
+    # field. A genuinely wide calendar must remain readable by wrapping its row.
+    window.clock_input.seconds.setMinimumWidth(620)
+    window.clock_input.calendar.setMinimumWidth(calendar_width)
+    window.navigate(1)
+    window.show()
+    try:
+        for size in ((960, 650), (1450, 920), (960, 650)):
+            window.resize(*size)
+            QTest.qWait(40)
+            body = window.analysis_scroll.widget()
+            assert body.width() <= window.analysis_scroll.viewport().width()
+            for control in (window.mapping, window.clock_input, window.clock_input.calendar,
+                            window.origin_reset):
+                center = control.mapTo(body, control.rect().center())
+                window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, control.height() // 2 + 8)
+                app.processEvents()
+                assert control.visibleRegion().boundingRect().contains(control.rect()), layout_bounds(window, control)
+            assert window.clock_input.editors.currentWidget() is window.clock_input.calendar
+            assert window.clock_input.calendar.width() >= calendar_width
+            fields = window.analysis_parameter_fields
+            labels = fields.findChildren(QLabel)
+            widgets = (window.mapping, window.clock_input, window.origin_reset, *labels)
+            def positions():
+                app.processEvents()
+                return [widget.mapTo(body, QPoint(0, 0)).toTuple() + widget.size().toTuple() for widget in widgets]
+            baseline = positions()
+            for title in ('Time origin', 'Device axes', 'Watch side'):
+                window.analysis_help[title][0].click()
+                QTest.qWait(20)
+                assert positions() == baseline
+            window.analysis_help['Watch side'][0].click()
+            assert positions() == baseline
+    finally:
+        window.close()
+        app.processEvents()
+
+
 @pytest.mark.parametrize('size', [(1450, 920), (960, 650)])
 @pytest.mark.parametrize('native_height, native_width, font_size',
                          [(0, 0, 13), (44, 0, 13), (30, 280, 13), (44, 280, 13), (44, 280, 18)])

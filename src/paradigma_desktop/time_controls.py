@@ -29,7 +29,7 @@ class TimeField(QWidget):
         self.calendar.setMinimumHeight(38)
         self.calendar.setTimeZone(QTimeZone.utc())
         self.calendar.setDateTime(QDateTime.currentDateTimeUtc())
-        self.seconds = QDoubleSpinBox()
+        self.seconds = QDoubleSpinBox(self)
         self.seconds.setMinimumHeight(38)
         self.seconds.setRange(-1e12, 1e12)
         self.seconds.setDecimals(6)
@@ -37,7 +37,13 @@ class TimeField(QWidget):
         self.seconds.setAccessibleName(f"{title}: elapsed seconds")
         self.editors = QStackedWidget()
         self.editors.addWidget(self.calendar)
-        self.editors.addWidget(self.seconds)
+        if origin:
+            # Origin always uses the calendar. QStackedWidget reserves the
+            # largest minimum width across all its pages, including hidden
+            # ones; a native numeric hint can otherwise widen the whole form.
+            self.seconds.hide()
+        else:
+            self.editors.addWidget(self.seconds)
         self.editors.setCurrentWidget(self.calendar if origin else self.seconds)
         self.editors.setEnabled(False)
         self.setMinimumHeight(38)

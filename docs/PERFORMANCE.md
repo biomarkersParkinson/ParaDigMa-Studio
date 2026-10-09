@@ -362,3 +362,22 @@ enabled. Analysis settings and scientific calculations are unchanged.
 Local validation: **363 tests passed**, with one Windows-only signature check
 skipped. The rebuilt app passed its packaged runtime checks on Linux; native
 Windows confirmation remains part of the GitHub Actions build.
+
+## Time-origin width constraints (0.5.19)
+
+Windows CI still found horizontal clipping after the columns stacked in 0.5.18.
+The time-origin row could force the entire form wider: its editor stack reserved
+space for a hidden numeric control, and its label could not wrap above the field.
+The origin field now reserves space for its calendar only, while retaining the
+numeric control internally for existing value handling. A wider calendar wraps
+below the label, with the same spacing as other parameter rows.
+
+New regressions reproduce the overflow on 0.5.18 using a 620-pixel numeric hint
+and calendars of 382 and 620 pixels. They check viewport width, complete control
+visibility through resizing, and stable positions when help opens. Source-clock
+precision, timezone handling, analysis settings and scientific calculations are
+unchanged.
+
+Local validation: **365 tests passed**, with one Windows-only signature check
+skipped. The rebuilt app passed its packaged runtime checks on Linux. Native
+Windows validation remains part of the GitHub Actions build.
