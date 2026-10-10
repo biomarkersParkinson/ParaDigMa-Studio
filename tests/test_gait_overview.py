@@ -163,6 +163,9 @@ def test_charts_match_official_gait_aggregation_output(tmp_path):
         np.testing.assert_array_equal(
             window.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 1, 1]
         )
+        assert [
+            text.get_text() for text in window.overview_gait_charts["segment_count"]["axis"].texts
+        ] == ["—", "—", "1", "1"]
         for metric, chart in window.overview_gait_charts.items():
             if metric == "segment_count":
                 continue

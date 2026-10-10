@@ -5,7 +5,7 @@ import math
 from matplotlib import dates
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import light_palette
+from .assets import DATA_DIRECTORY
 from .plotting import autoscale_bars
+from .channels import mark_graph_time
 
 
 class GraphToolbar(NavigationToolbar2QT):
@@ -30,19 +32,60 @@ class GraphToolbar(NavigationToolbar2QT):
     def __init__(self, canvas, parent):
         super().__init__(canvas, parent, coordinates=False)
         self.setPalette(light_palette())
+        self.select_action = QAction(
+            QIcon(str(DATA_DIRECTORY / "select-time.svg")), "Select timepoint", self
+        )
+        self.select_action.setCheckable(True)
+        self.select_action.setChecked(True)
+        self.select_action.setToolTip("Select a timepoint by clicking a graph")
+        self.select_action.triggered.connect(self.select_timepoint)
+        self.insertAction(self._actions["pan"], self.select_action)
         self.settings = GraphSettings(canvas, self)
-        self.settings_action = QAction("Graph settings", self)
+        self.settings_action = QAction("Axis limits", self)
         self.settings_action.setCheckable(True)
-        self.settings_action.setToolTip("Titles, axis limits, grid and legend")
+        self.settings_action.setToolTip("Set horizontal and vertical limits for the clicked graph")
         self.settings_action.toggled.connect(self.show_settings)
         self.addSeparator()
         self.addAction(self.settings_action)
         self.active_axes = None
         canvas.mpl_connect("button_press_event", self.select_axes)
 
+    def select_timepoint(self):
+        if self._actions["pan"].isChecked():
+            self.pan()
+        elif self._actions["zoom"].isChecked():
+            self.zoom()
+        self.select_action.setChecked(True)
+
+    def pan(self, *args):
+        super().pan(*args)
+        self.select_action.setChecked(not bool(self.mode))
+
+    def zoom(self, *args):
+        super().zoom(*args)
+        self.select_action.setChecked(not bool(self.mode))
+
     def select_axes(self, event):
         if event.inaxes in self.canvas.figure.axes:
             self.active_axes = event.inaxes
+            if (
+                not self.mode
+                and event.button == 1
+                and event.xdata is not None
+                and not hasattr(event.inaxes, "_paradigma_dataset")
+                and event.inaxes.has_data()
+            ):
+                locator = event.inaxes.xaxis.get_major_locator()
+                text = (
+                    dates.num2date(event.xdata, tz=locator.tz)
+                    .strftime("%d %b %Y %H:%M:%S.%f")
+                    .rstrip("0")
+                    .rstrip(".")
+                    if isinstance(locator, dates.DateLocator)
+                    else f"{event.xdata:.6g} s"
+                )
+                mark_graph_time(self.canvas.figure, event.xdata, text)
+                self.canvas.draw_idle()
             if self.settings_action.isChecked():
                 self.settings.read_axes()
 
@@ -56,12 +99,6 @@ class GraphToolbar(NavigationToolbar2QT):
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
-        if (
-            self.settings._defaults is not None
-            and self.settings._defaults[0] is not self.settings.axes()
-        ):
-            self.settings._defaults = None
-        self.settings.apply_visibility()
         if self.settings_action.isChecked():
             self.settings.read_axes()
 
@@ -122,13 +159,6 @@ class GraphSettings(QFrame):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setHorizontalSpacing(10)
         layout.setVerticalSpacing(6)
-        self.title, self.x_label, self.y_label = QLineEdit(), QLineEdit(), QLineEdit()
-        layout.addWidget(self.label("Title", self.title), 0, 0)
-        layout.addWidget(self.title, 0, 1, 1, 4)
-        layout.addWidget(self.label("X label", self.x_label), 1, 0)
-        layout.addWidget(self.x_label, 1, 1, 1, 2)
-        layout.addWidget(self.label("Y label", self.y_label), 1, 3)
-        layout.addWidget(self.y_label, 1, 4)
         self.bounds = {}
         self.limits_panel = QFrame()
         limits_layout = QGridLayout(self.limits_panel)
@@ -159,20 +189,10 @@ class GraphSettings(QFrame):
         limits_layout.setColumnStretch(2, 1)
         limits_layout.setColumnStretch(4, 1)
         layout.addWidget(self.limits_panel, 2, 0, 1, 5)
-        self.limits_panel.hide()
-        self.grid, self.legend = QCheckBox("Grid"), QCheckBox("Legend")
-        self.grid.setChecked(True)
-        self.legend.setChecked(True)
         controls = QHBoxLayout()
         controls.setSpacing(12)
-        controls.addWidget(self.grid)
-        controls.addWidget(self.legend)
-        self.limits_button = QPushButton("Axis limits")
-        self.limits_button.setCheckable(True)
-        self.limits_button.toggled.connect(self.limits_panel.setVisible)
-        controls.addWidget(self.limits_button)
         controls.addStretch()
-        self.reset_button = QPushButton("Reset")
+        self.reset_button = QPushButton("Reset limits")
         self.reset_button.clicked.connect(self.reset)
         self.apply_button = QPushButton("Apply")
         self.apply_button.clicked.connect(self.apply)
@@ -192,14 +212,6 @@ class GraphSettings(QFrame):
         layout.setColumnStretch(2, 1)
         layout.setColumnStretch(4, 1)
         self.hide()
-        self._defaults = None
-
-    @staticmethod
-    def label(text, edit):
-        label = QLabel(text)
-        label.setBuddy(edit)
-        edit.setAccessibleName(text)
-        return label
 
     def axes(self):
         if self.toolbar.active_axes in self.canvas.figure.axes:
@@ -211,33 +223,27 @@ class GraphSettings(QFrame):
         self.setEnabled(ax is not None)
         if ax is None:
             return
-        self.graph_hint.setText("Click a graph to edit its labels and vertical limits.")
+        self.graph_hint.setText(
+            "Click a graph to set its limits. Time limits apply to linked graphs."
+        )
         self.graph_hint.setVisible(len(self.canvas.figure.axes) > 1)
-        if self._defaults is None or self._defaults[0] is not ax:
-            title = ax.get_title() or ax.get_title(loc="left")
-            self._defaults = ax, title, ax.get_xlabel(), ax.get_ylabel()
-        self.title.setText(ax.get_title() or ax.get_title(loc="left"))
-        self.x_label.setText(ax.get_xlabel())
-        self.y_label.setText(ax.get_ylabel())
         for axis, (automatic, lower, upper) in self.bounds.items():
             automatic.setChecked(getattr(ax, f"get_autoscale{axis}_on")())
             is_date = isinstance(getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator)
-            lower.setToolTip("ISO date/time" if is_date else "Finite number")
+            lower.setToolTip("ISO date/time, including time zone" if is_date else "Finite number")
+            lower.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Minimum")
+            upper.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Maximum")
             upper.setToolTip(lower.toolTip())
             values = getattr(ax, f"get_{axis}lim")()
             for edit, value in zip((lower, upper), values):
-                edit.setText(dates.num2date(value).isoformat() if is_date else f"{value:.12g}")
-        self.legend.setEnabled(ax.get_legend() is not None)
+                edit.setText(
+                    dates.num2date(
+                        value, tz=getattr(ax, f"{axis}axis").get_major_locator().tz
+                    ).isoformat()
+                    if is_date
+                    else f"{value:.12g}"
+                )
         self.error.hide()
-
-    def apply_visibility(self):
-        for ax in self.canvas.figure.axes:
-            ax.grid(self.grid.isChecked())
-            if getattr(ax, "_paradigma_binary", False):
-                ax.grid(False, axis="y")
-            legend = ax.get_legend()
-            if legend is not None:
-                legend.set_visible(self.legend.isChecked())
 
     def apply(self):
         ax = self.axes()
@@ -262,14 +268,7 @@ class GraphSettings(QFrame):
             self.error.setText("Enter valid limits with minimum less than maximum.")
             self.error.show()
             return
-        if self._defaults is None or self._defaults[0] is not ax:
-            self.read_axes()
         self.toolbar.push_current()
-        ax.set_title("", loc="left")
-        ax.set_title(self.title.text(), loc="left", fontsize=10)
-        ax.set_title("")
-        ax.set_xlabel(self.x_label.text())
-        ax.set_ylabel(self.y_label.text())
         for axis, bounds in limits.items():
             if bounds is None:
                 getattr(ax, f"set_autoscale{axis}_on")(True)
@@ -282,7 +281,6 @@ class GraphSettings(QFrame):
                         autoscale_bars(ax)
             else:
                 getattr(ax, f"set_{axis}lim")(*bounds)
-        self.apply_visibility()
         self.toolbar.push_current()
         self.read_axes()
         self.canvas.draw_idle()
@@ -291,16 +289,8 @@ class GraphSettings(QFrame):
         ax = self.axes()
         if ax is None:
             return
-        if self._defaults is None or self._defaults[0] is not ax:
-            self.read_axes()
-        _, title, x_label, y_label = self._defaults
-        self.title.setText(title)
-        self.x_label.setText(x_label)
-        self.y_label.setText(y_label)
         for automatic, _, _ in self.bounds.values():
             automatic.setChecked(True)
-        self.grid.setChecked(True)
-        self.legend.setChecked(True)
         self.apply()
 
 

@@ -43,6 +43,9 @@ Both Windows workflows enforce the pinned Ruff formatter and import/error checks
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
 Qt platform initialization and Matplotlib cache configuration ahead of the
 imports that depend on them; do not reorder those imports automatically.
+Keep pandas/Arrow and scientific-stack imports deferred until data is needed.
+Fresh-process startup tests check both the empty workspace and saved run history;
+`benchmark_desktop.py` enforces the same import boundary in packaged builds.
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,

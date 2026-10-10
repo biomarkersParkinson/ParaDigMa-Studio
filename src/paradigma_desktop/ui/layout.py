@@ -42,6 +42,7 @@ from ..widgets import (
     AdaptiveFormColumns,
     FigureActionBar,
     SeriesTree,
+    CheckLabelDelegate,
     label,
     button,
     card,
@@ -254,6 +255,7 @@ class WorkspaceLayout:
         channel_layout.addWidget(heading)
         selection = QHBoxLayout()
         channel_list = QListWidget()
+        channel_list.setItemDelegate(CheckLabelDelegate(channel_list))
         selection.addWidget(
             button(
                 "Select all",
@@ -673,8 +675,8 @@ class WorkspaceLayout:
         graph_layout = QHBoxLayout(graphs)
         graph_layout.setContentsMargins(0, 0, 0, 0)
         self.result_series = SeriesTree()
-        self.result_series.setIndentation(12)
-        self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 3px; }")
+        self.result_series.setIndentation(8)
+        self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 0px; }")
         self.result_series.setHeaderLabel("Plot series")
         self.result_series.setPalette(light_palette())
         self.result_series.setMinimumWidth(190)
@@ -760,6 +762,13 @@ class WorkspaceLayout:
         self.sensor_note = label("", "muted")
         sensor_header = QHBoxLayout()
         sensor_header.addWidget(self.sensor_note, 1)
+        self.sensor_earlier = button("← Earlier", lambda: self.move_sensor_context(-1))
+        self.sensor_later = button("Later →", lambda: self.move_sensor_context(1))
+        for control in (self.sensor_earlier, self.sensor_later):
+            control.setEnabled(False)
+            sensor_header.addWidget(control)
+        self.sensor_earlier.setToolTip("Show the previous context window in this recording")
+        self.sensor_later.setToolTip("Show the next context window in this recording")
         sensor_header.addWidget(button("Close", self.hide_sensor_context))
         sensor_layout.addLayout(sensor_header)
         self.sensor_tabs = QTabWidget()
@@ -786,17 +795,6 @@ class WorkspaceLayout:
         self.context_button.setEnabled(False)
         self.context_button.setToolTip("Select a result row or click a graph point")
         context.addWidget(self.context_button)
-        self.context_radius = QDoubleSpinBox()
-        self.context_radius.setRange(0.1, 120)
-        self.context_radius.setValue(2)
-        self.context_radius.setSuffix(" s")
-        self.context_radius.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        self.context_radius.setAccessibleName("Sensor context radius")
-        self.context_radius.setToolTip(
-            "Original samples within this radius of the selected time; not an analysis window."
-        )
-        context.addWidget(label("±", "muted"))
-        context.addWidget(self.context_radius)
         self.context_controls = QWidget()
         self.context_controls.setLayout(context)
         self.result_tabs.currentChanged.connect(self.results_tab_changed)

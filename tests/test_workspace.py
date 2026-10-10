@@ -620,10 +620,10 @@ def test_graph_click_selects_nearest_row_within_active_selection(window):
 def test_context_drills_into_original_mapped_sensor_values(window):
     frame = pd.DataFrame(
         {
-            "timestamp": 1_700_000_000_000 + np.arange(301) * 10,
-            "gyr_x": np.arange(301, dtype=float) * 100,
+            "timestamp": 1_700_000_000_000 + np.arange(3001) * 10,
+            "gyr_x": np.arange(3001, dtype=float) * 100,
         },
-        index=np.arange(301) + 500,
+        index=np.arange(3001) + 500,
     )
     original = frame.copy()
     window.loaded(("sensor.csv", frame))
@@ -638,17 +638,19 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     }
     window.analyzed(
         {
-            "quantifications": {"tremor": pd.DataFrame({"time": [1.0, 2.0], "metric": [5.0, 6.0]})},
+            "quantifications": {
+                "tremor": pd.DataFrame({"time": [15.0, 25.0], "metric": [5.0, 6.0]})
+            },
             "errors": [],
         }
     )
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()
-    window.context_radius.setValue(0.2)
+    assert not hasattr(window, "context_radius")
     window.inspect_sensor_context()
     assert window.result_tabs.currentIndex() == window.sensor_tab_index
     assert window.result_tabs.isTabVisible(window.sensor_tab_index)
-    mask = np.abs(np.arange(301) / 100 - 1.0) <= 0.2
+    mask = np.abs(np.arange(3001) / 100 - 15.0) <= 10.0
     pd.testing.assert_frame_equal(
         window.sensor_table.model().frame, frame.iloc[np.flatnonzero(mask)]
     )
@@ -697,7 +699,7 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()
     assert window.context_button.text() == "Inspect gait segment"
-    assert "Estimated" in window.time_axis.selection_label.get_text()
+    assert window.time_axis.selection_label.get_text() == "1.25 s"
     window.inspect_sensor_context()
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, raw.iloc[10:20])
     assert "using toolbox metadata" in window.sensor_note.text()

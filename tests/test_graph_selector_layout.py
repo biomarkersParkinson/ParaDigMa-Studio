@@ -99,7 +99,7 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
     QTest.qWait(30)
     tree = window.result_series
     root = tree.topLevelItem(0)
-    assert tree.indentation() == 12
+    assert tree.indentation() == 8
     assert {root.child(i).text(0) for i in range(root.childCount())} == {
         "Tremor presence (prediction)",
         "Arm at rest (prediction)",
@@ -124,6 +124,12 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
     rect = tree.visualItemRect(leaf)
     QTest.mouseClick(
         tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 10, rect.center().y())
+    )
+    assert leaf.checkState(0) != before
+    assert root.isExpanded()
+    before = leaf.checkState(0)
+    QTest.mouseClick(
+        tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 55, rect.center().y())
     )
     assert leaf.checkState(0) != before
     assert root.isExpanded()
@@ -201,7 +207,13 @@ def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readabl
         window.resize(width, 800)
         QTest.qWait(30)
         window.canvas.draw()
+        window.result_table.setCurrentIndex(window.result_table.model().index(1, 0))
         window.time_axis.draw()
+        selected_bounds = window.time_axis.selection_label.get_window_extent(
+            window.time_axis.get_renderer()
+        )
+        assert selected_bounds.y0 > window.time_axis.axes.bbox.y0
+        assert selected_bounds.y1 <= window.time_axis.figure.bbox.y1
         tree_bottom = window.result_series.mapTo(
             window, QPoint(0, window.result_series.height())
         ).y()

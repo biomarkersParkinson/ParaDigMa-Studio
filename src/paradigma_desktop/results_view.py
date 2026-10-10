@@ -3,7 +3,6 @@
 import re
 from functools import lru_cache
 import numpy as np
-import pandas as pd
 
 from .core import result_tables
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
@@ -26,6 +25,8 @@ def gait_model_threshold(stage):
 
 def plot_tables(tables):
     """Add display-only gait window indicators; leave raw outputs untouched."""
+    import pandas as pd
+
     plots, labels = dict(tables), {}
     for stage, probability, indicator, title in (
         ("detection", "pred_gait_proba", "pred_gait_window", "Gait presence"),
@@ -136,6 +137,8 @@ def tremor_overview_entries(results):
     Power aggregates already use ParaDigMa's log10(power + 1) scale. Never
     transform them again or insert the derived rest percentage into outputs.
     """
+    import pandas as pd
+
     aggregates = {
         path[-1]: (path, value)
         for path, value in flat_values(results.get("aggregations", {}).get("tremor", {}))
@@ -201,6 +204,8 @@ def readable_key(key):
 
 
 def detail_tables(results):
+    import pandas as pd
+
     return {
         name: frame
         for category in ("classifications", "quantifications")
@@ -215,6 +220,8 @@ def aggregation_tables(results):
     Object-valued cells preserve integer precision and mixed scalar types;
     aggregates remain separate from time-filtered classifications/measurements.
     """
+    import pandas as pd
+
     tables = {}
 
     def collect(value, path):
@@ -311,6 +318,8 @@ def detail_timing(results, name, frame):
     placed at a bin midpoint within its known segment, rather than pretending
     that segment boundaries are exact timestamps for the first/last swing.
     """
+    import pandas as pd
+
     times = np.full(len(frame), np.nan)
     starts, ends = times.copy(), times.copy()
     basis = np.full(len(frame), "Timing unavailable", dtype=object)
@@ -340,6 +349,8 @@ def detail_timing(results, name, frame):
 
 def recording_clock(frame, settings, timeline=None):
     """Return the clock at analysis second zero, keeping known timezone context."""
+    import pandas as pd
+
     if frame is None or frame.empty:
         return None
     try:
@@ -391,12 +402,16 @@ def recording_clock(frame, settings, timeline=None):
 
 
 def clock_times(times, clock):
+    import pandas as pd
+
     if clock is None:
         return np.asarray(times, dtype=float)
     return clock_origin(clock) + pd.to_timedelta(np.asarray(times, dtype=float), unit="s")
 
 
 def clock_origin(clock):
+    import pandas as pd
+
     origin = pd.Timestamp(clock["origin"])
     if origin.tz is not None and clock.get("timezone"):
         origin = origin.tz_convert(clock["timezone"])
@@ -409,14 +424,17 @@ def flat_values(value, prefix=()):
         for key, child in value.items():
             if key != "per_segment":
                 yield from flat_values(child, (*prefix, str(key)))
-    elif isinstance(value, pd.DataFrame):
-        for index, row in value.iterrows():
-            for key, child in row.items():
-                yield (*prefix, str(index), str(key)), child
-    elif isinstance(value, (list, tuple, np.ndarray)):
-        yield prefix, ", ".join(map(str, value))
     else:
-        yield prefix, value
+        import pandas as pd
+
+        if isinstance(value, pd.DataFrame):
+            for index, row in value.iterrows():
+                for key, child in row.items():
+                    yield (*prefix, str(index), str(key)), child
+        elif isinstance(value, (list, tuple, np.ndarray)):
+            yield prefix, ", ".join(map(str, value))
+        else:
+            yield prefix, value
 
 
 def segment_summary(metadata):
@@ -452,6 +470,8 @@ def segment_summary(metadata):
 
 
 def time_bound(text, clock):
+    import pandas as pd
+
     if not text.strip():
         return None
     try:
@@ -479,6 +499,8 @@ def time_bound(text, clock):
 
 
 def normalise_clock(clock):
+    import pandas as pd
+
     text = clock["origin"]
     if not isinstance(text, str) or not re.match(r"^\d{4}-\d{2}-\d{2}", text):
         raise ValueError("Use a full ISO date/time for the time origin.")

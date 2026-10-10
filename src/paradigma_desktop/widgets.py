@@ -1,7 +1,6 @@
 """Shared Qt controls and layouts; no analysis or application state."""
 
 import numpy as np
-import pandas as pd
 from PySide6.QtCore import (
     QAbstractAnimation,
     QAbstractTableModel,
@@ -157,7 +156,28 @@ class AdaptiveFormColumns(QHBoxLayout):
         super().setGeometry(rect)
 
 
-class SeriesLabelDelegate(QStyledItemDelegate):
+class CheckLabelDelegate(QStyledItemDelegate):
+    """Toggle a checkable row once when its checkbox or label is clicked."""
+
+    def editorEvent(self, event, model, option, index):
+        if (
+            index.flags() & Qt.ItemIsUserCheckable
+            and index.flags() & Qt.ItemIsEnabled
+            and event.type()
+            in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
+            and event.button() == Qt.LeftButton
+            and option.rect.contains(event.position().toPoint())
+        ):
+            if event.type() == QEvent.MouseButtonRelease:
+                checked = index.data(Qt.CheckStateRole) in (Qt.Checked, Qt.Checked.value)
+                return model.setData(
+                    index, Qt.Unchecked if checked else Qt.Checked, Qt.CheckStateRole
+                )
+            return True
+        return super().editorEvent(event, model, option, index)
+
+
+class SeriesLabelDelegate(CheckLabelDelegate):
     """Reserve wrapped row heights instead of shortening long metric names."""
 
     def initStyleOption(self, option, index):
@@ -395,6 +415,8 @@ class FrameModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.frame.columns)
 
     def data(self, index, role=Qt.DisplayRole):
+        import pandas as pd
+
         if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
             column = index.column()
             if column not in self._column_values:
@@ -422,6 +444,53 @@ class FrameModel(QAbstractTableModel):
                 if orientation == Qt.Horizontal
                 else str(section + 1)
             )
+
+
+class RecordModel(FrameModel):
+    """Display metadata rows without loading the sensor-data libraries.
+
+    Keep the FrameModel interface for existing consumers that inspect or update
+    its DataFrame. Construct that view only when it is explicitly requested.
+    """
+
+    def __init__(self, records, columns):
+        super().__init__(None)
+        self._rows = tuple(tuple(record[column] for column in columns) for record in records)
+        self._columns = tuple(columns)
+
+    @property
+    def frame(self):
+        if self._frame is None:
+            import pandas as pd
+
+            self._frame = pd.DataFrame(self._rows, columns=self._columns)
+        return self._frame
+
+    @frame.setter
+    def frame(self, value):
+        self._frame = value
+
+    def rowCount(self, parent=QModelIndex()):
+        if self._frame is not None:
+            return super().rowCount(parent)
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()):
+        if self._frame is not None:
+            return super().columnCount(parent)
+        return 0 if parent.isValid() else len(self._columns)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if self._frame is not None:
+            return super().data(index, role)
+        if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
+            return str(self._rows[index.row()][index.column()])
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if self._frame is not None:
+            return super().headerData(section, orientation, role)
+        if role in (Qt.DisplayRole, Qt.ToolTipRole):
+            return str(self._columns[section]) if orientation == Qt.Horizontal else str(section + 1)
 
 
 class ReadableComboBox(QComboBox):

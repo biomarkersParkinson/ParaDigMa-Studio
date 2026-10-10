@@ -12,12 +12,10 @@ Graphs supports checkboxes for multiple channels, Select all/Clear, stable disti
 
 ![Original sensor graphs](screenshots/data-graphs.png)
 
-Each graph has one inline **Graph settings** panel for title, axis labels,
-grid and legend. Expand **Axis limits** for manual bounds. Pan, zoom, reset
-view and figure saving stay on the toolbar. Saved figures retain their own time axis.
-The two generic figure dialogs have been removed.
-
-![Integrated graph settings](screenshots/graph-settings.png)
+Graph controls provide Select timepoint (default), Pan and Zoom. **Axis limits**
+opens the inline X/Y bounds panel; Apply validates both ranges together and
+Reset limits restores automatic ranges. Click a graph to choose its Y axis;
+time limits apply to all linked plots. Home, history and Save remain available.
 
 ![Original sensor tables](screenshots/data-tables.png)
 

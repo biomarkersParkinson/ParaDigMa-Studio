@@ -36,7 +36,7 @@ pytest and Ruff checks. `README.md` is the user entry point; `SECURITY.md` and
 | Sensor context and source timelines | `exploration.py` |
 | Export selection, encoding and safe file writes | `exports.py`, `serialization.py`, `storage.py` |
 | Run metadata, deletion and JSON reopening | `history.py` |
-| Reusable Qt controls and forms | `widgets.py`, `time_controls.py` |
+| Reusable Qt controls, lazy run-record tables and forms | `widgets.py`, `time_controls.py` |
 | Graph controls, rendering, selection overlay and pinned time axis | `plot_controls.py`, `plotting.py`, `time_axis.py` |
 | Palette, typography and packaged resource paths | `theme.py`, `assets.py` |
 | Matplotlib font-cache initialization | `bootstrap.py`, `plot_cache.py` |

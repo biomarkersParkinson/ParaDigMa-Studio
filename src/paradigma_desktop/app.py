@@ -9,7 +9,6 @@ from pathlib import Path
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
 from PySide6.QtCore import Qt, QStandardPaths, QItemSelectionModel
 from PySide6.QtGui import QIcon, QColor
 from PySide6.QtWidgets import (
@@ -31,7 +30,7 @@ from .core import (
     validate_column_mapping,
     validate_orientation,
 )
-from .exploration import gait_context, source_timeline
+from .exploration import SensorContext, gait_context, source_timeline
 from .recordings import load_recordings, align_recordings, source_key
 from .history import RunHistory, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import inspect_recording, sensor_descriptives, time_descriptives
@@ -59,11 +58,17 @@ from .result_data import prepare_result_data, detail_table_view
 from .assets import DATA_DIRECTORY
 from .ui.layout import WorkspaceLayout
 from .ui.result_graphs import ResultGraphs
-from .channels import selected_channels, check_channels, populate_channels, plot_channel_signals
+from .channels import (
+    selected_channels,
+    check_channels,
+    populate_channels,
+    plot_channel_signals,
+    mark_sensor_time,
+)
 from .jobs import Worker, SignalHandler as SignalHandler
 from .widgets import ReadableTable as ReadableTable
 
-from .widgets import FrameModel, WrappedForm, label, card
+from .widgets import FrameModel, RecordModel, WrappedForm, label, card
 
 
 class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
@@ -121,6 +126,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.result_source_frame = None
         self.result_timeline = None
         self.sensor_frame = None
+        self._sensor_context = None
         self.active_run = self.current_run = self.selected_run = None
         self.sidebar_collapsed = True
         directory = (
@@ -419,6 +425,9 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.export_button.setEnabled(False)
         self.hide_sensor_context()
         self.display_frame = self.sensor_frame = self.sensor_times = None
+        self._sensor_context = None
+        self.sensor_earlier.setEnabled(False)
+        self.sensor_later.setEnabled(False)
         self.sensor_table.setModel(None)
         self.sensor_figure.clear()
         self.context_button.setEnabled(False)
@@ -576,6 +585,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self.plot_input()
 
     def update_time_unit_control(self):
+        import pandas as pd
+
         column = self.data_time_channel.currentData()
         numeric_time = (
             self.frame is not None
@@ -644,6 +655,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         )
 
     def plot_input(self, *_):
+        import pandas as pd
+
         self._data_plot_dirty = False
         channels = self.selected_input_channels()
         times, time_label, timezone = None, "Time (file units)", None
@@ -1469,6 +1482,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.plot()
 
     def inspect_sensor_context(self):
+        import pandas as pd
+
         row = self.result_table.currentIndex().row()
         if not self.context_button.isEnabled() or row < 0:
             return
@@ -1493,36 +1508,69 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             segment = gait_context(self.results, self.dataset.currentText(), selected)
             if "time" in selected and pd.notna(selected["time"]):
                 anchor = float(selected["time"])
-                radius = self.context_radius.value()
-                mask = np.isfinite(module_timeline) & (np.abs(module_timeline - anchor) <= radius)
+                radius = 10.0
+                start, end = anchor - radius, anchor + radius
+                include_end = True
                 description = f"near {anchor:.4g} s (±{radius:g} s). This is timestamp context, not the algorithm's exact window."
             elif segment is not None:
                 start, end, number = segment
-                mask = (
-                    np.isfinite(module_timeline)
-                    & (module_timeline >= start)
-                    & (module_timeline < end)
-                )
+                include_end = False
                 description = f"from gait segment {number}, {start:.4g}–{end:.4g} s, using toolbox metadata. Individual arm-swing timestamps are not provided."
             else:
                 raise ValueError("No explicit sensor time context is available.")
-            self.sensor_frame = source_frame.iloc[np.flatnonzero(mask)]
-            self.sensor_times = display_timeline[mask]
-            self.sensor_table.setModel(FrameModel(self.sensor_frame))
-            self.populate_sensor_channels()
-            self.sensor_note.setText(
-                f"{len(self.sensor_frame):,} original samples {description} Original units; horizontal axis aligned to analysis time."
-            )
+            source_name = ""
             if isinstance(self.result_source_frame, dict):
                 path = self.provenance.get("sources", {}).get(key, key)
-                self.sensor_note.setText(f"{Path(path).name} · " + self.sensor_note.text())
-            self.plot_sensor()
+                source_name = Path(path).name
+            finite = module_timeline[np.isfinite(module_timeline)]
+            timing = self._timings[self.dataset.currentText()].iloc[self.active_positions[row]]
+            self._sensor_context = SensorContext(
+                source_frame,
+                module_timeline,
+                display_timeline,
+                start,
+                end,
+                float(timing["Timeline time (s)"]),
+                float(finite.min()) if len(finite) else np.nan,
+                float(finite.max()) if len(finite) else np.nan,
+                source_name=source_name,
+                include_end=include_end,
+            )
+            self.show_sensor_context(description)
             self.result_tabs.setTabVisible(self.sensor_tab_index, True)
             self.result_tabs.setCurrentIndex(self.sensor_tab_index)
         except (ValueError, TypeError, KeyError, IndexError) as exc:
             message = f"Sensor context unavailable: {exc}"
             self.context_button.setToolTip(message)
             self.status.setText(message)
+
+    def show_sensor_context(self, description):
+        context = self._sensor_context
+        positions = context.positions()
+        self.sensor_frame = context.frame.iloc[positions]
+        self.sensor_times = context.display_times[positions]
+        self.sensor_table.setModel(FrameModel(self.sensor_frame))
+        self.populate_sensor_channels()
+        prefix = f"{context.source_name} · " if context.source_name else ""
+        self.sensor_note.setText(
+            prefix + f"{len(self.sensor_frame):,} original samples {description} "
+            "Original units; horizontal axis aligned to analysis time."
+        )
+        self.sensor_earlier.setEnabled(context.can_move(-1))
+        self.sensor_later.setEnabled(context.can_move(1))
+        self.plot_sensor()
+
+    def move_sensor_context(self, direction):
+        if self._sensor_context is None:
+            return
+        context = self._sensor_context.moved(direction)
+        if context is None:
+            return
+        self._sensor_context = context
+        self.show_sensor_context(
+            f"from {context.start:.6g}–{context.end:.6g} s. "
+            "This is timestamp context, not the algorithm's exact window."
+        )
 
     def hide_sensor_context(self):
         if self.result_tabs.currentIndex() == self.sensor_tab_index:
@@ -1570,6 +1618,11 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             calendar=calendar,
             timezone=clock_origin(self.display_clock).tz if calendar else None,
         )
+        context = self._sensor_context
+        if context is not None and self.selected_sensor_channels() and not self.sensor_frame.empty:
+            times = self.sensor_times[np.isfinite(self.sensor_times)]
+            if len(times) and times.min() <= context.selected_time <= times.max():
+                mark_sensor_time(self.sensor_figure, context.selected_time, self.display_clock)
         self.sensor_toolbar.refresh()
         self.sensor_canvas.draw_idle()
 
@@ -1579,7 +1632,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             record is self.selected_run for record in getattr(self, "_run_row_records", ())
         ):
             selected_ids = {self.selected_run["id"]}
-        data = pd.DataFrame(
+        model = RecordModel(
             [
                 {
                     "Started": datetime.fromisoformat(record["started"])
@@ -1601,7 +1654,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"],
         )
         self._run_row_records = tuple(self.runs)
-        self.run_table.setModel(FrameModel(data))
+        self.run_table.setModel(model)
         self.run_table.setColumnWidth(0, 176)
         self.run_table.setColumnWidth(2, 170)
         self.run_table.selectionModel().currentRowChanged.connect(self.select_run)

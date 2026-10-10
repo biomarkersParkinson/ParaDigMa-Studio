@@ -36,7 +36,7 @@ A verified signing identity must be configured before the signed workflow can pr
    and continuous medians). Gait range of motion / peak velocity and tremor
    power require at least 90 seconds of the corresponding presence per epoch.
    Tables and exports retain the original outputs.
-   Use **Graph settings** or the toolbar to adjust, zoom or save figures.
+   Use **Axis limits** or the toolbar to adjust, zoom or save figures.
    **Recording & preparation** shows the recording's start/end, prepared-data
    coverage in hours and percent of the timespan, and interruptions between
    prepared intervals. Modules with identical prepared inputs share these figures.
@@ -98,5 +98,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.23**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.24**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

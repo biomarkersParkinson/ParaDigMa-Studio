@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 
 
-def startup_test(report_path, started):
+def startup_test(report_path, started, *, history_dir=None):
     report_path = Path(report_path).resolve()
     try:
         from PySide6.QtCore import QObject, QEvent, QTimer
@@ -38,7 +38,11 @@ def startup_test(report_path, started):
                     import_seconds=imported - started,
                     first_paint_seconds=time.perf_counter() - started,
                     qt_platform=app.platformName(),
-                    empty_history=True,
+                    empty_history=not window.runs,
+                    run_history_count=len(window.runs),
+                    data_modules_loaded=[
+                        name for name in ("pandas", "pyarrow") if name in sys.modules
+                    ],
                     persistent_font_cache=getattr(workspace, "PLOT_CACHE_DIRECTORY", None)
                     is not None,
                     analysis_modules_loaded=[
@@ -53,7 +57,7 @@ def startup_test(report_path, started):
                 app.quit()
 
         with tempfile.TemporaryDirectory(prefix="paradigma-startup-") as directory:
-            window = MainWindow(history_dir=directory)
+            window = MainWindow(history_dir=history_dir if history_dir is not None else directory)
             observer = FirstPaint(window)
             window.installEventFilter(observer)
             window.show()

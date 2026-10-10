@@ -466,3 +466,42 @@ All 385 local tests pass, including the 31 scientific-equivalence tests; the
 Windows-only signature check is skipped locally. Twenty screenshots match the
 previous UI pixel for pixel, and the rebuilt executable passes its packaged
 smoke checks. Native Windows checks run in GitHub Actions.
+
+
+## Startup and graph controls (0.5.24)
+
+Pandas and its Arrow dependency now load when a recording or results are used,
+instead of while importing the empty workspace. Standard function-level imports
+keep the same implementations and preserve packaging discovery. Run history
+uses a lightweight Qt record model, including saved runs; its compatible
+DataFrame view is created only when explicitly requested. Scientific dependencies
+and the Matplotlib renderer remain bundled.
+
+| Fresh-process median | 0.5.23 | 0.5.24 |
+| --- | ---: | ---: |
+| Source import (7 launches) | 1.161 s | 0.744 s |
+| Source first paint (7 launches) | 1.408 s | 0.986 s |
+| Packaged first paint (5 launches) | 1.472 s | 0.880 s |
+| Packaged launch to report, including bootloader (5 launches) | 1.796 s | 1.140 s |
+
+The packaged first-paint median improves by about 40% in this local measurement.
+These Linux/offscreen results use existing OS/font caches and do not establish
+Windows or cold-boot performance. Deferred import work occurs at first data use.
+Bundle size remains 539.4 MiB; this change preserves the libraries and assets
+needed for every supported workflow. The new cursor icon and code add 6.4 KiB.
+[Raw measurements](startup-review-0.5.24.json) retain every launch and component size.
+
+The graph toolbar has mutually exclusive Select timepoint (default), Pan and
+Zoom modes. Its only settings are X/Y limits, with atomic validation and a reset
+to automatic ranges. Series and raw-channel labels toggle their checkboxes;
+series indentation is reduced. Sensor context starts at ±10 seconds, or the
+complete gait segment, and can move earlier/later through the original recording.
+Shared selection overlays do not change values or automatic data ranges. Triangle
+tips sit on the baseline, with date/time labels above it. Gait segment-count bar
+labels use integers.
+
+Validation: **392 tests passed**, including all 31 scientific-equivalence cases;
+one Windows-only signature check was skipped. Focused checks also cover the
+final timestamp positioning and actual cursor-icon rendering. The rebuilt Linux
+bundle passed the packaged runtime check. Native Windows validation remains in
+GitHub Actions.

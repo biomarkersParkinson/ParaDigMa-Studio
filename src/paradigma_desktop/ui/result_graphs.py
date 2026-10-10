@@ -1,11 +1,17 @@
 """Results graph rendering, epoch caches and linked row inspection."""
 
 import numpy as np
-import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib import dates
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
-from ..plotting import binary_indicator, plot_states, plot_bars, autoscale_bars, time_coordinates
+from ..plotting import (
+    binary_indicator,
+    plot_states,
+    plot_bars,
+    autoscale_bars,
+    time_coordinates,
+    time_selection_line,
+)
 from ..results_view import MODULE_NAMES, clock_times, clock_origin
 from ..theme import style_axes, module_color, style_result_heading
 from ..time_axis import RecordingTimeFormatter
@@ -17,6 +23,8 @@ class ResultGraphs:
     """Results rendering using the host MainWindow selection and cache state."""
 
     def gait_plot_presence(self):
+        import pandas as pd
+
         if self._gait_presence_cache is None:
 
             def frame(stage, metric):
@@ -415,6 +423,8 @@ class ResultGraphs:
         self.canvas.draw_idle()
 
     def result_row_changed(self, current, previous):
+        import pandas as pd
+
         frame = self.active_frame
         valid_row = current.isValid() and frame is not None
         timestamp = (
@@ -431,7 +441,6 @@ class ResultGraphs:
         )
         usable = self.result_source_frame is not None and (timestamp or segment is not None)
         self.context_button.setEnabled(bool(usable))
-        self.context_radius.setEnabled(bool(timestamp))
         self.context_button.setText(
             "Inspect gait segment"
             if segment is not None and not timestamp
@@ -460,6 +469,8 @@ class ResultGraphs:
         current = self.result_table.currentIndex()
         if frame is None or not current.isValid() or name not in self._timings:
             return
+        import pandas as pd
+
         row = current.row()
         position = self.active_positions[row]
         timing = self._timings[name].iloc[position]
@@ -472,25 +483,11 @@ class ResultGraphs:
             label = timestamp.strftime("%d %b %Y %H:%M:%S.%f").rstrip("0").rstrip(".")
         else:
             x, label = seconds, f"{seconds:.6g} s"
-        estimated = "Estimated" in str(timing["Time basis"])
-        label = f"Row {row + 1} · {label}" + (" · Estimated" if estimated else "")
         self.time_axis.set_selection(x, label)
         for ax in self.figure.axes:
             if not hasattr(ax, "_paradigma_dataset"):
                 continue
-            line = Line2D(
-                [x, x],
-                [0, 1],
-                transform=ax.get_xaxis_transform(),
-                color="#465B73",
-                linewidth=1.1,
-                linestyle=(0, (3, 3)),
-                alpha=0.75,
-                zorder=7,
-            )
-            line.set_gid("selected-result-time")
-            line.set_animated(self.canvas.supports_blit)
-            ax.add_artist(line)
+            line = time_selection_line(ax, x, animated=self.canvas.supports_blit)
             self._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
@@ -533,6 +530,8 @@ class ResultGraphs:
             self._result_selection_artists.append(point)
 
     def graph_clicked(self, event):
+        import pandas as pd
+
         if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
             return
         name = getattr(event.inaxes, "_paradigma_dataset", self.dataset.currentText())

@@ -5,6 +5,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint, Signal
+from .plotting import time_selection_triangle
 
 
 class RecordingTimeFormatter(ticker.Formatter):
@@ -78,7 +79,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.source_canvas = source_canvas
         self.label_source = label_source
         self.figure.set_facecolor("white")
-        self.axes = self.figure.add_axes((0.1, 0.84, 0.85, 0.1))
+        self.axes = self.figure.add_axes((0.1, 0.62, 0.85, 0.1))
         self.axes.yaxis.set_visible(False)
         for side in ("top", "right", "left"):
             self.axes.spines[side].set_visible(False)
@@ -99,7 +100,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.selection_marker = Line2D(
             [],
             [],
-            marker="v",
+            marker=time_selection_triangle(),
             markersize=6,
             color="#465B73",
             linestyle="none",
@@ -110,11 +111,11 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.add_artist(self.selection_marker)
         self.selection_label = self.axes.text(
             1,
-            1.35,
+            0.9,
             "",
             transform=self.axes.transAxes,
             ha="right",
-            va="top",
+            va="bottom",
             fontsize=8.5,
             color="#465B73",
         )
@@ -195,7 +196,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         if state == self._sync_state:
             return
         self._sync_state = state
-        self.axes.set_position((left, 0.84, max(0.01, right - left), 0.1))
+        # Two-line calendar ticks need more room below the baseline; the
+        # selected timestamp sits above it inside the same fixed-height ruler.
+        bottom = 0.70 if self.height() == 62 else 0.62
+        self.axes.set_position((left, bottom, max(0.01, right - left), 0.1))
         self.axes.set_xlim(limits, emit=False)
         self._update_selection_visibility()
         self.axes.set_xlabel(text, labelpad=8)

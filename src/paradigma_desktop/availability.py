@@ -2,7 +2,6 @@
 
 import json
 import numpy as np
-import pandas as pd
 
 
 def prepared_availability(inputs, pipelines):
@@ -29,6 +28,8 @@ def availability_views(results, offsets):
 
     groups = {}
     for module, sections in results.get("metadata", {}).get("desktop_availability", {}).items():
+        import pandas as pd
+
         rows = [
             {"time": start, "end": end, "available": 1.0, "file_key": key}
             for key, section in sections.items()

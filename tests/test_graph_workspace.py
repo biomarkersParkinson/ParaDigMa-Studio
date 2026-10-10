@@ -647,8 +647,11 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
     assert point.get_ydata() == [1.0]
     assert [(ax.get_xlim(), ax.get_ylim()) for ax in window.figure.axes] == limits
     assert window.time_axis.selection_marker.get_visible()
-    assert "Row 2" in window.time_axis.selection_label.get_text()
-    assert "07 Oct 2026 12:00:01" in window.time_axis.selection_label.get_text()
+    assert window.time_axis.selection_label.get_text() == "07 Oct 2026 12:00:01"
+    window.time_axis.draw()
+    bounds = window.time_axis.selection_label.get_window_extent(window.time_axis.get_renderer())
+    assert bounds.y0 > window.time_axis.axes.bbox.y0
+    assert bounds.y1 <= window.time_axis.figure.bbox.y1
     axes.set_xlim(x + 2.0 / 86400.0, x + 3.0 / 86400.0)
     assert not window.time_axis.selection_marker.get_visible()
     assert window.time_axis.selection_label.get_visible()

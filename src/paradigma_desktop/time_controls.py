@@ -1,7 +1,6 @@
 """Optional calendar/clock filters, preserving untouched source-clock precision."""
 
 import numpy as np
-import pandas as pd
 from PySide6.QtCore import QDateTime, QTimeZone, Qt, Signal
 from PySide6.QtWidgets import (
     QCalendarWidget,
@@ -99,6 +98,8 @@ class TimeField(QWidget):
     def setText(self, text):
         # The exact ISO value remains unchanged until the user edits a field;
         # QDateTime's millisecond display must not round nanosecond source clocks.
+        import pandas as pd
+
         self._changing = True
         try:
             self._text = str(text).strip()

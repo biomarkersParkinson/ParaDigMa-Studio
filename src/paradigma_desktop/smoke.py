@@ -27,6 +27,7 @@ def smoke_test(report_path):
         from .app import MainWindow
         from .core import analyze, export_results, load_sensor_file
         from .plotting import binary_indicator
+        from .results_view import clock_times
         from .inspection import inspect_recording
         from .recordings import load_recordings
         from .analysis_process import run_isolated_analysis
@@ -106,16 +107,24 @@ def smoke_test(report_path):
                 toolbar = window.data_toolbar
                 actions = [action.text() for action in toolbar.actions()]
                 if (
-                    actions.count("Graph settings") != 1
+                    actions.count("Axis limits") != 1
                     or "Subplots" in actions
                     or "Customize" in actions
                 ):
                     raise RuntimeError("Graph settings are duplicated")
                 toolbar.settings_action.setChecked(True)
-                toolbar.settings.title.setText("Sensor inspection")
+                automatic, lower, upper = toolbar.settings.bounds["x"]
+                automatic.setChecked(False)
+                lower.setText("0.5")
+                upper.setText("1.5")
                 toolbar.settings.apply_button.click()
-                if window.data_figure.axes[0].get_title(loc="left") != "Sensor inspection":
-                    raise RuntimeError("Integrated graph settings did not apply")
+                if not np.allclose(window.data_figure.axes[0].get_xlim(), [0.5, 1.5]):
+                    raise RuntimeError("Integrated axis limits did not apply")
+                if (
+                    not toolbar.select_action.isChecked()
+                    or toolbar.select_action.icon().pixmap(24, 24).isNull()
+                ):
+                    raise RuntimeError("Default timepoint cursor or its packaged icon is missing")
                 toolbar.settings.reset_button.click()
                 toolbar.settings_action.setChecked(False)
                 if "time" in window.channel_table.model().frame["Channel"].tolist():
@@ -245,13 +254,24 @@ def smoke_test(report_path):
                 row = int(np.flatnonzero(present)[0]) if present.any() else 0
                 window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
                 window.canvas.draw()
+                seconds = float(
+                    window._timings["classifications/tremor"].iloc[row]["Timeline time (s)"]
+                )
+                expected_label = (
+                    clock_times([seconds], window.display_clock)[0]
+                    .strftime("%d %b %Y %H:%M:%S.%f")
+                    .rstrip("0")
+                    .rstrip(".")
+                    if window.display_clock
+                    else f"{seconds:.6g} s"
+                )
                 if (
                     not any(
                         line.get_gid() == "selected-result-time"
                         for line in window.figure.axes[0].lines
                     )
                     or not window.time_axis.selection_marker.get_visible()
-                    or f"Row {row + 1}" not in window.time_axis.selection_label.get_text()
+                    or window.time_axis.selection_label.get_text() != expected_label
                 ):
                     raise RuntimeError(
                         "The selected result time is not marked in the graph and pinned axis"

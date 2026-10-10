@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 from .core import load_sensor_file
 from .results_view import analysis_alignment, recording_clock, normalise_clock
@@ -47,6 +46,8 @@ def timeline_offsets(name, frame, offsets):
 
 def align_recordings(frames, settings, results):
     """Display offsets only: never shift scientific timestamps or sensor values."""
+    import pandas as pd
+
     common, module_times, local_offsets, clocks = {}, {}, {}, {}
     for key, frame in frames.items():
         timeline, modules, offsets = analysis_alignment(frame, settings, results)

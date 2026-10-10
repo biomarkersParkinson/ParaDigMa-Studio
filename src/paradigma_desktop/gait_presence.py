@@ -1,7 +1,6 @@
 """Display-only gait presence on a common, explicitly observed time domain."""
 
 import numpy as np
-import pandas as pd
 
 from .epochs import availability_epoch_summary
 from .exploration import PARTICIPANT_COLUMNS
@@ -40,6 +39,8 @@ def gait_presence_intervals(detection, arm_activity):
     filtering is excluded from BOTH percentage denominators, not made absence.
     When filtering is unavailable, gait retains its own observed domain.
     """
+    import pandas as pd
+
     keys = [
         key
         for key in ("file_key", *PARTICIPANT_COLUMNS)
@@ -89,6 +90,8 @@ def gait_presence_intervals(detection, arm_activity):
 
 def gait_epoch_summaries(intervals, phase=0.0):
     """Both percentages use the same seconds; filtered positives are a subset."""
+    import pandas as pd
+
     domain = intervals["domain"]
     if not len(domain):
         empty = pd.DataFrame(columns=["start_s", "end_s", "value", "observed_s", "positive_s"])

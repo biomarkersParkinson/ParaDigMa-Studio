@@ -6,12 +6,13 @@ import math
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 from .storage import atomic_file, recording_files, same_file
 
 
 def json_value(value):
+    import pandas as pd
+
     if isinstance(value, pd.DataFrame):
         return {
             "columns": [json_value(column) for column in value.columns],
@@ -45,6 +46,7 @@ def _write_export(path, writer, *, source=None, protected_sources=(), binary=Fal
 
 def _write_json(stream, value):
     """Lossless standard JSON, bounding temporary row objects to one table batch."""
+    import pandas as pd
 
     def encode(child):
         return json.dumps(child, allow_nan=False, separators=(",", ":"))

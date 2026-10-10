@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import pytest
 from pathlib import Path
 
 from paradigma_desktop.plot_cache import configure_plot_cache
@@ -82,6 +83,45 @@ def test_first_window_does_not_load_analysis_stack(tmp_path):
     data = json.loads(report.read_text())
     assert data["status"] == "passed"
     assert data["analysis_modules_loaded"] == []
+    assert data["data_modules_loaded"] == []
     assert data["empty_history"]
     assert data["qt_platform"] == "offscreen"
     assert 0 < data["import_seconds"] <= data["first_paint_seconds"]
+
+
+@pytest.mark.parametrize("run_count", [0, 200])
+def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_path, run_count):
+    from paradigma_desktop.history import new_run
+
+    directory = tmp_path / "runs"
+    directory.mkdir()
+    for index in range(run_count):
+        record = new_run(f"sensor-{index}.csv", {"pipelines": ["tremor"]})
+        record["status"] = "Completed"
+        (directory / f"{record['id']}.json").write_text(json.dumps(record), encoding="utf-8")
+    report = tmp_path / "startup-runs.json"
+    code = """import sys, time
+started = time.perf_counter()
+from paradigma_desktop.startup import startup_test
+from paradigma_desktop.app import MainWindow
+original = MainWindow.show
+def show_runs(self):
+    self.navigate(3)
+    original(self)
+MainWindow.show = show_runs
+sys.exit(startup_test(sys.argv[1], started, history_dir=sys.argv[2]))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(report), str(directory)],
+        cwd=tmp_path,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "MPLCONFIGDIR": str(tmp_path / "mpl")},
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(report.read_text())
+    assert data["status"] == "passed"
+    assert data["run_history_count"] == run_count
+    assert data["data_modules_loaded"] == []
+    assert data["analysis_modules_loaded"] == []

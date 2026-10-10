@@ -159,19 +159,31 @@ values in that time interval. Manual limits remain fixed when panning or zooming
 
 **Inspect sensor context**, alongside the recording-time label at the bottom right of Graphs, links a selected row or
 clicked bar to original samples. A vertical marker and the pinned axis identify the
-selected time. Gait measurements open the complete official segment rather than
+selected time. Inspection uses the original samples within 10 seconds before and
+after the selected time, bounded by the available recording. Gait measurements
+open the complete official segment rather than
 treating their estimated positions as observed event timestamps. Sensor context
 requires the original recording to remain available in the session.
 The context's **Graphs** tab uses the same left-hand channel checkboxes as Data:
 select multiple channels to overlay their original values with distinct colors,
 or use **Select all** and **Clear**. The complete figure resizes to fit the page;
 the channel list and **Tables** can scroll independently. Channel selections are
-retained when inspecting another result.
+retained when inspecting another result. **Earlier** and **Later** move through
+the original recording beyond the initial context and stop at its boundaries.
+The selected result time is marked whenever it is in view.
+Clicking either a checkbox or its label toggles a channel or plot series.
 
-Each graph has one inline **Graph settings** panel for title, axis labels, limits,
-grid and legend. Date limits accept ISO timestamps. Click a graph to edit its
-vertical settings; horizontal limits apply to all aligned plots. Pan, zoom, reset
-and figure saving remain on the toolbar. Saved figures include the time axis.
+Each graph has three cursor modes: **Select timepoint** (default), **Pan** and
+**Zoom**. Click a plotted timepoint to mark it; its date and time appear above
+the time axis. Choose Pan to move the view or Zoom to draw a zoom rectangle,
+and Select timepoint to resume selection.
+
+**Axis limits** opens the only graph settings panel. Click the graph you want
+to adjust, uncheck **Automatic** for X or Y, enter the minimum and maximum,
+and choose **Apply**. Calendar limits accept ISO date/time with a time zone.
+X limits apply to linked plots; Y limits apply to the clicked plot.
+**Reset limits** restores automatic ranges. Home, Back, Forward and figure
+saving remain on the toolbar. Saved figures include the time axis.
 Raw sensor plots retain continuous signal lines and limit display to 20,000 samples
 per channel; result bars and binary indicators retain every output.
 

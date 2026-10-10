@@ -1,14 +1,72 @@
 """Shared channel selection and original-value signal rendering."""
 
 import numpy as np
-import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
 from matplotlib import colormaps, dates
+from matplotlib.lines import Line2D
 from .inspection import TIME_NAMES
-from .plotting import GRAPH_COLORS, binary_indicator, plot_signal, plot_states
+from .plotting import (
+    GRAPH_COLORS,
+    binary_indicator,
+    plot_signal,
+    plot_states,
+    time_selection_line,
+    time_selection_triangle,
+)
 from .theme import style_axes
 from .time_axis import RecordingTimeFormatter
+from .results_view import clock_times
+
+
+def mark_sensor_time(figure, seconds, clock):
+    """Mark the selected result time while leaving original sensor values intact."""
+    if not np.isfinite(seconds) or not figure.axes:
+        return
+    if clock is None:
+        x, text = seconds, f"{seconds:.6g} s"
+    else:
+        stamp = clock_times([seconds], clock)[0]
+        x = float(dates.date2num(stamp.to_pydatetime(warn=False)))
+        text = stamp.strftime("%d %b %Y %H:%M:%S.%f").rstrip("0").rstrip(".")
+    mark_graph_time(figure, x, text)
+
+
+def mark_graph_time(figure, x, text):
+    """Use the shared selection overlay without affecting data or axis limits."""
+    for ax in figure.axes:
+        for artist in [*ax.lines, *ax.texts]:
+            if artist.get_gid() in (
+                "selected-result-time",
+                "selected-result-triangle",
+                "selected-result-label",
+            ):
+                artist.remove()
+        time_selection_line(ax, x)
+    ax = figure.axes[-1]
+    triangle = Line2D(
+        [x],
+        [0],
+        marker=time_selection_triangle(),
+        markersize=6,
+        color="#465B73",
+        linestyle="none",
+        transform=ax.get_xaxis_transform(),
+        zorder=8,
+    )
+    ax.add_artist(triangle)
+    triangle.set_gid("selected-result-triangle")
+    annotation = ax.text(
+        1,
+        1.02,
+        text,
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=8.5,
+        color="#465B73",
+    )
+    annotation.set_gid("selected-result-label")
 
 
 def selected_channels(channel_list):
@@ -29,6 +87,8 @@ def check_channels(channel_list, channels):
 
 
 def populate_channels(channel_list, frame, *, excluded=(), selection=None):
+    import pandas as pd
+
     numeric = [
         column
         for column, dtype in frame.dtypes.items()

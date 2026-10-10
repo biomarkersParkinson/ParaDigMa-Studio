@@ -41,7 +41,11 @@ def benchmark(executable, report_path, repetitions=5):
                     f"Startup failed (exit {process.returncode}): {stdout}\n{stderr}"
                 )
             data = json.loads(report.read_text(encoding="utf-8"))
-            if data.get("status") != "passed" or data.get("analysis_modules_loaded"):
+            if (
+                data.get("status") != "passed"
+                or data.get("analysis_modules_loaded")
+                or data.get("data_modules_loaded")
+            ):
                 raise RuntimeError(
                     f"Startup did not remain independent of analysis imports: {data}"
                 )

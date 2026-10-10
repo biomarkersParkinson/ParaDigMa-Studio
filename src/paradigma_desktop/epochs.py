@@ -1,7 +1,6 @@
 """Display-only half-hour summaries; official outputs are never modified."""
 
 import numpy as np
-import pandas as pd
 
 from .results_view import clock_origin
 
@@ -27,6 +26,8 @@ def epoch_summary(times, values, *, binary=False, phase=0.0):
     Missing outcomes do not become absence; empty epochs stay blank. Estimated
     gait timestamps follow the same presentation-only timing as Detailed view.
     """
+    import pandas as pd
+
     times, values = np.asarray(times, dtype=float), np.asarray(values, dtype=float)
     finite_time = np.isfinite(times)
     values = values[finite_time].copy()
@@ -55,6 +56,8 @@ def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
     First/last epochs use the recording's partial timespan as their denominator.
     Source bounds also retain excluded leading/trailing input where available.
     """
+    import pandas as pd
+
     starts, ends = np.asarray(starts, dtype=float), np.asarray(ends, dtype=float)
     valid = np.isfinite(starts) & np.isfinite(ends) & (ends > starts)
     starts, ends = starts[valid], ends[valid]

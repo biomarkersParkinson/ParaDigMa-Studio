@@ -1,13 +1,14 @@
 """Read-only descriptive statistics; never prepare or alter analysis inputs."""
 
 import numpy as np
-import pandas as pd
 
 
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
 
 
 def default_time_column(frame):
+    import pandas as pd
+
     for column in frame:
         if str(column).lower() == "time":
             return column
@@ -18,6 +19,8 @@ def default_time_column(frame):
 
 
 def sensor_descriptives(frame, time_column):
+    import pandas as pd
+
     records = []
     for column in frame:
         series = frame[column]
@@ -63,6 +66,8 @@ def time_descriptives(series, unit="relative_s"):
     an interval >1.5 times that median, independent of analysis gap settings.
     Difference timelines with invalid deltas have an unknown total time span.
     """
+    import pandas as pd
+
     if pd.api.types.is_datetime64_any_dtype(series.dtype) or pd.api.types.is_timedelta64_dtype(
         series.dtype
     ):

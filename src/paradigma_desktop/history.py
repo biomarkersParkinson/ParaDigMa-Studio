@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-import pandas as pd
 
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
@@ -225,6 +224,8 @@ class RunHistory:
 
 def load_result_export(path):
     """Read the wrapper's JSON export, never pickle or original sensor files."""
+    import pandas as pd
+
     saved = json.loads(Path(path).read_text(encoding="utf-8"))
     if (
         not isinstance(saved, dict)

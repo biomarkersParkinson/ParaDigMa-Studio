@@ -1,7 +1,43 @@
 """Selection helpers shared by result graphs, summaries and tables."""
 
+from dataclasses import dataclass, replace
+
 import numpy as np
-import pandas as pd
+
+
+@dataclass(frozen=True)
+class SensorContext:
+    """A movable view of one original recording, retaining the selected result time."""
+
+    frame: object
+    analysis_times: np.ndarray
+    display_times: np.ndarray
+    start: float
+    end: float
+    selected_time: float
+    source_start: float
+    source_end: float
+    source_name: str = ""
+    include_end: bool = True
+
+    def positions(self):
+        upper = (
+            self.analysis_times <= self.end if self.include_end else self.analysis_times < self.end
+        )
+        return np.flatnonzero(
+            np.isfinite(self.analysis_times) & (self.analysis_times >= self.start) & upper
+        )
+
+    def can_move(self, direction):
+        if direction < 0:
+            return self.source_start < self.start
+        return self.source_end > self.end if self.include_end else self.source_end >= self.end
+
+    def moved(self, direction):
+        if not self.can_move(direction):
+            return None
+        step = (self.end - self.start) * direction
+        return replace(self, start=self.start + step, end=self.end + step)
 
 
 PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject", "patient_id")
@@ -49,6 +85,8 @@ def select_rows(
     maximum="",
 ):
     """Return a positional selection without altering scientific outputs."""
+    import pandas as pd
+
     mask = np.ones(len(frame), dtype=bool)
     if participant_column is not None and participant is not None:
         mask &= frame[participant_column].eq(participant).fillna(False).to_numpy(dtype=bool)
@@ -93,6 +131,8 @@ def source_timeline(frame, settings):
     Sensor values remain in their original units. No signal preprocessing or
     derived window interpretation is performed for this contextual display.
     """
+    import pandas as pd
+
     from paradigma.util import transform_time_array
 
     mapped = frame.rename(columns=settings.get("column_mapping", {}), copy=False)

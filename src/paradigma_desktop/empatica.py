@@ -8,7 +8,6 @@ each sensor's own conversion parameters. Other formats keep official loaders.
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 
@@ -54,6 +53,8 @@ def load_empatica_imu(path):
     Only IMU channels are imported. Processed BVP is not raw green PPG. Reject
     unaligned IMU streams instead of pairing measurements at different times.
     """
+    import pandas as pd
+
     with Path(path).open("rb") as stream:
         with DataFileReader(stream, DatumReader()) as reader:
             record = next(reader, None)

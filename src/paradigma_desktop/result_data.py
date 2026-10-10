@@ -1,10 +1,14 @@
 """Qt-independent derived views of official results; original tables stay unchanged."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .availability import availability_views
 from .recordings import timeline_offsets
@@ -33,6 +37,8 @@ class ResultData:
 
 def prepare_result_data(results: dict[str, Any], offsets: dict[str, Any]) -> ResultData:
     """Prepare presentation timing and coverage without changing scientific outputs."""
+    import pandas as pd
+
     tables = detail_tables(results)
     plot_frames, plot_labels = plot_tables(tables)
     aggregates = aggregation_tables(results)

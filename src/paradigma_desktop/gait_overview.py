@@ -186,7 +186,7 @@ def build_gait_charts(aggregates, *, metadata=None, scroll_area=None):
                     "Segment counts use original unfiltered segment durations, matching ParaDigMa.\n"
                     "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
                 )
-            precision = 2 if "_cov_" in metric else 1
+            precision = 0 if metric == "segment_count" else 2 if "_cov_" in metric else 1
             for position, value in zip(positions, display_numbers):
                 if np.isfinite(value):
                     axis.annotate(

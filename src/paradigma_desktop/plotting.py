@@ -1,12 +1,37 @@
 """Scientific plot presentation: original values, exact state timestamps, scrolling."""
 
 import numpy as np
-import pandas as pd
 from contextlib import contextmanager
 from matplotlib import dates
 from matplotlib.artist import allow_rasterization
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.collections import PolyCollection
+from matplotlib.lines import Line2D
+from matplotlib.markers import MarkerStyle
+from matplotlib.transforms import Affine2D
+
+
+def time_selection_triangle():
+    """Place the triangle tip, rather than its centre, on the time-axis baseline."""
+    return MarkerStyle("v", transform=Affine2D().translate(0, 0.5))
+
+
+def time_selection_line(ax, x, *, animated=False):
+    """Shared time-selection style for result graphs and original sensor context."""
+    line = Line2D(
+        [x, x],
+        [0, 1],
+        transform=ax.get_xaxis_transform(),
+        color="#465B73",
+        linewidth=1.1,
+        linestyle=(0, (3, 3)),
+        alpha=0.75,
+        zorder=7,
+    )
+    line.set_gid("selected-result-time")
+    line.set_animated(animated)
+    ax.add_artist(line)
+    return line
 
 
 class ViewportPolyCollection(PolyCollection):
@@ -185,6 +210,8 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
 
 def binary_indicator(series, metric):
     """Recognize discrete states; keep probabilities and continuous metrics numeric."""
+    import pandas as pd
+
     name = str(metric).lower()
     if name.startswith(("accelerometer_", "gyroscope_")) or name == "green":
         return False
@@ -206,6 +233,8 @@ def binary_indicator(series, metric):
 
 
 def time_coordinates(values):
+    import pandas as pd
+
     if isinstance(values, (pd.DatetimeIndex, pd.Series)) and pd.api.types.is_datetime64_any_dtype(
         values.dtype
     ):

@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 from .serialization import (
     json_value as json_value,
@@ -114,6 +113,8 @@ class _PipelineFailures(logging.Handler):
 
 
 def load_sensor_file(path, *, allow_pickle=False):
+    import pandas as pd
+
     path = Path(path)
     if path.suffix.lower() not in SUPPORTED:
         raise ValueError(f"Unsupported file format: {path.suffix}")
@@ -133,6 +134,8 @@ def load_sensor_file(path, *, allow_pickle=False):
 def analyze(
     frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings
 ):
+    import pandas as pd
+
     if isinstance(pipelines, str):
         pipelines = [pipelines]
     if not pipelines:
@@ -354,6 +357,8 @@ def analyze(
 
 def result_tables(value, path=""):
     """Flatten nested results, preserving filtered/unfiltered gait branches."""
+    import pandas as pd
+
     tables = {}
     if isinstance(value, pd.DataFrame):
         tables[path] = value
@@ -375,6 +380,8 @@ def result_tables(value, path=""):
 
 
 def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
+    import pandas as pd
+
     mapping = validate_column_mapping(column_mapping)
     axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
     mapped = frame.rename(columns=mapping).copy().reset_index(drop=True)
