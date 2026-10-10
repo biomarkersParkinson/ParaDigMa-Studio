@@ -1,5 +1,7 @@
 """Shared channel selection and original-value signal rendering."""
 
+import re
+
 import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
@@ -120,6 +122,35 @@ def populate_channels(channel_list, frame, *, excluded=(), selection=None):
     return channel_colors
 
 
+_SENSOR_MODALITIES = {
+    "Accelerometer": ("accelerometer", "acceleration", "accel", "acc"),
+    "Gyroscope": ("gyroscope", "angular_velocity", "gyro", "gyr"),
+    "Magnetometer": ("magnetometer", "magnetic_field", "magnet", "mag"),
+    "PPG": ("ppg", "photoplethysmography", "green", "red", "infrared", "ir"),
+}
+
+
+def channel_modality(channel):
+    """Identify named sensor families; keep unidentified scalar streams separate."""
+    text = str(channel)
+    # Readers use canonical names; recognize common CSV axis aliases too.
+    name = re.sub(r"([a-z])([A-Z])", r"\1_\2", text)
+    name = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    for title, prefixes in _SENSOR_MODALITIES.items():
+        if any(
+            name == prefix
+            or name.startswith(prefix + "_")
+            or name in {prefix + axis for axis in "xyz"}
+            for prefix in prefixes
+        ):
+            return ("modality", title), title
+    vector = re.fullmatch(r"(.+)_[xyz]", name)
+    if vector is not None:
+        family = vector[1]
+        return ("vector", family), family.replace("_", " ")
+    return ("channel", channel), text
+
+
 def plot_channel_signals(
     figure,
     frame,
@@ -128,6 +159,7 @@ def plot_channel_signals(
     xs,
     time_label,
     *,
+    column_mapping=None,
     calendar=False,
     timezone=None,
     empty_text="No original samples in this context",
@@ -144,14 +176,30 @@ def plot_channel_signals(
             color="#60728A",
         )
     else:
-        flags = [c for c in channels if binary_indicator(frame[c], c)]
+        mapping = column_mapping or {}
+        families = {
+            channel: channel_modality(mapping.get(channel, channel)) for channel in channels
+        }
+        # Named physical sensor streams remain continuous even when a short
+        # selection happens to contain only zeros and ones.
+        flags = [
+            c
+            for c in channels
+            if families[c][0][0] != "modality" and binary_indicator(frame[c], mapping.get(c, c))
+        ]
         signals = [c for c in channels if c not in flags]
-        groups = ([signals] if signals else []) + [[flag] for flag in flags]
+        modalities = {}
+        for channel in signals:
+            key, title = families[channel]
+            if key not in modalities:
+                modalities[key] = (title, [])
+            modalities[key][1].append(channel)
+        groups = list(modalities.values()) + [(str(flag), [flag]) for flag in flags]
         first_axes = None
         grid = figure.add_gridspec(
-            len(groups), 1, height_ratios=[0.55 if group[0] in flags else 1 for group in groups]
+            len(groups), 1, height_ratios=[0.55 if group[0] in flags else 1 for _, group in groups]
         )
-        for index, group in enumerate(groups):
+        for index, (modality, group) in enumerate(groups):
             ax = style_axes(figure, position=(grid[index],), sharex=first_axes)
             if first_axes is None:
                 first_axes = ax
@@ -182,17 +230,22 @@ def plot_channel_signals(
                         label=str(channel),
                     )
                     ax.set_ylabel(
-                        str(group[0]) if len(group) == 1 else "Sensor values (file units)"
+                        str(group[0]) if len(group) == 1 else f"{modality}\n(file units)",
+                        rotation=0,
+                        ha="right",
+                        va="center",
+                        fontsize=9,
+                        labelpad=10,
                     )
             if len(group) > 1:
                 ax.legend(
                     loc="upper right",
-                    ncols=min(3, len(group)),
+                    ncols=min(2, len(group)),
                     frameon=True,
                     facecolor="white",
                     edgecolor="#E0E7EF",
                     framealpha=0.95,
-                    fontsize=9,
+                    fontsize=8,
                 )
             if calendar:
                 locator = dates.AutoDateLocator(tz=timezone)

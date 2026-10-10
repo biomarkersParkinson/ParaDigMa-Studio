@@ -526,7 +526,7 @@ def test_binary_display_fills_positive_intervals_without_shading_missing_or_zero
     assert len(bars) == 1
     assert (bars[0].vertices[:, 0].min(), bars[0].vertices[:, 0].max()) == (1.0, 2.0)
     assert axes.get_ylim() == pytest.approx((0.65, 1.35))
-    assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 100
+    assert window.canvas.minimumHeight() == window.canvas.maximumHeight() == 88
     assert not axes.patches
     axes.set_xlim(1.2, 1.8)
     window.canvas.draw()

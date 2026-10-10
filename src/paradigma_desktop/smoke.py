@@ -76,6 +76,7 @@ def smoke_test(report_path):
                 frame = pd.DataFrame(
                     {
                         "time": t,
+                        **{f"accelerometer_{axis}": 0.2 * np.sin(2 * np.pi * t) for axis in "xyz"},
                         **{
                             f"gyroscope_{axis}": 0.1 * np.sin(2 * np.pi * 5 * t)
                             + rng.normal(0, 0.02, len(t))
@@ -104,6 +105,22 @@ def smoke_test(report_path):
                 for line in lines:
                     if not np.array_equal(line.get_ydata(), loaded[line.get_label()].to_numpy()):
                         raise RuntimeError("Input graph changed original sensor values")
+                window.set_input_channels(
+                    ["accelerometer_x", "accelerometer_y", "gyroscope_x", "gyroscope_y"]
+                )
+                groups = [[line.get_label() for line in ax.lines] for ax in window.data_figure.axes]
+                if groups != [
+                    ["accelerometer_x", "accelerometer_y"],
+                    ["gyroscope_x", "gyroscope_y"],
+                ]:
+                    raise RuntimeError("Raw sensor modalities were mixed in one graph")
+                for ax in window.data_figure.axes:
+                    for line in ax.lines:
+                        if not np.array_equal(
+                            line.get_ydata(), loaded[line.get_label()].to_numpy()
+                        ):
+                            raise RuntimeError("Modality grouping changed original sensor values")
+                window.set_input_channels(["gyroscope_x", "gyroscope_y", "gyroscope_z"])
                 toolbar = window.data_toolbar
                 actions = [action.text() for action in toolbar.actions()]
                 if (
@@ -517,6 +534,7 @@ def smoke_test(report_path):
                     models_loaded=models,
                     quantified_rows=len(quantified),
                     qt_plot_rendered=True,
+                    raw_modality_groups_verified=True,
                     export_verified=True,
                     cwa_samples=len(cwa_frame),
                     cwa_gait_rows=len(cwa_quantified),

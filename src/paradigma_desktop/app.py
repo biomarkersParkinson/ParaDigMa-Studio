@@ -203,6 +203,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.result_series.currentItemChanged.connect(self.select_plot_series)
         self.clock_input.valueEdited.connect(self.origin_edited)
         self.mapping.textChanged.connect(self.update_origin_default)
+        self.mapping.textChanged.connect(self.input_mapping_changed)
         for control in (self.time,):
             control.currentTextChanged.connect(self.update_origin_default)
         for control in (self.prepared, self.drop_missing):
@@ -220,6 +221,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.page_title.setText(self.SECTIONS[index])
         for i, item in enumerate(self.nav_buttons):
             item.setChecked(i == index)
+        if index == 0:
+            self.data_tab_changed(self.data_tabs.currentIndex())
 
     def show_acknowledgements(self):
         if getattr(self, "_acknowledgements_dialog", None) is None:
@@ -654,10 +657,20 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             selection=selection,
         )
 
+    def input_mapping_changed(self):
+        self._data_plot_dirty = True
+        if self.pages.currentIndex() == 0:
+            self.data_tab_changed(self.data_tabs.currentIndex())
+
     def plot_input(self, *_):
         import pandas as pd
 
         self._data_plot_dirty = False
+        try:
+            mapping = validate_column_mapping(json.loads(self.mapping.toPlainText()))
+        except (ValueError, TypeError):
+            # An incomplete Analyze mapping must not prevent original-data inspection.
+            mapping = {}
         channels = self.selected_input_channels()
         times, time_label, timezone = None, "Time (file units)", None
         if self.frame is not None:
@@ -679,6 +692,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self._channel_colors,
             xs,
             time_label if usable else "Sample position",
+            column_mapping=mapping,
             timezone=timezone,
             calendar=usable and pd.api.types.is_datetime64_any_dtype(times.dtype),
             empty_text="Open a recording with numeric sensor channels",
@@ -1615,6 +1629,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self._sensor_channel_colors,
             xs,
             "Recording date/time" if calendar else "Analysis time (s)",
+            column_mapping=self.provenance.get("settings", {}).get("column_mapping", {}),
             calendar=calendar,
             timezone=clock_origin(self.display_clock).tz if calendar else None,
         )

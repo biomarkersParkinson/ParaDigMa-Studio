@@ -215,7 +215,7 @@ class ResultGraphs:
         binaries = [False] * len(chosen) if epochs else actual_binaries
         compact_states = bool(binaries) and all(binaries)
         height = max(
-            100 if compact_states else 220, sum(72 if binary else 190 for binary in binaries)
+            88 if compact_states else 190, sum(62 if binary else 155 for binary in binaries)
         )
         self.canvas.setMinimumHeight(height)
         self.canvas.setMaximumHeight(height if compact_states else 16777215)

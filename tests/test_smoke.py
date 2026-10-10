@@ -49,6 +49,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["quantified_rows"] > 0
     assert len(data["models_loaded"]) == 4
     assert data["qt_plot_rendered"]
+    assert data["raw_modality_groups_verified"]
     assert data["export_verified"]
     assert data["cwa_samples"] == 36400
     assert data["cwa_gait_rows"] > 0

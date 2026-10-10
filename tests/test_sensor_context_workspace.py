@@ -52,17 +52,18 @@ def window(tmp_path):
     app.processEvents()
 
 
-def test_context_overlays_selected_channels_with_data_colors_and_original_values(window):
+def test_context_groups_modalities_with_data_colors_and_original_values(window):
     source = window.frame.copy(deep=True)
     context = window.sensor_frame.copy(deep=True)
     channels = ["accelerometer_x", "gyroscope_y", "gyroscope_z"]
     window.set_sensor_channels(channels)
-    axes = window.sensor_figure.axes[0]
-    assert len(window.sensor_figure.axes) == 1
-    assert [line.get_label() for line in signal_lines(axes)] == channels
-    assert len({line.get_color() for line in signal_lines(axes)}) == len(channels)
-    assert [text.get_text() for text in axes.get_legend().get_texts()] == channels
-    for line in signal_lines(axes):
+    accelerometer, gyroscope = window.sensor_figure.axes
+    assert [line.get_label() for line in signal_lines(accelerometer)] == channels[:1]
+    assert [line.get_label() for line in signal_lines(gyroscope)] == channels[1:]
+    lines = [line for ax in window.sensor_figure.axes for line in signal_lines(ax)]
+    assert len({line.get_color() for line in lines}) == len(channels)
+    assert [text.get_text() for text in gyroscope.get_legend().get_texts()] == channels[1:]
+    for line in lines:
         np.testing.assert_array_equal(line.get_xdata(), window.sensor_times)
         np.testing.assert_array_equal(line.get_ydata(), context[line.get_label()])
         assert line.get_color() == window._channel_colors[line.get_label()]
@@ -83,7 +84,8 @@ def test_context_checkboxes_and_bulk_actions_preserve_selection_across_drilldown
         for button in window.sensor_channels.parentWidget().findChildren(QPushButton)
     }
     actions["Select all"].click()
-    assert len(signal_lines(window.sensor_figure.axes[0])) == 6
+    assert len(window.sensor_figure.axes) == 2
+    assert [len(signal_lines(ax)) for ax in window.sensor_figure.axes] == [3, 3]
     actions["Clear"].click()
     assert not window.sensor_figure.axes[0].lines
     assert window.sensor_figure.axes[0].texts[0].get_text() == "Select sensor channels"

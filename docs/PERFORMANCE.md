@@ -505,3 +505,23 @@ one Windows-only signature check was skipped. Focused checks also cover the
 final timestamp positioning and actual cursor-icon rendering. The rebuilt Linux
 bundle passed the packaged runtime check. Native Windows validation remains in
 GitHub Actions.
+
+## Raw modality plots and Results density (0.5.25)
+
+Data and sensor context share a renderer that groups original channels by
+modality, using recognized sensor names or the saved column mapping. Modalities
+have independent value ranges and linked time axes. Original values, channel
+colors, display sampling limits and exports remain unchanged; incomplete mapping
+edits do not block inspection. Mapping changes mark the Data plot for refresh
+when it is next viewed.
+
+Results continuous rows now request 155 pixels rather than 190, and indicator
+rows 62 rather than 72. The recording-time axis stays fixed. Fewer selected
+continuous graphs still fill the available viewport. Regression checks cover
+four graphs fitting without scrolling, readable titles, linked modality axes,
+unchanged samples, colors and timestamps, and independent Y-limit controls.
+
+Validation: **400 tests passed**, including all 31 scientific-equivalence cases;
+one Windows-only signature check was skipped. The rebuilt Linux bundle passed
+the packaged runtime check, including mixed-modality plotting. Native Windows
+validation remains in GitHub Actions.

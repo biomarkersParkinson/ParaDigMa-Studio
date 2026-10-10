@@ -85,7 +85,8 @@ Data **Overview** separates sensor and time statistics:
 - Numeric time units on Data affect inspection only. Set analysis units separately
   on Analyze. Native datetime values carry their own time representation.
 
-Data **Graphs** overlays checked channels with stable colors and a legend.
+Data **Graphs** overlays checked channels of the same modality with stable colors
+and a legend. Each modality has its own value axis and shares the time axis.
 Values retain their file units. Data **Tables** shows original samples.
 
 Results **Overview** shows official aggregates and relevant pipeline metadata in
@@ -96,7 +97,8 @@ remain in the metadata export.
 
 Results **Graphs** compares classifications and quantifications across modules.
 Check metrics in **Plot series**. Aligned plots share one time axis, with time and
-date on separate lines. The axis stays visible while scrolling and follows pan
+date on separate lines. Compact plot rows fit more graphs on screen. The axis
+stays visible while scrolling and follows pan
 and zoom. Dates come from the original recording when available. **Time origin**
 in Analyze provides a calendar and clock for overriding analysis time zero;
 **Default** restores the derived value. Uncheck it to show elapsed seconds.
@@ -165,8 +167,12 @@ open the complete official segment rather than
 treating their estimated positions as observed event timestamps. Sensor context
 requires the original recording to remain available in the session.
 The context's **Graphs** tab uses the same left-hand channel checkboxes as Data:
-select multiple channels to overlay their original values with distinct colors,
-or use **Select all** and **Clear**. The complete figure resizes to fit the page;
+select multiple channels to overlay their original values with distinct colors.
+Channels of the same modality share a graph; selecting another modality adds a
+separate graph with its own value axis and a shared recording-time axis. This
+also applies on Data. Known sensor names and configured column mappings identify
+modalities; unidentified scalar streams stay separate. Use **Select all** and
+**Clear**. The complete figure resizes to fit the page;
 the channel list and **Tables** can scroll independently. Channel selections are
 retained when inspecting another result. **Earlier** and **Later** move through
 the original recording beyond the initial context and stop at its boundaries.

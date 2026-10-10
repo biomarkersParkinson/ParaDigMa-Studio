@@ -423,7 +423,8 @@ def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(wi
     window.loaded(("long.csv", frame))
     window.set_input_channels(["accelerometer_x", "gyroscope_x"])
     step = 4
-    for line in window.data_figure.axes[0].lines:
+    assert len(window.data_figure.axes) == 2
+    for line in (line for ax in window.data_figure.axes for line in ax.lines):
         assert len(line.get_ydata()) <= 20000
         np.testing.assert_array_equal(line.get_ydata(), frame[line.get_label()].iloc[::step])
     assert window.input_table.model().rowCount() == 60001
