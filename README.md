@@ -1,7 +1,7 @@
 # ParaDigMa Desktop
 
-A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recorindgs, 
-based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate pipelines, 
+A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings, 
+based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate analysis modules, 
 and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
@@ -21,30 +21,20 @@ A verified signing identity must be configured before the signed workflow can pr
 1. **Data:** Open one or more wrist sensor recordings for the same subject (Ctrl/Shift-select
    in the file picker). Use the recording selector to inspect each file's sensor and time statistics,
    overlay selected channels in Graphs, or view original samples in Tables.
-3. **Analyze:** Run any combination of gait, tremor and pulse rate analysis pipelines.
+3. **Analyze:** Run any combination of gait, tremor and pulse rate analysis modules.
    Review units, time representation, watch side and channel mapping; use each
    field's **i** button for guidance. Then click **Run Analysis**.
-4. **Results:** Overview shows gait quantity (duration and segment counts),
-   range of motion and peak velocity charts, other module aggregates
-   and metadata. Graphs compares
-   selected metrics from multiple modules across recording time; Tables shows
-   module tabs with each module's classification, quantification and aggregation tables.
+4. **Results:** Overview shows module aggregates and metadata. Graphs compare
+   selected metrics from multiple modules across recording time; Tables includes each module's
+   classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
    Switch **View** between Detailed and 30-minute epochs (binary percentages
    and continuous medians). Gait range of motion / peak velocity and tremor
    power require at least 90 seconds of the corresponding presence per epoch.
    Tables and exports retain the original outputs.
-   Use **Axis limits** or the toolbar to adjust, zoom or save figures.
-   Recording cards show the recording's start/end, prepared-data
-   coverage in days and hours plus percent of the timespan, and interruptions between
-   prepared intervals. Modules with identical prepared inputs share these figures.
-5. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
+6. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
    run, after confirmation. Original sensor files are preserved.
-
-Multiple files share the selected analysis settings. ParaDigMa processes them
-independently, combines their detailed outputs with file identifiers, and computes
-subject-level aggregates over the combined results.
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
@@ -57,11 +47,6 @@ Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 Export JSON to reopen results after restarting. Run history alone does not save
 full result tables. [See the workspace screenshots](docs/WORKSPACE.md).
 
-Continuous results use bars; missing values leave gaps. Gait bar positions are
-marked as estimates within recorded segments. A prepared-input availability track
-shows recording coverage. Set **Time origin** in Analyze to display calendar dates;
-the default is derived from the file when available. **Stop Analysis** cancels a run.
-
 ## Supported input
 
 CSV, Parquet, trusted pickle (`.pkl` / `.pickle`), TSDF `*_meta.json`,
@@ -72,18 +57,14 @@ Pickle files can execute code: open only trusted files.
 | Analysis | Required channels |
 | --- | --- |
 | Tremor | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z` |
-| Gait | Tremor channels plus `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
+| Gait | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z`, `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
 | Pulse rate | `time`, `green`; raw PPG preparation also requires accelerometer channels |
-
-A supported file format may still lack channels needed for an analysis. The
-Empatica example imports accelerometer data for inspection; its BVP stream is
-not raw green PPG, and its gyroscope stream is empty.
 
 ## More information
 
 - [User guide](docs/USER_GUIDE.md): units, preparation, statistics, exports and common issues.
 - [Official ParaDigMa documentation](https://biomarkersparkinson.github.io/paradigma/): scientific methods and device requirements.
-- [Scientific validation](docs/SCIENTIFIC_TESTS.md): comparisons with the official processing workflow.
+- [Output verification](docs/SCIENTIFIC_TESTS.md): comparisons with the official analysis modules from the **official ParaDigMa 1.1.2 toolbox**.
 - [Development and building](docs/DEVELOPMENT.md), [codebase audit](docs/CODEBASE_AUDIT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
 
 ## Acknowledgement and citation
