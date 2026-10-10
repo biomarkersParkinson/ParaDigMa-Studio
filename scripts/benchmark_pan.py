@@ -24,7 +24,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
     app.setStyle("Fusion")
     report = {
         "platform": platform.platform(),
-        "app_version": version("paradigma-desktop"),
+        "app_version": version("paradigma-studio"),
         "qt_platform": app.platformName(),
         "conditions": "Source app; Fusion, 1450x920; warm caches; actual toolbar drags and queued Qt paints, without a profiler. Synthetic data only. Release redraw is measured separately.",
         "frames_per_drag": frames,

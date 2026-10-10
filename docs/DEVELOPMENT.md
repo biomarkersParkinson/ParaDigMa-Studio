@@ -3,13 +3,18 @@
 Use Python 3.12 and Git. The dependencies pin official ParaDigMa 1.1.2 and an
 official Open Movement reader revision compatible with NumPy 2 CWA timestamps.
 
+The Python distribution and launcher are `paradigma-studio`. The
+`paradigma-desktop` launcher remains available for compatibility; internal
+imports still use `paradigma_desktop`. Existing run history stays in
+`%LOCALAPPDATA%\ParaDigMaDesktop\runs`.
+
 ## Run from source on Windows
 
 Clone the repository and run these commands in PowerShell:
 
 ```powershell
-git clone https://github.com/lucevers1991/ParaDigMa4DBS.git
-cd ParaDigMa4DBS
+git clone https://github.com/lucevers1991/ParaDigMa-Studio.git
+cd ParaDigMa-Studio
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2,<27"
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
@@ -29,11 +34,11 @@ Build on Windows; a Linux build does not generate a Windows executable.
 .\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe scripts/build_desktop.py
-.\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
-.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report performance.json
+.\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
+.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report performance.json
 ```
 
-Distribute the entire `dist\ParaDigMaDesktop` folder. The portable executable
+Distribute the entire `dist\ParaDigMaStudio` folder. The portable executable
 depends on `_internal`. The build includes model assets, SVG icons and native
 scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
 The build also places the ParaDigMa acknowledgement, licence and citation files

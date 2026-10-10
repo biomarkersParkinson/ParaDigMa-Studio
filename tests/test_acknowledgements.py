@@ -2,10 +2,11 @@
 
 import hashlib
 import os
-from importlib.metadata import distribution
+from importlib.metadata import distribution, version
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QStandardPaths
+from PySide6.QtWidgets import QApplication, QLabel
 import pytest
 
 from paradigma_desktop.acknowledgements import NOTICES, NOTICE_FILES
@@ -41,6 +42,13 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     window.about_button.click()
     dialog = window._acknowledgements_dialog
     assert dialog.isVisible()
+    assert dialog.windowTitle() == "About & citations · ParaDigMa Studio"
+    assert window.windowTitle() == "ParaDigMa Studio • Sensor analysis"
+    assert window.brand.text() == "ParaDigMa Studio"
+    assert any(
+        f"Studio {version('paradigma-studio')}" in widget.text()
+        for widget in dialog.findChildren(QLabel)
+    )
     assert window.pages.currentIndex() == 1
     assert window.selected_modules() == ["gait", "tremor", "pulse_rate"]
     assert "10.5281/zenodo.13838392" in dialog.acknowledgement.toPlainText()
@@ -59,16 +67,34 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     application.processEvents()
 
 
+def test_renamed_app_reopens_existing_default_run_history(tmp_path, monkeypatch):
+    from paradigma_desktop.history import RunHistory, new_run
+
+    application = QApplication.instance() or QApplication([])
+    directory = tmp_path / "ParaDigMaDesktop" / "runs"
+    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record["status"] = "Completed"
+    RunHistory(directory).save(record)
+    monkeypatch.setattr(QStandardPaths, "writableLocation", lambda location: str(tmp_path))
+    window = MainWindow()
+    try:
+        assert window.history.directory == directory
+        assert [run["id"] for run in window.runs] == [record["id"]]
+    finally:
+        window.close()
+        application.processEvents()
+
+
 def test_bundle_copies_notices_and_rejects_missing_or_inconsistent_attribution(tmp_path):
     copy_notices(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == set(NOTICE_FILES)
     for name in NOTICE_FILES:
         assert (tmp_path / name).read_bytes() == (NOTICES / name).read_bytes()
     with pytest.raises(RuntimeError, match="Missing or inconsistent ParaDigMa attribution"):
-        check_bundle(tmp_path / "ParaDigMaDesktop.exe")
+        check_bundle(tmp_path / "ParaDigMaStudio.exe")
     packaged = tmp_path / "_internal" / "paradigma_desktop" / "data" / "notices"
     packaged.mkdir(parents=True)
     copy_notices(packaged)
     (tmp_path / "LICENSE-paradigma.txt").write_text("Incomplete licence", encoding="utf-8")
     with pytest.raises(RuntimeError, match="LICENSE-paradigma.txt"):
-        check_bundle(tmp_path / "ParaDigMaDesktop.exe")
+        check_bundle(tmp_path / "ParaDigMaStudio.exe")

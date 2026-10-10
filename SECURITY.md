@@ -18,7 +18,7 @@ The application's source has no network-upload functionality, administrator requ
 | Known vulnerabilities reported for the old pip installer | Upgrade the development/build installer to pip 26.2 or newer. pip is build tooling; this finding does not mean the executable was observed exploiting these issues. |
 | Arrow C++ advisory CVE-2026-25087 / PYSEC-2026-113 for pyarrow 22 | Reviewed exception described below; retained visibly in the audit report. |
 | Unsigned binary and third-party package/model trust | Still present. Record the source commit, installed package versions, dependency audit and SHA-256 hashes in the artifact. These records help inspection but do not authenticate the publisher or prevent a compromised build. |
-| Artifact upload could omit hidden native runtime directories | Explicitly include hidden files from the narrowly scoped `dist/ParaDigMaDesktop/` bundle. This retains required folders such as `sklearn/.libs` without uploading the source checkout or its credentials. |
+| Artifact upload could omit hidden native runtime directories | Explicitly include hidden files from the narrowly scoped `dist/ParaDigMaStudio/` bundle. This retains required folders such as `sklearn/.libs` without uploading the source checkout or its credentials. |
 
 Version 0.2.0 adds local run history under the user's local data directory (`%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows). History JSON includes source paths, settings, status, warnings, processing logs and export locations, so these details now persist after closing the app. Original sensor frames and full results are held in memory and excluded from history files. Reopening saved results reads explicitly exported JSON, never automatically deserializes original sensor files, and does not rerun analysis. Exports protect both the source of the displayed results and the currently loaded input, including TSDF companions and filesystem aliases. No scientific algorithm or network-upload behavior is introduced by the redesign.
 
@@ -35,10 +35,10 @@ Before uploading the Windows artifact, CI runs dependency auditing, regression t
 After building, the artifact contains `security/build-info.json`, `security/dependency-audit.json` and `SHA256SUMS.txt`. To check an executable's hash in PowerShell, run:
 
 ```powershell
-Get-FileHash .\ParaDigMaDesktop.exe -Algorithm SHA256
+Get-FileHash .\ParaDigMaStudio.exe -Algorithm SHA256
 ```
 
-Compare it with the `ParaDigMaDesktop.exe` entry in `SHA256SUMS.txt`. A matching hash establishes agreement with that manifest, not independent trust: someone who can replace the artifact could replace its manifest too. Keep the entire extracted folder together and download it directly from the expected repository/run.
+Compare it with the `ParaDigMaStudio.exe` entry in `SHA256SUMS.txt`. A matching hash establishes agreement with that manifest, not independent trust: someone who can replace the artifact could replace its manifest too. Keep the entire extracted folder together and download it directly from the expected repository/run.
 
 Local validation for this review: 25 tests passed; the dependency audit checked 86 installed packages with no blocking findings and the single distinct Arrow exception above; Bandit reported no medium/high-severity findings and nine low-severity subprocess review items. The rebuilt Linux executable loaded all four classifiers, produced 29 quantified tremor windows, rendered the plot and verified JSON export. All 2,385 files listed in the generated bundle manifest matched their SHA-256 hashes. These results are Linux validation, not a scan of a downloaded Windows artifact.
 
@@ -65,13 +65,13 @@ Once Windows Sandbox is installed, save this as `ParaDigMa-test.wsb`, replacing 
   <VGpu>Disable</VGpu>
   <MappedFolders>
     <MappedFolder>
-      <HostFolder>C:\Users\YOUR_USER\Downloads\ParaDigMaDesktop-Windows</HostFolder>
+      <HostFolder>C:\Users\YOUR_USER\Downloads\ParaDigMaStudio-Windows</HostFolder>
       <SandboxFolder>C:\App</SandboxFolder>
       <ReadOnly>true</ReadOnly>
     </MappedFolder>
   </MappedFolders>
   <LogonCommand>
-    <Command>C:\App\ParaDigMaDesktop.exe</Command>
+    <Command>C:\App\ParaDigMaStudio.exe</Command>
   </LogonCommand>
 </Configuration>
 ```

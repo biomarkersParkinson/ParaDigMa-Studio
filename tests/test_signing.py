@@ -66,7 +66,7 @@ def test_signing_account_endpoint_is_not_arbitrary(endpoint):
 
 
 def test_native_inventory_includes_hidden_libraries_pyd_and_other_pe_files(tmp_path):
-    (tmp_path / "ParaDigMaDesktop.exe").write_bytes(b"MZ")
+    (tmp_path / "ParaDigMaStudio.exe").write_bytes(b"MZ")
     libraries = tmp_path / "_internal" / "sklearn" / ".libs"
     libraries.mkdir(parents=True)
     (libraries / "vcomp140.dll").write_bytes(b"MZ")
@@ -78,7 +78,7 @@ def test_native_inventory_includes_hidden_libraries_pyd_and_other_pe_files(tmp_p
     (libraries / "native.unusual").write_bytes(header)
     (libraries / "model.pkl").write_bytes(b"not executable")
     assert {file.name for file in native_files(tmp_path)} == {
-        "ParaDigMaDesktop.exe",
+        "ParaDigMaStudio.exe",
         "vcomp140.dll",
         "extension.pyd",
         "native.unusual",
@@ -89,23 +89,23 @@ def test_existing_vendor_signatures_are_preserved_and_catalog_signatures_are_not
     vendor = signature("_internal/vendor.dll", True, "CN=Vendor")
     catalog_signed = signature("_internal/catalog.dll", True, "CN=Vendor")
     catalog_signed["signature_type"] = "Catalog"
-    plan = make_plan([signature("ParaDigMaDesktop.exe"), vendor, catalog_signed])
+    plan = make_plan([signature("ParaDigMaStudio.exe"), vendor, catalog_signed])
     assert [file["path"] for file in plan["files"] if file["needs_signing"]] == [
-        "ParaDigMaDesktop.exe",
+        "ParaDigMaStudio.exe",
         "_internal/catalog.dll",
     ]
     invalid = {**vendor, "status": "HashMismatch"}
     with pytest.raises(ValueError, match="invalid or untrusted"):
-        make_plan([signature("ParaDigMaDesktop.exe"), invalid])
+        make_plan([signature("ParaDigMaStudio.exe"), invalid])
 
 
 def test_publisher_timestamp_inventory_and_vendor_integrity_are_required():
     original = [
-        signature("ParaDigMaDesktop.exe"),
+        signature("ParaDigMaStudio.exe"),
         signature("_internal/vendor.dll", True, "CN=Vendor"),
     ]
     plan = make_plan(original)
-    signed = [signature("ParaDigMaDesktop.exe", True), original[1]]
+    signed = [signature("ParaDigMaStudio.exe", True), original[1]]
     validate_signed(plan, signed, "CN=Example Publisher")
     for field, value in [("subject", "CN=Different Publisher"), ("timestamp_subject", None)]:
         changed = copy.deepcopy(signed)
@@ -141,7 +141,7 @@ def test_windows_reads_real_unsigned_assembly_and_pyd_signatures(tmp_path):
         check=True,
         timeout=60,
     )
-    (tmp_path / "ParaDigMaDesktop.exe").write_bytes(library.read_bytes())
+    (tmp_path / "ParaDigMaStudio.exe").write_bytes(library.read_bytes())
     (tmp_path / "probe.pyd").write_bytes(library.read_bytes())
     entries = read_signatures(tmp_path)
     assert len(entries) == 3

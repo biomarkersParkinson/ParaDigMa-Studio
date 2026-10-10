@@ -27,8 +27,11 @@ Normal push/PR builds continue to produce unsigned artifacts.
    | Field | Value |
    | --- | --- |
    | Issuer | `https://token.actions.githubusercontent.com` |
-   | Subject | `repo:lucevers1991/ParaDigMa4DBS:environment:windows-signing` |
+   | Subject | `repo:lucevers1991/ParaDigMa-Studio:environment:windows-signing` |
    | Audience | `api://AzureADTokenExchange` |
+
+   If signing was configured before the repository rename, update the existing
+   federated credential's subject to the value above.
 
 5. In **this GitHub repository → Settings → Environments**, create the environment
    `windows-signing` and restrict its deployment branches to `main`. This is a
@@ -67,11 +70,11 @@ skip the build. Three jobs perform the work:
    classifier/resource assets. Refresh checksums after signing.
 3. Recheck signatures and launch the signed application in a separate job without
    signing credentials or OIDC permission. Only after that succeeds, upload
-   **ParaDigMaDesktop-Windows-Signed** with the complete portable application.
+   **ParaDigMaStudio-Windows-Signed** with the complete portable application.
 
 The `unsigned-signing-input` and `signed-verification-input` artifacts are
 intermediate inputs with one-day retention. Download the final
-`ParaDigMaDesktop-Windows-Signed` artifact from a completely successful run.
+`ParaDigMaStudio-Windows-Signed` artifact from a completely successful run.
 It includes `security/windows-signatures.json`, source/package provenance and
 `SHA256SUMS.txt`. Extract the entire folder and keep `_internal` beside the EXE.
 

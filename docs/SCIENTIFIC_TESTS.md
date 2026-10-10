@@ -147,7 +147,7 @@ QT_QPA_PLATFORM=offscreen python -m pytest -m scientific -q
 
 The normal `python -m pytest` command also includes these tests. Both Windows
 build workflows run them before packaging and publish their JUnit report as the
-`ParaDigMaDesktop-test-results` artifact, including reports from failed tests.
+`ParaDigMaStudio-test-results` artifact, including reports from failed tests.
 The committed fixtures make the suite
 self-contained: no upstream checkout, network download, extra pytest plugin or
 patient recording is required.

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import light_palette
+from .branding import APP_NAME, DISTRIBUTION_NAME
 from .widgets import button, label, readout
 
 
@@ -28,17 +29,17 @@ NOTICE_FILES = (
 class AcknowledgementsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("About & citations · ParaDigMa Desktop")
+        self.setWindowTitle(f"About & citations · {APP_NAME}")
         self.resize(820, 680)
         self.setMinimumSize(520, 400)
         self.setPalette(light_palette())
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
-        layout.addWidget(label("ParaDigMa Desktop", "pageTitle"))
+        layout.addWidget(label(APP_NAME, "pageTitle"))
         layout.addWidget(
             label(
-                f"Desktop {version('paradigma-desktop')} · Official ParaDigMa {version('paradigma')}",
+                f"Studio {version(DISTRIBUTION_NAME)} · Official ParaDigMa {version('paradigma')}",
                 "muted",
             )
         )

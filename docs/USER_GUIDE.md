@@ -1,4 +1,4 @@
-# Using ParaDigMa Desktop
+# Using ParaDigMa Studio
 
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
 

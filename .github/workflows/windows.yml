@@ -28,33 +28,33 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParaDigMaDesktop-test-results
+          name: ParaDigMaStudio-test-results
           path: test-results.xml
           if-no-files-found: ignore
       - name: Build Windows application with native runtime libraries
         run: python scripts/build_desktop.py
       - name: Verify and launch the packaged executable
-        run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
+        run: python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
       - name: Measure Windows startup and bundle size
-        run: python scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report dist/ParaDigMaDesktop/performance.json
+        run: python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report dist/ParaDigMaStudio/performance.json
       - name: Measure Windows UI workflows
-        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaDesktop/ui-performance.json
+        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaStudio/ui-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows graph panning
-        run: python scripts/benchmark_pan.py --report dist/ParaDigMaDesktop/pan-performance.json
+        run: python scripts/benchmark_pan.py --report dist/ParaDigMaStudio/pan-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows sensor-context opening
-        run: python scripts/benchmark_sensor_context.py --report dist/ParaDigMaDesktop/sensor-context-performance.json
+        run: python scripts/benchmark_sensor_context.py --report dist/ParaDigMaStudio/sensor-context-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Record package versions, audit and bundle checksums
-        run: python scripts/write_build_manifest.py dist/ParaDigMaDesktop dependency-audit.json
+        run: python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParaDigMaDesktop-Windows
-          path: dist/ParaDigMaDesktop/
+          name: ParaDigMaStudio-Windows
+          path: dist/ParaDigMaStudio/
           # Native dependencies use directories such as sklearn/.libs. Upload
           # only this bundle, including its hidden runtime directories.
           include-hidden-files: true

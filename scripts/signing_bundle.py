@@ -74,9 +74,9 @@ def native_files(bundle):
             if any(character in relative for character in ("\n", "\r", ",")):
                 raise ValueError("A native filename cannot be represented in the signing catalog.")
             paths.append(path)
-    if not paths or not (bundle / "ParaDigMaDesktop.exe").is_file():
+    if not paths or not (bundle / "ParaDigMaStudio.exe").is_file():
         raise ValueError(
-            "Signing input must include ParaDigMaDesktop.exe and its native dependencies."
+            "Signing input must include ParaDigMaStudio.exe and its native dependencies."
         )
     return paths
 
@@ -153,7 +153,7 @@ def validate_signed(plan, records, publisher):
     for name, entry in current.items():
         if entry["status"] != "Valid" or entry["signature_type"] != "Authenticode":
             raise ValueError(f"Missing valid embedded Authenticode signature: {name}")
-        if original[name]["needs_signing"] or name == "ParaDigMaDesktop.exe":
+        if original[name]["needs_signing"] or name == "ParaDigMaStudio.exe":
             if entry["subject"] != publisher or not entry["timestamp_subject"]:
                 raise ValueError(f"Publisher or trusted timestamp mismatch: {name}")
         else:

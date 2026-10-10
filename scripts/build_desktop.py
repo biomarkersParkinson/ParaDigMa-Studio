@@ -27,7 +27,7 @@ def main():
             "--icon",
             str(root / "src" / "paradigma_desktop" / "data" / "app-icon.ico"),
             "--name",
-            "ParaDigMaDesktop",
+            "ParaDigMaStudio",
             "--collect-all",
             "paradigma",
             "--collect-all",
@@ -41,6 +41,9 @@ def main():
             # The stable font cache is invalidated when Matplotlib is updated.
             "--copy-metadata",
             "matplotlib",
+            # About displays the installed Studio version in the frozen app.
+            "--copy-metadata",
+            "paradigma-studio",
             # Include the app icon and licensed recordings for the executable check.
             "--collect-data",
             "paradigma_desktop",
@@ -58,7 +61,7 @@ def main():
         cwd=root,
         check=True,
     )
-    copy_notices(root / "dist" / "ParaDigMaDesktop")
+    copy_notices(root / "dist" / "ParaDigMaStudio")
 
 
 if __name__ == "__main__":

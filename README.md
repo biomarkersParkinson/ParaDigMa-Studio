@@ -1,16 +1,16 @@
-# ParaDigMa Desktop
+# ParaDigMa Studio
 
-A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings, 
-based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate analysis modules, 
+A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings,
+based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate analysis modules,
 and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-1. Open [GitHub Actions](https://github.com/lucevers1991/ParaDigMa4DBS/actions/workflows/windows.yml)
+1. Open [GitHub Actions](https://github.com/lucevers1991/ParaDigMa-Studio/actions/workflows/windows.yml)
    and select the latest **successful Windows desktop** run for `main`.
-2. Under **Artifacts**, download **ParaDigMaDesktop-Windows**.
+2. Under **Artifacts**, download **ParaDigMaStudio-Windows**.
 3. Extract the **entire ZIP** into a new folder, keeping `_internal` beside the executable.
-4. Open **ParaDigMaDesktop.exe**. 
+4. Open **ParaDigMaStudio.exe**.
 
 The ordinary Windows build is **unsigned**. If Smart App Control blocks it, temporarily disable it
 or see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
@@ -77,5 +77,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.28**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.29**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

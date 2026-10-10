@@ -51,6 +51,7 @@ from ..widgets import (
     field,
 )
 from ..assets import DATA_DIRECTORY
+from ..branding import APP_NAME
 
 
 class WorkspaceLayout:
@@ -86,9 +87,9 @@ class WorkspaceLayout:
         self.brand_icon = label()
         self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
         self.brand_icon.setFixedSize(28, 28)
-        self.brand_icon.setToolTip("ParaDigMa")
+        self.brand_icon.setToolTip(APP_NAME)
         brand_row.addWidget(self.brand_icon)
-        self.brand = label("ParaDigMa", "brand")
+        self.brand = label(APP_NAME, "brand")
         self.brand.setWordWrap(False)
         brand_row.addWidget(self.brand, 1)
         navigation.addLayout(brand_row)

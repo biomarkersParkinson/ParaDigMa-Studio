@@ -1,6 +1,6 @@
 # ParaDigMa acknowledgement
 
-ParaDigMa Desktop uses the **ParaDigMa (Parkinson's disease Digital Markers)**
+ParaDigMa Studio uses the **ParaDigMa (Parkinson's disease Digital Markers)**
 Python toolbox for its scientific processing, trained classifiers and analysis
 pipelines. Credit for those methods and software belongs to the ParaDigMa authors
 and contributors. The desktop provides the Windows interface, import adaptation,

@@ -6,6 +6,8 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from .branding import USER_DATA_DIRECTORY
+
 
 def configure_plot_cache(cache_root):
     # PyInstaller normally replaces MPLCONFIGDIR on every launch to protect
@@ -19,7 +21,7 @@ def configure_plot_cache(cache_root):
     try:
         identity = f"{bundle.resolve()}|{version('matplotlib')}"
         key = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
-        directory = Path(cache_root) / "ParaDigMaDesktop" / "matplotlib" / key
+        directory = Path(cache_root) / USER_DATA_DIRECTORY / "matplotlib" / key
         directory.mkdir(parents=True, exist_ok=True)
     except (OSError, PackageNotFoundError):
         # Retain PyInstaller's temporary cache when storage is unavailable;

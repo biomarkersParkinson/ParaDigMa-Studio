@@ -22,7 +22,7 @@ def main(report_path):
         {
             (d.metadata["Name"], d.version)
             for d in distributions()
-            if d.metadata["Name"].lower().replace("_", "-") != "paradigma-desktop"
+            if d.metadata["Name"].lower().replace("_", "-") != "paradigma-studio"
         }
     )
     with tempfile.TemporaryDirectory(prefix="paradigma-audit-") as directory:

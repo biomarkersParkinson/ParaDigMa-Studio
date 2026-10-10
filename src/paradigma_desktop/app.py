@@ -58,6 +58,7 @@ from .overview import recording_extent, recording_summary
 from .analysis_process import run_isolated_analysis
 from .result_data import prepare_result_data, detail_table_view
 from .assets import DATA_DIRECTORY
+from .branding import APP_NAME, USER_DATA_DIRECTORY
 from .ui.layout import WorkspaceLayout
 from .ui.result_graphs import ResultGraphs
 from .channels import (
@@ -84,7 +85,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
     def __init__(self, history_dir=None):
         super().__init__()
-        self.setWindowTitle("ParaDigMa • Sensor analysis")
+        self.setWindowTitle(f"{APP_NAME} • Sensor analysis")
         self.setWindowIcon(QIcon(str(DATA_DIRECTORY / "app-icon.png")))
         self.resize(1450, 920)
         self.setMinimumSize(960, 650)
@@ -137,7 +138,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         directory = (
             history_dir
             or Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
-            / "ParaDigMaDesktop"
+            / USER_DATA_DIRECTORY
             / "runs"
         )
         self.history = RunHistory(directory)
@@ -2193,7 +2194,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("ParaDigMaDesktop")
+    app.setApplicationName(APP_NAME)
     app.setOrganizationName("ParaDigMa")
     app.setStyle("Fusion")
     window = MainWindow()

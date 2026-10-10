@@ -3,9 +3,9 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "paradigma-desktop"
-version = "0.5.28"
-description = "Windows desktop interface for the official ParaDigMa toolbox"
+name = "paradigma-studio"
+version = "0.5.29"
+description = "ParaDigMa Studio: Windows interface for the official ParaDigMa toolbox"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "paradigma==1.1.2",
@@ -19,6 +19,7 @@ dependencies = [
 dev = ["pytest==9.1.1", "pyinstaller==6.22.3", "ruff==0.16.10"]
 
 [project.gui-scripts]
+paradigma-studio = "paradigma_desktop.app:main"
 paradigma-desktop = "paradigma_desktop.app:main"
 
 [tool.setuptools.packages.find]

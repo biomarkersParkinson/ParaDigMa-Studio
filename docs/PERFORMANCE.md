@@ -172,7 +172,7 @@ a hardware-dependent timing threshold. The first-frame check also rejects
 accidental eager scientific imports. To benchmark locally after building:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report performance.json
+.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report performance.json
 ```
 
 The probe opens an empty window and exits without opening sensor data, running

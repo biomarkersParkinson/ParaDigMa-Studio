@@ -31,30 +31,30 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParaDigMaDesktop-test-results
+          name: ParaDigMaStudio-test-results
           path: test-results.xml
           if-no-files-found: ignore
       - run: python scripts/build_desktop.py
-      - run: python scripts/check_frozen.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe
+      - run: python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
       - name: Measure Windows startup and bundle size
-        run: python scripts/benchmark_desktop.py dist/ParaDigMaDesktop/ParaDigMaDesktop.exe --report dist/ParaDigMaDesktop/performance.json
+        run: python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report dist/ParaDigMaStudio/performance.json
       - name: Measure Windows UI workflows
-        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaDesktop/ui-performance.json
+        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaStudio/ui-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows graph panning
-        run: python scripts/benchmark_pan.py --report dist/ParaDigMaDesktop/pan-performance.json
+        run: python scripts/benchmark_pan.py --report dist/ParaDigMaStudio/pan-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows sensor-context opening
-        run: python scripts/benchmark_sensor_context.py --report dist/ParaDigMaDesktop/sensor-context-performance.json
+        run: python scripts/benchmark_sensor_context.py --report dist/ParaDigMaStudio/sensor-context-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
-      - run: python scripts/write_build_manifest.py dist/ParaDigMaDesktop dependency-audit.json
+      - run: python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: unsigned-signing-input
-          path: dist/ParaDigMaDesktop/
+          path: dist/ParaDigMaStudio/
           include-hidden-files: true
           retention-days: 1
 
@@ -152,9 +152,9 @@ jobs:
           path: bundle
       - run: python scripts/signing_bundle.py verify bundle
       - name: Launch and test the signed application without signing credentials
-        run: python scripts/check_frozen.py bundle/ParaDigMaDesktop.exe
+        run: python scripts/check_frozen.py bundle/ParaDigMaStudio.exe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ParaDigMaDesktop-Windows-Signed
+          name: ParaDigMaStudio-Windows-Signed
           path: bundle/
           include-hidden-files: true
