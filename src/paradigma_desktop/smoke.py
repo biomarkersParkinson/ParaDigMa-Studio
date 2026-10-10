@@ -134,12 +134,14 @@ def smoke_test(report_path):
                 automatic.setChecked(False)
                 lower.setText("0.5")
                 upper.setText("1.5")
-                toolbar.settings.apply_button.click()
+                upper.editingFinished.emit()
                 if not np.allclose(window.data_figure.axes[0].get_xlim(), [0.5, 1.5]):
                     raise RuntimeError("Integrated axis limits did not apply")
                 if (
-                    not toolbar.select_action.isChecked()
-                    or toolbar.select_action.icon().pixmap(24, 24).isNull()
+                    not window.plot_toolbar.select_action.isChecked()
+                    or window.plot_toolbar.select_action.icon().pixmap(24, 24).isNull()
+                    or toolbar.select_action is not None
+                    or not toolbar._actions["pan"].isChecked()
                 ):
                     raise RuntimeError("Default timepoint cursor or its packaged icon is missing")
                 toolbar.settings.reset_button.click()
@@ -416,7 +418,7 @@ def smoke_test(report_path):
                 window.result_table.setCurrentIndex(window.result_table.model().index(position, 0))
                 window.inspect_sensor_context()
                 if (
-                    "subject-part2.csv" not in window.sensor_note.text()
+                    window._sensor_context.source_name != "subject-part2.csv"
                     or not len(window.sensor_times)
                     or window.sensor_times.min() < 120.0 - 1e-9
                 ):

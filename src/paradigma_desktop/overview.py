@@ -76,14 +76,15 @@ def _timespan(bounds, clock, file_order=False):
     return f"{prefix}: {start:,.2f}–{end:,.2f} s · Absolute dates unavailable"
 
 
-def _hours(seconds):
+def _coverage_duration(seconds):
+    days, remainder = divmod(seconds, 86400)
     # Small example files must not appear to contain zero hours of data.
     value = (
-        f"{seconds / 3600:,.2f}"
-        if seconds >= 36
-        else f"{seconds / 3600:.6f}".rstrip("0").rstrip(".")
+        f"{remainder / 3600:,.2f}"
+        if remainder >= 36
+        else f"{remainder / 3600:.6f}".rstrip("0").rstrip(".")
     )
-    return value + " h"
+    return f"{int(days):,} {'day' if days == 1 else 'days'} · {value} h"
 
 
 def recording_summary(results, provenance, clock, prepared_views=None):
@@ -125,12 +126,12 @@ def recording_summary(results, provenance, clock, prepared_views=None):
 
         intervals = _interval_union(frame, bounds)
         seconds = sum(end - start for start, end in intervals)
-        value = _hours(seconds)
+        value = _coverage_duration(seconds)
         if bounds and bounds[1] > bounds[0]:
             value += f" · {100 * seconds / (bounds[1] - bounds[0]):.1f}% of timespan"
         else:
             value += " · Timespan unavailable"
-        entries.append((title("Data coverage (prepared)"), value))
+        entries.append((title("Data coverage"), value))
         entries.append((title("Gaps"), str(max(0, len(intervals) - 1))))
     groups = preparation.get("by_module", {}) or {"": preparation}
     unique = {}

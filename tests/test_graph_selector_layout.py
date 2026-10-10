@@ -53,6 +53,8 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
     for i in range(tree.topLevelItemCount()):
         module = tree.topLevelItem(i)
         assert module.childCount()
+        assert not module.flags() & Qt.ItemIsUserCheckable
+        assert module.data(0, Qt.CheckStateRole) is None
         for j in range(module.childCount()):
             item = module.child(j)
             assert item.childCount() == 0
@@ -118,6 +120,7 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
             tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() - 6, rect.center().y())
         )
         assert root.isExpanded() == expanded
+        assert root.data(0, Qt.CheckStateRole) is None
     root.setExpanded(True)
     leaf = root.child(0)
     before = leaf.checkState(0)

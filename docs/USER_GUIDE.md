@@ -90,8 +90,9 @@ and a legend. Each modality has its own value axis and shares the time axis.
 Values retain their file units. Data **Tables** shows original samples.
 
 Results **Overview** shows official aggregates and relevant pipeline metadata in
-module cards. **Recording & preparation** groups recording information and input
-preparation counts without duplicating identical workflows. Gait segment metadata
+module cards. Individual recording cards show the timespan, data coverage in
+days and hours plus its percentage of the timespan, and gaps, without duplicating
+identical workflows. Gait segment metadata
 is summarized by counts and duration distributions; individual segment records
 remain in the metadata export.
 
@@ -174,21 +175,26 @@ also applies on Data. Known sensor names and configured column mappings identify
 modalities; unidentified scalar streams stay separate. Use **Select all** and
 **Clear**. The complete figure resizes to fit the page;
 the channel list and **Tables** can scroll independently. Channel selections are
-retained when inspecting another result. **Earlier** and **Later** move through
-the original recording beyond the initial context and stop at its boundaries.
+retained when inspecting another result. Drag with **Pan** to move through the
+original recording beyond the initial context, up to its boundaries. New samples
+load as you move; gaps stay blank. **Close** at the top right dismisses the
+sensor-context tab.
 The selected result time is marked whenever it is in view.
 Clicking either a checkbox or its label toggles a channel or plot series.
 
-Each graph has three cursor modes: **Select timepoint** (default), **Pan** and
+Results graphs have three cursor modes: **Select timepoint** (default), **Pan** and
 **Zoom**. Click a plotted timepoint to mark it; its date and time appear above
 the time axis. Choose Pan to move the view or Zoom to draw a zoom rectangle,
-and Select timepoint to resume selection.
+and Select timepoint to resume selection. Data and sensor-context graphs have
+Pan (default) and Zoom. Sensor context retains the time selected in Results.
 
 **Axis limits** opens the only graph settings panel. Click the graph you want
 to adjust, uncheck **Automatic** for X or Y, enter the minimum and maximum,
-and choose **Apply**. Calendar limits accept ISO date/time with a time zone.
+and press Enter or leave the field to update the graph. Calendar limits accept
+ISO date/time with a time zone.
 X limits apply to linked plots; Y limits apply to the clicked plot.
-**Reset limits** restores automatic ranges. Home, Back, Forward and figure
+The selected graph is shaded while editing. **Reset limits** restores automatic
+ranges; **Close** dismisses the panel. Home, Back, Forward and figure
 saving remain on the toolbar. Saved figures include the time axis.
 Raw sensor plots retain continuous signal lines and limit display to 20,000 samples
 per channel; result bars and binary indicators retain every output.

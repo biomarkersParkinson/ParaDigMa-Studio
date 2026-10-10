@@ -40,7 +40,6 @@ from ..widgets import (
     ModuleTabBar,
     WrappedForm,
     AdaptiveFormColumns,
-    AdaptiveTextActions,
     FigureActionBar,
     SeriesTree,
     CheckLabelDelegate,
@@ -748,6 +747,9 @@ class WorkspaceLayout:
         self.graph_view_layout.addWidget(workspace, 1)
         graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
+        self.graph_scroll.verticalScrollBar().valueChanged.connect(
+            lambda: self.canvas.draw_idle() if self.canvas.panning else None
+        )
         self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
             self.time_axis.synchronize
         )
@@ -759,19 +761,13 @@ class WorkspaceLayout:
         self.table_stack.addWidget(self.result_table)
         self.table_stack.addWidget(self.aggregation_table)
         table_body.addWidget(self.table_stack, 1)
-        self.sensor_panel, sensor_layout = card()
-        self.sensor_note = label("", "muted")
-        sensor_actions = QHBoxLayout()
+        self.sensor_panel = QWidget()
+        sensor_actions = QHBoxLayout(self.sensor_panel)
+        sensor_actions.setContentsMargins(0, 0, 0, 0)
         sensor_actions.addStretch()
-        self.sensor_earlier = button("← Earlier", lambda: self.move_sensor_context(-1))
-        self.sensor_later = button("Later →", lambda: self.move_sensor_context(1))
-        for control in (self.sensor_earlier, self.sensor_later):
-            control.setEnabled(False)
-            sensor_actions.addWidget(control)
-        self.sensor_earlier.setToolTip("Show the previous context window in this recording")
-        self.sensor_later.setToolTip("Show the next context window in this recording")
-        sensor_actions.addWidget(button("Close", self.hide_sensor_context))
-        sensor_layout.addLayout(AdaptiveTextActions(self.sensor_note, sensor_actions))
+        self.sensor_close = button("Close", self.hide_sensor_context)
+        self.sensor_close.setAccessibleName("Close sensor context")
+        sensor_actions.addWidget(self.sensor_close)
         self.sensor_tabs = QTabWidget()
         self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         (

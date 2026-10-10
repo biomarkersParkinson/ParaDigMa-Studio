@@ -659,7 +659,7 @@ def test_context_drills_into_original_mapped_sensor_values(window):
         list(window.sensor_figure.axes[0].lines[0].get_ydata())
         == frame.iloc[np.flatnonzero(mask)]["gyr_x"].tolist()
     )
-    assert "not the algorithm's exact window" in window.sensor_note.text()
+    assert window._sensor_context.end - window._sensor_context.start == 20
     pd.testing.assert_frame_equal(frame, original)
     window.hide_sensor_context()
     assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
@@ -703,8 +703,7 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     assert window.time_axis.selection_label.get_text() == "1.25 s"
     window.inspect_sensor_context()
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, raw.iloc[10:20])
-    assert "using toolbox metadata" in window.sensor_note.text()
-    assert "Individual arm-swing timestamps are not provided" in window.sensor_note.text()
+    assert not window._sensor_context.include_end
     window.analyzed({"quantifications": {"gait": {"unfiltered": quantified}}, "errors": []})
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not window.context_button.isEnabled()  # No inferred timing without metadata.

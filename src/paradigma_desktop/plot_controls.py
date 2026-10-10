@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 from .theme import light_palette
 from .assets import DATA_DIRECTORY
 from .plotting import autoscale_bars
-from .channels import mark_graph_time
 
 
 class GraphToolbar(NavigationToolbar2QT):
@@ -29,17 +28,19 @@ class GraphToolbar(NavigationToolbar2QT):
         item for item in NavigationToolbar2QT.toolitems if item[0] not in ("Subplots", "Customize")
     )
 
-    def __init__(self, canvas, parent):
+    def __init__(self, canvas, parent, *, time_selection=True):
         super().__init__(canvas, parent, coordinates=False)
         self.setPalette(light_palette())
-        self.select_action = QAction(
-            QIcon(str(DATA_DIRECTORY / "select-time.svg")), "Select timepoint", self
-        )
-        self.select_action.setCheckable(True)
-        self.select_action.setChecked(True)
-        self.select_action.setToolTip("Select a timepoint by clicking a graph")
-        self.select_action.triggered.connect(self.select_timepoint)
-        self.insertAction(self._actions["pan"], self.select_action)
+        self.select_action = None
+        if time_selection:
+            self.select_action = QAction(
+                QIcon(str(DATA_DIRECTORY / "select-time.svg")), "Select timepoint", self
+            )
+            self.select_action.setCheckable(True)
+            self.select_action.setChecked(True)
+            self.select_action.setToolTip("Select a timepoint by clicking a graph")
+            self.select_action.triggered.connect(self.select_timepoint)
+            self.insertAction(self._actions["pan"], self.select_action)
         self.settings = GraphSettings(canvas, self)
         self.settings_action = QAction("Axis limits", self)
         self.settings_action.setCheckable(True)
@@ -48,9 +49,14 @@ class GraphToolbar(NavigationToolbar2QT):
         self.addSeparator()
         self.addAction(self.settings_action)
         self.active_axes = None
+        self._highlighted_axes = None
         canvas.mpl_connect("button_press_event", self.select_axes)
+        if not time_selection:
+            self.pan()
 
     def select_timepoint(self):
+        if self.select_action is None:
+            return
         if self._actions["pan"].isChecked():
             self.pan()
         elif self._actions["zoom"].isChecked():
@@ -59,43 +65,44 @@ class GraphToolbar(NavigationToolbar2QT):
 
     def pan(self, *args):
         super().pan(*args)
-        self.select_action.setChecked(not bool(self.mode))
+        if self.select_action is not None:
+            self.select_action.setChecked(not bool(self.mode))
 
     def zoom(self, *args):
         super().zoom(*args)
-        self.select_action.setChecked(not bool(self.mode))
+        if self.select_action is not None:
+            self.select_action.setChecked(not bool(self.mode))
 
     def select_axes(self, event):
         if event.inaxes in self.canvas.figure.axes:
             self.active_axes = event.inaxes
-            if (
-                not self.mode
-                and event.button == 1
-                and event.xdata is not None
-                and not hasattr(event.inaxes, "_paradigma_dataset")
-                and event.inaxes.has_data()
-            ):
-                locator = event.inaxes.xaxis.get_major_locator()
-                text = (
-                    dates.num2date(event.xdata, tz=locator.tz)
-                    .strftime("%d %b %Y %H:%M:%S.%f")
-                    .rstrip("0")
-                    .rstrip(".")
-                    if isinstance(locator, dates.DateLocator)
-                    else f"{event.xdata:.6g} s"
-                )
-                mark_graph_time(self.canvas.figure, event.xdata, text)
-                self.canvas.draw_idle()
             if self.settings_action.isChecked():
                 self.settings.read_axes()
 
     def show_settings(self, visible):
         if visible:
             self.settings.read_axes()
+        else:
+            self.highlight_axes(None)
         self.settings.setVisible(visible)
+
+    def highlight_axes(self, axes):
+        """Shade the limits target without changing data or axis geometry."""
+        previous = self._highlighted_axes
+        if previous is not None and previous[0] is axes:
+            return
+        if previous is not None:
+            previous[0].set_facecolor(previous[1])
+        self._highlighted_axes = None
+        if axes is not None:
+            self._highlighted_axes = axes, axes.get_facecolor()
+            axes.set_facecolor("#EAF1F9")
+        self.canvas.draw_idle()
 
     def refresh(self):
         # A new metric or recording has new axes and a new navigation history.
+        if self._pan_info is not None:
+            self.release_pan(None)
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
@@ -124,12 +131,14 @@ class GraphToolbar(NavigationToolbar2QT):
         super().press_pan(event)
         # Keep the drag transform stable; fit the final Y range once on release.
         if self._pan_info is not None:
+            self.canvas.panning = True
             for ax in self._automatic_bar_y:
                 ax.set_autoscaley_on(False)
         else:
             self._automatic_bar_y = []
 
     def release_pan(self, event):
+        self.canvas.panning = False
         super().release_pan(event)
         self.restore_automatic_bar_y()
         self._automatic_bar_y = []
@@ -175,11 +184,13 @@ class GraphSettings(QFrame):
                     hi.setEnabled(not checked),
                 )
             )
+            automatic.clicked.connect(self.apply)
             for edit, name in ((lower, "minimum"), (upper, "maximum")):
                 edit.setEnabled(False)
                 edit.setMinimumWidth(60)
                 edit.setPlaceholderText(name.capitalize())
                 edit.setAccessibleName(f"{axis.upper()} axis {name}")
+                edit.editingFinished.connect(self.apply)
             limits_layout.addWidget(QLabel(f"{axis.upper()} limits"), row, 0)
             limits_layout.addWidget(automatic, row, 1)
             limits_layout.addWidget(lower, row, 2)
@@ -191,13 +202,18 @@ class GraphSettings(QFrame):
         layout.addWidget(self.limits_panel, 2, 0, 1, 5)
         controls = QHBoxLayout()
         controls.setSpacing(12)
+        self.graph_hint = QLabel(
+            "Click a graph to set its limits. Time limits apply to linked graphs."
+        )
+        self.graph_hint.setWordWrap(True)
+        controls.addWidget(self.graph_hint, 1)
         controls.addStretch()
         self.reset_button = QPushButton("Reset limits")
         self.reset_button.clicked.connect(self.reset)
-        self.apply_button = QPushButton("Apply")
-        self.apply_button.clicked.connect(self.apply)
+        self.close_button = QPushButton("Close")
+        self.close_button.clicked.connect(lambda: toolbar.settings_action.setChecked(False))
         controls.addWidget(self.reset_button)
-        controls.addWidget(self.apply_button)
+        controls.addWidget(self.close_button)
         layout.addLayout(controls, 3, 0, 1, 5)
         self.error = QLabel()
         self.error.setTextFormat(Qt.PlainText)
@@ -205,10 +221,6 @@ class GraphSettings(QFrame):
         self.error.setObjectName("graphError")
         layout.addWidget(self.error, 4, 0, 1, 5)
         self.error.hide()
-        self.graph_hint = QLabel()
-        self.graph_hint.setWordWrap(True)
-        layout.addWidget(self.graph_hint, 5, 0, 1, 5)
-        self.graph_hint.hide()
         layout.setColumnStretch(2, 1)
         layout.setColumnStretch(4, 1)
         self.hide()
@@ -220,13 +232,13 @@ class GraphSettings(QFrame):
 
     def read_axes(self):
         ax = self.axes()
+        self.toolbar.highlight_axes(ax if self.toolbar.settings_action.isChecked() else None)
         self.setEnabled(ax is not None)
         if ax is None:
             return
         self.graph_hint.setText(
             "Click a graph to set its limits. Time limits apply to linked graphs."
         )
-        self.graph_hint.setVisible(len(self.canvas.figure.axes) > 1)
         for axis, (automatic, lower, upper) in self.bounds.items():
             automatic.setChecked(getattr(ax, f"get_autoscale{axis}_on")())
             is_date = isinstance(getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator)
@@ -295,7 +307,7 @@ class GraphSettings(QFrame):
 
 
 def add_graph_controls(layout, canvas, parent):
-    toolbar = GraphToolbar(canvas, parent)
+    toolbar = GraphToolbar(canvas, parent, time_selection=False)
     layout.addWidget(toolbar)
     layout.addWidget(toolbar.settings)
     return toolbar

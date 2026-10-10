@@ -545,3 +545,56 @@ one Windows-only signature check was skipped. The rebuilt Linux bundle passed
 its runtime check. A background-loading test timed out while the first suite
 ran alongside packaging; its isolated rerun and the full suite without a
 competing build passed. Native Windows validation remains in GitHub Actions.
+
+## Time-series panning (0.5.27)
+
+Dragging a time series previously reran constrained layout and repainted every
+selected graph, including plots outside the scrolling viewport. Pan frames now
+reuse settled positions and render the visible plots, including their headings.
+The original layout engine, visibility and every data interval remain intact;
+release performs a complete normal redraw and restores automatic Y ranges.
+Exports render all plots even during a drag. Shared calendar locators reuse tick
+positions for unchanged limits, with exact comparisons against Matplotlib across
+zoom ranges and daylight-saving transitions.
+
+The source benchmark uses actual toolbar drags and queued Qt painting, with six
+30,000-value Results graphs, three raw modalities from 250,000 samples, eight
+frames per drag and three repeats. Local Linux/offscreen medians:
+
+| View | Previous frame | New frame | Reduction |
+| --- | ---: | ---: | ---: |
+| Results, full recording | 1,198 ms | 660 ms | 45% |
+| Results, zoomed to 15 minutes | 359 ms | 100 ms | 72% |
+| Data, three modalities | 334 ms | 291 ms | 13% |
+| Sensor context, three modalities | 138 ms | 111 ms | 20% |
+
+The updated sensor-context measurement includes live sample loading and the
+simplified tab layout. These synthetic timings are not a Windows responsiveness
+guarantee. Dense, full-recording bar plots still cost more to draw than a zoomed
+view; no output values are sampled or changed. [Measurements](pan-review-0.5.27.json) include
+individual frames and release times. Run `scripts/benchmark_pan.py --report
+pan-performance.json` to measure another system. Both Windows workflows now
+include this benchmark in their downloadable artifacts.
+
+Raw Data and sensor-context toolbars provide Pan and Zoom; sensor context keeps
+the previously selected Results time. Only Results provides timepoint selection.
+Module headings expand their graph lists without creating a checkbox. Axis limits
+shade their target graph, update on completed edits, and show the explanation,
+Reset limits and Close together.
+
+Sensor context indexes original recording timestamps once, then updates the
+existing lines and indicator points as limits change. Panning, zooming and
+navigation history can move beyond the initial ±10-second or gait-segment view
+without recreating axes. Source values and the selected Results time remain
+unchanged; the view stops at recording boundaries and crosses gaps without
+inventing samples. The information header and Earlier/Later controls were
+removed; Close sits at the tab's top right.
+
+Recording and preparation summary cards sit directly in Overview, without an
+outer titled card. Data coverage is displayed in days and remaining hours, with
+its percentage of the timespan. Scientific aggregates are unchanged.
+
+Local validation: **424 tests passed**, including all 31 scientific-equivalence
+tests; one Windows-only signature check was skipped. Formatting and lint checks
+passed, and the rebuilt Linux portable app passed its packaged runtime check.
+Native Windows validation runs in GitHub Actions.

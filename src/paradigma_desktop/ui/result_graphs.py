@@ -14,7 +14,7 @@ from ..plotting import (
 )
 from ..results_view import MODULE_NAMES, clock_times, clock_origin
 from ..theme import style_axes, module_color, style_result_heading
-from ..time_axis import RecordingTimeFormatter
+from ..time_axis import RecordingTimeFormatter, RecordingDateLocator
 from ..epochs import epoch_phase, epoch_summary, availability_epoch_summary, require_epoch_presence
 from ..gait_presence import gait_presence_intervals, gait_epoch_summaries
 
@@ -377,7 +377,7 @@ class ResultGraphs:
             )
             if self.display_clock is not None:
                 timezone = clock_origin(self.display_clock).tz
-                locator = dates.AutoDateLocator(tz=timezone)
+                locator = RecordingDateLocator(tz=timezone)
                 ax.xaxis.set_major_locator(locator)
                 ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
                 ax.set_xlabel(

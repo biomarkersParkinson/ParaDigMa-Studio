@@ -141,9 +141,6 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     assert scroll.horizontalScrollBar().maximum() == 0
     assert window.sensor_canvas.visibleRegion().boundingRect().contains(window.sensor_canvas.rect())
     assert window.sensor_canvas.height() >= 100
-    assert window.sensor_note.height() >= window.sensor_note.heightForWidth(
-        window.sensor_note.width()
-    )
     for control in window.sensor_panel.findChildren(QPushButton):
         assert control.visibleRegion().boundingRect().contains(control.rect())
     with warnings.catch_warnings(record=True) as caught:
@@ -171,9 +168,6 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
             window.sensor_canvas.visibleRegion()
             .boundingRect()
             .contains(window.sensor_canvas.rect())
-        )
-        assert window.sensor_note.height() >= window.sensor_note.heightForWidth(
-            window.sensor_note.width()
         )
 
 
@@ -209,42 +203,52 @@ def open_long_context(window, *, gap=False, gait=False):
     return frame
 
 
+def view_sensor(window, start, end):
+    window.sensor_figure.axes[0].set_xlim(start, end)
+    QApplication.instance().processEvents()
+
+
 def test_context_navigation_keeps_channels_original_samples_and_recording_boundaries(window):
     frame = open_long_context(window)
     original = frame.copy(deep=True)
+    axes = tuple(window.sensor_figure.axes)
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
-    assert window.sensor_earlier.isEnabled() and window.sensor_later.isEnabled()
-    window.sensor_later.click()
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(40, 60)])
-    assert not any(
-        line.get_gid() == "selected-result-time" for line in window.sensor_figure.axes[0].lines
-    )
-    window.sensor_later.click()
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(60, 80)])
-    assert not window.sensor_later.isEnabled()
-    for start in (40, 20, 0):
-        window.sensor_earlier.click()
+    assert not hasattr(window, "sensor_earlier") and not hasattr(window, "sensor_later")
+    assert not hasattr(window, "sensor_note")
+    assert window.sensor_panel.findChildren(QPushButton) == [window.sensor_close]
+    for start in (40, 60, 40, 20, 0):
+        view_sensor(window, start, start + 20)
         pd.testing.assert_frame_equal(
             window.sensor_frame, frame.loc[frame.time.between(start, start + 20)]
         )
+        assert tuple(window.sensor_figure.axes) == axes
         assert window.selected_sensor_channels() == ["gyroscope_x", "gyroscope_z"]
-    assert not window.sensor_earlier.isEnabled()
+        for line in signal_lines(axes[0]):
+            np.testing.assert_array_equal(line.get_ydata(), window.sensor_frame[line.get_label()])
+    view_sensor(window, -20, 0)
+    assert axes[0].get_xlim() == pytest.approx((0, 20))
+    view_sensor(window, 80, 100)
+    assert axes[0].get_xlim() == pytest.approx((60, 80))
     assert window._sensor_context.selected_time == 30
     pd.testing.assert_frame_equal(frame, original)
+    window.sensor_close.click()
+    assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
     window.clear_results()
-    assert window._sensor_context is None
-    assert not window.sensor_earlier.isEnabled() and not window.sensor_later.isEnabled()
+    assert window._sensor_context is None and window._sensor_navigator is None
 
 
 def test_context_navigation_crosses_gaps_without_creating_original_samples(window):
     frame = open_long_context(window, gap=True)
-    window.sensor_later.click()
+    view_sensor(window, 40, 60)
     assert window.sensor_frame.empty
-    assert window.sensor_earlier.isEnabled() and window.sensor_later.isEnabled()
-    window.sensor_later.click()
+    assert all(len(line.get_xdata()) == 0 for line in signal_lines(window.sensor_figure.axes[0]))
+    assert any(
+        text.get_gid() == "sensor-no-data" and text.get_visible()
+        for text in window.sensor_figure.axes[0].texts
+    )
+    view_sensor(window, 60, 80)
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(60, 80)])
-    window.sensor_earlier.click()
-    window.sensor_earlier.click()
+    view_sensor(window, 20, 40)
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
 
 
@@ -253,17 +257,53 @@ def test_gait_context_begins_at_full_segment_and_can_move_beyond_its_bounds(wind
     pd.testing.assert_frame_equal(
         window.sensor_frame, frame.loc[(frame.time >= 30) & (frame.time < 36)]
     )
-    assert "using toolbox metadata" in window.sensor_note.text()
+    assert (window._sensor_context.start, window._sensor_context.end) == (30, 36)
     selected = window._sensor_context.selected_time
-    window.sensor_later.click()
-    pd.testing.assert_frame_equal(
-        window.sensor_frame, frame.loc[(frame.time >= 36) & (frame.time < 42)]
-    )
+    view_sensor(window, 36, 42)
+    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(36, 42)])
     assert window._sensor_context.selected_time == selected
-    window.sensor_earlier.click()
-    pd.testing.assert_frame_equal(
-        window.sensor_frame, frame.loc[(frame.time >= 30) & (frame.time < 36)]
+    view_sensor(window, 30, 36)
+    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(30, 36)])
+
+
+@pytest.mark.parametrize("calendar", [False, True])
+def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(window, calendar):
+    from matplotlib.backend_bases import MouseEvent
+
+    frame = open_long_context(window)
+    if calendar:
+        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window.plot_sensor()
+    canvas, toolbar = window.sensor_canvas, window.sensor_toolbar
+    canvas.draw()
+    axes = window.sensor_figure.axes[0]
+    original = axes.get_xlim()
+    x, y = axes.transAxes.transform((0.5, 0.5))
+    toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
+    toolbar.drag_pan(
+        MouseEvent("motion_notify_event", canvas, x - axes.bbox.width * 0.8, y, buttons={1})
     )
+    QApplication.instance().processEvents()
+    assert window.sensor_frame.time.min() > 30
+    assert window.sensor_frame.time.max() > 50
+    assert window.sensor_figure.axes[0] is axes
+    assert window._sensor_context.selected_time == 30
+    toolbar.release_pan(MouseEvent("button_release_event", canvas, x, y, button=1))
+    for line in signal_lines(axes):
+        np.testing.assert_array_equal(line.get_ydata(), window.sensor_frame[line.get_label()])
+    assert not any(
+        line.get_visible() for line in axes.lines if line.get_gid() == "selected-result-time"
+    )
+    toolbar.back()
+    QApplication.instance().processEvents()
+    assert axes.get_xlim() == pytest.approx(original)
+    assert any(
+        line.get_visible() for line in axes.lines if line.get_gid() == "selected-result-time"
+    )
+    toolbar.forward()
+    QApplication.instance().processEvents()
+    assert window.sensor_frame.time.min() > 30
+    pd.testing.assert_frame_equal(window.frame, frame)
 
 
 def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(window):
@@ -288,11 +328,41 @@ def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(w
         signal_lines(axes)[0].get_ydata(), window.sensor_frame.gyroscope_x
     )
     pd.testing.assert_frame_equal(window.frame, frame)
-    window.sensor_later.click()
-    window.sensor_earlier.click()
+    view_sensor(window, 40, 60)
+    view_sensor(window, 20, 40)
     marker = next(
         line
         for line in window.sensor_figure.axes[0].lines
         if line.get_gid() == "selected-result-time"
     )
     np.testing.assert_array_equal(marker.get_xdata(), result_marker.get_xdata())
+
+
+def test_context_can_begin_in_a_gap_and_reselect_channels_before_panning_to_data(window):
+    frame = open_long_context(window, gap=True)
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    window.active_frame.loc[0, "time"] = 50.0
+    window.inspect_sensor_context()
+    assert window.sensor_frame.empty
+    assert window.sensor_figure.axes[0].get_xlim() == pytest.approx((40, 60))
+    window.set_sensor_channels(["gyroscope_z"])
+    assert window.sensor_figure.axes[0].get_xlim() == pytest.approx((40, 60))
+    view_sensor(window, 60, 80)
+    np.testing.assert_array_equal(
+        signal_lines(window.sensor_figure.axes[0])[0].get_ydata(),
+        frame.loc[frame.time.between(60, 80), "gyroscope_z"],
+    )
+
+
+def test_sensor_index_preserves_unsorted_duplicate_samples_and_ignores_invalid_times():
+    from paradigma_desktop.exploration import SensorContext
+    from paradigma_desktop.sensor_navigation import SensorNavigator
+
+    times = np.array([-1.0, np.nan, 4.0, 2.0, 2.0, np.inf, 9.0])
+    original = times.copy()
+    context = SensorContext(pd.DataFrame({"time": times}), times, times, 1.0, 5.0, 2.0)
+    navigator = SensorNavigator(context, None)
+    np.testing.assert_array_equal(navigator.positions((2.0, 4.0)), [2, 3, 4])
+    assert navigator.bounded_limits((-5.0, -3.0)) == (-1.0, 1.0)
+    assert navigator.bounded_limits((12.0, 14.0)) == (7.0, 9.0)
+    np.testing.assert_array_equal(times, original)

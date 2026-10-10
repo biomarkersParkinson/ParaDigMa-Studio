@@ -1,13 +1,13 @@
 """Selection helpers shared by result graphs, summaries and tables."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import numpy as np
 
 
 @dataclass(frozen=True)
 class SensorContext:
-    """A movable view of one original recording, retaining the selected result time."""
+    """The initial view of one original recording and its selected Results time."""
 
     frame: object
     analysis_times: np.ndarray
@@ -15,8 +15,6 @@ class SensorContext:
     start: float
     end: float
     selected_time: float
-    source_start: float
-    source_end: float
     source_name: str = ""
     include_end: bool = True
 
@@ -27,17 +25,6 @@ class SensorContext:
         return np.flatnonzero(
             np.isfinite(self.analysis_times) & (self.analysis_times >= self.start) & upper
         )
-
-    def can_move(self, direction):
-        if direction < 0:
-            return self.source_start < self.start
-        return self.source_end > self.end if self.include_end else self.source_end >= self.end
-
-    def moved(self, direction):
-        if not self.can_move(direction):
-            return None
-        step = (self.end - self.start) * direction
-        return replace(self, start=self.start + step, end=self.end + step)
 
 
 PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject", "patient_id")

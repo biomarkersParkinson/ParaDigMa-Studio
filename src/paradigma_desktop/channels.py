@@ -17,7 +17,7 @@ from .plotting import (
     time_selection_triangle,
 )
 from .theme import style_axes
-from .time_axis import RecordingTimeFormatter
+from .time_axis import RecordingTimeFormatter, RecordingDateLocator
 from .results_view import clock_times
 
 
@@ -163,9 +163,11 @@ def plot_channel_signals(
     calendar=False,
     timezone=None,
     empty_text="No original samples in this context",
+    allow_empty=False,
+    empty_schema=None,
 ):
     figure.clear()
-    if frame is None or frame.empty or not channels:
+    if frame is None or (frame.empty and not allow_empty) or not channels:
         ax = style_axes(figure)
         ax.text(
             0.5,
@@ -185,7 +187,11 @@ def plot_channel_signals(
         flags = [
             c
             for c in channels
-            if families[c][0][0] != "modality" and binary_indicator(frame[c], mapping.get(c, c))
+            if families[c][0][0] != "modality"
+            and binary_indicator(
+                (empty_schema if frame.empty and empty_schema is not None else frame)[c],
+                mapping.get(c, c),
+            )
         ]
         signals = [c for c in channels if c not in flags]
         modalities = {}
@@ -248,7 +254,7 @@ def plot_channel_signals(
                     fontsize=8,
                 )
             if calendar:
-                locator = dates.AutoDateLocator(tz=timezone)
+                locator = RecordingDateLocator(tz=timezone)
                 ax.xaxis.set_major_locator(locator)
                 ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
             ax.set_xlabel(time_label)

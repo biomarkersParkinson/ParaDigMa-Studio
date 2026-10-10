@@ -154,6 +154,38 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
     _wheel_remainder = 0.0
     defer_when_hidden = False
     _deferred_draw = False
+    panning = False
+
+    def draw(self):
+        if not self.panning or self.is_saving():
+            return super().draw()
+        # A drag changes limits, not the page layout. Keep settled axes in
+        # place and paint only the portion that Qt can display. Release paints
+        # the complete figure with its original layout engine again.
+        figure = self.figure
+        engine = figure.get_layout_engine()
+        region = self.visibleRegion().boundingRect()
+        ratio = self.device_pixel_ratio
+        bottom = (self.height() - region.y() - region.height()) * ratio
+        top = (self.height() - region.y()) * ratio
+        padding = figure.dpi * 0.35  # Include headings above a barely offscreen plot.
+        hidden = [
+            ax
+            for ax in figure.axes
+            if ax.get_visible() and (ax.bbox.y1 + padding < bottom or ax.bbox.y0 - padding > top)
+        ]
+        for ax in hidden:
+            ax.set_visible(False)
+        figure.set_layout_engine("none")
+        try:
+            return super().draw()
+        finally:
+            clean = not figure.stale
+            for ax in hidden:
+                ax.set_visible(True)
+            figure.set_layout_engine(engine)
+            if clean:
+                figure.stale = False
 
     def draw_idle(self):
         if self.defer_when_hidden and not self.isVisible():

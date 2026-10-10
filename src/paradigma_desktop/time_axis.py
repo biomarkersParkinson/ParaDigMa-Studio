@@ -8,6 +8,21 @@ from PySide6.QtCore import QPoint, Signal
 from .plotting import time_selection_triangle
 
 
+class RecordingDateLocator(dates.AutoDateLocator):
+    """Reuse identical tick positions across the shared graphs in one view.
+
+    Matplotlib queries a locator repeatedly while drawing ticks and spines.
+    Calendar ticks depend on the time limits; a new range recomputes them.
+    """
+
+    def __call__(self):
+        limits = tuple(self.axis.get_view_interval())
+        if limits != getattr(self, "_cached_limits", None):
+            locations = super().__call__()
+            self._cached_limits, self._cached_locations = limits, locations
+        return self._cached_locations
+
+
 class RecordingTimeFormatter(ticker.Formatter):
     """Time on the first line; date at the first visible tick and day changes."""
 
@@ -136,7 +151,7 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
             locator = source.xaxis.get_major_locator()
             if isinstance(locator, dates.DateLocator):
                 self._date_timezone = locator.tz
-                locator = dates.AutoDateLocator(tz=locator.tz, minticks=3, maxticks=7)
+                locator = RecordingDateLocator(tz=locator.tz, minticks=3, maxticks=7)
                 self.axes.xaxis.set_major_locator(locator)
                 self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
                 self.setFixedHeight(62)

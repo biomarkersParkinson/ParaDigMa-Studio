@@ -12,9 +12,11 @@ Graphs supports checkboxes for multiple channels, Select all/Clear, stable disti
 
 ![Original sensor graphs](screenshots/data-graphs.png)
 
-Graph controls provide Select timepoint (default), Pan and Zoom. **Axis limits**
-opens the inline X/Y bounds panel; Apply validates both ranges together and
-Reset limits restores automatic ranges. Click a graph to choose its Y axis;
+Raw graph controls provide Pan (default) and Zoom; Results additionally provides
+Select timepoint as its default mode. Sensor context keeps the selected Results
+time marker. **Axis limits** opens inline X/Y bounds, shading the selected graph.
+Entering a value updates valid limits; Reset limits restores automatic ranges
+and Close dismisses the panel. Click a graph to choose its Y axis;
 time limits apply to all linked plots. Home, history and Save remain available.
 
 ![Original sensor tables](screenshots/data-tables.png)
@@ -101,7 +103,7 @@ overlapping windows. Original tables and exports retain their official columns.
 
 ![Gait window probabilities and threshold-based presence](screenshots/gait-presence.png)
 
-The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** and its radius share the recording-time label row at the bottom right, below the pinned ticks. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
+The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** shares the recording-time label row at the bottom right, below the pinned ticks. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
 
 Set **Time origin** in Analyze. Its calendar and clock default to the original
 recording when possible; Default restores this value. Results has no time filters.

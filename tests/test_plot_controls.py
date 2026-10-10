@@ -50,9 +50,8 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
     for toolbar in (window.data_toolbar, window.plot_toolbar, window.sensor_toolbar):
         actions = [action.text() for action in toolbar.actions() if not action.isSeparator()]
         assert actions.count("Axis limits") == 1
-        assert {"Home", "Back", "Forward", "Select timepoint", "Pan", "Zoom", "Save"} <= set(
-            actions
-        )
+        assert {"Home", "Back", "Forward", "Pan", "Zoom", "Save"} <= set(actions)
+        assert ("Select timepoint" in actions) == (toolbar is window.plot_toolbar)
         assert not {"Graph settings", "Subplots", "Customize"} & set(actions)
         toolbar.settings_action.setChecked(True)
         panel = toolbar.settings
@@ -71,7 +70,7 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
     window.resize(960, 650)
     window.data_toolbar.settings_action.setChecked(True)
     QApplication.instance().processEvents()
-    assert window.data_toolbar.settings.apply_button.isVisible()
+    assert window.data_toolbar.settings.close_button.isVisible()
     assert window.data_canvas.height() >= 100
 
 
@@ -88,14 +87,14 @@ def test_limits_validate_atomically_and_reset_preserves_data_and_other_presentat
         assert lower.isEnabled() and upper.isEnabled()
         lower.setText(values[0])
         upper.setText(values[1])
-    panel.apply_button.click()
+    panel.bounds["y"][2].editingFinished.emit()
     assert axes.get_xlim() == pytest.approx((0.5, 1.5))
     assert axes.get_ylim() == pytest.approx((1.2, 2.8))
     automatic, lower, upper = panel.bounds["x"]
     lower.setText("0")
     upper.setText("2")
     panel.bounds["y"][1].setText("inf")
-    panel.apply_button.click()
+    panel.bounds["y"][1].editingFinished.emit()
     assert not panel.error.isHidden()
     assert axes.get_xlim() == pytest.approx((0.5, 1.5))
     assert axes.get_ylim() == pytest.approx((1.2, 2.8))
@@ -168,7 +167,7 @@ def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(win
 
 def test_cursor_modes_are_exclusive_and_default_to_selection(window):
     recording(window)
-    for toolbar in (window.data_toolbar, window.plot_toolbar, window.sensor_toolbar):
+    for toolbar in (window.plot_toolbar,):
         assert toolbar.select_action.isChecked() and not toolbar.mode
         assert not toolbar.select_action.icon().pixmap(24, 24).isNull()
         for mode in ("pan", "zoom", "pan"):
@@ -182,19 +181,46 @@ def test_cursor_modes_are_exclusive_and_default_to_selection(window):
         toolbar.zoom()
         toolbar.zoom()
         assert not toolbar.mode and toolbar.select_action.isChecked()
-    axes = window.data_figure.axes[0]
-    window.data_canvas.draw()
-    limits = axes.get_ylim()
-    point = axes.transData.transform((1, 2))
-    event = MouseEvent("button_press_event", window.data_canvas, *point, button=1)
-    window.data_toolbar.pan()
-    window.data_toolbar.select_axes(event)
-    assert not any(line.get_gid() == "selected-result-time" for line in axes.lines)
-    window.data_toolbar.select_timepoint()
-    window.data_toolbar.select_axes(event)
-    marker = next(line for line in axes.lines if line.get_gid() == "selected-result-time")
-    np.testing.assert_allclose(marker.get_xdata(), [1, 1])
-    assert axes.get_ylim() == limits
+
+
+def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
+    recording(window)
+    result = pd.DataFrame({"time": [1.0], "metric": [2.0]})
+    window.provenance = {"settings": {"skip_preparation": True}}
+    window.analyzed({"quantifications": {"tremor": result}})
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    window.inspect_sensor_context()
+    for toolbar, canvas in (
+        (window.data_toolbar, window.data_canvas),
+        (window.sensor_toolbar, window.sensor_canvas),
+    ):
+        assert toolbar.select_action is None and toolbar._actions["pan"].isChecked()
+        assert "Select timepoint" not in [action.text() for action in toolbar.actions()]
+        original = [
+            (line.get_gid(), tuple(line.get_xdata()))
+            for ax in canvas.figure.axes
+            for line in ax.lines
+            if line.get_gid() is not None
+        ]
+        if canvas is window.sensor_canvas:
+            assert any(gid == "selected-result-time" for gid, _ in original)
+        else:
+            assert not original
+        toolbar.pan()  # Even with navigation switched off, a click is not selection.
+        ax = canvas.figure.axes[0]
+        toolbar.select_axes(
+            MouseEvent("button_press_event", canvas, *ax.transAxes.transform((0.7, 0.5)), button=1)
+        )
+        assert [
+            (line.get_gid(), tuple(line.get_xdata()))
+            for ax in canvas.figure.axes
+            for line in ax.lines
+            if line.get_gid() is not None
+        ] == original
+        toolbar.zoom()
+        assert toolbar._actions["zoom"].isChecked() and not toolbar._actions["pan"].isChecked()
+        toolbar.pan()
+        assert toolbar._actions["pan"].isChecked() and not toolbar._actions["zoom"].isChecked()
 
 
 def test_channel_labels_toggle_once_and_support_multiple_channels(window):
@@ -229,3 +255,62 @@ def test_channel_labels_toggle_once_and_support_multiple_channels(window):
                 pos=QPoint(rect.left() + 10, rect.center().y()),
             )
             assert item.checkState() == before
+
+
+def test_axis_limits_shade_only_the_selected_graph_and_restore_backgrounds(window):
+    recording(window)
+    window.frame["accelerometer_x"] = [0.1, 0.2, 0.3]
+    window.populate_input_channels()
+    window.set_input_channels(["gyroscope_x", "accelerometer_x"])
+    toolbar, figure = window.data_toolbar, window.data_figure
+    assert len(figure.axes) == 2
+    colors = [ax.get_facecolor() for ax in figure.axes]
+    toolbar.settings_action.setChecked(True)
+    assert figure.axes[0].get_facecolor() != colors[0]
+    assert figure.axes[1].get_facecolor() == colors[1]
+    toolbar.select_axes(
+        MouseEvent(
+            "button_press_event",
+            window.data_canvas,
+            *figure.axes[1].transAxes.transform((0.5, 0.5)),
+            button=1,
+        )
+    )
+    assert toolbar.settings.axes() is figure.axes[1]
+    assert figure.axes[0].get_facecolor() == colors[0]
+    assert figure.axes[1].get_facecolor() != colors[1]
+    toolbar.settings_action.setChecked(False)
+    assert [ax.get_facecolor() for ax in figure.axes] == colors
+
+
+def test_limit_edits_apply_on_enter_and_blur_with_reset_and_close_on_hint_row(window):
+    recording(window)
+    toolbar = window.data_toolbar
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    automatic, lower, upper = panel.bounds["y"]
+    automatic.click()
+    assert not automatic.isChecked()
+    lower.setFocus()
+    lower.selectAll()
+    QTest.keyClicks(lower, "1.2")
+    QTest.keyClick(lower, Qt.Key_Return)
+    assert window.data_figure.axes[0].get_ylim()[0] == pytest.approx(1.2)
+    upper.setFocus()
+    upper.selectAll()
+    QTest.keyClicks(upper, "2.8")
+    panel.close_button.setFocus()  # Leaving the editor also commits its value.
+    QApplication.instance().processEvents()
+    assert window.data_figure.axes[0].get_ylim() == pytest.approx((1.2, 2.8))
+    assert not hasattr(panel, "apply_button")
+    row = panel.layout().itemAtPosition(3, 0).layout()
+    assert all(
+        row.indexOf(widget) >= 0
+        for widget in (panel.graph_hint, panel.reset_button, panel.close_button)
+    )
+    assert panel.graph_hint.isVisible()
+    panel.reset_button.click()
+    assert window.data_figure.axes[0].get_autoscaley_on()
+    panel.close_button.click()
+    assert panel.isHidden() and not toolbar.settings_action.isChecked()
+    assert toolbar._highlighted_axes is None

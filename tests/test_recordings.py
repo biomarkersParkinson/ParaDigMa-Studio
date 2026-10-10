@@ -212,7 +212,7 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     )
     window.inspect_sensor_context()
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, frames["recording_002"])
-    assert Path(sources["recording_002"]).name in window.sensor_note.text()
+    assert window._sensor_context.source_name == Path(sources["recording_002"]).name
     np.testing.assert_array_equal(window.sensor_times, [86400.0, 86401.0, 86402.0])
     path = tmp_path / "combined.json"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
