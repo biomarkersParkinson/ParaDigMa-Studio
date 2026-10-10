@@ -1,8 +1,8 @@
 # ParaDigMa Desktop
 
-A Windows app for the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor
-recordings, run gait, tremor or pulse-rate analysis, and explore graphs and tables.
-Recordings and results stay on your computer.
+A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recorindgs, 
+based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate pipelines, 
+and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
@@ -10,23 +10,21 @@ Recordings and results stay on your computer.
    and select the latest **successful Windows desktop** run for `main`.
 2. Under **Artifacts**, download **ParaDigMaDesktop-Windows**.
 3. Extract the **entire ZIP** into a new folder, keeping `_internal` beside the executable.
-4. Open **ParaDigMaDesktop.exe**. Python and Git are not required.
+4. Open **ParaDigMaDesktop.exe**. 
 
-The ordinary Windows build is **unsigned**. If Smart App Control blocks it,
-see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
+The ordinary Windows build is **unsigned**. If Smart App Control blocks it, temporarily disable it
+or see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
 A verified signing identity must be configured before the signed workflow can produce a trusted build.
 
 ## Your first analysis
 
-1. **Data:** Open one or more recordings for the same subject (Ctrl/Shift-select
-   in the file picker). Use the recording
-   selector to inspect each file's sensor/time statistics, overlay selected
-   channels in Graphs, or view original samples in Tables.
-2. **Analyze:** Select any combination of gait, tremor and pulse rate.
+1. **Data:** Open one or more wrist sensor recordings for the same subject (Ctrl/Shift-select
+   in the file picker). Use the recording selector to inspect each file's sensor and time statistics,
+   overlay selected channels in Graphs, or view original samples in Tables.
+3. **Analyze:** Run any combination of gait, tremor and pulse rate analysis pipelines.
    Review units, time representation, watch side and channel mapping; use each
-   field's **i** button for guidance below the parameters box. One explanation
-   opens at a time. Then click **Run Analysis**.
-3. **Results:** Overview shows gait quantity (duration and segment counts),
+   field's **i** button for guidance. Then click **Run Analysis**.
+4. **Results:** Overview shows gait quantity (duration and segment counts),
    range of motion and peak velocity charts, other module aggregates
    and metadata. Graphs compares
    selected metrics from multiple modules across recording time; Tables shows
@@ -40,7 +38,7 @@ A verified signing identity must be configured before the signed workflow can pr
    Recording cards show the recording's start/end, prepared-data
    coverage in days and hours plus percent of the timespan, and interruptions between
    prepared intervals. Modules with identical prepared inputs share these figures.
-4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
+5. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
    run, after confirmation. Original sensor files are preserved.
 
