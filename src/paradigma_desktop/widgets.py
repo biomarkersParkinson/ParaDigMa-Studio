@@ -156,6 +156,40 @@ class AdaptiveFormColumns(QHBoxLayout):
         super().setGeometry(rect)
 
 
+class AdaptiveTextActions(AdaptiveFormColumns):
+    """Wrap actions below a caption when that leaves more room for content.
+
+    A narrow word-wrapped caption beside wide native buttons can consume most
+    of a small page. Measure both arrangements at their actual widths instead
+    of forcing the caption into the space left by the buttons.
+    """
+
+    def __init__(self, caption, actions):
+        text = QVBoxLayout()
+        text.setContentsMargins(0, 0, 0, 0)
+        text.addWidget(caption)
+        super().__init__(text, actions, right_stretch=0)
+        self.setSpacing(12)
+
+    def _column_widths(self, width):
+        widths = super()._column_widths(width)
+        if widths is None:
+            return None
+
+        def height(index, available):
+            item = self.itemAt(index)
+            preferred = (
+                item.heightForWidth(available)
+                if item.hasHeightForWidth()
+                else item.sizeHint().height()
+            )
+            return max(preferred, item.minimumSize().height())
+
+        inline = max(height(index, available) for index, available in enumerate(widths))
+        stacked = sum(height(index, width) for index in range(self.count())) + self.spacing()
+        return widths if inline <= stacked else None
+
+
 class CheckLabelDelegate(QStyledItemDelegate):
     """Toggle a checkable row once when its checkbox or label is clicked."""
 

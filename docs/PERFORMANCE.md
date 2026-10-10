@@ -525,3 +525,23 @@ Validation: **400 tests passed**, including all 31 scientific-equivalence cases;
 one Windows-only signature check was skipped. The rebuilt Linux bundle passed
 the packaged runtime check, including mixed-modality plotting. Native Windows
 validation remains in GitHub Actions.
+
+## Sensor-context layout on Windows (0.5.26)
+
+The sensor-context note and navigation actions now compare their height at the
+available width. When wide native buttons would leave a tall, narrow note, the
+actions move to a separate right-aligned row. Larger windows keep the original
+single-row header. This preserves the explanatory text and spacing while leaving
+room for the complete graph.
+
+The reported Windows failure left only 28 pixels for the canvas at 960 × 650 and
+18-pixel text. Enlarged native action widths reproduce a 20-pixel canvas locally;
+the responsive header leaves 140 pixels in that case. Regression coverage checks
+both font sizes and window sizes, enlarged native actions, resizing in both
+directions, visible controls and captions, and rendering without collapsed axes.
+
+Validation: **404 tests passed**, including all 31 scientific-equivalence cases;
+one Windows-only signature check was skipped. The rebuilt Linux bundle passed
+its runtime check. A background-loading test timed out while the first suite
+ran alongside packaging; its isolated rerun and the full suite without a
+competing build passed. Native Windows validation remains in GitHub Actions.

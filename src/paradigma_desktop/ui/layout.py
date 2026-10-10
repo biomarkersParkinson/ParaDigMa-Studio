@@ -40,6 +40,7 @@ from ..widgets import (
     ModuleTabBar,
     WrappedForm,
     AdaptiveFormColumns,
+    AdaptiveTextActions,
     FigureActionBar,
     SeriesTree,
     CheckLabelDelegate,
@@ -760,17 +761,17 @@ class WorkspaceLayout:
         table_body.addWidget(self.table_stack, 1)
         self.sensor_panel, sensor_layout = card()
         self.sensor_note = label("", "muted")
-        sensor_header = QHBoxLayout()
-        sensor_header.addWidget(self.sensor_note, 1)
+        sensor_actions = QHBoxLayout()
+        sensor_actions.addStretch()
         self.sensor_earlier = button("← Earlier", lambda: self.move_sensor_context(-1))
         self.sensor_later = button("Later →", lambda: self.move_sensor_context(1))
         for control in (self.sensor_earlier, self.sensor_later):
             control.setEnabled(False)
-            sensor_header.addWidget(control)
+            sensor_actions.addWidget(control)
         self.sensor_earlier.setToolTip("Show the previous context window in this recording")
         self.sensor_later.setToolTip("Show the next context window in this recording")
-        sensor_header.addWidget(button("Close", self.hide_sensor_context))
-        sensor_layout.addLayout(sensor_header)
+        sensor_actions.addWidget(button("Close", self.hide_sensor_context))
+        sensor_layout.addLayout(AdaptiveTextActions(self.sensor_note, sensor_actions))
         self.sensor_tabs = QTabWidget()
         self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         (

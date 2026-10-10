@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import warnings
 from matplotlib import dates
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtTest import QTest
@@ -118,11 +119,18 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
 
 @pytest.mark.parametrize("size", [(960, 650), (1450, 920)])
 @pytest.mark.parametrize("font_size", [13, 18])
+@pytest.mark.parametrize("native_button_width", [0, 200])
 def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
-    window, size, font_size
+    window, size, font_size, native_button_width
 ):
     if font_size != 13:
         window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
+    if native_button_width:
+        # Wide native Windows actions left a narrow note that consumed nearly
+        # the whole page, shrinking the canvas to a few dozen pixels.
+        for control in window.sensor_panel.findChildren(QPushButton):
+            control.setMinimumWidth(native_button_width)
+            control.setMinimumHeight(44)
     window.navigate(2)
     window.resize(*size)
     window.show()
@@ -133,6 +141,14 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     assert scroll.horizontalScrollBar().maximum() == 0
     assert window.sensor_canvas.visibleRegion().boundingRect().contains(window.sensor_canvas.rect())
     assert window.sensor_canvas.height() >= 100
+    assert window.sensor_note.height() >= window.sensor_note.heightForWidth(
+        window.sensor_note.width()
+    )
+    for control in window.sensor_panel.findChildren(QPushButton):
+        assert control.visibleRegion().boundingRect().contains(control.rect())
+    with warnings.catch_warnings(record=True) as caught:
+        window.sensor_canvas.draw()
+    assert not [warning for warning in caught if "constrained_layout" in str(warning.message)]
     left = window.sensor_channels.mapTo(window.sensor_tabs, QPoint(0, 0)).x()
     right = window.sensor_canvas.mapTo(window.sensor_tabs, QPoint(0, 0)).x()
     assert left + window.sensor_channels.width() <= right
@@ -142,6 +158,23 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     QTest.qWait(20)
     assert scroll.verticalScrollBar().maximum() == 0
     assert window.sensor_canvas.visibleRegion().boundingRect().contains(window.sensor_canvas.rect())
+    # Resizing must both wrap and unwrap the note/actions without cached native
+    # size hints shrinking the plot or leaving the caption clipped.
+    other_size = (1450, 920) if size == (960, 650) else (960, 650)
+    for resized in (other_size, size):
+        window.resize(*resized)
+        QTest.qWait(30)
+        assert scroll.verticalScrollBar().maximum() == 0
+        assert scroll.horizontalScrollBar().maximum() == 0
+        assert window.sensor_canvas.height() >= 100
+        assert (
+            window.sensor_canvas.visibleRegion()
+            .boundingRect()
+            .contains(window.sensor_canvas.rect())
+        )
+        assert window.sensor_note.height() >= window.sensor_note.heightForWidth(
+            window.sensor_note.width()
+        )
 
 
 def open_long_context(window, *, gap=False, gait=False):
