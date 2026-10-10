@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-studio"
-version = "0.5.30"
+version = "0.5.31"
 description = "ParaDigMa Studio: Windows interface for the official ParaDigMa toolbox"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

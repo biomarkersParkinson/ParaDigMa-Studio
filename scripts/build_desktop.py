@@ -14,8 +14,23 @@ def copy_notices(bundle):
             shutil.copyfile(notice, Path(bundle) / notice.name)
 
 
+def reset_build_outputs(root):
+    """Start from empty app outputs; preserve other builds and source files."""
+    root = Path(root).resolve()
+    targets = (root / "dist" / "ParaDigMaStudio", root / "build" / "desktop")
+    for path in targets:
+        if path.parent.is_symlink() or path.is_symlink():
+            raise ValueError(f"Build output must not be a symlink: {path}")
+        if path.exists() and not path.is_dir():
+            raise ValueError(f"Build output must be a directory: {path}")
+    for path in targets:
+        if path.exists():
+            shutil.rmtree(path)
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
+    reset_build_outputs(root)
     subprocess.run(
         [
             sys.executable,
@@ -28,10 +43,12 @@ def main():
             str(root / "src" / "paradigma_desktop" / "data" / "app-icon.ico"),
             "--name",
             "ParaDigMaStudio",
-            "--collect-all",
-            "paradigma",
-            "--collect-all",
-            "openmovement",
+            "--distpath",
+            str(root / "dist"),
+            "--workpath",
+            str(root / "build" / "desktop"),
+            "--specpath",
+            str(root / "build" / "desktop"),
             "--additional-hooks-dir",
             str(root / "scripts" / "pyinstaller_hooks"),
             # The GUI uses Qt, not Tk. Avoid UPX compression of native libraries.

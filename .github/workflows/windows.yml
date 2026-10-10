@@ -35,22 +35,33 @@ jobs:
         run: python scripts/build_desktop.py
       - name: Verify and launch the packaged executable
         run: python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
+      - name: Prepare separate benchmark reports
+        run: New-Item -ItemType Directory -Force build-reports | Out-Null
       - name: Measure Windows startup and bundle size
-        run: python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report dist/ParaDigMaStudio/performance.json
+        run: python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
       - name: Measure Windows UI workflows
-        run: python scripts/benchmark_workflows.py --report dist/ParaDigMaStudio/ui-performance.json
+        run: python scripts/benchmark_workflows.py --report build-reports/ui-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows graph panning
-        run: python scripts/benchmark_pan.py --report dist/ParaDigMaStudio/pan-performance.json
+        run: python scripts/benchmark_pan.py --report build-reports/pan-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Measure Windows sensor-context opening
-        run: python scripts/benchmark_sensor_context.py --report dist/ParaDigMaStudio/sensor-context-performance.json
+        run: python scripts/benchmark_sensor_context.py --report build-reports/sensor-context-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Record package versions, audit and bundle checksums
         run: python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json
+      - name: Save benchmark reports separately
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ParaDigMaStudio-build-reports
+          path: build-reports/
+          if-no-files-found: ignore
+      - name: Check final download contents
+        run: python -c "from scripts.check_frozen import check_layout; check_layout('dist/ParaDigMaStudio/ParaDigMaStudio.exe')"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ParaDigMaStudio-Windows

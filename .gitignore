@@ -3,6 +3,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 build/
+build-reports/
 dist/
 *.spec
 dependency-audit.json

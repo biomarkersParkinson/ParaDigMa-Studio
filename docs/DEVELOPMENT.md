@@ -45,6 +45,12 @@ The build also places Studio's Apache 2.0 licence and the ParaDigMa
 acknowledgement, licence and citation files
 beside the executable; keep these with any redistributed bundle.
 
+Builds recreate only `dist/ParaDigMaStudio` and `build/desktop` from scratch.
+Python modules are packaged in the executable, without duplicate loose `.py`
+files for ParaDigMa or Open Movement. Model assets, package metadata and native
+dependencies are retained. The packaged check rejects leftover app versions
+and unexpected files at the top of the app folder.
+
 Both Windows workflows enforce the pinned Ruff formatter and import/error checks.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
 Qt platform initialization and Matplotlib cache configuration ahead of the
@@ -56,7 +62,10 @@ Fresh-process startup tests check both the empty workspace and saved run history
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
 and records startup measurements, package versions, source commit and checksums.
-Artifacts include the app folder and a separate JUnit test report. These checks
+Artifacts include the app folder, a separate JUnit test report, and
+`ParaDigMaStudio-build-reports` for performance measurements. Benchmarks write
+to `build-reports/`, outside the distributable app. Security provenance,
+dependency audit results and checksums remain with the app. These checks
 do not replace a publisher signature.
 
 ## Run development checks on Linux

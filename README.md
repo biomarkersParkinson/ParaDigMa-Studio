@@ -12,6 +12,10 @@ and explore results. Recordings and results stay on your computer.
 3. Extract the **entire ZIP** into a new folder, keeping `_internal` beside the executable.
 4. Open **ParaDigMaStudio.exe**.
 
+Performance measurements are in the separate **ParaDigMaStudio-build-reports**
+artifact; you do not need that download to run the app. Keep `_internal`, the
+licence/citation files, and the security/checksum files with the executable.
+
 The ordinary Windows build is **unsigned**. If Smart App Control blocks it, temporarily disable it
 or see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
 A verified signing identity must be configured before the signed workflow can produce a trusted build.
@@ -84,5 +88,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.30**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.31**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

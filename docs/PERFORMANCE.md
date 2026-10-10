@@ -165,8 +165,8 @@ workflows. Startup/cache and summary-filter tests cover the new behavior. The
 rebuilt executable also passed its classifier, CWA, Empatica, Physilog, plotting,
 export and run-history smoke checks. Source scanning found no Bandit issues.
 
-Both Windows build workflows now run `scripts/benchmark_desktop.py` and include
-`performance.json` in the artifact before generating its checksums. This records
+Both Windows build workflows run `scripts/benchmark_desktop.py` and include
+`performance.json` in the separate `ParaDigMaStudio-build-reports` artifact. This records
 native Windows launch samples, Qt platform and component sizes without imposing
 a hardware-dependent timing threshold. The first-frame check also rejects
 accidental eager scientific imports. To benchmark locally after building:
@@ -207,8 +207,9 @@ a temporary file and replace the destination only on success. The export chooser
 uses a background worker, allowing navigation and result exploration while writing.
 
 A reproducible synthetic benchmark is provided in `scripts/benchmark_workflows.py`.
-Both Windows workflows include its report as `ui-performance.json`, alongside the
-existing packaged startup and bundle report. It runs the source app with native
+Both Windows workflows include its report as `ui-performance.json` in the separate
+`ParaDigMaStudio-build-reports` artifact, alongside the packaged startup and bundle
+report. It runs the source app with native
 Qt, rather than the packaged executable, and uses only temporary test files and
 history. Timing is reported without hardware-dependent pass/fail limits.
 
@@ -574,7 +575,7 @@ guarantee. Dense, full-recording bar plots still cost more to draw than a zoomed
 view; no output values are sampled or changed. [Measurements](pan-review-0.5.27.json) include
 individual frames and release times. Run `scripts/benchmark_pan.py --report
 pan-performance.json` to measure another system. Both Windows workflows now
-include this benchmark in their downloadable artifacts.
+include this benchmark in their separate `ParaDigMaStudio-build-reports` artifact.
 
 Raw Data and sensor-context toolbars provide Pan and Zoom; sensor context keeps
 the previously selected Results time. Only Results provides timepoint selection.
@@ -618,7 +619,8 @@ measurements, not a Windows speed guarantee; Raw Data in this comparison shows
 the entire recording rather than the same 20-second window. See the
 [measurements](sensor-context-review-0.5.28.json). Reproduce them with
 `python scripts/benchmark_sensor_context.py --report sensor-context-performance.json`.
-Both Windows builds include their measurements in the downloadable artifact.
+Both Windows builds include their measurements in the separate
+`ParaDigMaStudio-build-reports` artifact.
 
 Rebuilding axes when changing channels emitted temporary limit changes that
 could replace the visible samples with the full recording. Old axis callbacks
@@ -635,3 +637,23 @@ comparisons, with one Windows-only check skipped. After the final header
 adjustment, **115 UI/navigation/results regression tests** passed. Lint and
 format checks passed, and the rebuilt Linux portable app passed its packaged
 runtime check. Native Windows validation remains in GitHub Actions.
+
+## Download cleanup (0.5.31)
+
+Performance reports now belong to the separate `ParaDigMaStudio-build-reports`
+Actions artifact. The app download retains its executable, `_internal`, licence
+and citation files, security provenance and checksums. Both Windows workflows
+check the final download layout before uploading it.
+
+The ParaDigMa and Open Movement collection hooks retain their complete module
+archives, data, native dependencies and metadata, without also copying Python
+source files beside them. A fresh Linux build removed 33 files totaling 531,183
+bytes (about 0.5 MiB). All four classifier assets matched the installed official
+package byte for byte. Most bundle space still belongs to required scientific
+and Qt libraries; this cleanup makes no startup-speed claim.
+
+Builds clear only the app's output and work directories before rebuilding.
+Regression checks reject leftover app versions, duplicate source files and
+development reports in the download. Validation passed 80 relevant tests,
+including all 31 scientific-equivalence cases, with one Windows-only signing
+check skipped. The rebuilt Linux app passed its packaged functional check.
