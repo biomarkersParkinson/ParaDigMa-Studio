@@ -50,6 +50,7 @@ class GraphToolbar(NavigationToolbar2QT):
         self.addAction(self.settings_action)
         self.active_axes = None
         self._highlighted_axes = None
+        self.home_callback = None
         canvas.mpl_connect("button_press_event", self.select_axes)
         if not time_selection:
             self.pan()
@@ -62,6 +63,11 @@ class GraphToolbar(NavigationToolbar2QT):
         elif self._actions["zoom"].isChecked():
             self.zoom()
         self.select_action.setChecked(True)
+
+    def home(self, *args):
+        if self.home_callback is None:
+            return super().home(*args)
+        self.home_callback()
 
     def pan(self, *args):
         super().pan(*args)

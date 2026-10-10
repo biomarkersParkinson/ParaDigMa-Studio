@@ -177,8 +177,11 @@ modalities; unidentified scalar streams stay separate. Use **Select all** and
 the channel list and **Tables** can scroll independently. Channel selections are
 retained when inspecting another result. Drag with **Pan** to move through the
 original recording beyond the initial context, up to its boundaries. New samples
-load as you move; gaps stay blank. **Close** at the top right dismisses the
-sensor-context tab.
+load as you move; gaps stay blank. **Close**, alongside the recording summary
+at the top right, dismisses the sensor-context tab.
+Adding or removing channels keeps the current time window. **Home** returns to
+the original ±10-second context or complete gait segment, including after
+channel changes; Back can return to the view before Home.
 The selected result time is marked whenever it is in view.
 Clicking either a checkbox or its label toggles a channel or plot series.
 

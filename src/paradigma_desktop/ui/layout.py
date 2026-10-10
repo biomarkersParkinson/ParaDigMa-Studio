@@ -604,6 +604,9 @@ class WorkspaceLayout:
         header.setContentsMargins(0, 0, 0, 0)
         self.results_source = label("No analysis results", "muted")
         header.addWidget(self.results_source, 1)
+        self.sensor_close = button("Close", self.hide_sensor_context)
+        self.sensor_close.setAccessibleName("Close sensor context")
+        header.addWidget(self.sensor_close)
         actions = QWidget()
         action_layout = QHBoxLayout(actions)
         action_layout.setContentsMargins(12, 0, 0, 0)
@@ -761,13 +764,6 @@ class WorkspaceLayout:
         self.table_stack.addWidget(self.result_table)
         self.table_stack.addWidget(self.aggregation_table)
         table_body.addWidget(self.table_stack, 1)
-        self.sensor_panel = QWidget()
-        sensor_actions = QHBoxLayout(self.sensor_panel)
-        sensor_actions.setContentsMargins(0, 0, 0, 0)
-        sensor_actions.addStretch()
-        self.sensor_close = button("Close", self.hide_sensor_context)
-        self.sensor_close.setAccessibleName("Close sensor context")
-        sensor_actions.addWidget(self.sensor_close)
         self.sensor_tabs = QTabWidget()
         self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         (
@@ -778,11 +774,12 @@ class WorkspaceLayout:
             self.sensor_toolbar,
         ) = self.channel_graph(self.set_sensor_channels, "Original sensor channels to plot")
         self._sensor_channel_colors = {}
+        sensor_graph.layout().setContentsMargins(6, 6, 6, 6)
         self.sensor_tabs.addTab(sensor_graph, "Graphs")
         self.sensor_table = table()
         self.sensor_tabs.addTab(self.sensor_table, "Tables")
         _, sensor_body = view("Sensor context")
-        sensor_body.addWidget(self.sensor_panel)
+        sensor_body.setSpacing(6)
         sensor_body.addWidget(self.sensor_tabs, 1)
         self.sensor_tab_index = 3
         self.result_tabs.setTabVisible(self.sensor_tab_index, False)

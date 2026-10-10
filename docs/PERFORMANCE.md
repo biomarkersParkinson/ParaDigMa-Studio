@@ -598,3 +598,40 @@ Local validation: **424 tests passed**, including all 31 scientific-equivalence
 tests; one Windows-only signature check was skipped. Formatting and lint checks
 passed, and the rebuilt Linux portable app passed its packaged runtime check.
 Native Windows validation runs in GitHub Actions.
+
+## Sensor-context opening and navigation (0.5.28)
+
+Opening sensor context converted every original timestamp to a calendar plotting
+coordinate and sorted the entire recording, even for a 20-second context. The
+navigation index now uses numeric source timestamps, is reused across context
+openings, and converts only visible samples to calendar coordinates. Sorted
+recordings avoid a redundant sort and index copy. Contexts still retain their
+original samples, units, time alignment and selected-time marker. Calendar-boundary
+selection is checked against the original full conversion, including duplicates,
+unsorted samples and daylight-saving transitions.
+
+A synthetic three-million-sample, 100 Hz recording on Linux/offscreen took
+**1.32 s** per context opening before this change and **0.12 s** afterward
+(median of three openings, including queued Qt painting, without a profiler).
+The first opening improved from **1.36 s** to **0.16 s**. These are local
+measurements, not a Windows speed guarantee; Raw Data in this comparison shows
+the entire recording rather than the same 20-second window. See the
+[measurements](sensor-context-review-0.5.28.json). Reproduce them with
+`python scripts/benchmark_sensor_context.py --report sensor-context-performance.json`.
+Both Windows builds include their measurements in the downloadable artifact.
+
+Rebuilding axes when changing channels emitted temporary limit changes that
+could replace the visible samples with the full recording. Old axis callbacks
+are now disconnected before rebuilding, and each new modality preserves the
+current time limits. Home restores the original event context or gait segment,
+even after channel changes, while Back can return to the previous view. The
+original marker remains fixed.
+
+Close shares the recording-summary row in sensor context, with a smaller gap
+before the Graphs/Tables tabs and no separate action row.
+
+Validation: the full suite passed **435 tests**, including all 31 scientific
+comparisons, with one Windows-only check skipped. After the final header
+adjustment, **115 UI/navigation/results regression tests** passed. Lint and
+format checks passed, and the rebuilt Linux portable app passed its packaged
+runtime check. Native Windows validation remains in GitHub Actions.

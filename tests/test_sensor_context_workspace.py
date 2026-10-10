@@ -128,7 +128,7 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     if native_button_width:
         # Wide native Windows actions left a narrow note that consumed nearly
         # the whole page, shrinking the canvas to a few dozen pixels.
-        for control in window.sensor_panel.findChildren(QPushButton):
+        for control in window.results_header.findChildren(QPushButton):
             control.setMinimumWidth(native_button_width)
             control.setMinimumHeight(44)
     window.navigate(2)
@@ -141,7 +141,7 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     assert scroll.horizontalScrollBar().maximum() == 0
     assert window.sensor_canvas.visibleRegion().boundingRect().contains(window.sensor_canvas.rect())
     assert window.sensor_canvas.height() >= 100
-    for control in window.sensor_panel.findChildren(QPushButton):
+    for control in window.results_header.findChildren(QPushButton):
         assert control.visibleRegion().boundingRect().contains(control.rect())
     with warnings.catch_warnings(record=True) as caught:
         window.sensor_canvas.draw()
@@ -215,7 +215,7 @@ def test_context_navigation_keeps_channels_original_samples_and_recording_bounda
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
     assert not hasattr(window, "sensor_earlier") and not hasattr(window, "sensor_later")
     assert not hasattr(window, "sensor_note")
-    assert window.sensor_panel.findChildren(QPushButton) == [window.sensor_close]
+    assert window.results_header.findChildren(QPushButton) == [window.sensor_close]
     for start in (40, 60, 40, 20, 0):
         view_sensor(window, start, start + 20)
         pd.testing.assert_frame_equal(
@@ -366,3 +366,170 @@ def test_sensor_index_preserves_unsorted_duplicate_samples_and_ignores_invalid_t
     assert navigator.bounded_limits((-5.0, -3.0)) == (-1.0, 1.0)
     assert navigator.bounded_limits((12.0, 14.0)) == (7.0, 9.0)
     np.testing.assert_array_equal(times, original)
+
+
+@pytest.mark.parametrize("calendar", [False, True])
+@pytest.mark.parametrize("gait", [False, True])
+def test_context_channel_changes_preserve_initial_and_panned_time_limits(window, calendar, gait):
+    frame = open_long_context(window, gait=gait)
+    frame["accelerometer_x"] = frame.gyroscope_x / 10
+    window.inspect_sensor_context()
+    if calendar:
+        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window.plot_sensor()
+    initial = window.sensor_figure.axes[0].get_xlim()
+    for limits in (
+        initial,
+        (
+            initial[0] + (10 / 86400 if calendar else 10),
+            initial[1] + (10 / 86400 if calendar else 10),
+        ),
+    ):
+        window.sensor_figure.axes[0].set_xlim(*limits)
+        sample_view = window.sensor_frame.copy(deep=True)
+        for channels in (
+            ["gyroscope_x"],
+            ["gyroscope_x", "gyroscope_z"],
+            ["gyroscope_x", "accelerometer_x"],
+            [],
+            ["gyroscope_z"],
+        ):
+            window.set_sensor_channels(channels)
+            QApplication.instance().processEvents()
+            if channels:
+                assert all(ax.get_xlim() == limits for ax in window.sensor_figure.axes)
+            pd.testing.assert_frame_equal(window.sensor_frame, sample_view)
+        assert window._sensor_navigator.limits == limits
+
+
+def test_context_opening_converts_only_visible_timestamps_and_reuses_source_index(
+    window, monkeypatch
+):
+    import paradigma_desktop.sensor_navigation as navigation
+
+    times = np.arange(250_000) / 100
+    frame = pd.DataFrame({"time": times, "gyroscope_x": np.sin(times)})
+    window.frame = frame
+    window.recordings = {}
+    window.provenance = {
+        "settings": {"skip_preparation": True},
+        "display_clock": {"origin": "2026-10-10T00:00:00Z", "timezone": "UTC"},
+    }
+    window.analyzed(
+        {
+            "quantifications": {
+                "tremor": pd.DataFrame(
+                    {
+                        "time": [120.0, 180.0],
+                        "tremor_power": [1.0, 2.0],
+                    }
+                )
+            }
+        }
+    )
+    calls = []
+    convert = navigation.clock_times
+    monkeypatch.setattr(
+        navigation,
+        "clock_times",
+        lambda values, clock: (calls.append(len(values)), convert(values, clock))[1],
+    )
+    window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
+    window.inspect_sensor_context()
+    index = window._sensor_navigator.index
+    assert calls and max(calls) < 3000
+    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(110, 130)])
+    window.result_table.setCurrentIndex(window.result_table.model().index(1, 0))
+    window.inspect_sensor_context()
+    assert window._sensor_navigator.index is index
+    assert max(calls) < 3000
+    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(170, 190)])
+    window.clear_results()
+    assert not window._sensor_time_indices
+
+
+@pytest.mark.parametrize("origin", ["2026-10-25T00:00:00Z", "1965-01-01T01:02:03.123456Z"])
+def test_calendar_sensor_navigation_matches_full_conversion_at_exact_endpoints(origin):
+    from paradigma_desktop.exploration import SensorContext
+    from paradigma_desktop.sensor_navigation import SensorNavigator
+    from paradigma_desktop.plotting import time_coordinates
+    from paradigma_desktop.results_view import clock_times
+
+    times = np.array(
+        [np.nan, -2.0, 0.0, 0.000001, 2.0000001, 2.0000001, 0.123456789, 3600.0, 7200.0]
+    )
+    clock = {"origin": origin, "timezone": "Europe/Amsterdam"}
+    context = SensorContext(pd.DataFrame({"time": times}), times, times, 0.0, 10.0, 2.0)
+    navigator = SensorNavigator(context, clock)
+    finite = np.flatnonzero(np.isfinite(times))
+    coordinates = np.full(len(times), np.nan)
+    coordinates[finite] = time_coordinates(clock_times(times[finite], clock))
+    for low in coordinates[finite]:
+        for high in coordinates[finite]:
+            if high >= low:
+                np.testing.assert_array_equal(
+                    navigator.positions((low, high)),
+                    np.flatnonzero((coordinates >= low) & (coordinates <= high)),
+                )
+
+
+@pytest.mark.parametrize("calendar", [False, True])
+@pytest.mark.parametrize("gait", [False, True])
+def test_sensor_home_restores_initial_context_after_channel_changes_and_keeps_history(
+    window, calendar, gait
+):
+    open_long_context(window, gait=gait)
+    if calendar:
+        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window.plot_sensor()
+    original = window.sensor_frame.copy(deep=True)
+    initial = window.sensor_figure.axes[0].get_xlim()
+    width = initial[1] - initial[0]
+    changed = initial[0] + width, initial[1] + width
+    window.sensor_figure.axes[0].set_xlim(*changed)
+    window.set_sensor_channels(["gyroscope_z"])
+    panned = window.sensor_frame.copy(deep=True)
+    window.sensor_toolbar._actions["home"].trigger()
+    QApplication.instance().processEvents()
+    assert window.sensor_figure.axes[0].get_xlim() == initial
+    pd.testing.assert_frame_equal(window.sensor_frame, original)
+    assert any(
+        line.get_visible()
+        for line in window.sensor_figure.axes[0].lines
+        if line.get_gid() == "selected-result-time"
+    )
+    window.sensor_toolbar.back()
+    QApplication.instance().processEvents()
+    assert window.sensor_figure.axes[0].get_xlim() == changed
+    pd.testing.assert_frame_equal(window.sensor_frame, panned)
+
+
+def test_context_close_shares_recording_summary_row_and_nested_tabs_have_compact_spacing(window):
+    window.navigate(2)
+    window.resize(960, 650)
+    window.show()
+    QApplication.instance().processEvents()
+    assert window.sensor_close.isVisible()
+    assert window.sensor_close.parentWidget() is window.results_header
+    assert (
+        abs(
+            window.sensor_close.geometry().center().y()
+            - window.results_source.geometry().center().y()
+        )
+        <= 1
+    )
+    body = window._result_view_layouts[window.sensor_tab_index]
+    assert body.spacing() == 6
+    assert not hasattr(window, "sensor_panel")
+    assert [
+        body.itemAt(i).widget() for i in range(body.count()) if body.itemAt(i).widget().isVisible()
+    ] == [window.results_header, window.sensor_tabs]
+    for tab in (0, 1, 2):
+        window.result_tabs.setCurrentIndex(tab)
+        QApplication.instance().processEvents()
+        assert window.sensor_close.isHidden()
+    window.result_tabs.setCurrentIndex(window.sensor_tab_index)
+    QApplication.instance().processEvents()
+    assert window.sensor_close.isVisible()
+    window.sensor_close.click()
+    assert not window.result_tabs.isTabVisible(window.sensor_tab_index)

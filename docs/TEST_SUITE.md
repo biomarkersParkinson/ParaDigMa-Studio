@@ -19,7 +19,7 @@ trigger and expected behavior still apply.
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
 | Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_time_axis.py` |
 | Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_pan_performance.py` |
-| Original sensor drill-down and channel selection | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
+| Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, serialization and background completion | `test_result_exports.py` |
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |

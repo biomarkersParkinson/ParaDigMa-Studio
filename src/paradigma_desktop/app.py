@@ -32,7 +32,7 @@ from .core import (
     validate_orientation,
 )
 from .exploration import SensorContext, gait_context, source_timeline
-from .sensor_navigation import SensorNavigator
+from .sensor_navigation import SensorNavigator, SensorTimeIndex
 from .recordings import load_recordings, align_recordings, source_key
 from .history import RunHistory, merge_errors, run_status, load_result_export, new_run, now
 from .inspection import inspect_recording, sensor_descriptives, time_descriptives
@@ -130,6 +130,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.sensor_frame = None
         self._sensor_context = None
         self._sensor_navigator = None
+        self._sensor_time_indices = OrderedDict()
+        self._sensor_view_callbacks = {}
         self.active_run = self.current_run = self.selected_run = None
         self.sidebar_collapsed = True
         directory = (
@@ -212,6 +214,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         for control in (self.prepared, self.drop_missing):
             control.toggled.connect(self.update_origin_default)
         self.sensor_channels.itemChanged.connect(self.plot_sensor)
+        self.sensor_toolbar.home_callback = self.reset_sensor_context
         self.canvas.mpl_connect("button_press_event", self.graph_clicked)
         self.modules_changed()
         self.preparation_changed()
@@ -404,6 +407,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.finish_run("Failed", [message])
 
     def clear_results(self):
+        self.disconnect_sensor_view()
         for toolbar in (self.plot_toolbar, self.sensor_toolbar):
             if toolbar._pan_info is not None:
                 toolbar.release_pan(None)
@@ -436,6 +440,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.display_frame = self.sensor_frame = self.sensor_times = None
         self._sensor_context = None
         self._sensor_navigator = None
+        self._sensor_time_indices.clear()
         self.sensor_table.setModel(None)
         self.sensor_figure.clear()
         self.context_button.setEnabled(False)
@@ -885,6 +890,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         aggregation = index == 2 and self.table_dataset.currentData() in self.aggregation_tables
         detailed = index in (1, 2) and not aggregation
         self.results_header.show()
+        self.sensor_close.setVisible(index == self.sensor_tab_index)
         self.detail_controls.setVisible(index == 2)
         self.context_controls.setVisible(detailed)
         self.dataset_field.setVisible(index == 2)
@@ -1259,6 +1265,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.y_column.blockSignals(False)
 
     def analyzed(self, results):
+        self._sensor_time_indices.clear()
         self._plot_signature = None
         self._epoch_views.clear()
         self._epoch_presence_views.clear()
@@ -1519,14 +1526,16 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 source_frame = source_frame[key]
                 common = self.result_timeline[key]
                 module_timeline = self._source_timelines.get(module, {}).get(key, common)
-                display_timeline = common + self._recording_bases[key]
+                index = self.sensor_time_index(common, self._recording_bases[key])
+                display_timeline = index.times
             else:
                 if self.result_timeline is None:
                     self.result_timeline = source_timeline(
                         source_frame, self.provenance.get("settings", {})
                     )
                 module_timeline = self._source_timelines.get(module, self.result_timeline)
-                display_timeline = self.result_timeline
+                index = self.sensor_time_index(self.result_timeline)
+                display_timeline = index.times
             segment = gait_context(self.results, self.dataset.currentText(), selected)
             if "time" in selected and pd.notna(selected["time"]):
                 anchor = float(selected["time"])
@@ -1553,7 +1562,9 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 source_name=source_name,
                 include_end=include_end,
             )
-            self._sensor_navigator = SensorNavigator(self._sensor_context, self.display_clock)
+            self._sensor_navigator = SensorNavigator(
+                self._sensor_context, self.display_clock, index=index
+            )
             self.show_sensor_context()
             self.result_tabs.setTabVisible(self.sensor_tab_index, True)
             self.result_tabs.setCurrentIndex(self.sensor_tab_index)
@@ -1571,6 +1582,19 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.populate_sensor_channels()
         self.plot_sensor()
 
+    def sensor_time_index(self, times, offset=0.0):
+        key = id(times), offset
+        if key not in self._sensor_time_indices:
+            display = np.asarray(times, dtype=float)
+            if offset:
+                display = display + offset
+            # Retain the timeline reference so a later array cannot reuse its id.
+            self._sensor_time_indices[key] = times, SensorTimeIndex(display)
+        self._sensor_time_indices.move_to_end(key)
+        while len(self._sensor_time_indices) > 4:
+            self._sensor_time_indices.popitem(last=False)
+        return self._sensor_time_indices[key][1]
+
     def update_sensor_view(self, axes):
         navigator = self._sensor_navigator
         if navigator is None or axes not in self.sensor_figure.axes:
@@ -1582,10 +1606,14 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             return
         navigator.limits = limits
         positions = navigator.positions(limits)
+        self.update_sensor_samples(positions, limits)
+
+    def update_sensor_samples(self, positions, limits):
+        navigator = self._sensor_navigator
         self.sensor_frame = navigator.context.frame.iloc[positions]
         self.sensor_times = navigator.context.display_times[positions]
         self.sensor_table.setModel(FrameModel(self.sensor_frame))
-        xs = navigator.coordinates[positions]
+        xs = navigator.coordinates_at(self.sensor_times)
         step = max(1, int(np.ceil(len(xs) / 20000)))
         channels = self.selected_sensor_channels()
         for ax in self.sensor_figure.axes:
@@ -1609,6 +1637,24 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 elif text.get_gid() == "selected-result-label":
                     text.set_visible(limits[0] <= navigator.anchor <= limits[1])
             ax.relim()
+
+    def reset_sensor_context(self):
+        navigator = self._sensor_navigator
+        if navigator is None or navigator.home_limits is None:
+            return
+        self.sensor_toolbar.push_current()
+        navigator.limits = navigator.home_limits
+        for ax in self.sensor_figure.axes:
+            ax.set_xlim(*navigator.home_limits, emit=False)
+        self.update_sensor_samples(navigator.context.positions(), navigator.home_limits)
+        for ax in self.sensor_figure.axes:
+            if any(line.get_gid() is None for line in ax.lines):
+                ax.set_autoscaley_on(True)
+                ax.autoscale_view(scalex=False, scaley=True)
+        self.sensor_toolbar.push_current()
+        if self.sensor_toolbar.settings_action.isChecked():
+            self.sensor_toolbar.settings.read_axes()
+        self.sensor_canvas.draw_idle()
 
     def hide_sensor_context(self):
         if self.result_tabs.currentIndex() == self.sensor_tab_index:
@@ -1640,6 +1686,20 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             )
 
     def plot_sensor(self, *_):
+        # Clearing axes emits limit changes. These belong to the old figure,
+        # not a user pan, and must not replace the current context samples.
+        self.disconnect_sensor_view()
+        context = self._sensor_context
+        navigator = self._sensor_navigator
+        if context is not None and (
+            navigator is None
+            or navigator.context is not context
+            or navigator.clock != self.display_clock
+        ):
+            navigator = self._sensor_navigator = SensorNavigator(
+                context, self.display_clock, index=self.sensor_time_index(context.display_times)
+            )
+        view_limits = navigator.limits if navigator is not None else None
         xs = (
             clock_times(self.sensor_times, self.display_clock)
             if self.sensor_frame is not None
@@ -1659,29 +1719,24 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             allow_empty=self._sensor_context is not None,
             empty_schema=self._sensor_context.frame if self._sensor_context is not None else None,
         )
-        context = self._sensor_context
         if context is not None and self.selected_sensor_channels():
             mark_sensor_time(self.sensor_figure, context.selected_time, self.display_clock)
-            navigator = self._sensor_navigator
-            if (
-                navigator is None
-                or navigator.context is not context
-                or navigator.clock != self.display_clock
-            ):
-                navigator = self._sensor_navigator = SensorNavigator(context, self.display_clock)
             if navigator is not None:
-                if self.sensor_frame.empty:
-                    self.sensor_figure.axes[0].set_xlim(
-                        *(navigator.limits or navigator.initial_limits), emit=False
-                    )
+                if view_limits is not None or self.sensor_frame.empty:
+                    for ax in self.sensor_figure.axes:
+                        ax.set_xlim(*(view_limits or navigator.initial_limits), emit=False)
                 navigator.limits = self.sensor_figure.axes[0].get_xlim()
+                if navigator.home_limits is None:
+                    navigator.home_limits = navigator.limits
                 for ax in self.sensor_figure.axes:
                     for artist in [*ax.lines, *ax.texts]:
                         if artist.get_gid() is not None:
                             artist.set_visible(
                                 navigator.limits[0] <= navigator.anchor <= navigator.limits[1]
                             )
-                    ax.callbacks.connect("xlim_changed", self.update_sensor_view)
+                    self._sensor_view_callbacks[ax] = ax.callbacks.connect(
+                        "xlim_changed", self.update_sensor_view
+                    )
                     message = ax.text(
                         0.5,
                         0.5,
@@ -1694,6 +1749,11 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                     message.set_visible(self.sensor_frame.empty)
         self.sensor_toolbar.refresh()
         self.sensor_canvas.draw_idle()
+
+    def disconnect_sensor_view(self):
+        for ax, callback in self._sensor_view_callbacks.items():
+            ax.callbacks.disconnect(callback)
+        self._sensor_view_callbacks.clear()
 
     def refresh_runs(self):
         selected_ids = {record["id"] for record in self.selected_run_records()}
