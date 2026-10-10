@@ -65,6 +65,11 @@ def smoke_test(report_path):
                 raise RuntimeError("ParaDigMa research citation is missing from About")
             if "Copyright (c) 2023, Peter Kok" not in attribution.licence.toPlainText():
                 raise RuntimeError("The full upstream licence/copyright notice is missing")
+            if (
+                "Copyright 2026 ParaDigMa Studio contributors"
+                not in attribution.licence.toPlainText()
+            ):
+                raise RuntimeError("The Studio Apache 2.0 licence/copyright notice is missing")
             attribution.copy_button.click()
             if "@software{paradigma2024" not in app.clipboard().text():
                 raise RuntimeError("ParaDigMa software citation could not be copied")
@@ -506,6 +511,38 @@ def smoke_test(report_path):
                     raise RuntimeError(
                         "Reopening a run changed its navigation or reloaded original sensor data"
                     )
+                window.save_results_button.click()
+                if window.worker is None:
+                    raise RuntimeError("Local results were not saved in a background worker")
+                window.worker.finished.connect(loop.quit)
+                timer.start(15000)
+                loop.exec()
+                timer.stop()
+                if window.worker is not None:
+                    raise RuntimeError("Local results save did not finish")
+                window.runs, issues = window.history.load()
+                saved_output = window.runs[0]["outputs"][-1]
+                if (
+                    issues
+                    or not saved_output.get("local")
+                    or not Path(saved_output["path"]).is_file()
+                ):
+                    raise RuntimeError("Local results were not linked to the saved run")
+                window.selected_run = None
+                window.refresh_runs()
+                window.navigate(3)
+                window.open_run()
+                if window.worker is None:
+                    raise RuntimeError("Local saved run was not reopened from disk")
+                window.worker.finished.connect(loop.quit)
+                timer.start(15000)
+                loop.exec()
+                timer.stop()
+                if (
+                    window.worker is not None
+                    or window.results["quantifications"]["tremor"].shape != quantified.shape
+                ):
+                    raise RuntimeError("Local saved results did not reopen correctly")
                 report.update(
                     status="passed",
                     paradigma_version=version("paradigma"),
@@ -517,6 +554,8 @@ def smoke_test(report_path):
                     all_module_execution_verified=True,
                     inline_analysis_help_verified=True,
                     paradigma_acknowledgement_verified=True,
+                    studio_licence_verified=True,
+                    local_results_saved_verified=True,
                     aggregate_overview_verified=True,
                     original_output_tables_verified=True,
                     aggregation_tables_verified=True,

@@ -60,6 +60,11 @@ validation publications, as listed in the official README:
 
 ## Licence and redistribution
 
+**ParaDigMa Studio** is licensed under **Apache License 2.0**, supplied in
+**LICENSE-studio.txt**. Copyright 2026 ParaDigMa Studio contributors.
+This covers the application's original code, documentation and graphics.
+Dependencies and third-party assets retain their own licences and notices.
+
 ParaDigMa is licensed under **Apache License 2.0**. The complete, unmodified
 upstream licence is supplied in **LICENSE-paradigma.txt**, including this notice:
 

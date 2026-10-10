@@ -31,8 +31,20 @@ if os.environ.get("QT_QPA_PLATFORM", "offscreen") == "offscreen":
 
 
 @pytest.fixture(autouse=True)
-def release_closed_desktop_windows():
+def release_closed_desktop_windows(monkeypatch):
     """Qt signal cycles otherwise keep closed windows and styles alive in CI."""
+    from PySide6.QtWidgets import QMessageBox
+
+    execute = QMessageBox.exec
+
+    def discard_test_results(dialog):
+        # Normal tests discard their temporary run outputs on teardown. Tests
+        # of the close warning override this response to exercise each choice.
+        if dialog.objectName() == "unsavedResults":
+            return QMessageBox.Discard
+        return execute(dialog)
+
+    monkeypatch.setattr(QMessageBox, "exec", discard_test_results)
     yield
     from PySide6.QtCore import QCoreApplication, QEvent
     from PySide6.QtWidgets import QApplication

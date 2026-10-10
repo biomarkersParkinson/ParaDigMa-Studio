@@ -1,11 +1,13 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-studio"
-version = "0.5.29"
+version = "0.5.30"
 description = "ParaDigMa Studio: Windows interface for the official ParaDigMa toolbox"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "paradigma==1.1.2",

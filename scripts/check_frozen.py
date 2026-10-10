@@ -11,6 +11,7 @@ def check_bundle(executable):
     executable = Path(executable).resolve()
     for name in (
         "ACKNOWLEDGEMENTS.md",
+        "LICENSE-studio.txt",
         "LICENSE-paradigma.txt",
         "PARADIGMA-CITATION.bib",
         "PARADIGMA-CITATION.cff",

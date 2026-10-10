@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 import numpy as np
-from PySide6.QtCore import Qt, QStandardPaths, QItemSelectionModel
+from PySide6.QtCore import Qt, QStandardPaths, QItemSelectionModel, QTimer
 from PySide6.QtGui import QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -85,7 +85,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
     def __init__(self, history_dir=None):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} • Sensor analysis")
+        self.setWindowTitle(APP_NAME)
         self.setWindowIcon(QIcon(str(DATA_DIRECTORY / "app-icon.png")))
         self.resize(1450, 920)
         self.setMinimumSize(960, 650)
@@ -134,6 +134,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._sensor_time_indices = OrderedDict()
         self._sensor_view_callbacks = {}
         self.active_run = self.current_run = self.selected_run = None
+        self._close_after_save = False
         self.sidebar_collapsed = True
         directory = (
             history_dir
@@ -246,7 +247,6 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
     def sidebar_expanded(self, expanded):
         self.sidebar_collapsed = not expanded
         self.brand.setVisible(expanded)
-        self.brand_caption.setVisible(expanded)
         for i, item in enumerate(self.nav_buttons):
             item.setText(f"{i + 1}    {self.SECTIONS[i]}" if expanded else str(i + 1))
 
@@ -306,6 +306,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self.settings_panel,
             self.analysis_controls,
             self.export_button,
+            self.save_results_button,
             self.open_run_button,
             self.use_parameters_button,
             self.delete_run_button,
@@ -339,12 +340,18 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.modules_changed()
         self.preparation_changed()
         self.export_button.setEnabled(self.results is not None)
+        self.save_results_button.setEnabled(
+            self.results is not None and self.current_run is not None
+        )
         self.stop_button.setEnabled(False)
         self._analysis_stop = None
         self.progress.hide()
         if worker is not None:
             worker.deleteLater()
         self.update_run_actions()
+        if self._close_after_save:
+            self._close_after_save = False
+            QTimer.singleShot(0, self.close)
 
     def append_log(self, message):
         if self.active_run is not None:
@@ -384,10 +391,12 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
     def persist_run(self, record):
         try:
             self.history.save(record)
+            return True
         except (OSError, ValueError, TypeError) as exc:
             self.show_notice(
                 f"Analysis remains available, but run history could not be saved: {exc}"
             )
+            return False
 
     def finish_run(self, status, errors=()):
         if self.active_run is None:
@@ -402,6 +411,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.refresh_runs()
 
     def failure(self, message):
+        self._close_after_save = False
         self.status.setText("Operation failed. See the processing log.")
         self.append_log(message)
         self.show_notice(message, "error")
@@ -437,6 +447,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.sync_table_outputs()
         self.build_result_overview()
         self.export_button.setEnabled(False)
+        self.save_results_button.setEnabled(False)
         self.hide_sensor_context()
         self.display_frame = self.sensor_frame = self.sensor_times = None
         self._sensor_context = None
@@ -1326,6 +1337,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         if self.active_run is not None:
             self.active_run["_results"] = results
             self.active_run["_provenance"] = dict(self.provenance)
+            self.active_run["_unsaved_results"] = True
         self._detail_selections = {}
         data = prepare_result_data(results, self._display_offsets)
         self.tables, self.aggregation_tables = data.tables, data.aggregates
@@ -1367,6 +1379,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.select_dataset(self.dataset.currentText())
         self.sync_table_outputs()
         self.export_button.setEnabled(self.worker is None)
+        self.save_results_button.setEnabled(self.worker is None and self.current_run is not None)
         errors = results.get("errors", [])
         if errors:
             self.append_log(json.dumps(errors, indent=2, default=str))
@@ -2019,6 +2032,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.result_source_frame = record.get("_frame")
         self.result_timeline = None
         record["_results"], record["_provenance"] = results, self.provenance
+        record.setdefault("_unsaved_results", False)
         self.show_notice("")
         self.analyzed(results)
         self.update_run_actions()
@@ -2080,7 +2094,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                     selected_rows=len(frame),
                     selection={"scope": "Full run"} if aggregation else self.active_selection,
                 )
-            self.persist_run(self.current_run)
+            if self.persist_run(self.current_run) and kind == "JSON":
+                self.current_run["_unsaved_results"] = False
             self.refresh_runs()
 
     def export(self):
@@ -2108,7 +2123,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
     def choose_export(self):
         if self.results is None or self.worker is not None:
             return
-        from .exports import ExportDialog, export_selection
+        from .exports import ExportDialog, export_items, export_selection
 
         dialog = ExportDialog(self.results, self)
         if not dialog.exec():
@@ -2124,6 +2139,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             return
         selected, format_name = dialog.selected(), dialog.format.currentText()
         results, provenance, run = self.results, self.provenance, self.current_run
+        tables, metadata = export_items(results)
+        complete = format_name == "JSON" and set(selected) == set(tables) | set(metadata)
         protected = [*self.sources.values(), *provenance.get("sources", {}).values()]
 
         def write(logger):
@@ -2135,9 +2152,16 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         def completed(output_path):
             if run is not None:
                 run["outputs"].append(
-                    {"kind": format_name, "path": output_path, "saved": now(), "selected": selected}
+                    {
+                        "kind": format_name,
+                        "path": output_path,
+                        "saved": now(),
+                        "selected": selected,
+                        "complete": complete,
+                    }
                 )
-                self.persist_run(run)
+                if self.persist_run(run) and complete:
+                    run["_unsaved_results"] = False
                 self.refresh_runs()
             self.status.setText(f"Results exported to {output_path}")
 
@@ -2167,13 +2191,89 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             except Exception as exc:
                 self.failure(str(exc))
 
+    def unsaved_result_runs(self):
+        return [record for record in self.runs if record.get("_unsaved_results")]
+
+    def save_results(self):
+        if self.worker is not None or self.current_run is None or self.results is None:
+            return
+        self.current_run["_results"] = self.results
+        self.current_run["_provenance"] = dict(self.provenance)
+        self.save_run_results([self.current_run])
+
+    def save_run_results(self, records, *, close_after=False):
+        if self.worker is not None or not records:
+            return
+        snapshots = [
+            (dict(record), record["_results"], dict(record["_provenance"])) for record in records
+        ]
+        protected = [self.source, *self.sources.values()]
+        self._close_after_save = close_after
+
+        def write(logger):
+            saved, failures = [], []
+            for record, results, provenance in snapshots:
+                try:
+                    outputs = self.history.save_results(record, results, provenance, protected)
+                    saved.append((record["id"], outputs))
+                except Exception as exc:
+                    failures.append(f"{Path(record['source']).name}: {exc}")
+            return saved, failures
+
+        def completed(payload):
+            saved, failures = payload
+            for run_id, outputs in saved:
+                record = next(record for record in self.runs if record["id"] == run_id)
+                record["outputs"] = outputs
+                record["_unsaved_results"] = False
+            self.refresh_runs()
+            if failures:
+                self._close_after_save = False
+                self.show_notice("Results could not be saved: " + "; ".join(failures), "error")
+                self.status.setText("Some results remain unsaved. Keep the app open and try again.")
+            else:
+                self.status.setText("Results saved locally. Reopen them from Runs.")
+                self.show_notice("")
+
+        self.status.setText("Saving results…")
+        self.start_job(write, completed)
+
     def closeEvent(self, event):
-        if self.worker is not None and self.worker.isRunning():
+        if self.worker is not None:
             QMessageBox.information(
                 self, "Processing in progress", "Wait for processing to finish before closing."
             )
             event.ignore()
         else:
+            unsaved = self.unsaved_result_runs()
+            if unsaved:
+                warning = QMessageBox(self)
+                warning.setObjectName("unsavedResults")
+                warning.setPalette(light_palette())
+                warning.setStyleSheet(STYLESHEET)
+                warning.setIcon(QMessageBox.Warning)
+                warning.setWindowTitle("Unsaved results")
+                warning.setText("Save results before closing?")
+                warning.setInformativeText(
+                    f"{len(unsaved)} run(s) have unsaved results. Closing without saving loses "
+                    "these results; run history alone cannot restore them."
+                )
+                warning.setDetailedText(
+                    "\n".join(
+                        f"{record['started']} · {Path(record['source']).name}" for record in unsaved
+                    )
+                )
+                warning.setStandardButtons(
+                    QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+                )
+                warning.setDefaultButton(QMessageBox.Cancel)
+                warning.button(QMessageBox.Save).setText("Save all" if len(unsaved) > 1 else "Save")
+                answer = warning.exec()
+                if answer != QMessageBox.Discard:
+                    event.ignore()
+                    if answer == QMessageBox.Save:
+                        self.save_run_results(unsaved, close_after=True)
+                    return
             self._origin_preview.shutdown()
             self._time_preview.shutdown()
             self._sensor_preview.shutdown()

@@ -1,4 +1,4 @@
-"""Local run metadata and safe reopening of explicitly exported JSON results."""
+"""Local run metadata, complete result snapshots and safe JSON reopening."""
 
 import json
 import re
@@ -188,6 +188,43 @@ class RunHistory:
         target = self.directory / f"{record['id']}.json"
         with atomic_file(target, prefix=".run-") as stream:
             json.dump(json_value(public), stream, indent=2, allow_nan=False)
+
+    def save_results(self, record, results, provenance, protected_sources=()):
+        """Save complete outputs and their history link before reporting success."""
+        from .serialization import export_results
+
+        if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
+            raise ValueError("Invalid run identifier.")
+        directory = self.directory / "results"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{record['id']}.json"
+        existed = path.exists()
+        export_results(
+            path,
+            results,
+            provenance,
+            protected_sources=[
+                record["source"],
+                *record.get("sources", {}).values(),
+                *protected_sources,
+            ],
+        )
+        output = {
+            "kind": "JSON",
+            "path": str(path.resolve()),
+            "saved": now(),
+            "dataset": "all results",
+            "local": True,
+            "complete": True,
+        }
+        outputs = [item for item in record["outputs"] if not item.get("local")] + [output]
+        try:
+            self.save({**record, "outputs": outputs})
+        except Exception:
+            if not existed:
+                path.unlink(missing_ok=True)
+            raise
+        return outputs
 
     def removal_files(self, record, records, protected_sources=(), removing=()):
         """Exports owned only by this run; never original inputs or directories."""

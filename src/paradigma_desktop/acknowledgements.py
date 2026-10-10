@@ -20,6 +20,7 @@ from .widgets import button, label, readout
 NOTICES = Path(__file__).with_name("data") / "notices"
 NOTICE_FILES = (
     "ACKNOWLEDGEMENTS.md",
+    "LICENSE-studio.txt",
     "LICENSE-paradigma.txt",
     "PARADIGMA-CITATION.bib",
     "PARADIGMA-CITATION.cff",
@@ -54,9 +55,14 @@ class AcknowledgementsDialog(QDialog):
         tabs.addTab(self.acknowledgement, "Acknowledgement & citations")
         self.licence = readout()
         self.licence.setPalette(light_palette())
-        self.licence.setPlainText((NOTICES / "LICENSE-paradigma.txt").read_text(encoding="utf-8"))
-        self.licence.setAccessibleName("Complete ParaDigMa Apache 2.0 licence")
-        tabs.addTab(self.licence, "Licence")
+        self.licence.setPlainText(
+            f"{APP_NAME}\n\n"
+            + (NOTICES / "LICENSE-studio.txt").read_text(encoding="utf-8")
+            + "\n\nOfficial ParaDigMa toolbox\n\n"
+            + (NOTICES / "LICENSE-paradigma.txt").read_text(encoding="utf-8")
+        )
+        self.licence.setAccessibleName("Complete Studio and ParaDigMa Apache 2.0 licences")
+        tabs.addTab(self.licence, "Licences")
         layout.addWidget(tabs, 1)
         footer = QHBoxLayout()
         self.copy_button = button("Copy software citation", self.copy_citation)

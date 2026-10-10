@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QLabel,
+    QLayout,
     QPlainTextEdit,
     QPushButton,
     QTableView,
@@ -354,6 +355,13 @@ class HoverSidebar(QFrame):
         self.content.ensurePolished()
         for widget in self.content.findChildren(QWidget):
             widget.ensurePolished()
+            if isinstance(widget, QLabel) and not widget.wordWrap():
+                # Hidden branding labels can retain a stale layout-item width
+                # after a font change. Reserve their current text width before
+                # showing them, so unfolding never moves navigation anchors.
+                widget.setMinimumWidth(max(widget.minimumWidth(), widget.minimumSizeHint().width()))
+        for layout in self.content.findChildren(QLayout):
+            layout.invalidate()
         self.expanded_width = max(self.expanded_width, self.content.minimumSizeHint().width())
         self.content.setFixedWidth(self.expanded_width)
 

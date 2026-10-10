@@ -214,9 +214,15 @@ tables or metadata groups to include:
 - **CSV:** one table exports as CSV. Multiple tables or metadata selections export as
   a ZIP containing separate CSV files, selected metadata JSON and analysis provenance.
   Scientific tables retain their original columns; formula-like text is neutralized.
-- **Runs:** stores status, parameters, separate warnings and errors, logs and export
-  locations in `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows. Full results remain
-  in memory until exported; original recordings are not copied there.
+- **Save results:** stores all outputs, metadata and analysis provenance in
+  `%LOCALAPPDATA%\ParaDigMaDesktop\runs\results` on Windows. Use **Open results** in
+  Runs to restore them after restarting. Saving runs in the background; original
+  recordings are not copied. The button appears on every Results tab.
+- **Runs:** stores status, parameters, separate warnings and errors, logs and saved
+  result/export locations in `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows.
+  Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
+  stores all unsaved runs before closing. Partial JSON or CSV exports do not
+  preserve the complete run; a complete JSON export also counts as saved.
 
 **Stop Analysis** remains available below Analyze settings while a run is active.
 Cancellation stops the owned analysis process, removes its temporary files and records
@@ -228,7 +234,7 @@ permanently removed with the history entry. Original sensor files, TSDF companio
 and exports referenced by another run are protected. Running jobs cannot be deleted.
 Reused parameters apply to the currently selected input; check it before running.
 
-Shortcuts: **Ctrl+O** opens recordings, **Ctrl+Enter** runs analysis, **Alt+1–4** switches
+Shortcuts: **Ctrl+O** opens recordings, **Ctrl+S** saves results, **Ctrl+Enter** runs analysis, **Alt+1–4** switches
 pages, **Delete** deletes a selected run after confirmation, and **F1** opens About.
 
 ## Common issues

@@ -3,6 +3,7 @@
 import hashlib
 import os
 from importlib.metadata import distribution, version
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QStandardPaths
@@ -43,8 +44,9 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     dialog = window._acknowledgements_dialog
     assert dialog.isVisible()
     assert dialog.windowTitle() == "About & citations · ParaDigMa Studio"
-    assert window.windowTitle() == "ParaDigMa Studio • Sensor analysis"
+    assert window.windowTitle() == "ParaDigMa Studio"
     assert window.brand.text() == "ParaDigMa Studio"
+    assert not hasattr(window, "brand_caption")
     assert any(
         f"Studio {version('paradigma-studio')}" in widget.text()
         for widget in dialog.findChildren(QLabel)
@@ -52,9 +54,9 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     assert window.pages.currentIndex() == 1
     assert window.selected_modules() == ["gait", "tremor", "pulse_rate"]
     assert "10.5281/zenodo.13838392" in dialog.acknowledgement.toPlainText()
-    assert dialog.licence.toPlainText() == (NOTICES / "LICENSE-paradigma.txt").read_text(
-        encoding="utf-8"
-    )
+    displayed_licences = dialog.licence.toPlainText()
+    assert (NOTICES / "LICENSE-studio.txt").read_text(encoding="utf-8") in displayed_licences
+    assert (NOTICES / "LICENSE-paradigma.txt").read_text(encoding="utf-8") in displayed_licences
     dialog.copy_button.click()
     assert application.clipboard().text() == (NOTICES / "PARADIGMA-CITATION.bib").read_text(
         encoding="utf-8"
@@ -90,11 +92,20 @@ def test_bundle_copies_notices_and_rejects_missing_or_inconsistent_attribution(t
     assert {p.name for p in tmp_path.iterdir()} == set(NOTICE_FILES)
     for name in NOTICE_FILES:
         assert (tmp_path / name).read_bytes() == (NOTICES / name).read_bytes()
+    root_licence = Path(__file__).resolve().parents[1] / "LICENSE"
+    assert (tmp_path / "LICENSE-studio.txt").read_bytes() == root_licence.read_bytes()
+    metadata = distribution("paradigma-studio").metadata
+    assert metadata["License-Expression"] == "Apache-2.0"
+    assert "LICENSE" in metadata.get_all("License-File")
     with pytest.raises(RuntimeError, match="Missing or inconsistent ParaDigMa attribution"):
         check_bundle(tmp_path / "ParaDigMaStudio.exe")
     packaged = tmp_path / "_internal" / "paradigma_desktop" / "data" / "notices"
     packaged.mkdir(parents=True)
     copy_notices(packaged)
+    (tmp_path / "LICENSE-studio.txt").write_text("Incomplete licence", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="LICENSE-studio.txt"):
+        check_bundle(tmp_path / "ParaDigMaStudio.exe")
+    copy_notices(tmp_path)
     (tmp_path / "LICENSE-paradigma.txt").write_text("Incomplete licence", encoding="utf-8")
     with pytest.raises(RuntimeError, match="LICENSE-paradigma.txt"):
         check_bundle(tmp_path / "ParaDigMaStudio.exe")

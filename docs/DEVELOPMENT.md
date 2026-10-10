@@ -41,7 +41,8 @@ Build on Windows; a Linux build does not generate a Windows executable.
 Distribute the entire `dist\ParaDigMaStudio` folder. The portable executable
 depends on `_internal`. The build includes model assets, SVG icons and native
 scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
-The build also places the ParaDigMa acknowledgement, licence and citation files
+The build also places Studio's Apache 2.0 licence and the ParaDigMa
+acknowledgement, licence and citation files
 beside the executable; keep these with any redistributed bundle.
 
 Both Windows workflows enforce the pinned Ruff formatter and import/error checks.

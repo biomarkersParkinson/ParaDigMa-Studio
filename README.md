@@ -44,8 +44,9 @@ its thresholds are 1.5 seconds, with **Default** buttons to restore them.
 
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
-Export JSON to reopen results after restarting. Run history alone does not save
-full result tables. [See the workspace screenshots](docs/WORKSPACE.md).
+Click **Save results** to store the complete current run locally and reopen it
+from **Runs** after restarting. Closing warns about any unsaved runs, with options
+to save them, discard them or cancel. [See the workspace screenshots](docs/WORKSPACE.md).
 
 ## Supported input
 
@@ -67,6 +68,12 @@ Pickle files can execute code: open only trusted files.
 - [Output verification](docs/SCIENTIFIC_TESTS.md): comparisons with the official analysis modules from the **official ParaDigMa 1.1.2 toolbox**.
 - [Development and building](docs/DEVELOPMENT.md), [codebase audit](docs/CODEBASE_AUDIT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
 
+## License
+
+ParaDigMa Studio is licensed under the [Apache License 2.0](LICENSE).
+Copyright 2026 ParaDigMa Studio contributors. Dependencies and third-party
+assets retain their own licences and attribution notices.
+
 ## Acknowledgement and citation
 
 Scientific processing is provided by **ParaDigMa**, developed by its authors and
@@ -77,5 +84,5 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_desktop/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
-Version **0.5.29**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.5.30**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.
