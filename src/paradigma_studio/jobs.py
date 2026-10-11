@@ -1,19 +1,25 @@
 """Background job signals and consistent warning/error forwarding."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
 import logging
 from PySide6.QtCore import QThread, Signal
 from .history import failure_log, error_summary
 from .analysis_process import AnalysisCancelled
+from .contracts import TextSignal
 
 
 class SignalHandler(logging.Handler):
-    def __init__(self, signal, warning=None, error=None):
+    def __init__(
+        self, signal: TextSignal, warning: TextSignal | None = None, error: TextSignal | None = None
+    ) -> None:
         super().__init__()
         self.signal = signal
         self.warning = warning
         self.error = error
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         self.signal.emit(self.format(record))
         if error_summary(record.getMessage()):
             return  # Keep the log; count the individual pipeline failures.
@@ -32,11 +38,11 @@ class Worker(QThread):
     error = Signal(str)
     cancelled = Signal()
 
-    def __init__(self, operation):
+    def __init__(self, operation: Callable[[logging.Logger], object]) -> None:
         super().__init__()
         self.operation = operation
 
-    def run(self):
+    def run(self) -> None:
         logger = logging.Logger("paradigma-studio", logging.INFO)
         handler = SignalHandler(self.message, self.warning, self.error)
         logger.addHandler(handler)

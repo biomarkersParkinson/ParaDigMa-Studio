@@ -1,11 +1,20 @@
 """Interruptible analysis with parent-owned temporary files and process cleanup."""
 
+from __future__ import annotations
+
 import logging
 import multiprocessing
 from pathlib import Path
 import pickle
 from queue import Empty
 import tempfile
+from typing import TYPE_CHECKING
+
+from .contracts import AnalysisEvent, AnalysisResults, AnalysisSettings, PathInput, SensorInput
+
+if TYPE_CHECKING:
+    from multiprocessing.queues import Queue
+    from threading import Event
 
 
 class AnalysisCancelled(Exception):
@@ -13,15 +22,20 @@ class AnalysisCancelled(Exception):
 
 
 class QueueLogHandler(logging.Handler):
-    def __init__(self, queue):
+    def __init__(self, queue: Queue[AnalysisEvent]) -> None:
         super().__init__()
         self.queue = queue
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         self.queue.put(("log", record.levelno, record.getMessage()))
 
 
-def _analyze_child(input_path, output_path, settings, queue):
+def _analyze_child(
+    input_path: PathInput,
+    output_path: PathInput,
+    settings: AnalysisSettings,
+    queue: Queue[AnalysisEvent],
+) -> None:
     try:
         from .core import analyze
 
@@ -38,7 +52,9 @@ def _analyze_child(input_path, output_path, settings, queue):
         queue.put(("failed", f"{type(exc).__name__}: {exc}"))
 
 
-def run_isolated_analysis(frame, settings, logger, cancel):
+def run_isolated_analysis(
+    frame: SensorInput, settings: AnalysisSettings, logger: logging.Logger, cancel: Event
+) -> AnalysisResults:
     """Stop only the owned child; never terminate Qt's thread or other programs."""
     context = multiprocessing.get_context("spawn")
     with tempfile.TemporaryDirectory(prefix="paradigma-analysis-") as directory:
@@ -47,7 +63,7 @@ def run_isolated_analysis(frame, settings, logger, cancel):
             pickle.dump(frame, stream, protocol=pickle.HIGHEST_PROTOCOL)
         if cancel.is_set():
             raise AnalysisCancelled()
-        queue = context.Queue()
+        queue: Queue[AnalysisEvent] = context.Queue()
         # All toolbox intermediate files live under the parent's temporary root,
         # so they are removed even when the child is interrupted mid-calculation.
         process = context.Process(

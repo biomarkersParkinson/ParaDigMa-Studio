@@ -1,16 +1,24 @@
 """Atomic, lossless JSON/CSV exports and spreadsheet-safe text conversion."""
 
+from __future__ import annotations
+
+from collections.abc import Iterable
 import csv
 import json
 import math
 from pathlib import Path
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
 from .storage import atomic_file, recording_files, same_file
+from .contracts import AnalysisResults, JSONValue, PathInput, Provenance
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
-def json_value(value):
+def json_value(value: Any) -> JSONValue:
     import pandas as pd
 
     if isinstance(value, pd.DataFrame):
@@ -73,7 +81,13 @@ def _write_json(stream, value):
         stream.write(encode(json_value(value)))
 
 
-def export_results(path, results, provenance, *, protected_sources=()):
+def export_results(
+    path: PathInput,
+    results: AnalysisResults,
+    provenance: Provenance,
+    *,
+    protected_sources: Iterable[PathInput] = (),
+) -> None:
     _write_export(
         path,
         lambda stream: _write_json(stream, {"analysis": provenance, "results": results}),
@@ -88,7 +102,13 @@ def _spreadsheet_text(value):
     return value
 
 
-def export_table_csv(path, frame, *, source=None, protected_sources=()):
+def export_table_csv(
+    path: PathInput,
+    frame: pd.DataFrame,
+    *,
+    source: PathInput | None = None,
+    protected_sources: Iterable[PathInput] = (),
+) -> None:
     """Neutralize formula-like text while retaining actual numeric values."""
     safe = frame.map(_spreadsheet_text)
     safe.columns = [_spreadsheet_text(str(column)) for column in frame.columns]

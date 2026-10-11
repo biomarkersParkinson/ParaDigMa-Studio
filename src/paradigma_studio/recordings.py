@@ -1,14 +1,35 @@
 """Independent recordings sharing one subject and one analysis configuration."""
 
+from __future__ import annotations
+
+from collections.abc import Iterable
+import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .core import load_sensor_file
 from .results_view import analysis_alignment, recording_clock, normalise_clock
+from .contracts import (
+    AnalysisResults,
+    AnalysisSettings,
+    FloatArray,
+    PathInput,
+    RecordingAlignment,
+    TimeOffsets,
+)
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
-def load_recordings(paths, *, allow_pickle=False, logger=None):
+def load_recordings(
+    paths: Iterable[PathInput],
+    *,
+    allow_pickle: bool = False,
+    logger: logging.Logger | None = None,
+) -> tuple[dict[str, str], dict[str, pd.DataFrame]]:
     sources, frames = {}, {}
     for index, path in enumerate(dict.fromkeys(map(str, paths)), start=1):
         key = f"recording_{index:03d}"
@@ -24,7 +45,7 @@ def load_recordings(paths, *, allow_pickle=False, logger=None):
     return sources, frames
 
 
-def source_key(file_key, results):
+def source_key(file_key: str, results: AnalysisResults) -> str:
     return (
         results.get("metadata", {})
         .get("desktop_recordings", {})
@@ -33,7 +54,7 @@ def source_key(file_key, results):
     )
 
 
-def timeline_offsets(name, frame, offsets):
+def timeline_offsets(name: str, frame: pd.DataFrame, offsets: TimeOffsets) -> float | FloatArray:
     value = offsets.get(name.split("/")[1], 0.0)
     if isinstance(value, dict):
         return (
@@ -44,10 +65,13 @@ def timeline_offsets(name, frame, offsets):
     return value
 
 
-def align_recordings(frames, settings, results):
+def align_recordings(
+    frames: dict[str, pd.DataFrame], settings: AnalysisSettings, results: AnalysisResults
+) -> RecordingAlignment:
     """Display offsets only: never shift scientific timestamps or sensor values."""
     import pandas as pd
 
+    module_times: dict[str, dict[str, FloatArray]]
     common, module_times, local_offsets, clocks = {}, {}, {}, {}
     for key, frame in frames.items():
         timeline, modules, offsets = analysis_alignment(frame, settings, results)

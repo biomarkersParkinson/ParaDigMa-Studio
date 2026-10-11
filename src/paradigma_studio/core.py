@@ -1,9 +1,14 @@
 """Official file loading, preparation and analysis; compatible export aliases."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from datetime import datetime
 import logging
 import re
 import tempfile
 from pathlib import Path
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -14,6 +19,10 @@ from .serialization import (
 )
 from .availability import prepared_availability
 from .empatica import load_empatica_imu
+from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
 TIME_UNITS = {
@@ -26,7 +35,7 @@ TIME_UNITS = {
 }
 
 
-def load_single_data_file(*args, **kwargs):
+def load_single_data_file(*args: Any, **kwargs: Any) -> tuple[str, pd.DataFrame, datetime | None]:
     # ParaDigMa's package initializer imports every pipeline. Defer that work
     # until file loading/analysis, which the GUI already performs in a worker.
     from paradigma.load import load_single_data_file as official
@@ -34,37 +43,37 @@ def load_single_data_file(*args, **kwargs):
     return official(*args, **kwargs)
 
 
-def run_paradigma(*args, **kwargs):
+def run_paradigma(*args: Any, **kwargs: Any) -> AnalysisResults:
     from paradigma.orchestrator import run_paradigma as official
 
     return official(*args, **kwargs)
 
 
-def prepare_raw_data(*args, **kwargs):
+def prepare_raw_data(*args: Any, **kwargs: Any) -> pd.DataFrame:
     from paradigma.prepare_data import prepare_raw_data as official
 
     return official(*args, **kwargs)
 
 
-def correct_watch_orientation(*args, **kwargs):
+def correct_watch_orientation(*args: Any, **kwargs: Any) -> pd.DataFrame:
     from paradigma.prepare_data import correct_watch_orientation as official
 
     return official(*args, **kwargs)
 
 
-def create_segments(*args, **kwargs):
+def create_segments(*args: Any, **kwargs: Any) -> SegmentArray:
     from paradigma.segmenting import create_segments as official
 
     return official(*args, **kwargs)
 
 
-def discard_segments(*args, **kwargs):
+def discard_segments(*args: Any, **kwargs: Any) -> pd.DataFrame:
     from paradigma.segmenting import discard_segments as official
 
     return official(*args, **kwargs)
 
 
-def validate_column_mapping(mapping):
+def validate_column_mapping(mapping: object) -> dict[str, str]:
     mapping = {} if mapping is None else mapping
     if not isinstance(mapping, dict) or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in mapping.items()
@@ -73,7 +82,7 @@ def validate_column_mapping(mapping):
     return mapping
 
 
-def validate_orientation(axes):
+def validate_orientation(axes: object) -> list[str] | None:
     if axes is None:
         return None
     if (
@@ -112,7 +121,7 @@ class _PipelineFailures(logging.Handler):
                     self.errors.append(error)
 
 
-def load_sensor_file(path, *, allow_pickle=False):
+def load_sensor_file(path: PathInput, *, allow_pickle: bool = False) -> pd.DataFrame:
     import pandas as pd
 
     path = Path(path)
@@ -132,8 +141,14 @@ def load_sensor_file(path, *, allow_pickle=False):
 
 
 def analyze(
-    frame, *, pipelines, column_mapping=None, logger=None, drop_missing_samples=False, **settings
-):
+    frame: SensorInput,
+    *,
+    pipelines: Pipeline | Sequence[Pipeline],
+    column_mapping: dict[str, str] | None = None,
+    logger: logging.Logger | None = None,
+    drop_missing_samples: bool = False,
+    **settings: Any,
+) -> AnalysisResults:
     if isinstance(pipelines, str):
         pipelines = [pipelines]
     if not pipelines:
@@ -404,7 +419,7 @@ def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
     return classifications, keys
 
 
-def result_tables(value, path=""):
+def result_tables(value: Any, path: str = "") -> dict[str, pd.DataFrame]:
     """Flatten nested results, preserving filtered/unfiltered gait branches."""
     import pandas as pd
 

@@ -1,5 +1,8 @@
 """Local run metadata, complete result snapshots and safe JSON reopening."""
 
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
 import json
 import re
 import math
@@ -11,13 +14,22 @@ from uuid import uuid4
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
 from .core import validate_column_mapping, validate_orientation
+from .contracts import (
+    AnalysisError,
+    AnalysisResults,
+    AnalysisSettings,
+    PathInput,
+    Provenance,
+    RunOutput,
+    RunRecord,
+)
 
 
-def now():
+def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def new_run(source, settings):
+def new_run(source: str, settings: AnalysisSettings) -> RunRecord:
     return {
         "id": uuid4().hex,
         "started": now(),
@@ -33,7 +45,7 @@ def new_run(source, settings):
     }
 
 
-def error_text(error):
+def error_text(error: AnalysisError) -> str:
     if isinstance(error, str):
         return error
     module = error.get("pipeline") or ", ".join(error.get("pipelines", []))
@@ -43,7 +55,7 @@ def error_text(error):
     return f"{context}: {error['error']}" if context else str(error["error"])
 
 
-def failure_log(message):
+def failure_log(message: str) -> bool:
     """ParaDigMa reports some pipeline failures at WARNING log level."""
     return any(
         message.startswith(f"{module} pipeline returned error: ")
@@ -51,16 +63,16 @@ def failure_log(message):
     )
 
 
-def error_summary(message):
+def error_summary(message: str) -> bool:
     return bool(re.fullmatch(r"ParaDigMa analysis completed with \d+ error\(s\)", message))
 
 
-def run_status(record):
+def run_status(record: RunRecord) -> str:
     status = record["status"]
     return "Completed with warnings" if status == "Completed" and record["warnings"] else status
 
 
-def merge_errors(existing, errors):
+def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
     """Prefer structured pipeline errors over duplicate log messages."""
     messages = [error_text(error) for error in errors]
     details = [
@@ -75,10 +87,11 @@ def merge_errors(existing, errors):
     return list(dict.fromkeys(messages))
 
 
-def migrate_problems(record):
+def migrate_problems(record: RunRecord) -> None:
     """Recover errors saved in the warnings field by older app versions."""
     if "errors" in record:
         return
+    errors: list[AnalysisError]
     warnings, errors, remaining = record["warnings"], [], []
     for message in warnings:
         if error_summary(message):
@@ -105,10 +118,12 @@ def migrate_problems(record):
 
 
 class RunHistory:
-    def __init__(self, directory):
+    def __init__(self, directory: PathInput) -> None:
         self.directory = Path(directory)
 
-    def load(self):
+    def load(self) -> tuple[list[RunRecord], list[str]]:
+        records: list[RunRecord]
+        issues: list[str]
         records, issues = [], []
         try:
             if not self.directory.exists():
@@ -180,7 +195,7 @@ class RunHistory:
                 issues.append(f"Could not read run {path.name}: {exc}")
         return sorted(records, key=lambda record: record["started"], reverse=True), issues
 
-    def save(self, record):
+    def save(self, record: RunRecord) -> None:
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -189,7 +204,13 @@ class RunHistory:
         with atomic_file(target, prefix=".run-") as stream:
             json.dump(json_value(public), stream, indent=2, allow_nan=False)
 
-    def save_results(self, record, results, provenance, protected_sources=()):
+    def save_results(
+        self,
+        record: RunRecord,
+        results: AnalysisResults,
+        provenance: Provenance,
+        protected_sources: Iterable[PathInput] = (),
+    ) -> list[RunOutput]:
         """Save complete outputs and their history link before reporting success."""
         from .serialization import export_results
 
@@ -226,7 +247,13 @@ class RunHistory:
             raise
         return outputs
 
-    def removal_files(self, record, records, protected_sources=(), removing=()):
+    def removal_files(
+        self,
+        record: RunRecord,
+        records: Sequence[RunRecord],
+        protected_sources: Iterable[PathInput] = (),
+        removing: Iterable[RunRecord] = (),
+    ) -> list[Path]:
         """Exports owned only by this run; never original inputs or directories."""
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")
@@ -242,7 +269,7 @@ class RunHistory:
             for item in run["outputs"]
         ]
 
-        files = []
+        files: list[Path] = []
         for output in record["outputs"]:
             path = Path(output["path"])
             if (path.is_file() or path.is_symlink()) and not any(
@@ -251,7 +278,13 @@ class RunHistory:
                 files.append(path)
         return files
 
-    def remove(self, record, records, protected_sources=(), removing=()):
+    def remove(
+        self,
+        record: RunRecord,
+        records: Sequence[RunRecord],
+        protected_sources: Iterable[PathInput] = (),
+        removing: Iterable[RunRecord] = (),
+    ) -> list[Path]:
         files = self.removal_files(record, records, protected_sources, removing)
         for path in files:
             path.unlink(missing_ok=True)
@@ -259,7 +292,7 @@ class RunHistory:
         return files
 
 
-def load_result_export(path):
+def load_result_export(path: PathInput) -> tuple[Provenance, AnalysisResults]:
     """Read the wrapper's JSON export, never pickle or original sensor files."""
     import pandas as pd
 

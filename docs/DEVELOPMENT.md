@@ -32,6 +32,7 @@ Build on Windows; a Linux build does not generate a Windows executable.
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
+.\.venv\Scripts\python.exe -m mypy
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe scripts/build_desktop.py
 .\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
@@ -51,7 +52,8 @@ files for ParaDigMa or Open Movement. Model assets, package metadata and native
 dependencies are retained. The packaged check rejects leftover app versions
 and unexpected files at the top of the app folder.
 
-Both Windows workflows enforce the pinned Ruff formatter and import/error checks.
+Both Windows workflows enforce the pinned Ruff formatter, import/error checks
+and mypy API checks.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
 Qt platform initialization and Matplotlib cache configuration ahead of the
 imports that depend on them; do not reorder those imports automatically.
@@ -76,12 +78,23 @@ python -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 .venv/bin/python -m ruff check src scripts tests desktop.py
 .venv/bin/python -m ruff format --check src scripts tests desktop.py
+.venv/bin/python -m mypy
 QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest -q
 .venv/bin/python desktop.py
 ```
 
 The interactive launcher requires a graphical desktop. Use offscreen pytest and
 the packaged probes for a headless cloud environment.
+
+`python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
+`analysis_process` and `serialization`. This is a lenient starting point:
+annotated functions are checked, while unannotated helpers and UI code can be
+typed incrementally. Extend the file list in `pyproject.toml` as coverage grows.
+Shared contracts type frames, paths, pipeline names, worker callbacks and process
+messages; extensible ParaDigMa payloads and upstream forwarding arguments retain
+`Any`. pandas stubs are development dependencies. Keep scientific type imports
+under `TYPE_CHECKING`; the packaged `py.typed` marker exposes available annotations
+to callers without adding startup imports.
 
 Headless UI tests configure a 1920×1080 virtual Qt screen using
 `tests/data/qt-offscreen.json`. Qt's default 800×800 screen is smaller than the

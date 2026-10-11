@@ -28,6 +28,7 @@ pytest and Ruff checks. `README.md` is the user entry point; `SECURITY.md` and
 | --- | --- |
 | Window lifecycle, component composition, navigation and Qt signal wiring | `app.py` |
 | Input, result, run and sensor state shared through explicit dependencies | `workspace_state.py` |
+| Public service contracts and shared payload types; no startup scientific imports | `contracts.py`, `py.typed` |
 | Result installation, source alignment, clock selection and completion status | `result_controller.py` |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |

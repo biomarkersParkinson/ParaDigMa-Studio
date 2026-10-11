@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
+from .contracts import RunRecord as RunRecord
 
 if TYPE_CHECKING:
     import numpy as np
@@ -17,10 +18,6 @@ if TYPE_CHECKING:
 
     from .exploration import SensorContext
     from .sensor_navigation import SensorNavigator, SensorTimeIndex
-
-# ParaDigMa payloads and persisted runs contain heterogeneous nested structures.
-# Use typed frames at the presentation boundary without importing pandas here.
-RunRecord = dict[str, Any]
 
 
 @dataclass
