@@ -90,7 +90,7 @@ def bar_centers(axes):
 def window(tmp_path):
     """Visible window for UI tests; modules override this for special Qt cases."""
     from PySide6.QtWidgets import QApplication
-    from paradigma_desktop.app import MainWindow
+    from paradigma_studio.app import MainWindow
 
     application = QApplication.instance() or QApplication([])
     widget = MainWindow(history_dir=tmp_path / "runs")

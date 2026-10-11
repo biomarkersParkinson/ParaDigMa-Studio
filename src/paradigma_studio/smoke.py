@@ -51,11 +51,11 @@ def smoke_test(report_path):
         try:
             if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
                 raise RuntimeError("Bundled application icon could not be rendered")
-            if QPixmap(str(files("paradigma_desktop") / "data" / "chevron-down.svg")).isNull():
+            if QPixmap(str(files("paradigma_studio") / "data" / "chevron-down.svg")).isNull():
                 raise RuntimeError("Bundled dropdown indicator could not be rendered")
-            if QPixmap(str(files("paradigma_desktop") / "data" / "checkmark.svg")).isNull():
+            if QPixmap(str(files("paradigma_studio") / "data" / "checkmark.svg")).isNull():
                 raise RuntimeError("Bundled checkbox indicator could not be rendered")
-            if QPixmap(str(files("paradigma_desktop") / "data" / "directions_axes.png")).isNull():
+            if QPixmap(str(files("paradigma_studio") / "data" / "directions_axes.png")).isNull():
                 raise RuntimeError(
                     "Bundled ParaDigMa device-axis reference figure could not be rendered"
                 )
@@ -328,7 +328,7 @@ def smoke_test(report_path):
                 # The official example has fractional timestamps that break
                 # the older PyPI CWA reader under NumPy 2. Exercise the real
                 # recording and gait pipeline inside the packaged executable.
-                cwa_source = files("paradigma_desktop") / "data" / "test_data.CWA"
+                cwa_source = files("paradigma_studio") / "data" / "test_data.CWA"
                 cwa_frame = load_sensor_file(cwa_source)
                 if len(cwa_frame) != 36400 or not cwa_frame["time"].is_unique:
                     raise RuntimeError("CWA sample count or timestamps are incorrect")
@@ -439,7 +439,7 @@ def smoke_test(report_path):
                     raise RuntimeError("Multiple-recording export lost sources or rows")
                 # The official Empatica example has an empty gyroscope stream.
                 # Import it for inspection without inventing missing channels.
-                avro_source = files("paradigma_desktop") / "data" / "test_data.avro"
+                avro_source = files("paradigma_studio") / "data" / "test_data.avro"
                 avro_frame = load_sensor_file(avro_source)
                 if len(avro_frame) != 115904 or any("gyroscope" in column for column in avro_frame):
                     raise RuntimeError(
@@ -451,7 +451,7 @@ def smoke_test(report_path):
                     raise RuntimeError("Empatica samples were not displayed")
                 if "require gyroscope" not in window.status.text():
                     raise RuntimeError("Empatica analysis requirements were not displayed")
-                physilog_source = files("paradigma_desktop") / "data" / "physilog_excerpt.parquet"
+                physilog_source = files("paradigma_studio") / "data" / "physilog_excerpt.parquet"
                 physilog = load_sensor_file(physilog_source)
                 physilog_results = analyze(
                     physilog,

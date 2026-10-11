@@ -10,7 +10,7 @@ from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
 
-from paradigma_desktop.plotting import plot_bars
+from paradigma_studio.plotting import plot_bars
 
 
 def test_continuous_bars_show_exact_values_leave_missing_gaps_and_retain_zero(

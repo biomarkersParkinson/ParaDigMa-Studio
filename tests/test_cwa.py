@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 from openmovement.load import CwaData
 
-from paradigma_desktop.core import analyze, load_sensor_file
+from paradigma_studio.core import analyze, load_sensor_file
 
 
 def test_official_cwa_sample_loading_and_gait():
-    source = files("paradigma_desktop") / "data" / "test_data.CWA"
+    source = files("paradigma_studio") / "data" / "test_data.CWA"
     frame = load_sensor_file(source)
     assert len(frame) == 36400
     assert set(frame.columns) == {

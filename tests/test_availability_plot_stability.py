@@ -8,9 +8,9 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.plotting import time_coordinates
-from paradigma_desktop.results_view import clock_times
+from paradigma_studio.app import MainWindow
+from paradigma_studio.plotting import time_coordinates
+from paradigma_studio.results_view import clock_times
 
 
 @pytest.mark.parametrize("absolute", [False, True])

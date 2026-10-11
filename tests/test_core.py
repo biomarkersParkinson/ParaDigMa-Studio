@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from paradigma_desktop.core import analyze, export_results, load_sensor_file, result_tables
+from paradigma_studio.core import analyze, export_results, load_sensor_file, result_tables
 
 
 @pytest.mark.parametrize("suffix", ["csv", "parquet", "pkl"])

@@ -25,7 +25,7 @@ def _analyze_child(input_path, output_path, settings, queue):
     try:
         from .core import analyze
 
-        logger = logging.Logger("paradigma-desktop", logging.INFO)
+        logger = logging.Logger("paradigma-studio", logging.INFO)
         logger.addHandler(QueueLogHandler(queue))
         # These private files are created by this process's parent, never user inputs.
         with open(input_path, "rb") as stream:

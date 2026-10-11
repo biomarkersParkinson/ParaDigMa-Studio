@@ -14,18 +14,18 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget, QStyle, QStyleOptionButton
 
-from paradigma_desktop.time_axis import RecordingTimeFormatter
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.plotting import binary_indicator
-from paradigma_desktop.results_view import clock_times
-from paradigma_desktop.time_controls import TimeField
+from paradigma_studio.time_axis import RecordingTimeFormatter
+from paradigma_studio.app import MainWindow
+from paradigma_studio.plotting import binary_indicator
+from paradigma_studio.results_view import clock_times
+from paradigma_studio.time_controls import TimeField
 
 
 @pytest.mark.parametrize("dtype", ["float64", "Float64"])
 def test_gait_window_threshold_boundaries_preserve_probabilities_and_raw_tables(dtype):
     from importlib.resources import files
     from paradigma.classification import ClassifierPackage
-    from paradigma_desktop.results_view import plot_tables
+    from paradigma_studio.results_view import plot_tables
 
     for stage, asset, probability, indicator in (
         ("detection", "gait_detection_clf_package.pkl", "pred_gait_proba", "pred_gait_window"),
@@ -461,7 +461,7 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
 
 def test_module_colors_match_analysis_overview_and_graphs(window):
     from matplotlib.colors import to_rgba
-    from paradigma_desktop.theme import MODULE_PALETTE, module_color
+    from paradigma_studio.theme import MODULE_PALETTE, module_color
 
     frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "power": [2.0, 3.0, 4.0]})
     window.analyzed(

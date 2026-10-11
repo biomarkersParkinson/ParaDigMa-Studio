@@ -35,7 +35,7 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
 def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments(
     window, monkeypatch
 ):
-    from paradigma_desktop import app as desktop
+    from paradigma_studio import app as desktop
 
     original = pd.DataFrame(
         {

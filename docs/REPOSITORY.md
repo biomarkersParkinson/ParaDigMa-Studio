@@ -6,11 +6,11 @@ Actions artifacts, rather than in the source repository.
 
 | Location | Purpose |
 | --- | --- |
-| `src/paradigma_desktop/` | Installed application code |
-| `src/paradigma_desktop/ui/` | Page construction and Results graph interactions |
-| `src/paradigma_desktop/data/` | Packaged graphics and public smoke-test recordings; provenance in `README.txt` |
+| `src/paradigma_studio/` | Installed application code |
+| `src/paradigma_studio/ui/` | Page construction and Results graph interactions |
+| `src/paradigma_studio/data/` | Packaged graphics and public smoke-test recordings; provenance in `README.txt` |
 | `LICENSE` | Apache 2.0 licence for ParaDigMa Studio |
-| `src/paradigma_desktop/data/notices/` | Packaged Studio licence and ParaDigMa acknowledgement, licence and citation files |
+| `src/paradigma_studio/data/notices/` | Packaged Studio licence and ParaDigMa acknowledgement, licence and citation files |
 | `tests/` | UI, processing, security, startup, performance and scientific-equivalence tests |
 | `tests/data/paradigma/` | Independent official reference fixtures and checksums, excluded from the executable |
 | `scripts/` | Build, frozen-app verification, benchmarks, dependency auditing and signing |

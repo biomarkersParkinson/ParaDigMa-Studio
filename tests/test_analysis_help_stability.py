@@ -6,8 +6,8 @@ from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QSizeP
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QPixmap
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.widgets import WrappedForm
+from paradigma_studio.app import MainWindow
+from paradigma_studio.widgets import WrappedForm
 
 
 def test_growing_wrapped_stack_updates_its_layout_bounds_without_compressing_spacing():
@@ -122,7 +122,7 @@ def test_help_geometry_is_ready_before_painting_resumes(tmp_path, style, wide_co
 
 @pytest.mark.parametrize("size", [(1200, 900), (960, 650)])
 def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path, size):
-    from paradigma_desktop.theme import STYLESHEET
+    from paradigma_studio.theme import STYLESHEET
 
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)

@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 from PySide6.QtWidgets import QApplication, QLabel
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.availability import prepared_availability
-from paradigma_desktop.core import export_results
-from paradigma_desktop.history import load_result_export
-from paradigma_desktop.overview import recording_extent, recording_summary
+from paradigma_studio.app import MainWindow
+from paradigma_studio.availability import prepared_availability
+from paradigma_studio.core import export_results
+from paradigma_studio.history import load_result_export
+from paradigma_studio.overview import recording_extent, recording_summary
 
 
 def result(sections):

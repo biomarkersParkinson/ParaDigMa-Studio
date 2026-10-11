@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from paradigma_desktop.availability import availability_views, prepared_availability
+from paradigma_studio.availability import availability_views, prepared_availability
 
 
 def test_prepared_coverage_retains_real_gaps_sections_offsets_and_distinct_pipeline_inputs(
@@ -48,7 +48,7 @@ def test_prepared_coverage_retains_real_gaps_sections_offsets_and_distinct_pipel
 
 
 def test_availability_matches_exact_prepared_inputs_and_excludes_discarded_sections(monkeypatch):
-    from paradigma_desktop import core
+    from paradigma_studio import core
 
     times = np.r_[np.arange(100) / 100, 5.0, 5.01]
     raw = pd.DataFrame(

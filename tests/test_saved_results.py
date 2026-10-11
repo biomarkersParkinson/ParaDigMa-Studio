@@ -10,9 +10,9 @@ import pytest
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.exports import ExportDialog, export_items
-from paradigma_desktop.history import load_result_export, new_run
+from paradigma_studio.app import MainWindow
+from paradigma_studio.exports import ExportDialog, export_items
+from paradigma_studio.history import load_result_export, new_run
 
 
 def analyzed_run(window, results, tmp_path, name="sensor.csv"):
@@ -209,7 +209,7 @@ def test_only_complete_json_export_clears_unsaved_warning(
     monkeypatch.setattr(ExportDialog, "exec", lambda dialog: True)
     monkeypatch.setattr(ExportDialog, "selected", lambda dialog: chosen)
     monkeypatch.setattr(
-        "paradigma_desktop.app.QFileDialog.getSaveFileName",
+        "paradigma_studio.app.QFileDialog.getSaveFileName",
         lambda *args: (str(tmp_path / "export.json"), "JSON"),
     )
     window.choose_export()
@@ -233,7 +233,7 @@ def test_local_save_does_not_overwrite_original_recordings(window, tremor_output
 def test_failed_overwrite_retains_previous_saved_result(
     window, tremor_outputs, tmp_path, monkeypatch
 ):
-    from paradigma_desktop import serialization
+    from paradigma_studio import serialization
 
     record = analyzed_run(window, tremor_outputs, tmp_path)
     window.save_results()

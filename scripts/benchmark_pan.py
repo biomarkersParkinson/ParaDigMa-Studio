@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.app import MainWindow
 
 
 def benchmark(report_path, *, frames=8, repeats=3):

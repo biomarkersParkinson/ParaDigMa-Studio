@@ -10,8 +10,8 @@ from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication, QLabel
 import pytest
 
-from paradigma_desktop.acknowledgements import NOTICES, NOTICE_FILES
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.acknowledgements import NOTICES, NOTICE_FILES
+from paradigma_studio.app import MainWindow
 from scripts.build_desktop import copy_notices
 from scripts.check_frozen import check_bundle
 
@@ -69,14 +69,20 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     application.processEvents()
 
 
-def test_renamed_app_reopens_existing_default_run_history(tmp_path, monkeypatch):
-    from paradigma_desktop.history import RunHistory, new_run
+@pytest.mark.parametrize("existing_studio", [False, True])
+def test_renamed_app_reopens_existing_default_run_history(tmp_path, monkeypatch, existing_studio):
+    from paradigma_studio.history import RunHistory, new_run
 
     application = QApplication.instance() or QApplication([])
     directory = tmp_path / "ParaDigMaDesktop" / "runs"
     record = new_run("sensor.csv", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
     RunHistory(directory).save(record)
+    if existing_studio:
+        directory = tmp_path / "ParaDigMaStudio" / "runs"
+        record = new_run("studio.csv", {"pipelines": ["gait"]})
+        record["status"] = "Completed"
+        RunHistory(directory).save(record)
     monkeypatch.setattr(QStandardPaths, "writableLocation", lambda location: str(tmp_path))
     window = MainWindow()
     try:
@@ -99,7 +105,7 @@ def test_bundle_copies_notices_and_rejects_missing_or_inconsistent_attribution(t
     assert "LICENSE" in metadata.get_all("License-File")
     with pytest.raises(RuntimeError, match="Missing or inconsistent ParaDigMa attribution"):
         check_bundle(tmp_path / "ParaDigMaStudio.exe")
-    packaged = tmp_path / "_internal" / "paradigma_desktop" / "data" / "notices"
+    packaged = tmp_path / "_internal" / "paradigma_studio" / "data" / "notices"
     packaged.mkdir(parents=True)
     copy_notices(packaged)
     (tmp_path / "LICENSE-studio.txt").write_text("Incomplete licence", encoding="utf-8")

@@ -8,8 +8,8 @@ import pytest
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.epochs import (
+from paradigma_studio.app import MainWindow
+from paradigma_studio.epochs import (
     epoch_summary,
     availability_epoch_summary,
     require_epoch_presence,

@@ -37,7 +37,7 @@ class Worker(QThread):
         self.operation = operation
 
     def run(self):
-        logger = logging.Logger("paradigma-desktop", logging.INFO)
+        logger = logging.Logger("paradigma-studio", logging.INFO)
         handler = SignalHandler(self.message, self.warning, self.error)
         logger.addHandler(handler)
         package_logger = logging.getLogger("paradigma")

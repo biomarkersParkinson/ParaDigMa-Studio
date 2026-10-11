@@ -9,9 +9,9 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.epochs import epoch_phase, epoch_summary, availability_epoch_summary
-from paradigma_desktop.results_view import clock_times
+from paradigma_studio.app import MainWindow
+from paradigma_studio.epochs import epoch_phase, epoch_summary, availability_epoch_summary
+from paradigma_studio.results_view import clock_times
 
 
 def test_continuous_epochs_use_medians_and_leave_missing_and_unobserved_bins_blank():

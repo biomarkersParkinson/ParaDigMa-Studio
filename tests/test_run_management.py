@@ -10,10 +10,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from paradigma_desktop import app as desktop
-from paradigma_desktop.app import MainWindow, Worker
-from paradigma_desktop import analysis_process
-from paradigma_desktop.history import RunHistory, new_run
+from paradigma_studio import app as desktop
+from paradigma_studio.app import MainWindow, Worker
+from paradigma_studio import analysis_process
+from paradigma_studio.history import RunHistory, new_run
 
 
 def slow_child(input_path, output_path, settings, queue):

@@ -13,8 +13,8 @@ from matplotlib.layout_engine import ConstrainedLayoutEngine
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.time_axis import RecordingDateLocator
+from paradigma_studio.app import MainWindow
+from paradigma_studio.time_axis import RecordingDateLocator
 
 
 @pytest.fixture

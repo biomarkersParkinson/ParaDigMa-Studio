@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from paradigma_desktop.inspection import inspect_recording, sensor_descriptives, time_descriptives
+from paradigma_studio.inspection import inspect_recording, sensor_descriptives, time_descriptives
 
 
 def values(series, unit="relative_s"):

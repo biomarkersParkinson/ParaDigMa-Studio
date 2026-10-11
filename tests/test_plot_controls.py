@@ -14,7 +14,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.app import MainWindow
 
 
 @pytest.fixture

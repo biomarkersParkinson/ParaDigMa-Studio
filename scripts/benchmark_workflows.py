@@ -19,10 +19,10 @@ from PySide6.QtWidgets import QApplication
 # Keep one-time scientific imports outside the interaction measurements.
 from paradigma.config import TremorConfig  # noqa: F401
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.exports import export_selection
-from paradigma_desktop.history import new_run
-from paradigma_desktop.inspection import inspect_recording
+from paradigma_studio.app import MainWindow
+from paradigma_studio.exports import export_selection
+from paradigma_studio.history import new_run
+from paradigma_studio.inspection import inspect_recording
 
 
 def benchmark(report_path):

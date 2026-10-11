@@ -5,8 +5,8 @@ import pandas as pd
 from matplotlib import dates
 from matplotlib.figure import Figure
 
-from paradigma_desktop.plotting import time_coordinates
-from paradigma_desktop.time_axis import RecordingTimeFormatter
+from paradigma_studio.plotting import time_coordinates
+from paradigma_studio.time_axis import RecordingTimeFormatter
 
 
 def test_time_formatter_separates_time_date_at_midnight_and_keeps_date_when_zoomed():

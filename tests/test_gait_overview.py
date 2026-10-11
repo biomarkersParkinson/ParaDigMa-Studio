@@ -7,8 +7,8 @@ from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QFrame
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.gait_overview import aggregate_rows, duration_label, segment_count_rows
+from paradigma_studio.app import MainWindow
+from paradigma_studio.gait_overview import aggregate_rows, duration_label, segment_count_rows
 
 
 def aggregates():

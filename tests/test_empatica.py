@@ -11,7 +11,7 @@ from avro import schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
 
-from paradigma_desktop.core import analyze, load_sensor_file
+from paradigma_studio.core import analyze, load_sensor_file
 
 
 def write_avro(path, records):
@@ -97,7 +97,7 @@ def record():
 
 
 def test_official_empatica_example_opens_without_gyro():
-    frame = load_sensor_file(files("paradigma_desktop") / "data" / "test_data.avro")
+    frame = load_sensor_file(files("paradigma_studio") / "data" / "test_data.avro")
     assert len(frame) == 115904
     assert set(frame) == {"time", "time_dt", *{f"accelerometer_{axis}" for axis in "xyz"}}
     assert frame.time.iloc[0] == 0

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paradigma-studio"
-version = "0.5.31"
+version = "0.5.32"
 description = "ParaDigMa Studio: Windows interface for the official ParaDigMa toolbox"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -21,14 +21,13 @@ dependencies = [
 dev = ["pytest==9.1.1", "pyinstaller==6.22.3", "ruff==0.16.10"]
 
 [project.gui-scripts]
-paradigma-studio = "paradigma_desktop.app:main"
-paradigma-desktop = "paradigma_desktop.app:main"
+paradigma-studio = "paradigma_studio.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-paradigma_desktop = ["data/*", "data/notices/*"]
+paradigma_studio = ["data/*", "data/notices/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

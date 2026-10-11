@@ -7,8 +7,8 @@ import sys
 import pytest
 from pathlib import Path
 
-from paradigma_desktop.plot_cache import configure_plot_cache
-from paradigma_desktop import plot_cache
+from paradigma_studio.plot_cache import configure_plot_cache
+from paradigma_studio import plot_cache
 
 
 def test_portable_font_cache_is_reused_and_changes_after_relocation(tmp_path, monkeypatch):
@@ -91,7 +91,7 @@ def test_first_window_does_not_load_analysis_stack(tmp_path):
 
 @pytest.mark.parametrize("run_count", [0, 200])
 def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_path, run_count):
-    from paradigma_desktop.history import new_run
+    from paradigma_studio.history import new_run
 
     directory = tmp_path / "runs"
     directory.mkdir()
@@ -102,8 +102,8 @@ def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_pa
     report = tmp_path / "startup-runs.json"
     code = """import sys, time
 started = time.perf_counter()
-from paradigma_desktop.startup import startup_test
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.startup import startup_test
+from paradigma_studio.app import MainWindow
 original = MainWindow.show
 def show_runs(self):
     self.navigate(3)

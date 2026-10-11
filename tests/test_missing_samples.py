@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from paradigma_desktop import core
+from paradigma_studio import core
 
 
 def recording():
@@ -118,7 +118,7 @@ def test_exclusion_that_leaves_no_useful_samples_reports_why():
 
 
 def test_physilog_excerpt_runs_gait_and_reports_exclusion():
-    frame = core.load_sensor_file(files("paradigma_desktop") / "data" / "physilog_excerpt.parquet")
+    frame = core.load_sensor_file(files("paradigma_studio") / "data" / "physilog_excerpt.parquet")
     assert len(frame) == 12010
     original = frame.copy()
     result = core.analyze(

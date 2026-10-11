@@ -13,10 +13,10 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton
 from PySide6.QtCore import Qt, QPoint
 
-from paradigma_desktop import app as desktop
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.exploration import source_timeline
-from paradigma_desktop.history import RunHistory, new_run
+from paradigma_studio import app as desktop
+from paradigma_studio.app import MainWindow
+from paradigma_studio.exploration import source_timeline
+from paradigma_studio.history import RunHistory, new_run
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def test_segmentation_defaults_match_official_package_and_resets_remain_availabl
     from inspect import signature
     from paradigma.orchestrator import run_paradigma
     from paradigma.prepare_data import prepare_raw_data
-    from paradigma_desktop.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
+    from paradigma_studio.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 
     defaults = signature(prepare_raw_data).parameters
     assert (
@@ -345,7 +345,7 @@ def test_module_cards_allow_every_combination(window):
 
 
 def test_inline_analysis_help_does_not_change_configuration(window):
-    from paradigma_desktop.analysis_help import FIELD_HELP
+    from paradigma_studio.analysis_help import FIELD_HELP
 
     assert set(window.analysis_help) == set(FIELD_HELP)
 
@@ -1032,7 +1032,7 @@ def test_legacy_history_rejects_non_text_warnings_without_crashing(tmp_path):
 
 
 def test_identical_errors_in_different_recording_sections_remain_separate():
-    from paradigma_desktop.history import merge_errors
+    from paradigma_studio.history import merge_errors
 
     errors = [
         {

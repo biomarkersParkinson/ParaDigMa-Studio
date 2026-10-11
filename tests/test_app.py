@@ -10,8 +10,8 @@ import pandas as pd
 import pytest
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
-from paradigma_desktop.app import MainWindow, Worker
-from paradigma_desktop import app as desktop_app
+from paradigma_studio.app import MainWindow, Worker
+from paradigma_studio import app as desktop_app
 
 
 @pytest.fixture(autouse=True)
@@ -140,7 +140,7 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
 def test_empatica_opens_in_background_without_gyro(monkeypatch):
     _app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    source = str(files("paradigma_desktop") / "data" / "test_data.avro")
+    source = str(files("paradigma_studio") / "data" / "test_data.avro")
     errors = []
     monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileNames", lambda *args: ([source], ""))
     monkeypatch.setattr(desktop_app.QMessageBox, "critical", lambda *args: errors.append(args))

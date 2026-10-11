@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from paradigma_desktop import core
+from paradigma_studio import core
 
 
 @pytest.mark.parametrize("prepared", [False, True])

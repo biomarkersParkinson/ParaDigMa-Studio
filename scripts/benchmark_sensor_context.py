@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.app import MainWindow
 
 
 def benchmark(report_path, samples=3_000_000):

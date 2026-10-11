@@ -12,7 +12,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from conftest import wait_for_previews
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.app import MainWindow
 
 
 @pytest.fixture

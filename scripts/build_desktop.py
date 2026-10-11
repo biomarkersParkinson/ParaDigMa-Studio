@@ -8,7 +8,7 @@ from pathlib import Path
 
 def copy_notices(bundle):
     """Place the packaged canonical notices next to the portable executable."""
-    source = Path(__file__).resolve().parents[1] / "src" / "paradigma_desktop" / "data" / "notices"
+    source = Path(__file__).resolve().parents[1] / "src" / "paradigma_studio" / "data" / "notices"
     for notice in source.iterdir():
         if notice.is_file():
             shutil.copyfile(notice, Path(bundle) / notice.name)
@@ -40,7 +40,7 @@ def main():
             "--clean",
             "--windowed",
             "--icon",
-            str(root / "src" / "paradigma_desktop" / "data" / "app-icon.ico"),
+            str(root / "src" / "paradigma_studio" / "data" / "app-icon.ico"),
             "--name",
             "ParaDigMaStudio",
             "--distpath",
@@ -63,7 +63,7 @@ def main():
             "paradigma-studio",
             # Include the app icon and licensed recordings for the executable check.
             "--collect-data",
-            "paradigma_desktop",
+            "paradigma_studio",
             # sklearn's Windows importer preloads .libs/vcomp140.dll and
             # .libs/msvcp140.dll. Collect them with their directory structure.
             "--collect-binaries",

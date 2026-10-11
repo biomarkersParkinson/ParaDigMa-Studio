@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from paradigma_desktop import core, serialization
+from paradigma_studio import core, serialization
 from scripts import audit_dependencies
 from scripts.audit_dependencies import is_python_arrow_exception
 
@@ -130,7 +130,7 @@ def test_audit_failure_cannot_reuse_a_previous_success_report(tmp_path, monkeypa
 def test_failed_history_save_keeps_previous_record_and_removes_temporary_file(
     tmp_path, monkeypatch
 ):
-    from paradigma_desktop import history
+    from paradigma_studio import history
 
     store = history.RunHistory(tmp_path)
     record = history.new_run("sensor.csv", {})

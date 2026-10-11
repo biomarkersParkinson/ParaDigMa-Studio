@@ -63,6 +63,13 @@ def test_download_rejects_leftover_application_versions(tmp_path, name):
         check_layout(executable)
 
 
+def test_download_rejects_leftover_legacy_package_files(tmp_path):
+    executable = bundle(tmp_path)
+    (tmp_path / "_internal" / "paradigma_desktop").mkdir()
+    with pytest.raises(RuntimeError, match="Legacy paradigma_desktop package"):
+        check_layout(executable)
+
+
 def test_rebuild_clears_old_internal_files_reports_and_work_cache_only(tmp_path):
     target = tmp_path / "dist" / "ParaDigMaStudio"
     target.mkdir(parents=True)

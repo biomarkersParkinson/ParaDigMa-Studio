@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import dates
-from paradigma_desktop.time_axis import RecordingTimeFormatter
+from paradigma_studio.time_axis import RecordingTimeFormatter
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.core import export_results
-from paradigma_desktop.history import load_result_export
-from paradigma_desktop.results_view import (
+from paradigma_studio.app import MainWindow
+from paradigma_studio.core import export_results
+from paradigma_studio.history import load_result_export
+from paradigma_studio.results_view import (
     aggregation_tables,
     analysis_alignment,
     clock_times,
@@ -259,7 +259,7 @@ def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without
 def test_arm_at_rest_overview_uses_official_counts_or_original_quantification_and_unknown_stays_unknown(
     metadata, quantification, expected
 ):
-    from paradigma_desktop.results_view import tremor_overview_entries
+    from paradigma_studio.results_view import tremor_overview_entries
 
     results = {"metadata": {"tremor": metadata}, "quantifications": {"tremor": quantification}}
     entry = tremor_overview_entries(results)[-1]
@@ -309,7 +309,7 @@ def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(
     assert window.context_controls.isHidden() and window.timing_toggle.isHidden()
     assert window.export_button.isEnabled() and window.export_button.isVisible()
     path = tmp_path / "aggregates.csv"
-    from paradigma_desktop import app as desktop
+    from paradigma_studio import app as desktop
 
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()
@@ -419,7 +419,7 @@ def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), [10.0, 20.0, 30.0, 40.0])
     np.testing.assert_array_equal(bar_values(window.figure.axes[1]), [1.0, 2.0, 3.0, 4.0])
     path = tmp_path / "selection.csv"
-    from paradigma_desktop import app as desktop
+    from paradigma_studio import app as desktop
 
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     window.export_csv()

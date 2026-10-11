@@ -39,6 +39,8 @@ def check_layout(executable):
     ]
     if len(metadata) != 1 or legacy:
         raise RuntimeError("The bundle must contain exactly one current Studio version.")
+    if (internal / "paradigma_desktop").exists():
+        raise RuntimeError("Legacy paradigma_desktop package files remain in the bundle.")
     for package in ("paradigma", "openmovement"):
         if any((internal / package).rglob("*.py")):
             raise RuntimeError(f"Duplicate loose Python source in the bundle: {package}")
@@ -48,7 +50,7 @@ def check_bundle(executable):
     executable = Path(executable).resolve()
     for name in NOTICE_FILES:
         notice = executable.parent / name
-        packaged = executable.parent / "_internal" / "paradigma_desktop" / "data" / "notices" / name
+        packaged = executable.parent / "_internal" / "paradigma_studio" / "data" / "notices" / name
         if (
             not notice.is_file()
             or not packaged.is_file()

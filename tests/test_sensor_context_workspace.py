@@ -10,7 +10,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from conftest import wait_for_previews
-from paradigma_desktop.app import MainWindow
+from paradigma_studio.app import MainWindow
 
 
 def signal_lines(axes):
@@ -355,8 +355,8 @@ def test_context_can_begin_in_a_gap_and_reselect_channels_before_panning_to_data
 
 
 def test_sensor_index_preserves_unsorted_duplicate_samples_and_ignores_invalid_times():
-    from paradigma_desktop.exploration import SensorContext
-    from paradigma_desktop.sensor_navigation import SensorNavigator
+    from paradigma_studio.exploration import SensorContext
+    from paradigma_studio.sensor_navigation import SensorNavigator
 
     times = np.array([-1.0, np.nan, 4.0, 2.0, 2.0, np.inf, 9.0])
     original = times.copy()
@@ -405,7 +405,7 @@ def test_context_channel_changes_preserve_initial_and_panned_time_limits(window,
 def test_context_opening_converts_only_visible_timestamps_and_reuses_source_index(
     window, monkeypatch
 ):
-    import paradigma_desktop.sensor_navigation as navigation
+    import paradigma_studio.sensor_navigation as navigation
 
     times = np.arange(250_000) / 100
     frame = pd.DataFrame({"time": times, "gyroscope_x": np.sin(times)})
@@ -450,10 +450,10 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
 
 @pytest.mark.parametrize("origin", ["2026-10-25T00:00:00Z", "1965-01-01T01:02:03.123456Z"])
 def test_calendar_sensor_navigation_matches_full_conversion_at_exact_endpoints(origin):
-    from paradigma_desktop.exploration import SensorContext
-    from paradigma_desktop.sensor_navigation import SensorNavigator
-    from paradigma_desktop.plotting import time_coordinates
-    from paradigma_desktop.results_view import clock_times
+    from paradigma_studio.exploration import SensorContext
+    from paradigma_studio.sensor_navigation import SensorNavigator
+    from paradigma_studio.plotting import time_coordinates
+    from paradigma_studio.results_view import clock_times
 
     times = np.array(
         [np.nan, -2.0, 0.0, 0.000001, 2.0000001, 2.0000001, 0.123456789, 3600.0, 7200.0]

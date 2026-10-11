@@ -11,10 +11,10 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialogButtonBox
 
-from paradigma_desktop import core, exports
-from paradigma_desktop.core import export_results
-from paradigma_desktop.exports import ExportDialog, export_selection
-from paradigma_desktop.history import load_result_export
+from paradigma_studio import core, exports
+from paradigma_studio.core import export_results
+from paradigma_studio.exports import ExportDialog, export_selection
+from paradigma_studio.history import load_result_export
 
 
 def test_selective_json_csv_zip_preserve_native_outputs_precision_and_metadata(
@@ -157,7 +157,7 @@ def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_
     monkeypatch.setattr(exports.ExportDialog, "exec", lambda self: True)
     monkeypatch.setattr(exports.ExportDialog, "selected", lambda self: ["quantifications/tremor"])
     monkeypatch.setattr(
-        "paradigma_desktop.app.QFileDialog.getSaveFileName", lambda *args: (str(path), "JSON")
+        "paradigma_studio.app.QFileDialog.getSaveFileName", lambda *args: (str(path), "JSON")
     )
     window.choose_export()
     try:

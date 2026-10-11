@@ -29,9 +29,9 @@ from paradigma.orchestrator import run_paradigma
 from paradigma.pipelines import gait_pipeline, pulse_rate_pipeline, tremor_pipeline
 from paradigma.prepare_data import correct_watch_orientation, prepare_raw_data
 
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.core import analyze, export_results, export_table_csv, load_sensor_file
-from paradigma_desktop.history import load_result_export
+from paradigma_studio.app import MainWindow
+from paradigma_studio.core import analyze, export_results, export_table_csv, load_sensor_file
+from paradigma_studio.history import load_result_export
 
 
 pytestmark = pytest.mark.scientific
@@ -635,7 +635,7 @@ def test_raw_units_orientation_mapping_and_time_equivalence(time_unit, tmp_path)
 
 @pytest.mark.parametrize("side", ["left", "right"])
 def test_official_cwa_loading_preparation_and_gait_equivalence(side, tmp_path):
-    frame = load_sensor_file(files("paradigma_desktop") / "data" / "test_data.CWA")
+    frame = load_sensor_file(files("paradigma_studio") / "data" / "test_data.CWA")
     prepared = official_preparation(frame)
     actual, expected, _ = compare_workflows(frame, prepared, ["gait"], tmp_path, watch_side=side)
     assert not expected["quantifications"]["gait"]["unfiltered"].empty
@@ -645,7 +645,7 @@ def test_official_cwa_loading_preparation_and_gait_equivalence(side, tmp_path):
     "minimum,time_unit", [(1.5, "relative_s"), (30.0, "relative_s"), (1.5, "difference_ms")]
 )
 def test_physilog_exclusion_and_gap_equivalence(minimum, time_unit, tmp_path):
-    frame = load_sensor_file(files("paradigma_desktop") / "data" / "physilog_excerpt.parquet")
+    frame = load_sensor_file(files("paradigma_studio") / "data" / "physilog_excerpt.parquet")
     # Independently known raw-row intervals: missing gyro rows [2000,2010),
     # time gaps at rows 6010 and 8010. Explicit slices avoid reimplementing
     # the desktop boundary detection as the reference.

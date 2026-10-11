@@ -3,10 +3,10 @@
 Use Python 3.12 and Git. The dependencies pin official ParaDigMa 1.1.2 and an
 official Open Movement reader revision compatible with NumPy 2 CWA timestamps.
 
-The Python distribution and launcher are `paradigma-studio`. The
-`paradigma-desktop` launcher remains available for compatibility; internal
-imports still use `paradigma_desktop`. Existing run history stays in
-`%LOCALAPPDATA%\ParaDigMaDesktop\runs`.
+The Python distribution and launcher are `paradigma-studio`; the importable
+package and its `_internal` folder are `paradigma_studio`. New user data goes to
+`%LOCALAPPDATA%\ParaDigMaStudio`. Existing history and result locations under
+`ParaDigMaDesktop` remain usable without moving files or changing stored paths.
 
 ## Run from source on Windows
 
@@ -97,7 +97,7 @@ background error handling, navigation, selection, graph/table values, presentati
 controls, history and exports. The frozen-app check loads bundled classifiers,
 runs real pipelines, renders graphs and reopens exported results.
 
-Public fixture provenance and licenses are under `src/paradigma_desktop/data/`
+Public fixture provenance and licenses are under `src/paradigma_studio/data/`
 and `tests/data/paradigma/`. No patient data or external fixture download is needed.
 
 See the [repository map](REPOSITORY.md) for folder and module responsibilities

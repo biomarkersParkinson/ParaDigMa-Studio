@@ -269,7 +269,7 @@ def analyze(
         active_logger = (
             logger
             if logger is not None
-            else logging.Logger("paradigma-desktop-analysis", logging.INFO)
+            else logging.Logger("paradigma-studio-analysis", logging.INFO)
         )
         recorder = _PipelineFailures()
         loggers = {package_logger, active_logger}
@@ -351,7 +351,7 @@ def analyze(
         return run(settings["output_dir"])
     # A unique directory prevents pre-created files/symlinks in a shared temp
     # folder from redirecting diagnostic writes; logs are removed after each run.
-    with tempfile.TemporaryDirectory(prefix="paradigma-desktop-") as directory:
+    with tempfile.TemporaryDirectory(prefix="paradigma-studio-") as directory:
         return run(directory)
 
 

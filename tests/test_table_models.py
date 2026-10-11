@@ -3,7 +3,7 @@
 import pandas as pd
 from PySide6.QtCore import Qt
 
-from paradigma_desktop.widgets import FrameModel
+from paradigma_studio.widgets import FrameModel
 
 
 def test_cached_column_values_invalidate_after_model_update():

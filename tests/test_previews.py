@@ -11,11 +11,11 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from conftest import wait_for_previews
-from paradigma_desktop import app as desktop
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.inspection import sensor_descriptives, time_descriptives
-from paradigma_desktop.previews import CachedPreview
-from paradigma_desktop.results_view import analysis_alignment, recording_clock
+from paradigma_studio import app as desktop
+from paradigma_studio.app import MainWindow
+from paradigma_studio.inspection import sensor_descriptives, time_descriptives
+from paradigma_studio.previews import CachedPreview
+from paradigma_studio.results_view import analysis_alignment, recording_clock
 
 
 def wait_until(predicate):

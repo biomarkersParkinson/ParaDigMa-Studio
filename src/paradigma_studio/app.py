@@ -58,7 +58,7 @@ from .overview import recording_extent, recording_summary
 from .analysis_process import run_isolated_analysis
 from .result_data import prepare_result_data, detail_table_view
 from .assets import DATA_DIRECTORY
-from .branding import APP_NAME, USER_DATA_DIRECTORY
+from .branding import APP_NAME, user_storage_path
 from .ui.layout import WorkspaceLayout
 from .ui.result_graphs import ResultGraphs
 from .channels import (
@@ -136,11 +136,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.active_run = self.current_run = self.selected_run = None
         self._close_after_save = False
         self.sidebar_collapsed = True
-        directory = (
-            history_dir
-            or Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
-            / USER_DATA_DIRECTORY
-            / "runs"
+        directory = history_dir or user_storage_path(
+            QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation), "runs"
         )
         self.history = RunHistory(directory)
         self.runs, history_issues = self.history.load()

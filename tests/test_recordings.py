@@ -13,12 +13,12 @@ from matplotlib import dates
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from paradigma_desktop import app as desktop
-from paradigma_desktop import core
-from paradigma_desktop.app import MainWindow
-from paradigma_desktop.history import load_result_export, new_run
-from paradigma_desktop.inspection import inspect_recording
-from paradigma_desktop.recordings import align_recordings, load_recordings
+from paradigma_studio import app as desktop
+from paradigma_studio import core
+from paradigma_studio.app import MainWindow
+from paradigma_studio.history import load_result_export, new_run
+from paradigma_studio.inspection import inspect_recording
+from paradigma_studio.recordings import align_recordings, load_recordings
 
 
 @pytest.fixture

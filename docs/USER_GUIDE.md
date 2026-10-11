@@ -215,14 +215,18 @@ tables or metadata groups to include:
   a ZIP containing separate CSV files, selected metadata JSON and analysis provenance.
   Scientific tables retain their original columns; formula-like text is neutralized.
 - **Save results:** stores all outputs, metadata and analysis provenance in
-  `%LOCALAPPDATA%\ParaDigMaDesktop\runs\results` on Windows. Use **Open results** in
+  `%LOCALAPPDATA%\ParaDigMaStudio\runs\results` on new Windows installations. Use **Open results** in
   Runs to restore them after restarting. Saving runs in the background; original
   recordings are not copied. The button appears on every Results tab.
 - **Runs:** stores status, parameters, separate warnings and errors, logs and saved
-  result/export locations in `%LOCALAPPDATA%\ParaDigMaDesktop\runs` on Windows.
+  result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
   Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
   stores all unsaved runs before closing. Partial JSON or CSV exports do not
   preserve the complete run; a complete JSON export also counts as saved.
+
+Existing installations continue using their earlier `ParaDigMaDesktop` history
+folder when a Studio history folder does not yet exist. Saved result files stay
+at their original paths and remain available through Runs.
 
 **Stop Analysis** remains available below Analyze settings while a run is active.
 Cancellation stops the owned analysis process, removes its temporary files and records
