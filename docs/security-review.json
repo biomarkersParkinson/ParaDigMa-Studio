@@ -1,0 +1,620 @@
+{
+  "review_date": "2026-10-11",
+  "application": "ParaDigMa Studio",
+  "application_version": "0.5.32",
+  "reviewed_commit": "9b5b2287e38b21b4b6ea23bb72ec15ec32aaea9c",
+  "platform": "Linux, Python 3.12, Qt offscreen; no Windows artifact examined",
+  "scope": [
+    "src/",
+    "scripts/",
+    "desktop.py",
+    ".github/workflows/",
+    "installed development dependencies",
+    "existing latest Linux portable bundle"
+  ],
+  "dependency_audit": {
+    "tool": "pip-audit 2.10.1",
+    "installed_distributions_checked": 87,
+    "blocking_findings": [],
+    "skipped_packages": [],
+    "reviewed_exceptions": [
+      {
+        "package": "pyarrow",
+        "version": "22.0.0",
+        "id": "PYSEC-2026-113",
+        "reason": "CVE-2026-25087 explicitly excludes Python bindings; see SECURITY.md."
+      },
+      {
+        "package": "pyarrow",
+        "version": "22.0.0",
+        "id": "PYSEC-2026-113",
+        "reason": "CVE-2026-25087 explicitly excludes Python bindings; see SECURITY.md."
+      }
+    ],
+    "applicability": "CVE-2026-25087 concerns a C++ IPC pre-buffering API not exposed by Python bindings. The current advisory explicitly states those bindings are unaffected. No Arrow C++ patch is claimed.",
+    "pip_check": "passed",
+    "installed_packages": [
+      {
+        "name": "cachecontrol",
+        "version": "0.14.4"
+      },
+      {
+        "name": "jinja2",
+        "version": "3.1.6"
+      },
+      {
+        "name": "markupsafe",
+        "version": "3.0.4"
+      },
+      {
+        "name": "pyside6",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pyside6-addons",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pyside6-essentials",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pygments",
+        "version": "2.21.0"
+      },
+      {
+        "name": "altgraph",
+        "version": "0.17.5"
+      },
+      {
+        "name": "attrs",
+        "version": "26.1.0"
+      },
+      {
+        "name": "avro",
+        "version": "1.12.2"
+      },
+      {
+        "name": "beautifulsoup4",
+        "version": "4.15.0"
+      },
+      {
+        "name": "bleach",
+        "version": "6.4.0"
+      },
+      {
+        "name": "boolean-py",
+        "version": "5.0"
+      },
+      {
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "name": "cloudpickle",
+        "version": "3.1.2"
+      },
+      {
+        "name": "contourpy",
+        "version": "1.4.0"
+      },
+      {
+        "name": "cycler",
+        "version": "0.12.1"
+      },
+      {
+        "name": "cyclonedx-python-lib",
+        "version": "11.12.0"
+      },
+      {
+        "name": "defusedxml",
+        "version": "0.7.1"
+      },
+      {
+        "name": "fastjsonschema",
+        "version": "2.22.2"
+      },
+      {
+        "name": "filelock",
+        "version": "4.0.12"
+      },
+      {
+        "name": "fonttools",
+        "version": "4.66.1"
+      },
+      {
+        "name": "idna",
+        "version": "3.20"
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0"
+      },
+      {
+        "name": "joblib",
+        "version": "1.6.0"
+      },
+      {
+        "name": "jsonschema",
+        "version": "4.26.0"
+      },
+      {
+        "name": "jsonschema-specifications",
+        "version": "2025.9.1"
+      },
+      {
+        "name": "jupyter-client",
+        "version": "8.10.0"
+      },
+      {
+        "name": "jupyter-core",
+        "version": "5.9.1"
+      },
+      {
+        "name": "jupyterlab-pygments",
+        "version": "0.3.0"
+      },
+      {
+        "name": "kiwisolver",
+        "version": "1.5.1"
+      },
+      {
+        "name": "license-expression",
+        "version": "30.4.4"
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0"
+      },
+      {
+        "name": "matplotlib",
+        "version": "3.11.2"
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2"
+      },
+      {
+        "name": "mistune",
+        "version": "3.3.4"
+      },
+      {
+        "name": "msgpack",
+        "version": "1.2.3"
+      },
+      {
+        "name": "nbclient",
+        "version": "0.11.0"
+      },
+      {
+        "name": "nbconvert",
+        "version": "7.17.1"
+      },
+      {
+        "name": "nbformat",
+        "version": "5.11.1"
+      },
+      {
+        "name": "numpy",
+        "version": "2.5.3"
+      },
+      {
+        "name": "openmovement",
+        "version": "0.0.1"
+      },
+      {
+        "name": "packageurl-python",
+        "version": "0.17.6"
+      },
+      {
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "name": "pandas",
+        "version": "2.3.3"
+      },
+      {
+        "name": "pandocfilters",
+        "version": "1.5.1"
+      },
+      {
+        "name": "paradigma",
+        "version": "1.1.2"
+      },
+      {
+        "name": "pillow",
+        "version": "12.3.0"
+      },
+      {
+        "name": "pip",
+        "version": "26.2.1"
+      },
+      {
+        "name": "pip-requirements-parser",
+        "version": "32.0.1"
+      },
+      {
+        "name": "pip-api",
+        "version": "0.0.35"
+      },
+      {
+        "name": "pip-audit",
+        "version": "2.10.1"
+      },
+      {
+        "name": "platformdirs",
+        "version": "4.12.3"
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0"
+      },
+      {
+        "name": "py-serializable",
+        "version": "2.1.0"
+      },
+      {
+        "name": "pyarrow",
+        "version": "22.0.0"
+      },
+      {
+        "name": "pyinstaller",
+        "version": "6.22.3"
+      },
+      {
+        "name": "pyinstaller-hooks-contrib",
+        "version": "2026.8"
+      },
+      {
+        "name": "pyparsing",
+        "version": "3.3.3"
+      },
+      {
+        "name": "pytest",
+        "version": "9.1.1"
+      },
+      {
+        "name": "python-dateutil",
+        "version": "2.9.0.post0"
+      },
+      {
+        "name": "pytz",
+        "version": "2026.5"
+      },
+      {
+        "name": "pyzmq",
+        "version": "27.2.0"
+      },
+      {
+        "name": "referencing",
+        "version": "0.37.0"
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2"
+      },
+      {
+        "name": "rich",
+        "version": "15.0.0"
+      },
+      {
+        "name": "rpds-py",
+        "version": "2026.9.1"
+      },
+      {
+        "name": "ruff",
+        "version": "0.16.10"
+      },
+      {
+        "name": "scikit-learn",
+        "version": "1.6.0"
+      },
+      {
+        "name": "scipy",
+        "version": "1.18.1"
+      },
+      {
+        "name": "setuptools",
+        "version": "84.0.0"
+      },
+      {
+        "name": "shiboken6",
+        "version": "6.11.2"
+      },
+      {
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "name": "sortedcontainers",
+        "version": "2.4.0"
+      },
+      {
+        "name": "soupsieve",
+        "version": "2.10"
+      },
+      {
+        "name": "threadpoolctl",
+        "version": "3.7.0"
+      },
+      {
+        "name": "tinycss2",
+        "version": "1.5.1"
+      },
+      {
+        "name": "tomli",
+        "version": "2.4.1"
+      },
+      {
+        "name": "tomli-w",
+        "version": "1.2.0"
+      },
+      {
+        "name": "tornado",
+        "version": "6.5.10"
+      },
+      {
+        "name": "traitlets",
+        "version": "5.16.1"
+      },
+      {
+        "name": "tsdf",
+        "version": "0.6.2"
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "name": "tzdata",
+        "version": "2026.5"
+      },
+      {
+        "name": "urllib3",
+        "version": "2.8.0"
+      },
+      {
+        "name": "webencodings",
+        "version": "0.6.1"
+      }
+    ]
+  },
+  "source_scan": {
+    "tool": "Bandit 1.9.4",
+    "errors": [],
+    "metrics": {
+      "CONFIDENCE.HIGH": 18,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 16,
+      "SEVERITY.MEDIUM": 2,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 10589,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "findings": [
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/audit_dependencies.py",
+        "line_number": 4,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/audit_dependencies.py",
+        "line_number": 34,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/benchmark_desktop.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/benchmark_desktop.py",
+        "line_number": 21,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/build_desktop.py",
+        "line_number": 3,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/build_desktop.py",
+        "line_number": 34,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/check_frozen.py",
+        "line_number": 4,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/check_frozen.py",
+        "line_number": 69,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 8,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B607",
+        "issue_severity": "LOW",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 101,
+        "issue_text": "Starting a process with a partial executable path"
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 101,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 189,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B607",
+        "issue_severity": "LOW",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 16,
+        "issue_text": "Starting a process with a partial executable path"
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 16,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B403",
+        "issue_severity": "LOW",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 6,
+        "issue_text": "Consider possible security implications associated with pickle module."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 32,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 84,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      }
+    ],
+    "dispositions": {
+      "B301/B403": "Private parent-created pickle files transfer loaded frames and results to/from the owned analysis child. Safe operation still depends on trusted code and OS protection of the temporary directory; this is not a security sandbox.",
+      "B404/B603": "Developer scripts execute explicit argument lists without a shell. Executables are Python, build tooling, signing tools or the developer-selected frozen bundle; recording contents do not select commands.",
+      "B607": "git and powershell are resolved through PATH in developer/build workflows; use a trusted toolchain and PATH."
+    },
+    "unresolved_high_severity_findings": []
+  },
+  "regression_tests": {
+    "modules": [
+      "test_security.py",
+      "test_signing.py",
+      "test_run_management.py",
+      "test_bulk_runs.py",
+      "test_saved_results.py",
+      "test_result_exports.py",
+      "test_packaging.py",
+      "test_branding.py"
+    ],
+    "passed": 81,
+    "skipped": 1,
+    "failed": 0,
+    "skip_reason": "Native Windows Authenticode API test requires Windows."
+  },
+  "frozen_bundle_probe": {
+    "status": "passed",
+    "paradigma_version": "1.1.2",
+    "app_icon_rendered": true,
+    "workspace_navigation_verified": true,
+    "integrated_page_controls_verified": true,
+    "dropdown_indicator_rendered": true,
+    "module_multiselection_verified": true,
+    "all_module_execution_verified": true,
+    "inline_analysis_help_verified": true,
+    "paradigma_acknowledgement_verified": true,
+    "studio_licence_verified": true,
+    "local_results_saved_verified": true,
+    "aggregate_overview_verified": true,
+    "original_output_tables_verified": true,
+    "aggregation_tables_verified": true,
+    "official_gap_defaults_verified": true,
+    "absolute_recording_clock_verified": true,
+    "estimated_gait_positions_verified": true,
+    "linked_result_selection_verified": true,
+    "binary_state_raster_verified": true,
+    "presence_only_verified": true,
+    "context_footer_verified": true,
+    "view_toolbar_verified": true,
+    "selected_result_marker_verified": true,
+    "calendar_time_controls_verified": true,
+    "gait_sensor_context_verified": true,
+    "multiple_recordings_verified": true,
+    "run_history_reopened": true,
+    "models_loaded": [
+      "gait_detection_clf_package.pkl",
+      "gait_filtering_clf_package.pkl",
+      "ppg_quality_clf_package.pkl",
+      "tremor_detection_clf_package.pkl"
+    ],
+    "quantified_rows": 29,
+    "qt_plot_rendered": true,
+    "raw_modality_groups_verified": true,
+    "export_verified": true,
+    "cwa_samples": 36400,
+    "cwa_gait_rows": 432,
+    "cwa_plot_rendered": true,
+    "empatica_samples": 115904,
+    "empatica_inspection_verified": true,
+    "physilog_excluded_samples": 10,
+    "physilog_continuous_sections": 4,
+    "physilog_gait_rows": 92,
+    "classifier_assets_match_official_installation": true,
+    "application_version_verified": "0.5.32"
+  },
+  "remaining_limits": [
+    "No Windows Defender or other malware scan performed.",
+    "No actual publisher signing, Windows certificate chain verification or Smart App Control acceptance verified.",
+    "No parser fuzzing, exhaustive dependency source audit or network isolation test.",
+    "No enforced recording size, memory or execution-time limits.",
+    "Local history and saved results are plaintext and not authenticated by the application.",
+    "Transitive build dependencies are audited and recorded, but not fully locked with artifact hashes."
+  ],
+  "reproduction": {
+    "dependencies": "python scripts/audit_dependencies.py dependency-audit.json",
+    "dependency_consistency": "python -m pip check",
+    "source_scan": "python -m bandit -r src scripts desktop.py -f json -o source-scan.json (Bandit 1.9.4)",
+    "regressions": "QT_QPA_PLATFORM=offscreen python -m pytest tests/test_security.py tests/test_signing.py tests/test_run_management.py tests/test_bulk_runs.py tests/test_saved_results.py tests/test_result_exports.py tests/test_packaging.py tests/test_branding.py -q",
+    "frozen_linux": "QT_QPA_PLATFORM=offscreen python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio",
+    "note": "A Bandit exit code of 1 means findings were reported, not that the scan failed. Interpret retained findings and errors separately. Native Windows checks require Windows."
+  }
+}

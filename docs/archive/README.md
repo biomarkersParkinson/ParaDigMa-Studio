@@ -10,6 +10,8 @@ setup instructions; use the [documentation index](../README.md) instead.
   9 October 2026 and its validation results.
 - [Test-suite cleanup](test-suite-cleanup.md): consolidation decisions and
   validation from the cleanup based on commit `b8f84b7`.
+- [Security review, 6 October 2026](security-review-2026-10-06.md): the earlier
+  audit, superseded by the current repository security summary.
 - [Workspace gallery](workspace.md): screenshots and descriptions from multiple
   earlier revisions. Additional captures show [old graph settings](screenshots/graph-settings.png)
   and an [earlier gait overview](screenshots/results.png).
