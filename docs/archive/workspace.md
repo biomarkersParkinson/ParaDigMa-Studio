@@ -1,0 +1,176 @@
+# Historical workspace illustrations
+
+These captures span earlier development revisions and do not show the current
+interface. Some show controls or labels that have since been removed, including
+the context-duration editor and broader graph settings. The accompanying text is
+also historical. Use the [current workspace guide](../WORKSPACE.md) and
+[user guide](../USER_GUIDE.md) for present behavior.
+
+These screenshots show the native Qt development build using public sensor examples bundled with ParaDigMa. Windows executables are built and checked by the repository's GitHub Actions workflow.
+
+## Data
+
+Overview shows sample counts and separates sensor-channel descriptives from time-channel statistics. Sensor ranges, medians and IQRs use finite original samples. Sampling rate is estimated from the median positive time interval; the displayed gap threshold is 1.5 times that interval. Numeric time units are explicit, and invalid timestamps are not bridged. The recording metadata box has been removed. The panels stack in compact windows.
+
+![Data workspace](screenshots/data.png)
+
+Graphs supports checkboxes for multiple channels, Select all/Clear, stable distinct colors and a legend. Values remain in their original file units; no normalization is applied. Continuous displays are limited to 20,000 points per channel; binary indicators show every positive detection at its original timestamp. Tables and exports retain all samples.
+
+![Original sensor graphs](screenshots/data-graphs.png)
+
+Raw graph controls provide Pan (default) and Zoom; Results additionally provides
+Select timepoint as its default mode. Sensor context keeps the selected Results
+time marker. **Axis limits** opens inline X/Y bounds, shading the selected graph.
+Entering a value updates valid limits; Reset limits restores automatic ranges
+and Close dismisses the panel. Click a graph to choose its Y axis;
+time limits apply to all linked plots. Home, history and Save remain available.
+
+![Original sensor tables](screenshots/data-tables.png)
+
+## Analyze
+
+**Open sensor files** can select several recordings from the same subject.
+Data's recording selector inspects each original file. Analyze runs the entire
+selection with shared parameters; ParaDigMa combines its independently processed
+outputs and computes subject-level aggregates. Tables retain file identifiers,
+and sensor context opens the selected row's original recording. Runs and JSON
+exports retain every source path.
+
+![Inspect one recording from a multi-file selection](screenshots/multiple-files-data.png)
+
+![Configure the complete selection](screenshots/multiple-files-analyze.png)
+
+![Combined results across recording time](screenshots/multiple-files-results.png)
+
+These multi-file examples split the bundled recorded IMU fixture into two files,
+using its documented UTC start. Real recording clocks share one date/time axis;
+files without comparable clocks use an explicitly labeled file-order timeline.
+
+Select any combination of gait, tremor and pulse rate. All settings are in one Analysis parameters panel with comfortable spacing and uniform circular **i** buttons for inline documented guidance. Parameters fit together at normal window sizes; smaller windows and expanded help can scroll. Axis and column-mapping examples make the mapping direction explicit. Run Analysis and Stop Analysis share the fixed status row below the settings; Configure analysis uses the same row on Data. Opening or replacing help leaves the fields stationary and does not briefly clip the lower rows. Combined IMU/pulse selections run two official workflows in the background and retain successful outputs if another workflow fails.
+
+Gap splitting, maximum gap and minimum section duration are grouped together. Splitting defaults to off; both thresholds default to 1.5 seconds, matching the official package, and each has a **Default** button. **Already prepared** is the last field.
+
+![Analysis workspace](screenshots/analyze.png)
+
+![A smaller window preserves spacing and allows scrolling](screenshots/analyze-compact.png)
+
+![Inline guidance with readable documentation links](screenshots/analyze-help.png)
+
+## Results
+
+Overview, Graphs and Tables stay in one fixed tab row near the page heading. The single Export button sits alongside the tabs; the recording name and view controls sit below. Scrolling each view leaves navigation in place.
+
+Overview shows official aggregate values and relevant metadata grouped into module
+cards. Gait segment metadata is summarized by counts and duration distributions;
+individual segment records are reserved for detailed inspection. Graph zoom
+does not replace the official aggregate values with selection statistics.
+
+![Result overview](screenshots/results.png)
+
+Tremor shows tremor during rest, power measures and arm-at-rest percentage in
+one set of cards, with two decimal places and no subcategory headings. Arm-at-rest
+percentage uses the official resting-window and total-window counts; missing values
+stay blank. Original tables and exports retain full precision and metadata.
+
+Graphs contain classifications and quantifications. The Plot
+series tree supports multiple modules and metrics simultaneously. Long names wrap
+in full, and plots stay together by module in the same order as the tree, with vertically
+aligned plots sharing recording date/time. A pinned time axis stays at the bottom while graphs scroll and follows pan, zoom and time selections. Dates come from source timestamps or
+metadata; files with only elapsed time can use a user-supplied time origin.
+Gait bars are estimated within explicit segment boundaries; timing details retain that distinction.
+Plot series is the sole graph selector. Graphs use a consistent palette, subtle
+grids and shared bottom time labels; scrolling works over the graph canvas.
+The shared View selector switches every selected graph between Detailed and
+30-minute epochs. Epochs align to calendar half-hours when a recording clock
+is available, or elapsed half-hours otherwise. Binary predictions show the
+percentage of finite observations that are positive; continuous outcomes show
+the median of finite observations. Gait and filtered-gait predictions instead
+use a shared observed-time denominator: filtered positives are intersected with
+detected gait, so their percentage cannot exceed gait presence. Gait-positive
+time without filtering predictions is excluded from both denominators.
+Gait range of motion and peak velocity medians require at least 90 seconds of
+the corresponding unfiltered or filtered gait presence in that epoch. Tremor
+power medians require at least 90 seconds of checked tremor presence. The same
+threshold applies to partial epochs; overlapping intervals are counted once.
+Presence uses aligned prediction intervals, with known gait-segment bounds as
+a fallback for saved results without classifications. Unknown presence leaves
+the median blank. This rule affects the 30-minute graphs only.
+Missing outputs leave gaps rather than becoming zero. Prepared-input availability shows unioned covered time as a
+percentage of the recording span within each epoch, including partial edge
+epochs. Clicking an epoch bar selects a nearby original output row within it;
+tables, exports and pipeline calculations remain unchanged.
+Binary predictors show compact filled tracks at the output update cadence, with less white space and no redundant vertical-axis label. Positive intervals remain filled when zoomed in; recording gaps, zero and missing states stay blank. Tremor statistics remain in the overview. Automatic Y limits fit the bars within the visible time interval; manual limits remain fixed. Selected Plot series text stays dark and readable on a pale background, including on hover. Analyze module buttons, overview cards and result series share muted blue (gait), purple (tremor) and teal (pulse rate).
+
+Gait Classification includes probabilities and window presence indicators, using
+the bundled detection/filtering thresholds shown in their tooltips. These are
+window comparisons; filtered-positive intervals are restricted to detected
+gait. They are distinct from ParaDigMa's final labels based on averaging
+overlapping windows. Original tables and exports retain their official columns.
+
+![Gait window probabilities and threshold-based presence](screenshots/gait-presence.png)
+
+The **View** selector sits at the right of the figure toolbar. **Inspect sensor context** shares the recording-time label row at the bottom right, below the pinned ticks. Click module titles or their arrows to expand or collapse Plot series lists. Tremor graphs expose checked tremor presence, arm-at-rest predictions and tremor power; raw tables retain the other classifier outputs. Selecting a point or table row shows a shared vertical time marker, highlights its plotted values and labels the selected row/time on the pinned axis. Estimated gait positions remain explicitly labeled.
+
+Set **Time origin** in Analyze. Its calendar and clock default to the original
+recording when possible; Default restores this value. Results has no time filters.
+Time and date appear on separate lines, and graph zoom leaves all table rows intact.
+Continuous outputs use bars, with gaps for missing measurements. **Data coverage**
+tracks show coverage of the actual prepared input supplied to each pipeline.
+
+![Interactive result graphs](screenshots/graphs.png)
+
+**Export…** opens one chooser for JSON/CSV and selected output tables or metadata.
+Multiple CSV tables are packaged in a ZIP.
+
+![Selective export](screenshots/export.png)
+
+Tables uses Gait, Tremor and Pulse rate tabs. Each module's dropdown lists its classification, quantification and aggregation tables, including filtered/unfiltered branches where available. Original output columns and values are the default; **Timing details** optionally adds recording timestamps and gait timing annotations. Aggregation dictionaries retain their original keys/values in separate tables and CSV exports, covering the entire run and do not change with graph zoom.
+
+![Detailed result tables](screenshots/results-tables.png)
+
+![Original classification output](screenshots/results-classification.png)
+
+![Full-run aggregation output](screenshots/results-aggregation.png)
+
+Sensor context opens in a full-size tab. In the prepared-IMU example, explicit gait-segment
+metadata links a derived arm-swing result to original sensor samples. Drill-down
+uses the entire recorded segment, rather than treating an estimated point as an
+observed arm-swing timestamp. The CWA example can return a tremor aggregation
+error when too few tremor windows are detected; available detail remains visible.
+Graphs uses the Data page's left-hand channel checklist, with multiple signals
+overlaid in distinct colors. The figure fits the available height without page
+scrolling; original samples remain available in Tables.
+
+![Original sensor context](screenshots/sensor-context.png)
+
+## Runs
+
+Select a run to review status and its Parameters, Warnings, Errors, Outputs and Processing log tabs below the history list. Warning and error counts in the history list match their separate detail tabs. Partial results retain the failed modules’ errors; successful runs with warnings are labeled accordingly. Session results and explicitly exported JSON can be reopened here. Delete Run, or the Delete key in the list, removes a run and its associated exports after a readable confirmation. Original inputs and shared exports are protected. Cancelled jobs retain their status and log.
+
+![Run history](screenshots/runs.png)
+
+## Acknowledgement and citation
+
+**About**, at the bottom of the sidebar and available on every page, credits the official ParaDigMa
+authors and provides research references, a copyable BibTeX entry and the complete
+upstream licence. Attribution files also accompany the executable.
+
+![ParaDigMa acknowledgement and research citations](screenshots/acknowledgements.png)
+
+## Compact layout
+
+The sidebar starts collapsed and swiftly unfolds on hover. It overlays the page without shifting its controls and collapses when the pointer leaves. Navigation numbers, brand text and the left-aligned About button keep fixed positions throughout the animation; the subtitle stays on one line. The expanded width adapts to the system's font metrics so the text fits on Windows. Controls are integrated into each page, and settings persist while navigating.
+
+[Sidebar expanded on hover](screenshots/sidebar-expanded.png)
+
+![Compact analysis layout](screenshots/analyze-compact.png)
+
+Dropdowns use dark text on white and white text on blue for the selected item,
+including when the operating system uses a dark palette. The outer popup also
+uses a white background, without dark strips above or below the list. Parameter
+checkboxes use explicit borders and checkmarks. All table headings align left
+and keep their full text, with horizontal scrolling for wider tables.
+
+![Dropdown popup](screenshots/dropdown.png)
+
+See the [README](../../README.md) for file formats, input-unit requirements, local-history storage and executable download instructions.

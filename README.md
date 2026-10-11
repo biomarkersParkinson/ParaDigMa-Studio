@@ -16,8 +16,8 @@ Performance measurements are in the separate **ParaDigMaStudio-build-reports**
 artifact; you do not need that download to run the app. Keep `_internal`, the
 licence/citation files, and the security/checksum files with the executable.
 
-The ordinary Windows build is **unsigned**. If Smart App Control blocks it, temporarily disable it
-or see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
+The ordinary Windows build is **unsigned**. If Smart App Control blocks it, see
+the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
 A verified signing identity must be configured before the signed workflow can produce a trusted build.
 
 ## Your first analysis
@@ -25,10 +25,10 @@ A verified signing identity must be configured before the signed workflow can pr
 1. **Data:** Open one or more wrist sensor recordings for the same subject (Ctrl/Shift-select
    in the file picker). Use the recording selector to inspect each file's sensor and time statistics,
    overlay selected channels in Graphs, or view original samples in Tables.
-3. **Analyze:** Run any combination of gait, tremor and pulse rate analysis modules.
+2. **Analyze:** Run any combination of gait, tremor and pulse rate analysis modules.
    Review units, time representation, watch side and channel mapping; use each
    field's **i** button for guidance. Then click **Run Analysis**.
-4. **Results:** Overview shows module aggregates and metadata. Graphs compare
+3. **Results:** Overview shows module aggregates and metadata. Graphs compare
    selected metrics from multiple modules across recording time; Tables includes each module's
    classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
@@ -36,7 +36,7 @@ A verified signing identity must be configured before the signed workflow can pr
    and continuous medians). Gait range of motion / peak velocity and tremor
    power require at least 90 seconds of the corresponding presence per epoch.
    Tables and exports retain the original outputs.
-6. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
+4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
    run, after confirmation. Original sensor files are preserved.
 
@@ -50,7 +50,7 @@ Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
 Click **Save results** to store the complete current run locally and reopen it
 from **Runs** after restarting. Closing warns about any unsaved runs, with options
-to save them, discard them or cancel. [See the workspace screenshots](docs/WORKSPACE.md).
+to save them, discard them or cancel. [See the workspace guide](docs/WORKSPACE.md).
 
 ## Supported input
 
@@ -70,7 +70,8 @@ Pickle files can execute code: open only trusted files.
 - [User guide](docs/USER_GUIDE.md): units, preparation, statistics, exports and common issues.
 - [Official ParaDigMa documentation](https://biomarkersparkinson.github.io/paradigma/): scientific methods and device requirements.
 - [Output verification](docs/SCIENTIFIC_TESTS.md): comparisons with the official analysis modules from the **official ParaDigMa 1.1.2 toolbox**.
-- [Development and building](docs/DEVELOPMENT.md), [codebase audit](docs/CODEBASE_AUDIT.md), [performance review](docs/PERFORMANCE.md), and [security](SECURITY.md).
+- [Documentation index](docs/README.md): development, architecture, tests, performance and historical reports.
+- [Security](SECURITY.md) and [signing](SIGNING.md).
 
 ## License
 

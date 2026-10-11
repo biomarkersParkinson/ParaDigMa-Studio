@@ -14,7 +14,8 @@ Actions artifacts, rather than in the source repository.
 | `tests/` | UI, processing, security, startup, performance and scientific-equivalence tests |
 | `tests/data/paradigma/` | Independent official reference fixtures and checksums, excluded from the executable |
 | `scripts/` | Build, frozen-app verification, benchmarks, dependency auditing and signing |
-| `docs/` | User and developer documentation, validation, performance and audit reports |
+| `docs/` | Current user, developer, validation and performance guides; start with `docs/README.md` |
+| `docs/archive/` | Version-specific audits, measurements and historical screenshots |
 | `.github/workflows/` | Ordinary and signed Windows build pipelines |
 
 `desktop.py` is the launcher. `pyproject.toml` defines dependencies, packaging,
@@ -39,7 +40,7 @@ pytest and Ruff checks. `README.md` is the user entry point; `SECURITY.md` and
 | Run metadata, deletion and JSON reopening | `history.py` |
 | Reusable Qt controls, lazy run-record tables and forms | `widgets.py`, `time_controls.py` |
 | Graph controls, rendering, selection overlay and pinned time axis | `plot_controls.py`, `plotting.py`, `time_axis.py` |
-| Palette, typography and packaged resource paths | `theme.py`, `assets.py` |
+| Application identity, compatible user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |
 | Matplotlib font-cache initialization | `bootstrap.py`, `plot_cache.py` |
 | About, licences and citations | `acknowledgements.py`, `data/notices/` |
 | Packaged startup and scientific smoke probes | `startup.py`, `smoke.py` |
@@ -68,6 +69,6 @@ Use `storage.atomic_file` for destination replacement and `recording_files` /
 escaping and original-input protections compatible with existing saved runs.
 
 Run the [development checks](DEVELOPMENT.md) before submitting changes. The
-[codebase audit](CODEBASE_AUDIT.md) records the refactoring and validation scope.
-The [test suite guide](TEST_SUITE.md) maps checks to current features and records
-the coverage-preserving test cleanup.
+[archived codebase audit](archive/codebase-audit-0.5.23.md) records the earlier
+refactoring and its validation scope. The [test suite guide](TEST_SUITE.md) maps
+checks to current features.

@@ -153,8 +153,9 @@ self-contained: no upstream checkout, network download, extra pytest plugin or
 patient recording is required.
 
 The [test suite guide](TEST_SUITE.md) describes the feature-based organization
-and shared UI helpers. All 31 scientific cases, their independent references and
-numerical tolerances are retained through the test cleanup.
+and shared UI helpers. The scientific cases, their independent references and
+numerical tolerances are maintained separately from the
+[historical test cleanup](archive/test-suite-cleanup.md).
 
 These are comparisons with a live independent reference workflow, not frozen
 golden outputs. They detect wrapper differences from the installed official

@@ -80,6 +80,9 @@ QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m py
 .venv/bin/python desktop.py
 ```
 
+The interactive launcher requires a graphical desktop. Use offscreen pytest and
+the packaged probes for a headless cloud environment.
+
 Headless UI tests configure a 1920×1080 virtual Qt screen using
 `tests/data/qt-offscreen.json`. Qt's default 800×800 screen is smaller than the
 app's minimum width and can clip visibility checks on Windows. Graph-workspace
@@ -104,6 +107,6 @@ See the [repository map](REPOSITORY.md) for folder and module responsibilities
 and the [test suite guide](TEST_SUITE.md) for coverage, shared fixtures and
 regression-test maintenance.
 
-Read the [performance review](PERFORMANCE.md) before changing import timing or
+Read the [performance guide](PERFORMANCE.md) before changing import timing or
 bundle exclusions. Runtime optimization must preserve native libraries, model
 assets, supported formats and scientific output.

@@ -1,5 +1,9 @@
 # Codebase audit and refactoring — 0.5.23
 
+Historical report: validation and measurements describe this refactor only.
+For current architecture and checks, see the [repository map](../REPOSITORY.md)
+and [test suite guide](../TEST_SUITE.md).
+
 Reviewed on 9 October 2026 against version 0.5.22, commit `1f495f6`. The objective
 was internal quality and maintainability while preserving the application UI,
 scientific processing, saved outputs and existing workflows.
@@ -55,7 +59,7 @@ resource directory.
 `pip check` reports no broken requirements. The installed dependency audit
 reviewed **87 packages**, with no blocking findings and two advisory entries
 covered by the existing documented Python-binding exception for
-`CVE-2026-25087`; see [security](../SECURITY.md).
+`CVE-2026-25087`; see [security](../../SECURITY.md).
 
 Official ParaDigMa remains pinned to **1.1.2**. Runtime dependencies, classifier
 assets, licensed recordings, supported file readers, native DLL collection and
@@ -88,7 +92,7 @@ with queued Qt painting included. Selected results:
 There is no material regression in these measurements; faster timings alone do
 not establish a repeatable speedup from a structural refactor. JSON and CSV ZIP
 exports have identical byte counts before and after (6,065,028 and 168,997 bytes).
-[Raw measurements](performance-review-0.5.23.json) include every workflow and
+[Raw measurements](performance/performance-review-0.5.23.json) include every workflow and
 individual timing. Five fresh-process launches of the packaged app had median
 first-paint and launch-to-report times of 1.112 and 1.340 seconds, respectively;
 none loaded analysis modules at startup. The Linux bundle is 565,615,703 bytes
@@ -102,5 +106,5 @@ mixins deliberately use its existing controls and callbacks; this preserves Qt
 ownership and signal behavior during this refactor. New computation belongs in
 Qt-independent helpers. Future substantial page changes can introduce standalone
 controllers where ownership is clear, with the current regressions protecting
-the transition. See the [repository map](REPOSITORY.md) and
-[development checks](DEVELOPMENT.md).
+the transition. See the [repository map](../REPOSITORY.md) and
+[development checks](../DEVELOPMENT.md).

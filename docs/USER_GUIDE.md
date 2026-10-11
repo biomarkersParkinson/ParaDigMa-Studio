@@ -3,7 +3,7 @@
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
 
 **About** at the bottom of the sidebar (or **F1**) opens the ParaDigMa acknowledgement, official
-software citation, pipeline publication links and full Apache 2.0 licence.
+software citation, pipeline publication links and the Studio and ParaDigMa licences.
 **Copy software citation** copies the upstream BibTeX entry for research use.
 
 ## Input and analysis settings
@@ -26,8 +26,10 @@ selected source file from overwriting. A load/preparation failure names the
 affected recording; processing errors retain available partial pipeline outputs.
 
 Choose any combination of gait, tremor and pulse rate in **Analysis modules**.
-Set processing options in **Analysis parameters**. Each field's **i** button expands
-inline guidance with a reference to the official ParaDigMa documentation.
+Set processing options in **Analysis parameters**. Each field's **i** button opens
+guidance below the parameters with a reference to the official ParaDigMa documentation.
+Only one explanation is shown at a time; opening another replaces it without
+moving the fields.
 Device axes includes ParaDigMa's original reference figure and a direct link to its
 Coordinate System guide. The example explains each signed mapping; column-mapping
 examples rename your file's columns to the required toolbox names.
@@ -90,11 +92,14 @@ and a legend. Each modality has its own value axis and shares the time axis.
 Values retain their file units. Data **Tables** shows original samples.
 
 Results **Overview** shows official aggregates and relevant pipeline metadata in
-module cards. Individual recording cards show the timespan, data coverage in
-days and hours plus its percentage of the timespan, and gaps, without duplicating
-identical workflows. Gait segment metadata
-is summarized by counts and duration distributions; individual segment records
-remain in the metadata export.
+module cards. Recording summaries show the timespan, data coverage in days and
+hours plus its percentage of the timespan, and gaps, without duplicating
+identical workflows. Gait has **Quantity**, **Range of motion** and **Peak velocity**
+charts, grouped by filtered/unfiltered gait and then duration category. Quantity
+shows duration in minutes and integer segment counts; the count bins use original
+unfiltered segment durations, with 20 seconds in the ≥20-second bin. Other bar
+labels use one decimal, except CV ratios, which use two. Individual segment records
+remain in the metadata export; display rounding does not change official values.
 
 Results **Graphs** compares classifications and quantifications across modules.
 Check metrics in **Plot series**. Aligned plots share one time axis, with time and
@@ -127,8 +132,8 @@ The tremor overview shows percentage tremor during rest, official power measures
 and percentage arm at rest with two decimal places, without subcategory labels.
 Arm-at-rest percentage uses resting windows divided by all quantified windows.
 Original tables, metadata and exports keep their full precision.
-Tremor's duplicate arm-rest and checked-tremor
-predictors appear only under Classification in Plot series.
+Tremor's arm-rest and checked-tremor predictors each appear once in Plot series;
+the original tables retain the duplicate output columns.
 
 **Data coverage** tracks show coverage of the actual prepared samples handed to
 the pipelines, reflecting excluded rows and discarded sections. Identical workflows
@@ -145,7 +150,18 @@ probabilities. Raw tables retain the official probability columns.
 
 **View**, at the right of the figure toolbar, switches all graphs between Detailed
 and 30-minute epochs. Continuous values show the median; binary predictions show
-percentages. Plots are grouped by module, following Plot series order, and long
+percentages. Epochs align to calendar half-hours when a recording clock is known,
+or elapsed half-hours otherwise. Gait range of motion and peak velocity require
+at least 90 seconds of the corresponding filtered or unfiltered gait presence
+per epoch; tremor power requires at least 90 seconds of checked tremor presence.
+Overlapping presence intervals count once. The same threshold applies to partial
+epochs, and unknown presence leaves the median blank. For older saved results
+without gait classifications, known gait-segment boundaries provide the fallback.
+Data coverage instead shows covered time as a percentage of the recording span
+within each epoch, including partial edge epochs. These summaries affect graphs
+only; tables, exports and official aggregates remain unchanged.
+
+Plots are grouped by module, following Plot series order, and long
 series names wrap in full. Gait and filtered gait share one observed-time denominator, so filtered
 gait cannot have a higher percentage. Gait-positive time without filtering results
 is excluded from both denominators. Other binary outcomes use finite observations.
@@ -232,14 +248,15 @@ at their original paths and remain available through Runs.
 Cancellation stops the owned analysis process, removes its temporary files and records
 **Cancelled** in Runs without treating cancellation as an analysis error.
 
-Select a completed or cancelled run and choose **Delete Run…**, or press **Delete**
-while the run list has focus. A confirmation lists the associated exports to be
+Select one or more runs using Ctrl/Shift and choose **Delete Run(s)…**, or press
+**Delete** while the run list has focus. **Clear all…** deletes all runs after confirmation.
+A confirmation lists the associated saved results and exports to be
 permanently removed with the history entry. Original sensor files, TSDF companions
 and exports referenced by another run are protected. Running jobs cannot be deleted.
 Reused parameters apply to the currently selected input; check it before running.
 
 Shortcuts: **Ctrl+O** opens recordings, **Ctrl+S** saves results, **Ctrl+Enter** runs analysis, **Alt+1–4** switches
-pages, **Delete** deletes a selected run after confirmation, and **F1** opens About.
+pages, **Delete** deletes selected runs after confirmation, and **F1** opens About.
 
 ## Common issues
 

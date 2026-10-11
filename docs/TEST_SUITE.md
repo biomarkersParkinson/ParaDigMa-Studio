@@ -21,9 +21,11 @@ trigger and expected behavior still apply.
 | Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_pan_performance.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, serialization and background completion | `test_result_exports.py` |
+| Complete local snapshots, reopening and unsaved-close warnings | `test_saved_results.py` |
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
-| Startup, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_acknowledgements.py`, `test_signing.py` |
+| Startup, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
+| Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export
@@ -49,41 +51,11 @@ scientific processing and comparisons do not depend on the old `apply_filters`
 compatibility alias. Test names distinguish plot zoom, row selection and sensor
 context from scientific filtered-gait processing.
 
-## Cleanup record
-
-The cleanup starts from commit `b8f84b7`, with **386 collected cases**:
-
-- Moved 37 test definitions into feature modules, replacing the mixed
-  `test_regressions.py`, `test_results_redesign.py` and
-  `test_review_performance.py` files. Their distinct numeric, safety, rendering,
-  storage and responsiveness cases remain.
-- Combined the single module-help positioning check with the broader all-fields
-  help test. The latter now also checks absolute module-button positions, button
-  sizes and the explicit 16-pixel spacing, across its existing parameter variants.
-- Combined the two basic zoom/table-preservation checks. The merged test retains
-  both original zoom ranges, including an empty visible range, and verifies the
-  full original rows, bars and CSV export.
-- Split the combined overview-clock/run-button check into two feature-specific
-  tests, preserving both expectations.
-- Renamed seven tests whose titles referred to removed Results filters or
-  ambiguous filtering. Scientific filtered-gait tests keep that terminology.
-- Consolidated identical seeded recordings and common output tables. Explicit
-  assertions, comparison calls and parameter decorators in all 272 retained
-  test definitions were checked against the previous definitions; none were
-  lost through moving or renaming. Scientific parameter combinations, fixtures,
-  expected values and numerical tolerances are unchanged.
-- Centralized headless Qt setup and removed the now-unneeded Ruff import-order
-  exception for `test_workspace.py`.
-
-The revised suite collects **385 cases**, including the same **31 scientific
-cases**. The decrease is the net result of two consolidations and one split;
-it is not removal of a scientific scenario or a Windows paint/size variant.
-
-Validation on Linux: **384 passed, 1 skipped**, with Ruff lint and formatting
-checks passing. The skipped case exercises native Windows signature verification.
-Application code, UI and dependency versions are unchanged by this cleanup.
-
 Run the suite and style checks using the [development commands](DEVELOPMENT.md).
 The [scientific methodology](SCIENTIFIC_TESTS.md) explains the independent
 references, tolerances and limits. Native Windows execution and signature checks
 remain responsibilities of the Windows build workflows.
+
+The [archived cleanup record](archive/test-suite-cleanup.md) preserves earlier
+consolidation decisions and their validation counts. Current counts come from
+pytest collection and the report for the tested commit.
