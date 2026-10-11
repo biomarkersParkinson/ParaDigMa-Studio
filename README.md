@@ -89,5 +89,7 @@ pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_studio/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
 
+OpenAI Codex was used to support the development, testing and documentation of ParaDigMa Studio.
+
 Version **0.5.32**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

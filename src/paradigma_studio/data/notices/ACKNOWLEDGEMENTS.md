@@ -15,6 +15,10 @@ source revision `4735d6d21b2a62b764a0bc7e0f677577e6ce1668`,
 [Official source](https://github.com/biomarkersParkinson/paradigma) ·
 [Official documentation](https://biomarkersparkinson.github.io/paradigma/)
 
+## Application development
+
+OpenAI Codex was used to support the development, testing and documentation of ParaDigMa Studio.
+
 ## Authors and project acknowledgements
 
 **Core team:** Erik Post, Kars Veldkamp, Nienke Timmermans, Diogo Coutinho Soriano,
@@ -79,7 +83,7 @@ their source comments and fixture provenance files. The pinned upstream source
 does not include a separate NOTICE file. Research citation is the upstream
 project's request; the Apache licence's redistribution conditions are separate.
 
-This acknowledgement and both citation files follow the official README,
+The ParaDigMa attribution and both citation files follow the official README,
 LICENSE and CITATION.cff at source revision
 [4735d6d21b2a62b764a0bc7e0f677577e6ce1668](https://github.com/biomarkersParkinson/paradigma/tree/4735d6d21b2a62b764a0bc7e0f677577e6ce1668),
 matching the pinned ParaDigMa 1.1.2 package. The upstream licence applies to the
