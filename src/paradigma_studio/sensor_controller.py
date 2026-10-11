@@ -44,7 +44,7 @@ class SensorView:
 class ChannelServices:
     selected_channels: Callable[[QListWidget], list[str]]
     check_channels: Callable[[QListWidget, list[str]], None]
-    populate_channels: Callable[..., dict[str, str]]
+    populate_channels: Callable[..., dict[str, str | tuple[float, ...] | np.ndarray]]
     plot_channel_signals: Callable[..., None]
 
 

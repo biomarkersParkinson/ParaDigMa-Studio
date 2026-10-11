@@ -82,7 +82,9 @@ class SensorState:
         default_factory=OrderedDict
     )
     _sensor_view_callbacks: dict[Axes, int] = field(default_factory=dict)
-    _sensor_channel_colors: dict[str, str] = field(default_factory=dict)
+    _sensor_channel_colors: dict[str, str | tuple[float, ...] | np.ndarray] = field(
+        default_factory=dict
+    )
 
 
 def state_property(container, name):
