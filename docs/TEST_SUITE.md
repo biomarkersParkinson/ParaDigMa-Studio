@@ -27,6 +27,7 @@ trigger and expected behavior still apply.
 | Startup, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
+| Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export
 unit test exercises special numeric values, a scientific test checks real outputs,

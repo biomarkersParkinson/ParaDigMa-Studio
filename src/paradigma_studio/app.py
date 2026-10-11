@@ -2,23 +2,18 @@
 
 import json
 from threading import Event
-from collections import OrderedDict
 import sys
 from importlib.metadata import version
 from pathlib import Path
-from datetime import datetime
 
 import numpy as np
-from PySide6.QtCore import Qt, QStandardPaths, QItemSelectionModel, QTimer
+from PySide6.QtCore import Qt, QStandardPaths, QTimer
 from PySide6.QtGui import QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QMainWindow,
-    QWidget,
     QMessageBox,
-    QTreeWidgetItem,
-    QGridLayout,
 )
 from .bootstrap import PLOT_CACHE_DIRECTORY as PLOT_CACHE_DIRECTORY
 
@@ -31,32 +26,23 @@ from .core import (
     validate_column_mapping,
     validate_orientation,
 )
-from .exploration import SensorContext, gait_context, source_timeline
-from .sensor_navigation import SensorNavigator, SensorTimeIndex
-from .recordings import load_recordings, align_recordings, source_key
-from .history import RunHistory, merge_errors, run_status, load_result_export, new_run, now
+from .recordings import load_recordings, align_recordings
+from .history import RunHistory, new_run, now
 from .inspection import inspect_recording, sensor_descriptives, time_descriptives
 from .results_view import (
     MODULE_NAMES,
-    clock_times,
-    clock_origin,
-    flat_values,
     analysis_alignment,
     output_label,
     plot_metrics,
     preferred_metric,
     recording_clock,
     normalise_clock,
-    readable_key,
-    gait_model_threshold,
-    tremor_overview_entries,
 )
 from .theme import STYLESHEET, light_palette, module_color
 from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from .previews import CachedPreview
-from .overview import recording_extent, recording_summary
 from .analysis_process import run_isolated_analysis
-from .result_data import prepare_result_data, detail_table_view
+from .result_data import detail_table_view
 from .assets import DATA_DIRECTORY
 from .branding import APP_NAME, user_storage_path
 from .ui.layout import WorkspaceLayout
@@ -66,15 +52,69 @@ from .channels import (
     check_channels,
     populate_channels,
     plot_channel_signals,
-    mark_sensor_time,
 )
 from .jobs import Worker, SignalHandler as SignalHandler
 from .widgets import ReadableTable as ReadableTable
 
-from .widgets import FrameModel, RecordModel, WrappedForm, label, card
+from .widgets import FrameModel, WrappedForm
+
+
+from .workspace_state import InputState, ResultState, RunState, SensorState, state_property
+from .result_controller import ResultController, ResultView, ResultCallbacks
+from .run_controller import RunController, RunView, RunCallbacks
+from .sensor_controller import SensorController, SensorView, ChannelServices
+from .ui.result_overview import ResultOverview
+from .ui.result_series import ResultSeries
 
 
 class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
+    # Keep the existing widget/mixin/integration API backed by one state owner.
+    # Components receive the state objects directly, rather than this window.
+    frame = state_property("_input_state", "frame")
+    source = state_property("_input_state", "source")
+    sources = state_property("_input_state", "sources")
+    recordings = state_property("_input_state", "recordings")
+    runs = state_property("_run_state", "runs")
+    active_run = state_property("_run_state", "active_run")
+    current_run = state_property("_run_state", "current_run")
+    selected_run = state_property("_run_state", "selected_run")
+    _run_row_records = state_property("_run_state", "_run_row_records")
+    _close_after_save = state_property("_run_state", "_close_after_save")
+    provenance = state_property("_result_state", "provenance")
+    tables = state_property("_result_state", "tables")
+    aggregation_tables = state_property("_result_state", "aggregation_tables")
+    _plot_tables = state_property("_result_state", "_plot_tables")
+    _plot_labels = state_property("_result_state", "_plot_labels")
+    _timings = state_property("_result_state", "_timings")
+    _interval_ends = state_property("_result_state", "_interval_ends")
+    _bar_bounds = state_property("_result_state", "_bar_bounds")
+    _display_offsets = state_property("_result_state", "_display_offsets")
+    _source_timelines = state_property("_result_state", "_source_timelines")
+    _recording_bases = state_property("_result_state", "_recording_bases")
+    _epoch_views = state_property("_result_state", "_epoch_views")
+    _epoch_presence_views = state_property("_result_state", "_epoch_presence_views")
+    _detail_selections = state_property("_result_state", "_detail_selections")
+    results = state_property("_result_state", "results")
+    result_timeline = state_property("_result_state", "result_timeline")
+    result_source_frame = state_property("_result_state", "result_source_frame")
+    display_clock = state_property("_result_state", "display_clock")
+    _gait_presence_cache = state_property("_result_state", "_gait_presence_cache")
+    _gait_epoch_cache = state_property("_result_state", "_gait_epoch_cache")
+    _plot_signature = state_property("_result_state", "_plot_signature")
+    _table_output_names = state_property("_result_state", "_table_output_names")
+    active_frame = state_property("_result_state", "active_frame")
+    display_frame = state_property("_result_state", "display_frame")
+    active_positions = state_property("_result_state", "active_positions")
+    active_selection = state_property("_result_state", "active_selection")
+    _table_views = state_property("_result_state", "_table_views")
+    sensor_frame = state_property("_sensor_state", "sensor_frame")
+    sensor_times = state_property("_sensor_state", "sensor_times")
+    _sensor_context = state_property("_sensor_state", "_sensor_context")
+    _sensor_navigator = state_property("_sensor_state", "_sensor_navigator")
+    _sensor_time_indices = state_property("_sensor_state", "_sensor_time_indices")
+    _sensor_view_callbacks = state_property("_sensor_state", "_sensor_view_callbacks")
+    _sensor_channel_colors = state_property("_sensor_state", "_sensor_channel_colors")
+
     selected_channels = staticmethod(selected_channels)
     check_channels = staticmethod(check_channels)
     populate_channels = staticmethod(populate_channels)
@@ -85,32 +125,22 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
     def __init__(self, history_dir=None):
         super().__init__()
+        self._input_state = InputState()
+        self._run_state = RunState()
+        self._result_state = ResultState()
+        self._sensor_state = SensorState()
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(QIcon(str(DATA_DIRECTORY / "app-icon.png")))
         self.resize(1450, 920)
         self.setMinimumSize(960, 650)
         self.setPalette(light_palette())
         self.setStyleSheet(STYLESHEET)
-        self.frame = self.results = self.worker = None
-        self.source = ""
-        self.sources, self.recordings = {}, {}
+        self.worker = None
         self._input_descriptions = {}
-        self._recording_bases = {}
-        self.tables, self.provenance = {}, {}
-        self.aggregation_tables, self._table_choices = {}, {}
-        self._timings, self._detail_selections, self._series_items = {}, {}, {}
-        self._interval_ends, self._bar_bounds = {}, {}
-        self._plot_tables, self._plot_labels = {}, {}
+        self._table_choices, self._series_items = {}, {}
         self._result_selection_artists = []
-        self._plot_signature = None
         self._result_shared_axes = None
-        self._epoch_views = {}
-        self._epoch_presence_views = {}
-        self._gait_presence_cache = None
-        self._gait_epoch_cache = None
-        self._table_views = OrderedDict()
         self._result_layout_index = None
-        self.display_clock = None
         self._origin_override = False
         self._origin_preview = CachedPreview(self)
         self._origin_preview.value_ready.connect(self.apply_origin_preview)
@@ -122,19 +152,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._sensor_preview.value_ready.connect(self.apply_sensor_preview)
         self._sensor_preview.failed.connect(self.append_log)
         self._data_plot_dirty = False
-        self._source_timelines, self._display_offsets = {}, {}
-        self.active_frame = None
         self.active_positions = np.array([], dtype=int)
-        self.active_selection = {}
-        self.result_source_frame = None
-        self.result_timeline = None
-        self.sensor_frame = None
-        self._sensor_context = None
-        self._sensor_navigator = None
-        self._sensor_time_indices = OrderedDict()
-        self._sensor_view_callbacks = {}
-        self.active_run = self.current_run = self.selected_run = None
-        self._close_after_save = False
         self.sidebar_collapsed = True
         directory = history_dir or user_storage_path(
             QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation), "runs"
@@ -146,6 +164,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._build_analyze()
         self._build_results()
         self._build_runs()
+        self._compose_controllers()
         self._connect()
         self.refresh_runs()
         self.navigate(0)
@@ -154,6 +173,109 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.plot()
         if history_issues:
             self.show_notice("\n".join(history_issues))
+
+    def _compose_controllers(self):
+        """Wire only the state, widgets and actions each component needs."""
+        self._overview = ResultOverview(self.overview_layout, self._result_view_scrolls[0])
+        self._series = ResultSeries(self.result_series)
+        run_view = RunView(
+            status=self.status,
+            log=self.log,
+            run_table=self.run_table,
+            run_heading=self.run_heading,
+            run_summary=self.run_summary,
+            run_details=self.run_details,
+            run_warnings=self.run_warnings,
+            run_errors=self.run_errors,
+            run_outputs=self.run_outputs,
+            open_run_button=self.open_run_button,
+            use_parameters_button=self.use_parameters_button,
+            delete_run_button=self.delete_run_button,
+            clear_runs_button=self.clear_runs_button,
+        )
+        run_callbacks = RunCallbacks(
+            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
+            clear_results=lambda *args, **kwargs: self.clear_results(*args, **kwargs),
+            start_job=lambda *args, **kwargs: self.start_job(*args, **kwargs),
+            analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
+            selected_export_table=lambda *args, **kwargs: self.selected_export_table(
+                *args, **kwargs
+            ),
+            is_busy=lambda: self.worker is not None,
+            select_run=lambda *args, **kwargs: self.select_run(*args, **kwargs),
+            update_run_actions=lambda *args, **kwargs: self.update_run_actions(*args, **kwargs),
+        )
+        result_view = ResultView(
+            results_source=self.results_source,
+            dataset=self.dataset,
+            export_button=self.export_button,
+            save_results_button=self.save_results_button,
+            status=self.status,
+            result_tabs=self.result_tabs,
+        )
+        result_callbacks = ResultCallbacks(
+            append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
+            build_result_overview=lambda *args, **kwargs: self.build_result_overview(
+                *args, **kwargs
+            ),
+            populate_result_series=lambda *args, **kwargs: self.populate_result_series(
+                *args, **kwargs
+            ),
+            selected_result_series=lambda *args, **kwargs: self.selected_result_series(
+                *args, **kwargs
+            ),
+            select_dataset=lambda *args, **kwargs: self.select_dataset(*args, **kwargs),
+            sync_table_outputs=lambda *args, **kwargs: self.sync_table_outputs(*args, **kwargs),
+            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
+            finish_run=lambda *args, **kwargs: self.finish_run(*args, **kwargs),
+            capture_warning=lambda *args, **kwargs: self.capture_warning(*args, **kwargs),
+            navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
+            is_busy=lambda: self.worker is not None,
+            align_recordings=lambda *args, **kwargs: align_recordings(*args, **kwargs),
+            analysis_alignment=lambda *args, **kwargs: analysis_alignment(*args, **kwargs),
+        )
+        sensor_view = SensorView(
+            result_table=self.result_table,
+            context_button=self.context_button,
+            dataset=self.dataset,
+            result_tabs=self.result_tabs,
+            sensor_tab_index=self.sensor_tab_index,
+            status=self.status,
+            sensor_table=self.sensor_table,
+            sensor_channels=self.sensor_channels,
+            sensor_figure=self.sensor_figure,
+            sensor_toolbar=self.sensor_toolbar,
+            sensor_canvas=self.sensor_canvas,
+        )
+        channel_services = ChannelServices(
+            selected_channels=lambda *args, **kwargs: self.selected_channels(*args, **kwargs),
+            check_channels=lambda *args, **kwargs: self.check_channels(*args, **kwargs),
+            populate_channels=lambda *args, **kwargs: self.populate_channels(*args, **kwargs),
+            plot_channel_signals=lambda *args, **kwargs: self.plot_channel_signals(*args, **kwargs),
+        )
+        self._run_controller = RunController(
+            self._run_state,
+            self._result_state,
+            self._input_state,
+            self.history,
+            run_view,
+            run_callbacks,
+            parent=self,
+        )
+        self._result_controller = ResultController(
+            self._result_state,
+            self._input_state,
+            self._run_state,
+            self._sensor_state,
+            result_view,
+            result_callbacks,
+        )
+        self._sensor_controller = SensorController(
+            self._sensor_state,
+            self._result_state,
+            sensor_view,
+            channel_services,
+        )
 
     def toggle_analysis_help(self, title, checked):
         if self._updating_analysis_help:
@@ -351,61 +473,22 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             QTimer.singleShot(0, self.close)
 
     def append_log(self, message):
-        if self.active_run is not None:
-            self.active_run["log"] += message + "\n"
-            if self.selected_run is self.active_run:
-                self.log.appendPlainText(message)
-        elif self.selected_run is None:
-            self.log.appendPlainText(message)
+        return self._run_controller.append_log(message)
 
     def capture_warning(self, message):
-        if self.active_run is not None and message not in self.active_run["warnings"]:
-            self.active_run["warnings"].append(message)
-            self.update_run_problems()
+        return self._run_controller.capture_warning(message)
 
     def capture_error(self, message):
-        if self.active_run is not None and message not in self.active_run["errors"]:
-            self.active_run["errors"].append(message)
-            self.update_run_problems()
+        return self._run_controller.capture_error(message)
 
     def update_run_problems(self):
-        record = self.active_run
-        if self.selected_run is record:
-            self.run_warnings.setPlainText(
-                "\n\n".join(record["warnings"]) or "No recorded warnings."
-            )
-            self.run_errors.setPlainText("\n\n".join(record["errors"]) or "No recorded errors.")
-            self.run_summary.setText(self.run_summary_text(record))
-        model = self.run_table.model()
-        row = next((i for i, run in enumerate(self.runs) if run is record), None)
-        if model is not None and row is not None:
-            for name in ("Warnings", "Errors"):
-                column = model.frame.columns.get_loc(name)
-                model.frame.iat[row, column] = len(record[name.lower()])
-                index = model.index(row, column)
-                model.dataChanged.emit(index, index, [Qt.DisplayRole])
+        return self._run_controller.update_run_problems()
 
     def persist_run(self, record):
-        try:
-            self.history.save(record)
-            return True
-        except (OSError, ValueError, TypeError) as exc:
-            self.show_notice(
-                f"Analysis remains available, but run history could not be saved: {exc}"
-            )
-            return False
+        return self._run_controller.persist_run(record)
 
     def finish_run(self, status, errors=()):
-        if self.active_run is None:
-            return
-        record = self.active_run
-        record["status"], record["finished"] = status, now()
-        record["errors"] = merge_errors(record["errors"], errors)
-        if record["errors"] and status == "Completed":
-            record["status"] = "Partial"
-        self.persist_run(record)
-        self.active_run = None
-        self.refresh_runs()
+        return self._run_controller.finish_run(status, errors)
 
     def failure(self, message):
         self._close_after_save = False
@@ -1010,248 +1093,14 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         return self.dataset.currentText(), getattr(self, "display_frame", None)
 
     def build_result_overview(self, prepared_views=None):
-        while self.overview_layout.count():
-            item = self.overview_layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
-        self.overview_values = {}
-        self.overview_module_cards = {}
-        self.overview_gait_charts = {}
-        results = self.results or {}
-        entries = recording_summary(results, self.provenance, self.display_clock, prepared_views)
-        if entries:
-            panel = QWidget()
-            panel.setObjectName("recordingOverviewFields")
-            grid = QGridLayout(panel)
-            grid.setContentsMargins(0, 0, 0, 0)
-            grid.setSpacing(10)
-            index = 0
-            for title, value in entries:
-                box, inside = card()
-                inside.setAlignment(Qt.AlignTop)
-                heading = label(title, "muted")
-                heading.setWordWrap(True)
-                inside.addWidget(heading)
-                display = label(str(value), "metricValue")
-                display.setWordWrap(True)
-                inside.addWidget(display)
-                if title == "Recording timespan":
-                    index = (index + 2) // 3 * 3
-                    grid.addWidget(box, index // 3, 0, 1, 3)
-                    box.setToolTip("Recording extent includes the final sample interval.")
-                    index += 3
-                else:
-                    grid.addWidget(box, index // 3, index % 3)
-                    if title.endswith("Gaps"):
-                        box.setToolTip(
-                            "Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps."
-                        )
-                    index += 1
-            self.overview_layout.addWidget(panel)
-        modules = list(
-            dict.fromkeys(
-                [
-                    *results.get("aggregations", {}),
-                    *results.get("metadata", {}),
-                    *results.get("quantifications", {}),
-                    *results.get("classifications", {}),
-                ]
-            )
+        self.overview_values, self.overview_module_cards, self.overview_gait_charts = (
+            self._overview.render(self.results, self.provenance, self.display_clock, prepared_views)
         )
-        modules = [
-            name
-            for name in modules
-            if name in MODULE_NAMES
-            or not name.startswith("desktop_")
-            and any(
-                name in results.get(stage, {})
-                for stage in ("classifications", "quantifications", "aggregations")
-            )
-        ]
-        if not modules:
-            self.overview_layout.addWidget(
-                label("Run an analysis to see module aggregates.", "muted")
-            )
-        for module in modules:
-            panel, content = card()
-            panel.setProperty("analysisModule", module)
-            self.overview_module_cards[module] = panel
-            heading = label(MODULE_NAMES.get(module, module.replace("_", " ").title()), "pageTitle")
-            heading.setProperty("analysisModule", module)
-            content.addWidget(heading)
-            for error in results.get("errors", []):
-                if isinstance(error, dict) and (
-                    error.get("pipeline") == module or module in error.get("pipelines", [])
-                ):
-                    content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
-            if module == "tremor":
-                grid = QGridLayout()
-                grid.setSpacing(10)
-                for index, (group, path, title, value, explanation) in enumerate(
-                    tremor_overview_entries(results)
-                ):
-                    box, inside = card()
-                    box.setToolTip(explanation)
-                    inside.addWidget(label(title, "muted"))
-                    try:
-                        number = float(value)
-                        text = f"{number:.2f}" if np.isfinite(number) else "—"
-                    except (TypeError, ValueError, OverflowError):
-                        text = "—"
-                    display = label(text, "metricValue")
-                    display.setToolTip(str(value))
-                    inside.addWidget(display)
-                    self.overview_values[module, group, path] = display
-                    grid.addWidget(box, index // 3, index % 3)
-                content.addLayout(grid)
-                self.overview_layout.addWidget(panel)
-                continue
-            aggregate_entries = list(flat_values(results.get("aggregations", {}).get(module, {})))
-            if module == "gait":
-                from .gait_overview import build_gait_charts
-
-                charts, self.overview_gait_charts, chart_paths = build_gait_charts(
-                    results.get("aggregations", {}).get(module, {}),
-                    metadata=results.get("metadata", {}).get(module, {}),
-                    scroll_area=self._result_view_scrolls[0],
-                )
-                for chart in charts:
-                    content.addWidget(chart)
-                aggregate_entries = [
-                    (path, value) for path, value in aggregate_entries if path not in chart_paths
-                ]
-            groups = [("Aggregates", aggregate_entries)]
-            metadata = results.get("metadata", {}).get(module, {})
-            groups.append(("Metadata", list(flat_values(metadata))))
-            for heading, entries in groups:
-                if not entries:
-                    if heading == "Aggregates" and not (
-                        module == "gait" and self.overview_gait_charts
-                    ):
-                        content.addWidget(label("No aggregates returned for this module.", "muted"))
-                    continue
-                content.addWidget(label(heading, "sectionTitle"))
-                grid = QGridLayout()
-                grid.setSpacing(10)
-                for index, (path, value) in enumerate(entries):
-                    box, inside = card()
-                    title = " · ".join(readable_key(part) for part in path) or "Value"
-                    box.setToolTip(" / ".join(path))
-                    inside.addWidget(label(title, "muted"))
-                    if (
-                        value is None
-                        or isinstance(value, (float, np.floating))
-                        and not np.isfinite(value)
-                    ):
-                        text = "—"
-                    elif isinstance(value, (float, np.floating)):
-                        text = f"{value:.5g}"
-                    else:
-                        text = str(value)
-                    display = label(text, "metricValue")
-                    display.setToolTip(str(value))
-                    inside.addWidget(display)
-                    self.overview_values[(module, heading, path)] = display
-                    grid.addWidget(box, index // 3, index % 3)
-                content.addLayout(grid)
-            self.overview_layout.addWidget(panel)
-        self.overview_layout.addStretch()
 
     def populate_result_series(self):
-        self.result_series.blockSignals(True)
-        self.result_series.clear()
-        self._series_items = {}
-        roots, default_modules = {}, set()
-        title_counts = {}
-        module_order = {
-            module: index for index, module in enumerate((*MODULE_NAMES, "preparation"))
-        }
-        names = sorted(
-            self._plot_tables,
-            key=lambda name: module_order.get(
-                "preparation" if name.startswith("preparation/") else name.split("/")[1],
-                len(module_order),
-            ),
+        self._series_items = self._series.populate(
+            self._plot_tables, self._plot_labels, self.tables
         )
-        for name in names:
-            frame = self._plot_tables[name]
-            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
-            for metric in plot_metrics(name, frame):
-                title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-                title_counts[module, title] = title_counts.get((module, title), 0) + 1
-        for name in names:
-            frame = self._plot_tables[name]
-            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
-            if module not in roots:
-                root = QTreeWidgetItem(
-                    self.result_series,
-                    [
-                        MODULE_NAMES.get(
-                            module, "Data coverage" if module == "preparation" else module.title()
-                        )
-                    ],
-                )
-                root.setForeground(0, QColor(module_color(module)))
-                root.setFlags(root.flags() & ~Qt.ItemIsUserCheckable)
-                root.setExpanded(True)
-                roots[module] = root
-            metrics = plot_metrics(name, frame)
-            default = preferred_metric(name, frame)
-            # Favor unfiltered gait and quantified outputs for initial plots.
-            choose = (
-                len(frame) > 0
-                and name.startswith("quantifications/")
-                and module not in default_modules
-                and (
-                    not name.endswith("/filtered")
-                    or not len(self.tables.get("quantifications/gait/unfiltered", []))
-                )
-            )
-            for metric in metrics:
-                title = self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-                if (
-                    module != "preparation"
-                    and len(name.split("/")) > 2
-                    and not (module == "gait" and (name, metric) in self._plot_labels)
-                ):
-                    title += (
-                        " ("
-                        + " / ".join(part.replace("_", " ").title() for part in name.split("/")[2:])
-                        + ")"
-                    )
-                elif title_counts[module, title] > 1:
-                    title += " (" + output_label(name).split(" · ", 1)[-1] + ")"
-                item = QTreeWidgetItem(roots[module], [title])
-                item.setData(0, Qt.UserRole, (name, metric))
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(
-                    0,
-                    Qt.Checked
-                    if name.startswith("preparation/") or choose and metric == default
-                    else Qt.Unchecked,
-                )
-                if module == "preparation":
-                    tooltip = (
-                        title + "\nCoverage of the prepared samples supplied to these pipelines."
-                    )
-                elif name.startswith("classifications/gait/") and metric in (
-                    "pred_gait_window",
-                    "pred_no_other_arm_activity_window",
-                ):
-                    threshold = gait_model_threshold(name.rsplit("/", 1)[-1])
-                    tooltip = (
-                        title
-                        + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
-                        "\nThese window predictions precede the final merged sample labels."
-                        "\nFiltered presence is intersected with detected gait. Both epoch percentages use the same observed time."
-                    )
-                else:
-                    tooltip = f"{name}\n{metric}"
-                item.setToolTip(0, tooltip)
-                self._series_items[(name, metric)] = item
-            if choose and default is not None:
-                default_modules.add(module)
-        self.result_series.blockSignals(False)
 
     def selected_result_series(self):
         chosen = []
@@ -1274,143 +1123,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.y_column.blockSignals(False)
 
     def analyzed(self, results):
-        self._sensor_time_indices.clear()
-        self._plot_signature = None
-        self._epoch_views.clear()
-        self._epoch_presence_views.clear()
-        self._gait_presence_cache = self._gait_epoch_cache = None
-        self._table_views.clear()
-        self._table_output_names = None
-        self.results = results
-        if self.current_run is None:
-            self.result_source_frame = self.recordings if self.recordings else self.frame
-        settings = self.provenance.get("settings", {})
-        batch_clock = None
-        self._recording_bases = {}
-        if isinstance(self.result_source_frame, dict):
-            (
-                self.result_timeline,
-                self._source_timelines,
-                self._display_offsets,
-                batch_clock,
-                self._recording_bases,
-            ) = align_recordings(self.result_source_frame, settings, results)
-        else:
-            self.result_timeline, self._source_timelines, self._display_offsets = (
-                analysis_alignment(
-                    self.result_source_frame,
-                    settings,
-                    results,
-                    self.provenance.get("display_offsets"),
-                )
-            )
-        if self._display_offsets:
-            self.provenance["display_offsets"] = dict(self._display_offsets)
-        extent = recording_extent(self.result_timeline, self._recording_bases)
-        if extent is not None:
-            self.provenance["recording_extent"] = extent
-        self.display_clock = None
-        if self.provenance.get("display_clock"):
-            try:
-                self.display_clock = normalise_clock(self.provenance["display_clock"])
-            except (ValueError, TypeError, KeyError, OverflowError):
-                self.append_log(
-                    "Stored recording clock is invalid; using available recording timing."
-                )
-                self.provenance.pop("display_clock", None)
-        if self.display_clock is None:
-            self.display_clock = (
-                batch_clock
-                if isinstance(self.result_source_frame, dict)
-                else recording_clock(self.result_source_frame, settings, self.result_timeline)
-            )
-        origin = settings.get("plot_time_origin", {})
-        if not self.provenance.get("display_clock") and origin.get("mode") == "custom":
-            self.display_clock = normalise_clock(origin["clock"])
-        elif origin.get("mode") == "elapsed":
-            self.display_clock = None
-        if self.display_clock is not None:
-            self.provenance["display_clock"] = dict(self.display_clock)
-        if self.active_run is not None:
-            self.active_run["_results"] = results
-            self.active_run["_provenance"] = dict(self.provenance)
-            self.active_run["_unsaved_results"] = True
-        self._detail_selections = {}
-        data = prepare_result_data(results, self._display_offsets)
-        self.tables, self.aggregation_tables = data.tables, data.aggregates
-        self._plot_tables, self._plot_labels = data.plot_frames, data.plot_labels
-        self._timings, self._interval_ends = data.timings, data.interval_ends
-        self._bar_bounds = data.bar_bounds
-        coverage, labels = data.coverage, data.coverage_labels
-        sources = self.provenance.get("sources", {})
-        self.results_source.setText(
-            f"{len(sources)} recordings · One subject"
-            if len(sources) > 1
-            else Path(self.provenance.get("source", self.source)).name or "Current analysis"
-        )
-        self.build_result_overview((coverage, labels))
-        self.populate_result_series()
-        self.dataset.blockSignals(True)
-        self.dataset.clear()
-        self.dataset.addItems(self.tables)
-        preferred = next(
-            (
-                name
-                for name, _ in self.selected_result_series()
-                if name.startswith("quantifications/")
-            ),
-            None,
-        )
-        if preferred is None:
-            preferred = next(
-                (
-                    name
-                    for name, frame in self.tables.items()
-                    if name.startswith("quantifications/") and len(frame)
-                ),
-                None,
-            )
-        if preferred:
-            self.dataset.setCurrentText(preferred)
-        self.dataset.blockSignals(False)
-        self.select_dataset(self.dataset.currentText())
-        self.sync_table_outputs()
-        self.export_button.setEnabled(self.worker is None)
-        self.save_results_button.setEnabled(self.worker is None and self.current_run is not None)
-        errors = results.get("errors", [])
-        if errors:
-            self.append_log(json.dumps(errors, indent=2, default=str))
-            count = len(merge_errors(self.active_run["errors"] if self.active_run else [], errors))
-            message = f"Analysis returned {count} processing error(s); inspect Runs and the partial results."
-            self.status.setText(message)
-            self.show_notice(message, "error")
-            self.finish_run("Partial", errors)
-        else:
-            has_rows = any(
-                len(v) for k, v in self.tables.items() if k.startswith("quantifications/")
-            )
-            message = (
-                "Analysis completed."
-                if has_rows
-                else "No quantified windows. See Runs for details."
-            )
-            if not has_rows:
-                self.capture_warning(message)
-            record = self.active_run or self.current_run
-            warnings = len(record["warnings"]) if record else 0
-            logged_errors = len(record.get("errors", [])) if record else 0
-            if logged_errors:
-                message = f"Analysis returned {logged_errors} processing error(s); inspect Runs and the partial results."
-                self.show_notice(message, "error")
-            elif warnings and has_rows:
-                message = f"Analysis completed with {warnings} warning(s). See Runs."
-                self.show_notice(message)
-            elif not has_rows:
-                self.show_notice(message)
-            self.status.setText(message)
-            self.finish_run("Completed")
-        self.result_tabs.setCurrentIndex(0)
-        self.navigate(2)
+        return self._result_controller.analyzed(results)
 
     def select_dataset(self, name):
         frame = self.tables.get(name)
@@ -1522,390 +1235,56 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.plot()
 
     def inspect_sensor_context(self):
-        import pandas as pd
-
-        row = self.result_table.currentIndex().row()
-        if not self.context_button.isEnabled() or row < 0:
-            return
-        try:
-            selected = self.active_frame.iloc[row]
-            parts = self.dataset.currentText().split("/")
-            module = parts[1] if len(parts) > 1 else ""
-            source_frame = self.result_source_frame
-            if isinstance(source_frame, dict):
-                key = source_key(selected.get("file_key"), self.results)
-                source_frame = source_frame[key]
-                common = self.result_timeline[key]
-                module_timeline = self._source_timelines.get(module, {}).get(key, common)
-                index = self.sensor_time_index(common, self._recording_bases[key])
-                display_timeline = index.times
-            else:
-                if self.result_timeline is None:
-                    self.result_timeline = source_timeline(
-                        source_frame, self.provenance.get("settings", {})
-                    )
-                module_timeline = self._source_timelines.get(module, self.result_timeline)
-                index = self.sensor_time_index(self.result_timeline)
-                display_timeline = index.times
-            segment = gait_context(self.results, self.dataset.currentText(), selected)
-            if "time" in selected and pd.notna(selected["time"]):
-                anchor = float(selected["time"])
-                radius = 10.0
-                start, end = anchor - radius, anchor + radius
-                include_end = True
-            elif segment is not None:
-                start, end, _ = segment
-                include_end = False
-            else:
-                raise ValueError("No explicit sensor time context is available.")
-            source_name = ""
-            if isinstance(self.result_source_frame, dict):
-                path = self.provenance.get("sources", {}).get(key, key)
-                source_name = Path(path).name
-            timing = self._timings[self.dataset.currentText()].iloc[self.active_positions[row]]
-            self._sensor_context = SensorContext(
-                source_frame,
-                module_timeline,
-                display_timeline,
-                start,
-                end,
-                float(timing["Timeline time (s)"]),
-                source_name=source_name,
-                include_end=include_end,
-            )
-            self._sensor_navigator = SensorNavigator(
-                self._sensor_context, self.display_clock, index=index
-            )
-            self.show_sensor_context()
-            self.result_tabs.setTabVisible(self.sensor_tab_index, True)
-            self.result_tabs.setCurrentIndex(self.sensor_tab_index)
-        except (ValueError, TypeError, KeyError, IndexError) as exc:
-            message = f"Sensor context unavailable: {exc}"
-            self.context_button.setToolTip(message)
-            self.status.setText(message)
+        return self._sensor_controller.inspect_sensor_context()
 
     def show_sensor_context(self):
-        context = self._sensor_context
-        positions = context.positions()
-        self.sensor_frame = context.frame.iloc[positions]
-        self.sensor_times = context.display_times[positions]
-        self.sensor_table.setModel(FrameModel(self.sensor_frame))
-        self.populate_sensor_channels()
-        self.plot_sensor()
+        return self._sensor_controller.show_sensor_context()
 
     def sensor_time_index(self, times, offset=0.0):
-        key = id(times), offset
-        if key not in self._sensor_time_indices:
-            display = np.asarray(times, dtype=float)
-            if offset:
-                display = display + offset
-            # Retain the timeline reference so a later array cannot reuse its id.
-            self._sensor_time_indices[key] = times, SensorTimeIndex(display)
-        self._sensor_time_indices.move_to_end(key)
-        while len(self._sensor_time_indices) > 4:
-            self._sensor_time_indices.popitem(last=False)
-        return self._sensor_time_indices[key][1]
+        return self._sensor_controller.sensor_time_index(times, offset)
 
     def update_sensor_view(self, axes):
-        navigator = self._sensor_navigator
-        if navigator is None or axes not in self.sensor_figure.axes:
-            return
-        limits = navigator.bounded_limits(axes.get_xlim())
-        if tuple(axes.get_xlim()) != limits:
-            axes.set_xlim(*limits, emit=False)
-        if limits == navigator.limits:
-            return
-        navigator.limits = limits
-        positions = navigator.positions(limits)
-        self.update_sensor_samples(positions, limits)
+        return self._sensor_controller.update_sensor_view(axes)
 
     def update_sensor_samples(self, positions, limits):
-        navigator = self._sensor_navigator
-        self.sensor_frame = navigator.context.frame.iloc[positions]
-        self.sensor_times = navigator.context.display_times[positions]
-        self.sensor_table.setModel(FrameModel(self.sensor_frame))
-        xs = navigator.coordinates_at(self.sensor_times)
-        step = max(1, int(np.ceil(len(xs) / 20000)))
-        channels = self.selected_sensor_channels()
-        for ax in self.sensor_figure.axes:
-            for line in ax.lines:
-                if line.get_label() in channels and line.get_gid() is None:
-                    line.set_data(xs[::step], self.sensor_frame[line.get_label()].iloc[::step])
-                elif line.get_gid() is not None:
-                    line.set_visible(limits[0] <= navigator.anchor <= limits[1])
-            for collection in ax.collections:
-                if collection.get_label() in channels:
-                    present = (
-                        self.sensor_frame[collection.get_label()]
-                        .eq(1)
-                        .fillna(False)
-                        .to_numpy(dtype=bool)
-                    )
-                    collection.set_offsets(np.column_stack((xs[present], np.ones(present.sum()))))
-            for text in ax.texts:
-                if text.get_gid() == "sensor-no-data":
-                    text.set_visible(self.sensor_frame.empty)
-                elif text.get_gid() == "selected-result-label":
-                    text.set_visible(limits[0] <= navigator.anchor <= limits[1])
-            ax.relim()
+        return self._sensor_controller.update_sensor_samples(positions, limits)
 
     def reset_sensor_context(self):
-        navigator = self._sensor_navigator
-        if navigator is None or navigator.home_limits is None:
-            return
-        self.sensor_toolbar.push_current()
-        navigator.limits = navigator.home_limits
-        for ax in self.sensor_figure.axes:
-            ax.set_xlim(*navigator.home_limits, emit=False)
-        self.update_sensor_samples(navigator.context.positions(), navigator.home_limits)
-        for ax in self.sensor_figure.axes:
-            if any(line.get_gid() is None for line in ax.lines):
-                ax.set_autoscaley_on(True)
-                ax.autoscale_view(scalex=False, scaley=True)
-        self.sensor_toolbar.push_current()
-        if self.sensor_toolbar.settings_action.isChecked():
-            self.sensor_toolbar.settings.read_axes()
-        self.sensor_canvas.draw_idle()
+        return self._sensor_controller.reset_sensor_context()
 
     def hide_sensor_context(self):
-        if self.result_tabs.currentIndex() == self.sensor_tab_index:
-            self.result_tabs.setCurrentIndex(1)
-        self.result_tabs.setTabVisible(self.sensor_tab_index, False)
+        return self._sensor_controller.hide_sensor_context()
 
     def selected_sensor_channels(self):
-        return self.selected_channels(self.sensor_channels)
+        return self._sensor_controller.selected_sensor_channels()
 
     def set_sensor_channels(self, channels):
-        self.check_channels(self.sensor_channels, channels)
-        self.plot_sensor()
+        return self._sensor_controller.set_sensor_channels(channels)
 
     def populate_sensor_channels(self):
-        selection = self.selected_sensor_channels() if self.sensor_channels.count() else None
-        mapping = self.provenance.get("settings", {}).get("column_mapping", {})
-        self._sensor_channel_colors = self.populate_channels(
-            self.sensor_channels,
-            self.sensor_frame,
-            excluded={column for column, target in mapping.items() if target == "time"},
-            selection=selection,
-        )
-        # Keep the chosen channels across context windows. A different recording
-        # with no matching channels gets its first channel; an explicit Clear
-        # remains empty until the user selects channels again.
-        if selection and not self.selected_sensor_channels() and self.sensor_channels.count():
-            self.check_channels(
-                self.sensor_channels, [self.sensor_channels.item(0).data(Qt.UserRole)]
-            )
+        return self._sensor_controller.populate_sensor_channels()
 
     def plot_sensor(self, *_):
-        # Clearing axes emits limit changes. These belong to the old figure,
-        # not a user pan, and must not replace the current context samples.
-        self.disconnect_sensor_view()
-        context = self._sensor_context
-        navigator = self._sensor_navigator
-        if context is not None and (
-            navigator is None
-            or navigator.context is not context
-            or navigator.clock != self.display_clock
-        ):
-            navigator = self._sensor_navigator = SensorNavigator(
-                context, self.display_clock, index=self.sensor_time_index(context.display_times)
-            )
-        view_limits = navigator.limits if navigator is not None else None
-        xs = (
-            clock_times(self.sensor_times, self.display_clock)
-            if self.sensor_frame is not None
-            else []
-        )
-        calendar = self.display_clock is not None
-        self.plot_channel_signals(
-            self.sensor_figure,
-            self.sensor_frame,
-            self.selected_sensor_channels(),
-            self._sensor_channel_colors,
-            xs,
-            "Recording date/time" if calendar else "Analysis time (s)",
-            column_mapping=self.provenance.get("settings", {}).get("column_mapping", {}),
-            calendar=calendar,
-            timezone=clock_origin(self.display_clock).tz if calendar else None,
-            allow_empty=self._sensor_context is not None,
-            empty_schema=self._sensor_context.frame if self._sensor_context is not None else None,
-        )
-        if context is not None and self.selected_sensor_channels():
-            mark_sensor_time(self.sensor_figure, context.selected_time, self.display_clock)
-            if navigator is not None:
-                if view_limits is not None or self.sensor_frame.empty:
-                    for ax in self.sensor_figure.axes:
-                        ax.set_xlim(*(view_limits or navigator.initial_limits), emit=False)
-                navigator.limits = self.sensor_figure.axes[0].get_xlim()
-                if navigator.home_limits is None:
-                    navigator.home_limits = navigator.limits
-                for ax in self.sensor_figure.axes:
-                    for artist in [*ax.lines, *ax.texts]:
-                        if artist.get_gid() is not None:
-                            artist.set_visible(
-                                navigator.limits[0] <= navigator.anchor <= navigator.limits[1]
-                            )
-                    self._sensor_view_callbacks[ax] = ax.callbacks.connect(
-                        "xlim_changed", self.update_sensor_view
-                    )
-                    message = ax.text(
-                        0.5,
-                        0.5,
-                        "No original samples in this context",
-                        ha="center",
-                        transform=ax.transAxes,
-                        color="#60728A",
-                    )
-                    message.set_gid("sensor-no-data")
-                    message.set_visible(self.sensor_frame.empty)
-        self.sensor_toolbar.refresh()
-        self.sensor_canvas.draw_idle()
+        return self._sensor_controller.plot_sensor(*_)
 
     def disconnect_sensor_view(self):
-        for ax, callback in self._sensor_view_callbacks.items():
-            ax.callbacks.disconnect(callback)
-        self._sensor_view_callbacks.clear()
+        return self._sensor_controller.disconnect_sensor_view()
 
     def refresh_runs(self):
-        selected_ids = {record["id"] for record in self.selected_run_records()}
-        if self.selected_run is not None and not any(
-            record is self.selected_run for record in getattr(self, "_run_row_records", ())
-        ):
-            selected_ids = {self.selected_run["id"]}
-        model = RecordModel(
-            [
-                {
-                    "Started": datetime.fromisoformat(record["started"])
-                    .astimezone()
-                    .strftime("%d %b %Y · %H:%M"),
-                    "Status": run_status(record),
-                    "Input": (
-                        f"{len(record['sources'])} recordings"
-                        if len(record.get("sources", {})) > 1
-                        else Path(record["source"]).name
-                    ),
-                    "Modules": ", ".join(record["settings"].get("pipelines", [])),
-                    "Warnings": len(record["warnings"]),
-                    "Errors": len(record.get("errors", [])),
-                    "Exports": len(record["outputs"]),
-                }
-                for record in self.runs
-            ],
-            columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"],
-        )
-        self._run_row_records = tuple(self.runs)
-        self.run_table.setModel(model)
-        self.run_table.setColumnWidth(0, 176)
-        self.run_table.setColumnWidth(2, 170)
-        self.run_table.selectionModel().currentRowChanged.connect(self.select_run)
-        self.run_table.selectionModel().selectionChanged.connect(self.update_run_actions)
-        if self.runs:
-            index = next(
-                (i for i, record in enumerate(self.runs) if record is self.selected_run), 0
-            )
-            selection = self.run_table.selectionModel()
-            selection.blockSignals(True)
-            selection.setCurrentIndex(
-                self.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate
-            )
-            rows = [i for i, record in enumerate(self.runs) if record["id"] in selected_ids] or [
-                index
-            ]
-            for row in rows:
-                selection.select(
-                    self.run_table.model().index(row, 0),
-                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
-                )
-            selection.blockSignals(False)
-            self.select_run(selection.currentIndex(), None)
-        else:
-            self.selected_run = None
-        self.update_run_actions()
+        return self._run_controller.refresh_runs()
 
     def select_run(self, current, previous):
-        if not current.isValid() or current.row() >= len(self.runs):
-            return
-        record = self.runs[current.row()]
-        self.selected_run = record
-        self.run_heading.setText(
-            f"{run_status(record)} · "
-            + (
-                f"{len(record['sources'])} recordings"
-                if len(record.get("sources", {})) > 1
-                else Path(record["source"]).name
-            )
-        )
-        self.run_heading.setToolTip(f"Run ID: {record['id']}")
-        self.run_summary.setText(self.run_summary_text(record))
-        self.run_details.setPlainText(
-            "\n".join(
-                f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}"
-                for key, value in record["settings"].items()
-            )
-        )
-        self.run_warnings.setPlainText(
-            "\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings."
-        )
-        self.run_errors.setPlainText("\n\n".join(record.get("errors", [])) or "No recorded errors.")
-        self.run_outputs.setPlainText(
-            "\n\n".join(
-                f"{item.get('kind', 'Export')}: {item.get('path', '')}"
-                for item in record["outputs"]
-            )
-            or "No exports saved."
-        )
-        self.log.setPlainText(record.get("log", ""))
-        self.update_run_actions()
+        return self._run_controller.select_run(current, previous)
 
     @staticmethod
     def run_summary_text(record):
-        started = (
-            datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
-        )
-        finished = (
-            datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S")
-            if record.get("finished")
-            else "—"
-        )
-        return (
-            f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
-            f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}"
-        )
+        return RunController.run_summary_text(record)
 
     def selected_run_records(self):
-        selection = self.run_table.selectionModel()
-        rows = selection.selectedRows() if selection is not None else []
-        records = getattr(self, "_run_row_records", ())
-        return [
-            records[index.row()]
-            for index in sorted(rows, key=lambda index: index.row())
-            if index.row() < len(records)
-        ]
+        return self._run_controller.selected_run_records()
 
     def update_run_actions(self, *_):
-        records = self.selected_run_records()
-        count = len(records)
-        current = self.run_table.currentIndex()
-        desired = (
-            records[0]
-            if count == 1
-            else (self._run_row_records[current.row()] if count > 1 and current.isValid() else None)
-        )
-        if desired is not None and self.selected_run is not desired:
-            row = next(i for i, record in enumerate(self._run_row_records) if record is desired)
-            self.select_run(self.run_table.model().index(row, 0), None)
-            return
-        record = self.selected_run
-        available = record is not None and (
-            "_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"])
-        )
-        self.open_run_button.setEnabled(bool(available) and count == 1 and self.worker is None)
-        self.use_parameters_button.setEnabled(
-            record is not None and count == 1 and self.worker is None
-        )
-        self.delete_run_button.setEnabled(count > 0 and self.worker is None)
-        self.delete_run_button.setText(f"Delete {count} Runs…" if count > 1 else "Delete Run…")
-        self.clear_runs_button.setEnabled(bool(self.runs) and self.worker is None)
+        return self._run_controller.update_run_actions(*_)
 
     def delete_run(self):
         self.delete_runs(self.selected_run_records())
@@ -1914,125 +1293,13 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.delete_runs(list(self.runs), clear_all=True)
 
     def delete_runs(self, records, *, clear_all=False):
-        if not records or self.worker is not None:
-            return
-        original_runs = list(self.runs)
-        protected = [
-            self.source,
-            *self.sources.values(),
-            *self.provenance.get("sources", {}).values(),
-        ]
-        removed = []
-        try:
-            files = list(
-                dict.fromkeys(
-                    path
-                    for record in records
-                    for path in self.history.removal_files(
-                        record, original_runs, protected, removing=records
-                    )
-                )
-            )
-            warning = QMessageBox(self)
-            warning.setPalette(light_palette())
-            warning.setStyleSheet(STYLESHEET)
-            warning.setIcon(QMessageBox.Warning)
-            warning.setWindowTitle(
-                "Clear all runs"
-                if clear_all
-                else "Delete runs"
-                if len(records) > 1
-                else "Delete run"
-            )
-            warning.setText(
-                "Delete all runs and their associated exports?"
-                if clear_all
-                else f"Delete these {len(records)} runs and their associated exports?"
-                if len(records) > 1
-                else "Delete this run and its associated exports?"
-            )
-            warning.setInformativeText(
-                f"{len(records)} history entry/entries and {len(files)} export file(s) will be permanently deleted. "
-                "Original sensor files and exports referenced by runs you keep are preserved."
-            )
-            warning.setDetailedText(
-                "\n".join(str(path) for path in files) or "No associated export files exist."
-            )
-            warning.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-            warning.setDefaultButton(QMessageBox.Cancel)
-            warning.button(QMessageBox.Yes).setText(
-                "Delete all runs"
-                if clear_all
-                else "Delete runs"
-                if len(records) > 1
-                else "Delete run"
-            )
-            if warning.exec() != QMessageBox.Yes:
-                return
-            for record in records:
-                self.history.remove(record, original_runs, protected, removing=records)
-                removed.append(record["id"])
-            self.status.setText(f"{len(removed)} run(s) and associated exports deleted.")
-        except (OSError, ValueError) as exc:
-            self.show_notice(
-                f"Could not finish deleting runs ({len(removed)} deleted): {exc}", "error"
-            )
-        finally:
-            if removed:
-                self.runs[:] = [record for record in self.runs if record["id"] not in removed]
-                if self.selected_run is not None and self.selected_run["id"] in removed:
-                    self.selected_run = None
-                if self.current_run is not None and self.current_run["id"] in removed:
-                    self.current_run = None
-                    self.provenance = {}
-                    self.result_source_frame = self.result_timeline = None
-                    self.clear_results()
-                self.refresh_runs()
-                if not self.runs:
-                    self.run_heading.setText("Select a run")
-                    self.run_summary.clear()
-                    for view in (
-                        self.run_details,
-                        self.run_warnings,
-                        self.run_errors,
-                        self.run_outputs,
-                        self.log,
-                    ):
-                        view.clear()
+        return self._run_controller.delete_runs(records, clear_all=clear_all)
 
     def open_run(self):
-        record = self.selected_run
-        if record is None or self.worker is not None:
-            return
-        if "_results" in record:
-            self.restore_run((record["id"], record.get("_provenance", {}), record["_results"]))
-            return
-        output = next(
-            (item for item in reversed(record["outputs"]) if item.get("kind") == "JSON"), None
-        )
-        if output:
-            self.status.setText("Opening exported results…")
-            self.start_job(
-                lambda logger: (record["id"], *load_result_export(output["path"])), self.restore_run
-            )
+        return self._run_controller.open_run()
 
     def restore_run(self, payload):
-        run_id, provenance, results = payload
-        record = next(record for record in self.runs if record["id"] == run_id)
-        self.current_run = record
-        self.provenance = provenance or {
-            "source": record["source"],
-            "settings": record["settings"],
-            "paradigma_version": record["paradigma_version"],
-            "sources": record.get("sources", {}),
-        }
-        self.result_source_frame = record.get("_frame")
-        self.result_timeline = None
-        record["_results"], record["_provenance"] = results, self.provenance
-        record.setdefault("_unsaved_results", False)
-        self.show_notice("")
-        self.analyzed(results)
-        self.update_run_actions()
+        return self._run_controller.restore_run(payload)
 
     def use_run_parameters(self):
         if self.selected_run is None or self.worker is not None:
@@ -2075,25 +1342,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.status.setText("Run parameters restored. Check the selected input before running.")
 
     def record_output(self, path, kind):
-        if self.current_run is not None:
-            name, frame = self.selected_export_table()
-            self.current_run["outputs"].append(
-                {
-                    "kind": kind,
-                    "path": str(Path(path).resolve()),
-                    "saved": now(),
-                    "dataset": name if kind == "CSV" else "all results",
-                }
-            )
-            if kind == "CSV":
-                aggregation = name.startswith("aggregations/")
-                self.current_run["outputs"][-1].update(
-                    selected_rows=len(frame),
-                    selection={"scope": "Full run"} if aggregation else self.active_selection,
-                )
-            if self.persist_run(self.current_run) and kind == "JSON":
-                self.current_run["_unsaved_results"] = False
-            self.refresh_runs()
+        return self._run_controller.record_output(path, kind)
 
     def export(self):
         if self.results is None or self.worker is not None:
@@ -2199,41 +1448,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.save_run_results([self.current_run])
 
     def save_run_results(self, records, *, close_after=False):
-        if self.worker is not None or not records:
-            return
-        snapshots = [
-            (dict(record), record["_results"], dict(record["_provenance"])) for record in records
-        ]
-        protected = [self.source, *self.sources.values()]
-        self._close_after_save = close_after
-
-        def write(logger):
-            saved, failures = [], []
-            for record, results, provenance in snapshots:
-                try:
-                    outputs = self.history.save_results(record, results, provenance, protected)
-                    saved.append((record["id"], outputs))
-                except Exception as exc:
-                    failures.append(f"{Path(record['source']).name}: {exc}")
-            return saved, failures
-
-        def completed(payload):
-            saved, failures = payload
-            for run_id, outputs in saved:
-                record = next(record for record in self.runs if record["id"] == run_id)
-                record["outputs"] = outputs
-                record["_unsaved_results"] = False
-            self.refresh_runs()
-            if failures:
-                self._close_after_save = False
-                self.show_notice("Results could not be saved: " + "; ".join(failures), "error")
-                self.status.setText("Some results remain unsaved. Keep the app open and try again.")
-            else:
-                self.status.setText("Results saved locally. Reopen them from Runs.")
-                self.show_notice("")
-
-        self.status.setText("Saving results…")
-        self.start_job(write, completed)
+        return self._run_controller.save_run_results(records, close_after=close_after)
 
     def closeEvent(self, event):
         if self.worker is not None:
