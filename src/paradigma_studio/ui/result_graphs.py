@@ -147,6 +147,44 @@ class ResultGraphs:
         if self._plot_signature == signature and self.figure.axes:
             self.highlight_result_row()
             return
+        previous_mode, viewport, previous_y = self._result_plot_viewport(chosen, epochs)
+        self._plot_signature = signature
+        existing, shared = self._retain_result_axes(chosen, epochs, previous_mode)
+        actual_binaries = [
+            (
+                name.startswith("classifications/gait/")
+                and metric in ("pred_gait_window", "pred_no_other_arm_activity_window")
+            )
+            or binary_indicator(self._plot_tables[name][metric], metric)
+            for name, metric in chosen
+        ]
+        binaries = [False] * len(chosen) if epochs else actual_binaries
+        self._size_result_canvas(chosen, binaries)
+        first_axes = None
+        grid = (
+            self.figure.add_gridspec(
+                len(chosen), 1, height_ratios=[0.34 if binary else 1 for binary in binaries]
+            )
+            if chosen
+            else None
+        )
+        for index, (name, metric) in enumerate(chosen):
+            ax = existing.get((name, metric))
+            if ax is not None:
+                ax.set_subplotspec(grid[index])
+                self.figure.add_axes(ax)
+                if ax is not shared:
+                    ax.sharex(shared)
+            else:
+                ax = style_axes(self.figure, position=(grid[index],), sharex=shared or first_axes)
+            if first_axes is None:
+                first_axes = ax
+            if (name, metric) in existing:
+                continue
+            self._render_result_series(ax, name, metric, actual_binaries[index], epochs)
+        self._finish_result_plot(first_axes, shared, viewport, previous_y)
+
+    def _result_plot_viewport(self, chosen, epochs):
         previous_mode, previous_chosen = self._plot_signature or (None, ())
         changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (
@@ -171,7 +209,9 @@ class ResultGraphs:
                     for ax in self.figure.axes
                     if hasattr(ax, "_paradigma_dataset")
                 }
-        self._plot_signature = signature
+        return previous_mode, viewport, previous_y
+
+    def _retain_result_axes(self, chosen, epochs, previous_mode):
         self.result_overlay.invalidate()
         for artist in self._result_selection_artists:
             artist.remove()
@@ -204,15 +244,9 @@ class ResultGraphs:
             self.figure.clear()
             existing = {}
             shared = None
-        actual_binaries = [
-            (
-                name.startswith("classifications/gait/")
-                and metric in ("pred_gait_window", "pred_no_other_arm_activity_window")
-            )
-            or binary_indicator(self._plot_tables[name][metric], metric)
-            for name, metric in chosen
-        ]
-        binaries = [False] * len(chosen) if epochs else actual_binaries
+        return existing, shared
+
+    def _size_result_canvas(self, chosen, binaries):
         compact_states = bool(binaries) and all(binaries)
         height = max(
             88 if compact_states else 190, sum(62 if binary else 155 for binary in binaries)
@@ -230,171 +264,154 @@ class ResultGraphs:
                 transform=ax.transAxes,
                 color="#68778c",
             )
-        first_axes = None
-        grid = (
-            self.figure.add_gridspec(
-                len(chosen), 1, height_ratios=[0.34 if binary else 1 for binary in binaries]
-            )
-            if chosen
-            else None
+
+    def _render_result_series(self, ax, name, metric, binary, epochs):
+        ax._paradigma_dataset = name
+        ax._paradigma_metric = metric
+        selected, positions = self._detail_selections.get(
+            name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int))
         )
-        for index, (name, metric) in enumerate(chosen):
-            ax = existing.get((name, metric))
-            if ax is not None:
-                ax.set_subplotspec(grid[index])
-                self.figure.add_axes(ax)
-                if ax is not shared:
-                    ax.sharex(shared)
+        times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
+        percentage = binary or name.startswith("preparation/")
+        ys = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+        xs = clock_times(times, self.display_clock)
+        ax._paradigma_epoch = epochs
+        if epochs:
+            self._render_epoch_series(ax, name, metric, positions, binary, percentage)
+        elif len(selected) and np.isfinite(times).any():
+            color = module_color(
+                "preparation" if name.startswith("preparation/") else name.split("/")[1]
+            )
+            if binary:
+                self._render_binary_series(ax, name, metric, positions, xs, ys, color)
             else:
-                ax = style_axes(self.figure, position=(grid[index],), sharex=shared or first_axes)
-            if first_axes is None:
-                first_axes = ax
-            if (name, metric) in existing:
-                continue
-            ax._paradigma_dataset = name
-            ax._paradigma_metric = metric
-            selected, positions = self._detail_selections.get(
-                name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int))
+                starts, ends = self._bar_bounds[name]
+                plot_bars(
+                    ax,
+                    clock_times(starts[positions], self.display_clock),
+                    clock_times(ends[positions], self.display_clock),
+                    ys,
+                    color,
+                )
+        else:
+            ax.text(
+                0.5,
+                0.5,
+                "No timed outputs",
+                ha="center",
+                transform=ax.transAxes,
+                color="#68778c",
             )
-            times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            binary = actual_binaries[index]
-            percentage = binary or name.startswith("preparation/")
-            ys = (
-                self._plot_tables[name][metric]
-                .iloc[positions]
-                .to_numpy(dtype=float, na_value=np.nan)
-            )
-            xs = clock_times(times, self.display_clock)
-            ax._paradigma_epoch = epochs
-            if epochs:
-                summary = self.epoch_plot_data(name, metric, positions, binary)
-                ax._paradigma_epoch_data = summary
-                color = module_color(
-                    "preparation" if name.startswith("preparation/") else name.split("/")[1]
-                )
-                if len(summary):
-                    plot_bars(
-                        ax,
-                        clock_times(summary.start_s, self.display_clock),
-                        clock_times(summary.end_s, self.display_clock),
-                        summary.value,
-                        color,
-                    )
-                if not len(summary) or not np.isfinite(summary.value).any():
-                    if "presence_s" in summary:
-                        subject = (
-                            ("filtered gait" if name.endswith("/filtered") else "gait")
-                            if "/gait/" in name
-                            else "tremor"
-                        )
-                        message = f"No epochs with ≥90 s of {subject} presence and valid outcomes"
-                    else:
-                        message = "No valid outputs"
-                    ax.text(
-                        0.5,
-                        0.5,
-                        message,
-                        ha="center",
-                        transform=ax.transAxes,
-                        color="#68778c",
-                        fontsize=9,
-                    )
-                if percentage:
-                    ax.set_ylim(0, 100)
-            elif len(selected) and np.isfinite(times).any():
-                color = module_color(
-                    "preparation" if name.startswith("preparation/") else name.split("/")[1]
-                )
-                if binary:
-                    if (
-                        name == "classifications/gait/arm_activity"
-                        and metric == "pred_no_other_arm_activity_window"
-                    ):
-                        presence = self.gait_plot_presence()
-                        pairs = presence["filtered"]
-                        plot_states(
-                            ax,
-                            clock_times(pairs[:, 0], self.display_clock),
-                            np.ones(len(pairs)),
-                            color,
-                            ends=clock_times(pairs[:, 1], self.display_clock),
-                        )
-                        domain = presence["domain"]
-                        if len(domain):
-                            extent = time_coordinates(
-                                clock_times(
-                                    [domain[:, 0].min(), domain[:, 1].max()], self.display_clock
-                                )
-                            )
-                            ax.update_datalim(np.column_stack((extent, [1, 1])))
-                            ax.autoscale_view(scaley=False)
-                    else:
-                        stops = clock_times(
-                            self._interval_ends[name][positions], self.display_clock
-                        )
-                        plot_states(ax, xs, ys, color, ends=stops)
-                else:
-                    starts, ends = self._bar_bounds[name]
-                    plot_bars(
-                        ax,
-                        clock_times(starts[positions], self.display_clock),
-                        clock_times(ends[positions], self.display_clock),
-                        ys,
-                        color,
-                    )
-            else:
-                ax.text(
-                    0.5,
-                    0.5,
-                    "No timed outputs",
-                    ha="center",
-                    transform=ax.transAxes,
-                    color="#68778c",
-                )
-            if epochs or not binary:
-                ax.set_ylabel(
-                    ("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
-                    if epochs and percentage
-                    else "Median"
-                    if epochs
-                    else str(metric).replace("_", " "),
-                    fontsize=9,
-                )
-            item = self._series_items.get((name, metric))
-            metric_title = (
-                item.text(0)
-                if item is not None
-                else self._plot_labels.get((name, metric), str(metric).replace("_", " "))
-            )
-            module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
-            style_result_heading(
+        self._style_result_series(ax, name, metric, binary, epochs, percentage)
+
+    def _render_epoch_series(self, ax, name, metric, positions, binary, percentage):
+        summary = self.epoch_plot_data(name, metric, positions, binary)
+        ax._paradigma_epoch_data = summary
+        color = module_color(
+            "preparation" if name.startswith("preparation/") else name.split("/")[1]
+        )
+        if len(summary):
+            plot_bars(
                 ax,
-                metric_title,
-                module,
-                MODULE_NAMES.get(
-                    module, "Data coverage" if module == "preparation" else module.title()
-                ),
+                clock_times(summary.start_s, self.display_clock),
+                clock_times(summary.end_s, self.display_clock),
+                summary.value,
+                color,
             )
-            if self.display_clock is not None:
-                timezone = clock_origin(self.display_clock).tz
-                locator = RecordingDateLocator(tz=timezone)
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-                ax.set_xlabel(
-                    f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+        if not len(summary) or not np.isfinite(summary.value).any():
+            if "presence_s" in summary:
+                subject = (
+                    ("filtered gait" if name.endswith("/filtered") else "gait")
+                    if "/gait/" in name
+                    else "tremor"
                 )
-                ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime(
-                    "%d %b %Y %H:%M:%S"
-                )
+                message = f"No epochs with ≥90 s of {subject} presence and valid outcomes"
             else:
-                ax.set_xlabel(
-                    "File-order timeline (s)"
-                    if len(self.provenance.get("sources", {})) > 1
-                    else "Elapsed analysis time (s)"
+                message = "No valid outputs"
+            ax.text(
+                0.5,
+                0.5,
+                message,
+                ha="center",
+                transform=ax.transAxes,
+                color="#68778c",
+                fontsize=9,
+            )
+        if percentage:
+            ax.set_ylim(0, 100)
+
+    def _render_binary_series(self, ax, name, metric, positions, xs, ys, color):
+        if (
+            name == "classifications/gait/arm_activity"
+            and metric == "pred_no_other_arm_activity_window"
+        ):
+            presence = self.gait_plot_presence()
+            pairs = presence["filtered"]
+            plot_states(
+                ax,
+                clock_times(pairs[:, 0], self.display_clock),
+                np.ones(len(pairs)),
+                color,
+                ends=clock_times(pairs[:, 1], self.display_clock),
+            )
+            domain = presence["domain"]
+            if len(domain):
+                extent = time_coordinates(
+                    clock_times([domain[:, 0].min(), domain[:, 1].max()], self.display_clock)
                 )
-            ax.tick_params(axis="x", labelbottom=False)
-            ax.xaxis.label.set_visible(False)
-            ax.xaxis.offsetText.set_visible(False)
+                ax.update_datalim(np.column_stack((extent, [1, 1])))
+                ax.autoscale_view(scaley=False)
+        else:
+            stops = clock_times(self._interval_ends[name][positions], self.display_clock)
+            plot_states(ax, xs, ys, color, ends=stops)
+
+    def _style_result_series(self, ax, name, metric, binary, epochs, percentage):
+        if epochs or not binary:
+            ax.set_ylabel(
+                ("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
+                if epochs and percentage
+                else "Median"
+                if epochs
+                else str(metric).replace("_", " "),
+                fontsize=9,
+            )
+        item = self._series_items.get((name, metric))
+        metric_title = (
+            item.text(0)
+            if item is not None
+            else self._plot_labels.get((name, metric), str(metric).replace("_", " "))
+        )
+        module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
+        style_result_heading(
+            ax,
+            metric_title,
+            module,
+            MODULE_NAMES.get(
+                module, "Data coverage" if module == "preparation" else module.title()
+            ),
+        )
+        if self.display_clock is not None:
+            timezone = clock_origin(self.display_clock).tz
+            locator = RecordingDateLocator(tz=timezone)
+            ax.xaxis.set_major_locator(locator)
+            ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
+            ax.set_xlabel(
+                f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+            )
+            ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime(
+                "%d %b %Y %H:%M:%S"
+            )
+        else:
+            ax.set_xlabel(
+                "File-order timeline (s)"
+                if len(self.provenance.get("sources", {})) > 1
+                else "Elapsed analysis time (s)"
+            )
+        ax.tick_params(axis="x", labelbottom=False)
+        ax.xaxis.label.set_visible(False)
+        ax.xaxis.offsetText.set_visible(False)
+
+    def _finish_result_plot(self, first_axes, shared, viewport, previous_y):
         # Recompute the shared full extent even if the retained master was
         # zoomed. The current zoom is restored below, while Home sees all data.
         self._result_shared_axes = shared or first_axes

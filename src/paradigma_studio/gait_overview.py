@@ -146,79 +146,81 @@ def build_gait_charts(aggregates, *, metadata=None, scroll_area=None):
         grid = figure.add_gridspec(1, 2) if group == "quantity" else figure.add_gridspec(2, 2)
         for index, (metric, heading, unit) in enumerate(metrics):
             metric_rows = count_rows if metric == "segment_count" else rows
-            categories = [
-                f"{branch.replace('_', ' ').title()} · {duration_label(duration)}"
-                for branch, duration, values in metric_rows
-            ]
-            colors = [
-                "#477DA3" if branch == "filtered" else "#9CBACF" for branch, _, _ in metric_rows
-            ]
-            axis = style_axes(figure, position=(grid[index // 2, index % 2],))
-            numbers = []
-            for branch, duration, values in metric_rows:
-                value = values.get(metric)
-                numbers.append(
-                    float(value) if isinstance(value, (int, float, np.number)) else np.nan
-                )
-                if metric in values and metric != "segment_count":
-                    consumed.add((branch, duration, metric))
-            numbers = np.asarray(numbers)
-            display_numbers = numbers / 60 if metric == "duration_s" else numbers
-            positions = np.arange(len(metric_rows))
-            valid = np.isfinite(numbers)
-            axis.barh(
-                positions[valid],
-                display_numbers[valid],
-                color=np.asarray(colors)[valid],
-                height=0.62,
-                zorder=3,
+            charts[metric] = _render_gait_metric(
+                figure, canvas, grid, index, metric, heading, unit, metric_rows, consumed
             )
-            axis.set_yticks(positions, categories, fontsize=9)
-            axis.set_ylim(max(len(metric_rows), 1) - 0.5, -0.5)
-            axis.set_title(heading, loc="left", fontsize=10, color="#243C57")
-            axis.set_xlabel(unit, fontsize=9)
-            axis.grid(False, axis="y")
-            axis.grid(True, axis="x", color="#E8EDF3", linewidth=0.7)
-            axis.margins(x=0.18)
-            if metric == "segment_count":
-                axis.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True, min_n_ticks=2))
-                canvas.setToolTip(
-                    "Segment counts use original unfiltered segment durations, matching ParaDigMa.\n"
-                    "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
-                )
-            precision = 0 if metric == "segment_count" else 2 if "_cov_" in metric else 1
-            for position, value in zip(positions, display_numbers):
-                if np.isfinite(value):
-                    axis.annotate(
-                        f"{value:.{precision}f}",
-                        (value, position),
-                        xytext=(5, 0),
-                        textcoords="offset points",
-                        va="center",
-                        fontsize=9,
-                        color="#243C57",
-                    )
-                else:
-                    axis.text(
-                        0.02,
-                        position,
-                        "—",
-                        transform=axis.get_yaxis_transform(),
-                        va="center",
-                        color="#68778C",
-                    )
-            for position in range(1, len(metric_rows)):
-                if metric_rows[position][0] != metric_rows[position - 1][0]:
-                    axis.axhline(position - 0.5, color="#DCE5EE", linewidth=1)
-            axis._paradigma_aggregate_metric = metric
-            charts[metric] = {
-                "canvas": canvas,
-                "axis": axis,
-                "categories": [(b, d) for b, d, _ in metric_rows],
-                "values": numbers,
-                "display_values": display_numbers,
-            }
         content.addWidget(canvas)
         cards.append(panel)
         canvas.draw_idle()
     return cards, charts, consumed
+
+
+def _render_gait_metric(figure, canvas, grid, index, metric, heading, unit, metric_rows, consumed):
+    categories = [
+        f"{branch.replace('_', ' ').title()} · {duration_label(duration)}"
+        for branch, duration, values in metric_rows
+    ]
+    colors = ["#477DA3" if branch == "filtered" else "#9CBACF" for branch, _, _ in metric_rows]
+    axis = style_axes(figure, position=(grid[index // 2, index % 2],))
+    numbers = []
+    for branch, duration, values in metric_rows:
+        value = values.get(metric)
+        numbers.append(float(value) if isinstance(value, (int, float, np.number)) else np.nan)
+        if metric in values and metric != "segment_count":
+            consumed.add((branch, duration, metric))
+    numbers = np.asarray(numbers)
+    display_numbers = numbers / 60 if metric == "duration_s" else numbers
+    positions = np.arange(len(metric_rows))
+    valid = np.isfinite(numbers)
+    axis.barh(
+        positions[valid],
+        display_numbers[valid],
+        color=np.asarray(colors)[valid],
+        height=0.62,
+        zorder=3,
+    )
+    axis.set_yticks(positions, categories, fontsize=9)
+    axis.set_ylim(max(len(metric_rows), 1) - 0.5, -0.5)
+    axis.set_title(heading, loc="left", fontsize=10, color="#243C57")
+    axis.set_xlabel(unit, fontsize=9)
+    axis.grid(False, axis="y")
+    axis.grid(True, axis="x", color="#E8EDF3", linewidth=0.7)
+    axis.margins(x=0.18)
+    if metric == "segment_count":
+        axis.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True, min_n_ticks=2))
+        canvas.setToolTip(
+            "Segment counts use original unfiltered segment durations, matching ParaDigMa.\n"
+            "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
+        )
+    precision = 0 if metric == "segment_count" else 2 if "_cov_" in metric else 1
+    for position, value in zip(positions, display_numbers):
+        if np.isfinite(value):
+            axis.annotate(
+                f"{value:.{precision}f}",
+                (value, position),
+                xytext=(5, 0),
+                textcoords="offset points",
+                va="center",
+                fontsize=9,
+                color="#243C57",
+            )
+        else:
+            axis.text(
+                0.02,
+                position,
+                "—",
+                transform=axis.get_yaxis_transform(),
+                va="center",
+                color="#68778C",
+            )
+    for position in range(1, len(metric_rows)):
+        if metric_rows[position][0] != metric_rows[position - 1][0]:
+            axis.axhline(position - 0.5, color="#DCE5EE", linewidth=1)
+    axis._paradigma_aggregate_metric = metric
+    return {
+        "canvas": canvas,
+        "axis": axis,
+        "categories": [(b, d) for b, d, _ in metric_rows],
+        "values": numbers,
+        "display_values": display_numbers,
+    }

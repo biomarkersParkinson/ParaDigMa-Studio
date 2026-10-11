@@ -288,33 +288,7 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
     window.resize(*size)
-    if font_size != 13:
-        # A taller, wrapped explanation must use its height at the available
-        # width, rather than the stack's preferred height at a wider width.
-        # Larger font metrics reproduce the compressed Windows gap on Linux.
-        window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
-    fields = [
-        window.side,
-        window.acc,
-        window.gyro,
-        window.time,
-        window.orientation,
-        window.mapping,
-        window.max_gap,
-        window.min_segment,
-        window.clock_input,
-        window.prepared,
-        window.gaps,
-        window.drop_missing,
-        *window.module_buttons.values(),
-    ]
-    for control in fields[:5]:
-        control.setMinimumHeight(native_height)
-        if native_width:
-            control.setMinimumWidth(native_width)
-    if native_width:
-        for label in window.analysis_parameter_fields.findChildren(QLabel):
-            label.setMinimumHeight(28)
+    fields = _configure_native_analysis_fields(window, native_height, native_width, font_size)
     window.navigate(1)
     window.show()
     app.processEvents()
@@ -396,6 +370,37 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
     finally:
         window.close()
         app.processEvents()
+
+
+def _configure_native_analysis_fields(window, native_height, native_width, font_size):
+    if font_size != 13:
+        # A taller, wrapped explanation must use its height at the available
+        # width, rather than the stack's preferred height at a wider width.
+        # Larger font metrics reproduce the compressed Windows gap on Linux.
+        window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
+    fields = [
+        window.side,
+        window.acc,
+        window.gyro,
+        window.time,
+        window.orientation,
+        window.mapping,
+        window.max_gap,
+        window.min_segment,
+        window.clock_input,
+        window.prepared,
+        window.gaps,
+        window.drop_missing,
+        *window.module_buttons.values(),
+    ]
+    for control in fields[:5]:
+        control.setMinimumHeight(native_height)
+        if native_width:
+            control.setMinimumWidth(native_width)
+    if native_width:
+        for label in window.analysis_parameter_fields.findChildren(QLabel):
+            label.setMinimumHeight(28)
+    return fields
 
 
 @pytest.mark.parametrize("grid_width", [0, 314, 404])

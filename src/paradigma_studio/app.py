@@ -178,6 +178,11 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         """Wire only the state, widgets and actions each component needs."""
         self._overview = ResultOverview(self.overview_layout, self._result_view_scrolls[0])
         self._series = ResultSeries(self.result_series)
+        self._compose_run_controller()
+        self._compose_result_controller()
+        self._compose_sensor_controller()
+
+    def _compose_run_controller(self):
         run_view = RunView(
             status=self.status,
             log=self.log,
@@ -205,6 +210,17 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             select_run=lambda *args, **kwargs: self.select_run(*args, **kwargs),
             update_run_actions=lambda *args, **kwargs: self.update_run_actions(*args, **kwargs),
         )
+        self._run_controller = RunController(
+            self._run_state,
+            self._result_state,
+            self._input_state,
+            self.history,
+            run_view,
+            run_callbacks,
+            parent=self,
+        )
+
+    def _compose_result_controller(self):
         result_view = ResultView(
             results_source=self.results_source,
             dataset=self.dataset,
@@ -234,6 +250,16 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             align_recordings=lambda *args, **kwargs: align_recordings(*args, **kwargs),
             analysis_alignment=lambda *args, **kwargs: analysis_alignment(*args, **kwargs),
         )
+        self._result_controller = ResultController(
+            self._result_state,
+            self._input_state,
+            self._run_state,
+            self._sensor_state,
+            result_view,
+            result_callbacks,
+        )
+
+    def _compose_sensor_controller(self):
         sensor_view = SensorView(
             result_table=self.result_table,
             context_button=self.context_button,
@@ -252,23 +278,6 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             check_channels=lambda *args, **kwargs: self.check_channels(*args, **kwargs),
             populate_channels=lambda *args, **kwargs: self.populate_channels(*args, **kwargs),
             plot_channel_signals=lambda *args, **kwargs: self.plot_channel_signals(*args, **kwargs),
-        )
-        self._run_controller = RunController(
-            self._run_state,
-            self._result_state,
-            self._input_state,
-            self.history,
-            run_view,
-            run_callbacks,
-            parent=self,
-        )
-        self._result_controller = ResultController(
-            self._result_state,
-            self._input_state,
-            self._run_state,
-            self._sensor_state,
-            result_view,
-            result_callbacks,
         )
         self._sensor_controller = SensorController(
             self._sensor_state,

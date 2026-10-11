@@ -431,37 +431,9 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
             window.plot()
             axes = window.figure.axes[0]
             bars = axes.collections[0].get_paths()
-            if stage == "detection":
-                expected_intervals = [
-                    (float(start), float(start) + cadence)
-                    for start in reference.loc[positive, "time"]
-                ]
-            else:
-                # Independently intersect the two official threshold decisions.
-                # Filtering is conditional on gait and cannot create presence
-                # outside detected gait, even with different window cadences.
-                detection = expected["classifications"]["gait"]["detection"]
-                detection_threshold = ClassifierPackage.load(
-                    files("paradigma.assets") / "gait_detection_clf_package.pkl"
-                ).threshold
-                gait_starts = detection.loc[
-                    detection.pred_gait_proba.ge(detection_threshold), "time"
-                ].to_numpy()
-                intersections = sorted(
-                    (max(float(arm), float(gait)), min(float(arm) + cadence, float(gait) + 1.0))
-                    for arm in reference.loc[positive, "time"]
-                    for gait in gait_starts
-                    if max(float(arm), float(gait)) < min(float(arm) + cadence, float(gait) + 1.0)
-                )
-                expected_intervals = []
-                for start, end in intersections:
-                    if expected_intervals and start <= expected_intervals[-1][1] + 1e-9:
-                        expected_intervals[-1] = (
-                            expected_intervals[-1][0],
-                            max(end, expected_intervals[-1][1]),
-                        )
-                    else:
-                        expected_intervals.append((start, end))
+            expected_intervals = _reference_gait_presence_intervals(
+                expected, reference, positive, stage, cadence
+            )
             rendered = [(bar.vertices[:, 0].min(), bar.vertices[:, 0].max()) for bar in bars]
             np.testing.assert_allclose(
                 np.array(rendered).reshape(-1, 2),
@@ -502,6 +474,42 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
     finally:
         window.close()
         application.processEvents()
+
+
+def _reference_gait_presence_intervals(expected, reference, positive, stage, cadence):
+    from paradigma.classification import ClassifierPackage
+
+    if stage == "detection":
+        expected_intervals = [
+            (float(start), float(start) + cadence) for start in reference.loc[positive, "time"]
+        ]
+    else:
+        # Independently intersect the two official threshold decisions.
+        # Filtering is conditional on gait and cannot create presence
+        # outside detected gait, even with different window cadences.
+        detection = expected["classifications"]["gait"]["detection"]
+        detection_threshold = ClassifierPackage.load(
+            files("paradigma.assets") / "gait_detection_clf_package.pkl"
+        ).threshold
+        gait_starts = detection.loc[
+            detection.pred_gait_proba.ge(detection_threshold), "time"
+        ].to_numpy()
+        intersections = sorted(
+            (max(float(arm), float(gait)), min(float(arm) + cadence, float(gait) + 1.0))
+            for arm in reference.loc[positive, "time"]
+            for gait in gait_starts
+            if max(float(arm), float(gait)) < min(float(arm) + cadence, float(gait) + 1.0)
+        )
+        expected_intervals = []
+        for start, end in intersections:
+            if expected_intervals and start <= expected_intervals[-1][1] + 1e-9:
+                expected_intervals[-1] = (
+                    expected_intervals[-1][0],
+                    max(end, expected_intervals[-1][1]),
+                )
+            else:
+                expected_intervals.append((start, end))
+    return expected_intervals
 
 
 def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(

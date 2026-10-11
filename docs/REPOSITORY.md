@@ -71,6 +71,11 @@ Qt-independent helpers. Component tests exercise result installation and partial
 deletion without constructing a complete window; the full UI regressions cover
 composition, signals and saved-run compatibility.
 
+Keep functions around 100 lines or fewer. Extract named helpers for validation,
+preparation, execution and rendering, with explicit inputs and return values.
+Preserve calculation order, Qt construction order, lazy imports and assertions;
+this also applies to smoke checks, benchmarks and tests.
+
 Prepare output data in Qt-independent helpers before updating models and plots.
 `ResultData` separates the original tables from derived graph and timing views;
 its frozen container does not make its DataFrames immutable. Treat official

@@ -178,29 +178,7 @@ def plot_channel_signals(
             color="#60728A",
         )
     else:
-        mapping = column_mapping or {}
-        families = {
-            channel: channel_modality(mapping.get(channel, channel)) for channel in channels
-        }
-        # Named physical sensor streams remain continuous even when a short
-        # selection happens to contain only zeros and ones.
-        flags = [
-            c
-            for c in channels
-            if families[c][0][0] != "modality"
-            and binary_indicator(
-                (empty_schema if frame.empty and empty_schema is not None else frame)[c],
-                mapping.get(c, c),
-            )
-        ]
-        signals = [c for c in channels if c not in flags]
-        modalities = {}
-        for channel in signals:
-            key, title = families[channel]
-            if key not in modalities:
-                modalities[key] = (title, [])
-            modalities[key][1].append(channel)
-        groups = list(modalities.values()) + [(str(flag), [flag]) for flag in flags]
+        groups, flags = _sensor_plot_groups(frame, channels, column_mapping, empty_schema)
         first_axes = None
         grid = figure.add_gridspec(
             len(groups), 1, height_ratios=[0.55 if group[0] in flags else 1 for _, group in groups]
@@ -210,54 +188,87 @@ def plot_channel_signals(
             if first_axes is None:
                 first_axes = ax
             for channel in group:
-                if channel in flags:
-                    plot_states(
-                        ax,
-                        xs,
-                        frame[channel].to_numpy(dtype=float, na_value=np.nan),
-                        colors[channel],
-                        label=str(channel),
-                    )
-                    ax.set_title(
-                        str(channel),
-                        loc="left",
-                        fontsize=10,
-                        fontweight="semibold",
-                        color="#243C57",
-                        pad=12,
-                    )
-                else:
-                    step = max(1, int(np.ceil(len(frame) / 20000)))
-                    plot_signal(
-                        ax,
-                        xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
-                        frame[channel].iloc[::step],
-                        colors[channel],
-                        label=str(channel),
-                    )
-                    ax.set_ylabel(
-                        str(group[0]) if len(group) == 1 else f"{modality}\n(file units)",
-                        rotation=0,
-                        ha="right",
-                        va="center",
-                        fontsize=9,
-                        labelpad=10,
-                    )
-            if len(group) > 1:
-                ax.legend(
-                    loc="upper right",
-                    ncols=min(2, len(group)),
-                    frameon=True,
-                    facecolor="white",
-                    edgecolor="#E0E7EF",
-                    framealpha=0.95,
-                    fontsize=8,
-                )
-            if calendar:
-                locator = RecordingDateLocator(tz=timezone)
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
-            ax.set_xlabel(time_label)
-            ax.tick_params(axis="x", labelbottom=index == len(groups) - 1)
-            ax.xaxis.label.set_visible(index == len(groups) - 1)
-            ax.xaxis.offsetText.set_visible(index == len(groups) - 1)
+                _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs)
+            _style_sensor_group(ax, group, time_label, calendar, timezone, index == len(groups) - 1)
+
+
+def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
+    mapping = column_mapping or {}
+    families = {channel: channel_modality(mapping.get(channel, channel)) for channel in channels}
+    # Named physical sensor streams remain continuous even when a short
+    # selection happens to contain only zeros and ones.
+    flags = [
+        c
+        for c in channels
+        if families[c][0][0] != "modality"
+        and binary_indicator(
+            (empty_schema if frame.empty and empty_schema is not None else frame)[c],
+            mapping.get(c, c),
+        )
+    ]
+    signals = [c for c in channels if c not in flags]
+    modalities = {}
+    for channel in signals:
+        key, title = families[channel]
+        if key not in modalities:
+            modalities[key] = (title, [])
+        modalities[key][1].append(channel)
+    groups = list(modalities.values()) + [(str(flag), [flag]) for flag in flags]
+    return groups, flags
+
+
+def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs):
+    if channel in flags:
+        plot_states(
+            ax,
+            xs,
+            frame[channel].to_numpy(dtype=float, na_value=np.nan),
+            colors[channel],
+            label=str(channel),
+        )
+        ax.set_title(
+            str(channel),
+            loc="left",
+            fontsize=10,
+            fontweight="semibold",
+            color="#243C57",
+            pad=12,
+        )
+    else:
+        step = max(1, int(np.ceil(len(frame) / 20000)))
+        plot_signal(
+            ax,
+            xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
+            frame[channel].iloc[::step],
+            colors[channel],
+            label=str(channel),
+        )
+        ax.set_ylabel(
+            str(group[0]) if len(group) == 1 else f"{modality}\n(file units)",
+            rotation=0,
+            ha="right",
+            va="center",
+            fontsize=9,
+            labelpad=10,
+        )
+
+
+def _style_sensor_group(ax, group, time_label, calendar, timezone, last):
+    if len(group) > 1:
+        ax.legend(
+            loc="upper right",
+            ncols=min(2, len(group)),
+            frameon=True,
+            facecolor="white",
+            edgecolor="#E0E7EF",
+            framealpha=0.95,
+            fontsize=8,
+        )
+    if calendar:
+        locator = RecordingDateLocator(tz=timezone)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
+    ax.set_xlabel(time_label)
+    ax.tick_params(axis="x", labelbottom=last)
+    ax.xaxis.label.set_visible(last)
+    ax.xaxis.offsetText.set_visible(last)

@@ -35,83 +35,15 @@ def benchmark(report_path, *, frames=8, repeats=3):
         window = MainWindow(Path(directory) / "runs")
         window.resize(1450, 920)
         window.show()
-        window.provenance = {
-            "display_clock": {
-                "origin": "2026-10-10T00:00:00+02:00",
-                "timezone": "Europe/Amsterdam",
-            }
-        }
-        times = np.arange(30000) * 4.0
-        output = pd.DataFrame(
-            {
-                "time": times,
-                **{f"metric_{i}": (2 + np.sin(times / (i + 1) / 400)) * (i + 1) for i in range(6)},
-            }
-        )
-        window.analyzed({"quantifications": {"tremor": output}})
-        window.navigate(2)
-        window.result_tabs.setCurrentIndex(1)
-        window.result_series.blockSignals(True)
-        for item in window._series_items.values():
-            item.setCheckState(0, Qt.Checked)
-        window.result_series.blockSignals(False)
-        window.plot()
-        QTest.qWait(30)
-        full = window.figure.axes[0].get_xlim()
+        output, full = _prepare_result_pan(window)
 
         def measure(name, canvas, toolbar, limits):
-            frame_times, release_times = [], []
-            if not toolbar._actions["pan"].isChecked():
-                toolbar.pan()
-            for _ in range(repeats):
-                axes = canvas.figure.axes[0]
-                axes.set_xlim(*limits)
-                canvas.draw()
-                app.processEvents()
-                x, y = axes.transAxes.transform((0.5, 0.5))
-                toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
-                if toolbar._pan_info is None:
-                    raise RuntimeError("Pan drag did not start")
-                for step in range(1, frames + 1):
-                    started = time.perf_counter()
-                    toolbar.drag_pan(
-                        MouseEvent("motion_notify_event", canvas, x + step * 3, y, buttons={1})
-                    )
-                    app.processEvents()
-                    frame_times.append(time.perf_counter() - started)
-                started = time.perf_counter()
-                toolbar.release_pan(
-                    MouseEvent("button_release_event", canvas, x + frames * 3, y, button=1)
-                )
-                app.processEvents()
-                release_times.append(time.perf_counter() - started)
-            report["measurements"][name] = {
-                "frame_seconds": frame_times,
-                "median_frame_seconds": statistics.median(frame_times),
-                "release_seconds": release_times,
-                "median_release_seconds": statistics.median(release_times),
-                "graphs": len(canvas.figure.axes),
-            }
-            print(f"{name}: {statistics.median(frame_times):.4f} s/frame", flush=True)
+            _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames)
 
         measure("results_full_6x30000", window.canvas, window.plot_toolbar, full)
         zoomed = full[0] + 0.5, full[0] + 0.5 + 900 / 86400
         measure("results_zoomed_6x30000", window.canvas, window.plot_toolbar, zoomed)
-        times = np.arange(250000) / 100
-        sensor = pd.DataFrame(
-            {
-                "time": times,
-                "time_dt": pd.date_range(
-                    "2026-10-10T00:00:00+02:00", periods=len(times), freq="10ms"
-                ),
-                **{
-                    f"{kind}_{axis}": np.sin(times * (i + 1)) * scale
-                    for kind, scale in (("accelerometer", 1), ("gyroscope", 80))
-                    for i, axis in enumerate("xyz")
-                },
-                "green": 1000 + 20 * np.cos(times),
-            }
-        )
+        sensor = _synthetic_pan_sensors()
         window.loaded(("sensor.csv", sensor))
         deadline = time.monotonic() + 30
         while any(
@@ -150,6 +82,84 @@ def benchmark(report_path, *, frames=8, repeats=3):
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames):
+    frame_times, release_times = [], []
+    if not toolbar._actions["pan"].isChecked():
+        toolbar.pan()
+    for _ in range(repeats):
+        axes = canvas.figure.axes[0]
+        axes.set_xlim(*limits)
+        canvas.draw()
+        app.processEvents()
+        x, y = axes.transAxes.transform((0.5, 0.5))
+        toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
+        if toolbar._pan_info is None:
+            raise RuntimeError("Pan drag did not start")
+        for step in range(1, frames + 1):
+            started = time.perf_counter()
+            toolbar.drag_pan(
+                MouseEvent("motion_notify_event", canvas, x + step * 3, y, buttons={1})
+            )
+            app.processEvents()
+            frame_times.append(time.perf_counter() - started)
+        started = time.perf_counter()
+        toolbar.release_pan(MouseEvent("button_release_event", canvas, x + frames * 3, y, button=1))
+        app.processEvents()
+        release_times.append(time.perf_counter() - started)
+    report["measurements"][name] = {
+        "frame_seconds": frame_times,
+        "median_frame_seconds": statistics.median(frame_times),
+        "release_seconds": release_times,
+        "median_release_seconds": statistics.median(release_times),
+        "graphs": len(canvas.figure.axes),
+    }
+    print(f"{name}: {statistics.median(frame_times):.4f} s/frame", flush=True)
+
+
+def _prepare_result_pan(window):
+    window.provenance = {
+        "display_clock": {
+            "origin": "2026-10-10T00:00:00+02:00",
+            "timezone": "Europe/Amsterdam",
+        }
+    }
+    times = np.arange(30000) * 4.0
+    output = pd.DataFrame(
+        {
+            "time": times,
+            **{f"metric_{i}": (2 + np.sin(times / (i + 1) / 400)) * (i + 1) for i in range(6)},
+        }
+    )
+    window.analyzed({"quantifications": {"tremor": output}})
+    window.navigate(2)
+    window.result_tabs.setCurrentIndex(1)
+    window.result_series.blockSignals(True)
+    for item in window._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_series.blockSignals(False)
+    window.plot()
+    QTest.qWait(30)
+    full = window.figure.axes[0].get_xlim()
+    return output, full
+
+
+def _synthetic_pan_sensors():
+    times = np.arange(250000) / 100
+    sensor = pd.DataFrame(
+        {
+            "time": times,
+            "time_dt": pd.date_range("2026-10-10T00:00:00+02:00", periods=len(times), freq="10ms"),
+            **{
+                f"{kind}_{axis}": np.sin(times * (i + 1)) * scale
+                for kind, scale in (("accelerometer", 1), ("gyroscope", 80))
+                for i, axis in enumerate("xyz")
+            },
+            "green": 1000 + 20 * np.cos(times),
+        }
+    )
+    return sensor
 
 
 if __name__ == "__main__":
