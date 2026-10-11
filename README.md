@@ -85,8 +85,7 @@ assets retain their own licences and attribution notices.
 
 Scientific processing is provided by **ParaDigMa**, developed by its authors and
 contributors and licensed under [Apache 2.0](src/paradigma_studio/data/notices/LICENSE-paradigma.txt).
-For research, cite Post et al. (2024), *ParaDigMa: Parkinson's disease Digital Markers*,
-[doi:10.5281/zenodo.13838392](https://doi.org/10.5281/zenodo.13838392), and relevant
+For research, cite Post et al. (2026), *ParaDigMa: a Python toolbox for extracting Parkinson's disease digital biomarkers from daily life wrist sensor data*, [doi:10.21105/joss.09502](https://doi.org/10.21105/joss.09502), and relevant
 pipeline publications. **About** in the app provides credits, the
 licence and a copyable BibTeX citation. [Full acknowledgement and citation files](src/paradigma_studio/data/notices/ACKNOWLEDGEMENTS.md)
 are also included beside the Windows executable.
