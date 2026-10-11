@@ -1,9 +1,9 @@
 """Shared atomic writes and identification of protected recording files."""
 
-from contextlib import contextmanager
-from pathlib import Path
 import os
 import tempfile
+from contextlib import contextmanager
+from pathlib import Path
 
 
 def recording_files(sources):

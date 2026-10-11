@@ -200,7 +200,7 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for (name, metric), item in window._series_items.items():
+    for (name, _metric), item in window._series_items.items():
         item.setCheckState(0, Qt.Checked if name == "quantifications/tremor" else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(mode)

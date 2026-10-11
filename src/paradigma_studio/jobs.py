@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import logging
+from collections.abc import Callable
+
 from PySide6.QtCore import QThread, Signal
-from .history import failure_log, error_summary
+
 from .analysis_process import AnalysisCancelled
 from .contracts import TextSignal
+from .history import error_summary, failure_log
 
 
 class SignalHandler(logging.Handler):

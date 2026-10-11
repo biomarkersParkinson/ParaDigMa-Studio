@@ -5,6 +5,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint, Signal
+
 from .plotting import time_selection_triangle
 
 
@@ -57,7 +58,8 @@ class RecordingTimeFormatter(ticker.Formatter):
             offsets.setdefault(stamp.strftime("%Y-%m-%d %H:%M"), set()).add(stamp.utcoffset())
         ticks = sorted(visible)
         self._subsecond = any(
-            0 < (second - first) * 86400 < 0.999 for first, second in zip(ticks, ticks[1:])
+            0 < (second - first) * 86400 < 0.999
+            for first, second in zip(ticks, ticks[1:], strict=False)
         )
         self._offset_ticks = {
             value

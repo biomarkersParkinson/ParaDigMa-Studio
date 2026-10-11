@@ -5,13 +5,13 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.epochs import (
-    epoch_summary,
     availability_epoch_summary,
+    epoch_summary,
     require_epoch_presence,
 )
 
@@ -123,7 +123,7 @@ def test_gait_filtered_and_unfiltered_use_their_own_presence_and_keep_medians(wi
     original = deepcopy(output)
     window.analyzed(output)
     window.result_series.blockSignals(True)
-    for (name, metric), item in window._series_items.items():
+    for (name, _metric), item in window._series_items.items():
         item.setCheckState(0, Qt.Checked if name.startswith("quantifications/") else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(1)

@@ -7,11 +7,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
-from PySide6.QtCore import Qt, QItemSelectionModel
+from typing import TYPE_CHECKING, Any
+
+from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QMessageBox
-from .history import RunHistory, merge_errors, now, run_status, load_result_export
-from .theme import light_palette, STYLESHEET
+
+from .history import RunHistory, load_result_export, merge_errors, now, run_status
+from .theme import STYLESHEET, light_palette
 from .widgets import RecordModel
 from .workspace_state import InputState, ResultState, RunState
 

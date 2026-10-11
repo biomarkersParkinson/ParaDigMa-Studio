@@ -74,6 +74,8 @@ composition, signals and saved-run compatibility.
 
 Keep functions around 100 lines or fewer. Extract named helpers for validation,
 preparation, execution and rendering, with explicit inputs and return values.
+Ruff enforces a McCabe complexity limit of 10 across application code, scripts
+and tests. Explain any narrow lint suppression beside the affected code.
 Preserve calculation order, Qt construction order, lazy imports and assertions;
 this also applies to smoke checks, benchmarks and tests.
 

@@ -4,11 +4,12 @@ import json
 import os
 import subprocess
 import sys
-import pytest
 from pathlib import Path
 
-from paradigma_studio.plot_cache import configure_plot_cache
+import pytest
+
 from paradigma_studio import plot_cache
+from paradigma_studio.plot_cache import configure_plot_cache
 
 
 def test_portable_font_cache_is_reused_and_changes_after_relocation(tmp_path, monkeypatch):

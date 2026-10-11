@@ -25,6 +25,14 @@ def _motion_stream(sensor, name, version):
     samples = np.column_stack(axes)
     if not np.isfinite(samples).all():
         raise ValueError(f"Empatica {name} samples must be finite numbers.")
+    frequency, start, factor = _motion_metadata(sensor, name, version)
+    values = samples * factor
+    if not np.isfinite(values).all():
+        raise ValueError(f"Converted Empatica {name} samples must be finite numbers.")
+    return values, frequency, start
+
+
+def _motion_metadata(sensor, name, version):
     frequency = float(sensor["samplingFrequency"])
     if not np.isfinite(frequency) or frequency <= 0:
         raise ValueError(f"Empatica {name} sampling frequency must be positive and finite.")
@@ -41,10 +49,7 @@ def _motion_stream(sensor, name, version):
         factor = float(params["conversionFactor"])
     if not np.isfinite(factor) or factor <= 0:
         raise ValueError(f"Empatica {name} conversion factor must be positive and finite.")
-    values = samples * factor
-    if not np.isfinite(values).all():
-        raise ValueError(f"Converted Empatica {name} samples must be finite numbers.")
-    return values, frequency, start
+    return frequency, start, factor
 
 
 def load_empatica_imu(path):
@@ -55,15 +60,14 @@ def load_empatica_imu(path):
     """
     import pandas as pd
 
-    with Path(path).open("rb") as stream:
-        with DataFileReader(stream, DatumReader()) as reader:
-            record = next(reader, None)
-            if record is None:
-                raise ValueError("The Empatica Avro file contains no records.")
-            if next(reader, None) is not None:
-                raise ValueError(
-                    "Empatica import requires one recording per Avro file; split multi-record files first."
-                )
+    with Path(path).open("rb") as stream, DataFileReader(stream, DatumReader()) as reader:
+        record = next(reader, None)
+        if record is None:
+            raise ValueError("The Empatica Avro file contains no records.")
+        if next(reader, None) is not None:
+            raise ValueError(
+                "Empatica import requires one recording per Avro file; split multi-record files first."
+            )
     try:
         raw = record["rawData"]
         schema = record["schemaVersion"]

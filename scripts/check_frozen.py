@@ -6,7 +6,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 NOTICE_FILES = (
     "ACKNOWLEDGEMENTS.md",
     "LICENSE-studio.txt",

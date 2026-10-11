@@ -107,8 +107,8 @@ def test_pan_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_va
     left, right = round(region.left() * ratio), round((region.x() + region.width()) * ratio)
     top, bottom = round(region.top() * ratio), round((region.y() + region.height()) * ratio)
     np.testing.assert_array_equal(actual[top:bottom, left:right], reference[top:bottom, left:right])
-    for ax, expected in zip(figure.axes, paths):
-        for path, values in zip(ax.collections[0].get_paths(), expected):
+    for ax, expected in zip(figure.axes, paths, strict=False):
+        for path, values in zip(ax.collections[0].get_paths(), expected, strict=False):
             np.testing.assert_array_equal(path.vertices, values)
     drawn.clear()
     toolbar.release_pan(MouseEvent("button_release_event", canvas, x + 20, y, button=1))

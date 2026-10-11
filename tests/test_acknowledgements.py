@@ -6,11 +6,11 @@ from importlib.metadata import distribution, version
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import pytest
 from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication, QLabel
-import pytest
 
-from paradigma_studio.acknowledgements import NOTICES, NOTICE_FILES
+from paradigma_studio.acknowledgements import NOTICE_FILES, NOTICES
 from paradigma_studio.app import MainWindow
 from scripts.build_desktop import copy_notices
 from scripts.check_frozen import check_bundle

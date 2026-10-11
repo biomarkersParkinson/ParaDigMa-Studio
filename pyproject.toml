@@ -44,7 +44,18 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "B", "C4", "SIM", "UP", "I", "C90", "RUF100"]
+
+[tool.ruff.lint.flake8-bugbear]
+# QModelIndex is an immutable Qt value. Empty indexes are the conventional
+# defaults on QAbstractItemModel overrides, matching Qt's public signatures.
+extend-immutable-calls = ["PySide6.QtCore.QModelIndex"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.mypy]
 python_version = "3.11"

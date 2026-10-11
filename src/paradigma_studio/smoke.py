@@ -17,6 +17,7 @@ def smoke_test(report_path):
         # Use real Qt rendering without requiring a display on the build runner.
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
+
         from .app import MainWindow
 
         models = _verify_bundled_models()
@@ -62,6 +63,7 @@ def _verify_smoke_workflows(window, app, directory, models):
 
 def _verify_bundled_models():
     from importlib.resources import files
+
     from paradigma.classification import ClassifierPackage
 
     # These bundled models import sklearn classes dynamically via pickle.
@@ -81,6 +83,7 @@ def _verify_bundled_models():
 
 def _verify_bundled_ui(window, app):
     from importlib.resources import files
+
     from PySide6.QtGui import QPixmap
 
     if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
@@ -125,8 +128,8 @@ def _synthetic_sensor_data():
 
 
 def _run_tremor_example(directory, frame):
-    from .core import load_sensor_file
     from .analysis_process import run_isolated_analysis
+    from .core import load_sensor_file
 
     source = directory / "sensor.csv"
     frame.to_csv(source, index=False)
@@ -165,6 +168,12 @@ def _verify_input_graphs(window, source, loaded):
             if not np.array_equal(line.get_ydata(), loaded[line.get_label()].to_numpy()):
                 raise RuntimeError("Modality grouping changed original sensor values")
     window.set_input_channels(["gyroscope_x", "gyroscope_y", "gyroscope_z"])
+    _verify_input_graph_controls(window)
+
+
+def _verify_input_graph_controls(window):
+    import numpy as np
+
     toolbar = window.data_toolbar
     actions = [action.text() for action in toolbar.actions()]
     if actions.count("Axis limits") != 1 or "Subplots" in actions or "Customize" in actions:
@@ -630,46 +639,46 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
 def _successful_smoke_report(
     models, quantified, cwa_frame, cwa_quantified, avro_frame, details, physilog_gait
 ):
-    return dict(
-        status="passed",
-        paradigma_version=version("paradigma"),
-        app_icon_rendered=True,
-        workspace_navigation_verified=True,
-        integrated_page_controls_verified=True,
-        dropdown_indicator_rendered=True,
-        module_multiselection_verified=True,
-        all_module_execution_verified=True,
-        inline_analysis_help_verified=True,
-        paradigma_acknowledgement_verified=True,
-        studio_licence_verified=True,
-        local_results_saved_verified=True,
-        aggregate_overview_verified=True,
-        original_output_tables_verified=True,
-        aggregation_tables_verified=True,
-        official_gap_defaults_verified=True,
-        absolute_recording_clock_verified=True,
-        estimated_gait_positions_verified=True,
-        linked_result_selection_verified=True,
-        binary_state_raster_verified=True,
-        presence_only_verified=True,
-        context_footer_verified=True,
-        view_toolbar_verified=True,
-        selected_result_marker_verified=True,
-        calendar_time_controls_verified=True,
-        gait_sensor_context_verified=True,
-        multiple_recordings_verified=True,
-        run_history_reopened=True,
-        models_loaded=models,
-        quantified_rows=len(quantified),
-        qt_plot_rendered=True,
-        raw_modality_groups_verified=True,
-        export_verified=True,
-        cwa_samples=len(cwa_frame),
-        cwa_gait_rows=len(cwa_quantified),
-        cwa_plot_rendered=True,
-        empatica_samples=len(avro_frame),
-        empatica_inspection_verified=True,
-        physilog_excluded_samples=details["excluded_samples"],
-        physilog_continuous_sections=details["continuous_sections"],
-        physilog_gait_rows=len(physilog_gait),
-    )
+    return {
+        "status": "passed",
+        "paradigma_version": version("paradigma"),
+        "app_icon_rendered": True,
+        "workspace_navigation_verified": True,
+        "integrated_page_controls_verified": True,
+        "dropdown_indicator_rendered": True,
+        "module_multiselection_verified": True,
+        "all_module_execution_verified": True,
+        "inline_analysis_help_verified": True,
+        "paradigma_acknowledgement_verified": True,
+        "studio_licence_verified": True,
+        "local_results_saved_verified": True,
+        "aggregate_overview_verified": True,
+        "original_output_tables_verified": True,
+        "aggregation_tables_verified": True,
+        "official_gap_defaults_verified": True,
+        "absolute_recording_clock_verified": True,
+        "estimated_gait_positions_verified": True,
+        "linked_result_selection_verified": True,
+        "binary_state_raster_verified": True,
+        "presence_only_verified": True,
+        "context_footer_verified": True,
+        "view_toolbar_verified": True,
+        "selected_result_marker_verified": True,
+        "calendar_time_controls_verified": True,
+        "gait_sensor_context_verified": True,
+        "multiple_recordings_verified": True,
+        "run_history_reopened": True,
+        "models_loaded": models,
+        "quantified_rows": len(quantified),
+        "qt_plot_rendered": True,
+        "raw_modality_groups_verified": True,
+        "export_verified": True,
+        "cwa_samples": len(cwa_frame),
+        "cwa_gait_rows": len(cwa_quantified),
+        "cwa_plot_rendered": True,
+        "empatica_samples": len(avro_frame),
+        "empatica_inspection_verified": True,
+        "physilog_excluded_samples": details["excluded_samples"],
+        "physilog_continuous_sections": details["continuous_sections"],
+        "physilog_gait_rows": len(physilog_gait),
+    }

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 from .contracts import RunRecord as RunRecord
 
 if TYPE_CHECKING:

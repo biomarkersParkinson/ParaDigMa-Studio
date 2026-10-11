@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from .theme import light_palette
 from .assets import DATA_DIRECTORY
 from .plotting import autoscale_bars
+from .theme import light_palette
 
 
 class GraphToolbar(NavigationToolbar2QT):
@@ -253,7 +253,7 @@ class GraphSettings(QFrame):
             upper.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Maximum")
             upper.setToolTip(lower.toolTip())
             values = getattr(ax, f"get_{axis}lim")()
-            for edit, value in zip((lower, upper), values):
+            for edit, value in zip((lower, upper), values, strict=False):
                 edit.setText(
                     dates.num2date(
                         value, tz=getattr(ax, f"{axis}axis").get_major_locator().tz

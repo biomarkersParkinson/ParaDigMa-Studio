@@ -12,10 +12,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .theme import light_palette
 from .branding import APP_NAME, DISTRIBUTION_NAME
+from .theme import light_palette
 from .widgets import button, label, readout
-
 
 NOTICES = Path(__file__).with_name("data") / "notices"
 NOTICE_FILES = (

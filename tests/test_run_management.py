@@ -1,8 +1,8 @@
 """Cancellation, process cleanup and confirmed deletion of owned exports."""
 
 import logging
-from threading import Event
 import time
+from threading import Event
 
 import pandas as pd
 import pytest
@@ -10,9 +10,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from paradigma_studio import app as desktop
+from paradigma_studio import analysis_process, app as desktop
 from paradigma_studio.app import MainWindow, Worker
-from paradigma_studio import analysis_process
 from paradigma_studio.history import RunHistory, new_run
 
 

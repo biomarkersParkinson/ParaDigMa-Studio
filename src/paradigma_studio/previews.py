@@ -2,8 +2,9 @@
 
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 
-from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 
 
 class CachedPreview(QObject):
@@ -85,10 +86,9 @@ class CachedPreview(QObject):
             except Exception as exc:
                 value, error = None, f"{type(exc).__name__}: {exc}"
             if not self._closed:
-                try:
+                # The parent window may have been deleted before delivery.
+                with suppress(RuntimeError):
                     self._completed.emit((key, value, error))
-                except RuntimeError:
-                    pass  # The parent window was deleted before delivery.
 
         self._future.add_done_callback(completed)
 

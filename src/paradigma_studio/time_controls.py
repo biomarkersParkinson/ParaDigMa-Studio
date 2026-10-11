@@ -1,7 +1,9 @@
 """Optional calendar/clock filters, preserving untouched source-clock precision."""
 
+from contextlib import suppress
+
 import numpy as np
-from PySide6.QtCore import QDateTime, QTimeZone, Qt, Signal
+from PySide6.QtCore import QDateTime, Qt, QTimeZone, Signal
 from PySide6.QtWidgets import (
     QCalendarWidget,
     QCheckBox,
@@ -145,10 +147,8 @@ class TimeField(QWidget):
     def set_clock(self, clock):
         old, text = self._clock, self._text
         if not self.origin and old is not None and clock is None and text:
-            try:
+            with suppress(ValueError, TypeError):
                 text = str(time_bound(text, old))
-            except (ValueError, TypeError):
-                pass
         self._clock = clock
         self.editors.setCurrentWidget(
             self.calendar if self.origin or clock is not None else self.seconds

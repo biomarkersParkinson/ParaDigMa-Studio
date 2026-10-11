@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.epochs import epoch_phase, epoch_summary, availability_epoch_summary
+from paradigma_studio.epochs import availability_epoch_summary, epoch_phase, epoch_summary
 from paradigma_studio.results_view import clock_times
 
 

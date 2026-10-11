@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTreeWidgetItem
+
 from ..results_view import (
     MODULE_NAMES,
+    gait_model_threshold,
+    output_label,
     plot_metrics,
     preferred_metric,
-    output_label,
-    gait_model_threshold,
 )
 from ..theme import module_color
 

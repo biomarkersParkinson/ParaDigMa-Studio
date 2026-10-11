@@ -11,9 +11,10 @@ from pathlib import Path
 def startup_test(report_path, started, *, history_dir=None):
     report_path = Path(report_path).resolve()
     try:
-        from PySide6.QtCore import QObject, QEvent, QTimer
+        from PySide6.QtCore import QEvent, QObject, QTimer
+
         from . import app as workspace
-        from .app import QApplication, MainWindow
+        from .app import MainWindow, QApplication
 
         imported = time.perf_counter()
         app = QApplication([])

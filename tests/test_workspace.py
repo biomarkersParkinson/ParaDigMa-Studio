@@ -1,6 +1,5 @@
 """Behavioral checks for navigation, linked exploration and previous runs."""
 
-from conftest import bar_values, bar_starts, wait_for_previews, select_plot_metric
 import json
 import time
 from types import SimpleNamespace
@@ -8,10 +7,11 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtTest import QTest
+from conftest import bar_starts, bar_values, select_plot_metric, wait_for_previews
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton
-from PySide6.QtCore import Qt, QPoint
 
 from paradigma_studio import app as desktop
 from paradigma_studio.app import MainWindow
@@ -79,8 +79,10 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
 
 def test_segmentation_defaults_match_official_package_and_resets_remain_available(window):
     from inspect import signature
+
     from paradigma.orchestrator import run_paradigma
     from paradigma.prepare_data import prepare_raw_data
+
     from paradigma_studio.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 
     defaults = signature(prepare_raw_data).parameters
@@ -199,30 +201,7 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
 ):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
-    # Larger native Windows control hints overflowed the previous layout even
-    # though the same fields fitted under the headless Linux font metrics.
-    for control in (
-        window.side,
-        window.acc,
-        window.gyro,
-        window.time,
-        window.orientation,
-        window.max_gap,
-        window.min_segment,
-    ):
-        control.setMinimumHeight(control_minimum_height)
-    if larger_surrounding_controls:
-        # Input controls alone did not reproduce the Windows overflow. Native
-        # labels, checkboxes and action buttons also consume vertical space.
-        body = window.analysis_scroll.widget()
-        for control in body.findChildren(QLabel):
-            if control.objectName() != "fieldHelp":
-                control.setMinimumHeight(28)
-        for control in body.findChildren(QCheckBox):
-            control.setMinimumHeight(36)
-        for control in body.findChildren(QPushButton):
-            if control.objectName() != "helpInfo":
-                control.setMinimumHeight(44)
+    _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls)
     window.navigate(1)
     window.resize(1200, 900)
     window.show()
@@ -245,7 +224,7 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     for control in controls:
         assert control.visibleRegion().boundingRect().contains(control.rect())
     for previous, following in zip(
-        (window.side, window.acc, window.gyro), (window.acc, window.gyro, window.time)
+        (window.side, window.acc, window.gyro), (window.acc, window.gyro, window.time), strict=False
     ):
         bottom = previous.mapTo(window.settings_panel, QPoint(0, previous.height())).y()
         top = following.mapTo(window.settings_panel, QPoint(0, 0)).y()
@@ -282,6 +261,33 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     window.resize(1200, 900)
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+
+
+def _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls):
+    # Larger native Windows control hints overflowed the previous layout even
+    # though the same fields fitted under the headless Linux font metrics.
+    for control in (
+        window.side,
+        window.acc,
+        window.gyro,
+        window.time,
+        window.orientation,
+        window.max_gap,
+        window.min_segment,
+    ):
+        control.setMinimumHeight(control_minimum_height)
+    if larger_surrounding_controls:
+        # Input controls alone did not reproduce the Windows overflow. Native
+        # labels, checkboxes and action buttons also consume vertical space.
+        body = window.analysis_scroll.widget()
+        for control in body.findChildren(QLabel):
+            if control.objectName() != "fieldHelp":
+                control.setMinimumHeight(28)
+        for control in body.findChildren(QCheckBox):
+            control.setMinimumHeight(36)
+        for control in body.findChildren(QPushButton):
+            if control.objectName() != "helpInfo":
+                control.setMinimumHeight(44)
 
 
 def test_data_overview_graphs_and_tables_use_original_recording(window):
@@ -518,20 +524,20 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     )
     window.run_analysis()
     wait_for_job(window)
-    expected = dict(
-        pipelines=["gait", "tremor"],
-        watch_side="right",
-        accelerometer_units="m/s^2",
-        gyroscope_units="rad/s",
-        time_input_unit="relative_ms",
-        device_orientation=["-y", "x", "z"],
-        column_mapping={"device_time": "time"},
-        skip_preparation=False,
-        split_by_gaps=True,
-        drop_missing_samples=False,
-        max_gap_seconds=2.5,
-        min_segment_seconds=4.0,
-    )
+    expected = {
+        "pipelines": ["gait", "tremor"],
+        "watch_side": "right",
+        "accelerometer_units": "m/s^2",
+        "gyroscope_units": "rad/s",
+        "time_input_unit": "relative_ms",
+        "device_orientation": ["-y", "x", "z"],
+        "column_mapping": {"device_time": "time"},
+        "skip_preparation": False,
+        "split_by_gaps": True,
+        "drop_missing_samples": False,
+        "max_gap_seconds": 2.5,
+        "min_segment_seconds": 4.0,
+    }
     assert captured == [expected]
     assert window.runs[0]["settings"] == {**expected, "plot_time_origin": {"mode": "automatic"}}
     window.set_modules(["pulse_rate"])

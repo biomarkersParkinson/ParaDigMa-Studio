@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
 
 

@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .core import load_sensor_file
-from .results_view import analysis_alignment, recording_clock, normalise_clock
 from .contracts import (
     AnalysisResults,
     AnalysisSettings,
@@ -19,6 +17,8 @@ from .contracts import (
     RecordingAlignment,
     TimeOffsets,
 )
+from .core import load_sensor_file
+from .results_view import analysis_alignment, normalise_clock, recording_clock
 
 if TYPE_CHECKING:
     import pandas as pd

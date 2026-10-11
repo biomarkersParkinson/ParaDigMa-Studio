@@ -2,11 +2,11 @@
 
 import re
 from functools import lru_cache
+
 import numpy as np
 
 from .core import result_tables
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
-
 
 MODULE_NAMES = {"gait": "Gait", "tremor": "Tremor", "pulse_rate": "Pulse rate"}
 
@@ -14,6 +14,7 @@ MODULE_NAMES = {"gait": "Gait", "tremor": "Tremor", "pulse_rate": "Pulse rate"}
 @lru_cache(maxsize=2)
 def gait_model_threshold(stage):
     from importlib.resources import files
+
     from paradigma.classification import ClassifierPackage
 
     asset = {
@@ -48,6 +49,12 @@ def plot_tables(tables):
         plots[name] = view
         labels[(name, probability)] = f"{title} (probability)"
         labels[(name, indicator)] = f"{title} (prediction)"
+    labels.update(_quantification_plot_labels(tables))
+    return plots, labels
+
+
+def _quantification_plot_labels(tables):
+    labels = {}
     for branch in ("filtered", "unfiltered"):
         name = f"quantifications/gait/{branch}"
         frame = tables.get(name)
@@ -67,7 +74,7 @@ def plot_tables(tables):
             ):
                 if metric in frame:
                     labels[name, metric] = title
-    return plots, labels
+    return labels
 
 
 def binary_interval_ends(name, frame, times):
@@ -470,8 +477,6 @@ def segment_summary(metadata):
 
 
 def time_bound(text, clock):
-    import pandas as pd
-
     if not text.strip():
         return None
     try:
@@ -485,6 +490,12 @@ def time_bound(text, clock):
         return value
     if not re.match(r"^\d{4}-\d{2}-\d{2}", text.strip()):
         raise ValueError("Use a full ISO date/time or elapsed seconds.")
+    return _date_time_bound(text, clock)
+
+
+def _date_time_bound(text, clock):
+    import pandas as pd
+
     origin, bound = clock_origin(clock), pd.Timestamp(text)
     if pd.isna(bound):
         raise ValueError("Enter a valid date/time.")
@@ -522,29 +533,14 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
     Different exclusions can move absolute-time zero in each official run.
     Offsets are for display only; each group's outputs retain their own time.
     """
-    offsets = {}
-    for module, value in (saved_offsets if isinstance(saved_offsets, dict) else {}).items():
-        if module in MODULE_NAMES and isinstance(value, (int, float)) and np.isfinite(value):
-            offsets[module] = float(value)
-        elif module in MODULE_NAMES and isinstance(value, dict):
-            offsets[module] = {
-                key: float(offset)
-                for key, offset in value.items()
-                if isinstance(key, str) and isinstance(offset, (int, float)) and np.isfinite(offset)
-            }
+    offsets = _saved_alignment_offsets(saved_offsets)
     if frame is None:
         return None, {}, offsets
     groups = results.get("metadata", {}).get("desktop_preparation", {}).get("analysis_groups")
     if not isinstance(groups, list):
         groups = [settings.get("pipelines", [])]
     timelines = {}
-    common = None
-    try:
-        candidate = source_timeline(frame, settings)
-        if np.isfinite(candidate).any():
-            common = candidate
-    except (ValueError, TypeError, KeyError, OverflowError):
-        pass
+    common = _common_source_timeline(frame, settings)
     for group in groups:
         if not isinstance(group, list) or any(module not in MODULE_NAMES for module in group):
             continue
@@ -565,3 +561,28 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
         except (ValueError, TypeError, KeyError, OverflowError):
             continue
     return common, timelines, offsets
+
+
+def _saved_alignment_offsets(saved_offsets):
+    offsets = {}
+    for module, value in (saved_offsets if isinstance(saved_offsets, dict) else {}).items():
+        if module in MODULE_NAMES and isinstance(value, (int, float)) and np.isfinite(value):
+            offsets[module] = float(value)
+        elif module in MODULE_NAMES and isinstance(value, dict):
+            offsets[module] = {
+                key: float(offset)
+                for key, offset in value.items()
+                if isinstance(key, str) and isinstance(offset, (int, float)) and np.isfinite(offset)
+            }
+    return offsets
+
+
+def _common_source_timeline(frame, settings):
+    common = None
+    try:
+        candidate = source_timeline(frame, settings)
+        if np.isfinite(candidate).any():
+            common = candidate
+    except (ValueError, TypeError, KeyError, OverflowError):
+        pass
+    return common

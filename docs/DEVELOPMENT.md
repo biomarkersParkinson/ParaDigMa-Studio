@@ -52,11 +52,17 @@ files for ParaDigMa or Open Movement. Model assets, package metadata and native
 dependencies are retained. The packaged check rejects leftover app versions
 and unexpected files at the top of the app folder.
 
-Both Windows workflows enforce the pinned Ruff formatter, import/error checks
-and mypy API checks.
+Both Windows workflows enforce the pinned Ruff formatter, error and import
+checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
+modernization (`UP`) rules, and a McCabe complexity limit of 10 (`C901`). They
+also run mypy API checks. Split complex functions into cohesive helpers; keep
+any rule-specific suppression narrow and explain its reason in a nearby comment.
+Ruff rejects unused suppressions (`RUF100`). The documented immutable Qt
+`QModelIndex()` default is allowed for native model method signatures.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
 Qt platform initialization and Matplotlib cache configuration ahead of the
-imports that depend on them; do not reorder those imports automatically.
+imports that depend on them. The justified `isort: split` boundary in `app.py`
+keeps cache initialization ahead of plotting imports during automatic sorting.
 Keep pandas/Arrow and scientific-stack imports deferred until data is needed.
 Fresh-process startup tests check both the empty workspace and saved run history;
 `benchmark_desktop.py` enforces the same import boundary in packaged builds.

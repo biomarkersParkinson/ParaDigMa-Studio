@@ -1,6 +1,7 @@
 """Compact coverage of the actual prepared frames handed to the toolbox."""
 
 import json
+
 import numpy as np
 
 
@@ -18,7 +19,7 @@ def prepared_availability(inputs, pipelines):
             np.column_stack((times[boundaries], times[lasts] + step)).tolist() if len(times) else []
         )
         sections[key] = {"samples": len(frame), "sample_interval_s": step, "intervals": intervals}
-    return {module: sections for module in pipelines}
+    return dict.fromkeys(pipelines, sections)
 
 
 def availability_views(results, offsets):

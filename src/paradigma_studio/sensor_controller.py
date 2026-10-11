@@ -6,12 +6,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 import numpy as np
 from PySide6.QtCore import Qt
+
 from .channels import mark_sensor_time
 from .exploration import SensorContext, gait_context, source_timeline
 from .recordings import source_key
-from .results_view import clock_times, clock_origin
+from .results_view import clock_origin, clock_times
 from .sensor_navigation import SensorNavigator, SensorTimeIndex
 from .widgets import FrameModel
 from .workspace_state import ResultState, SensorState

@@ -55,7 +55,8 @@ def test_fractional_timestamp_arithmetic_does_not_wrap(frequency):
     recording._parse_times()
     fractions = [65534, 32768]
     expected_offsets = [
-        offset + (fraction * frequency) // 65536 for offset, fraction in zip([-72, -50], fractions)
+        offset + (fraction * frequency) // 65536
+        for offset, fraction in zip([-72, -50], fractions, strict=False)
     ]
     assert recording.df.timestamp_offset.tolist() == expected_offsets
     np.testing.assert_allclose(

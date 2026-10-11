@@ -1,10 +1,10 @@
 """Opening help must not reflow the Analyze labels, options or action buttons."""
 
 import pytest
-from PySide6.QtCore import QPoint, QObject, QEvent
-from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QSizePolicy
-from PySide6.QtTest import QTest
+from PySide6.QtCore import QEvent, QObject, QPoint
 from PySide6.QtGui import QPixmap
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.widgets import WrappedForm
@@ -157,7 +157,7 @@ def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path,
                         events.append(
                             (
                                 "mapping",
-                                0 <= child.y() and child.y() + child.height() <= parent.height(),
+                                child.y() >= 0 and child.y() + child.height() <= parent.height(),
                             )
                         )
                         child = parent
@@ -258,7 +258,7 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(
             labels = fields.findChildren(QLabel)
             widgets = (window.mapping, window.clock_input, window.origin_reset, *labels)
 
-            def positions():
+            def positions(body=body, widgets=widgets):
                 app.processEvents()
                 return [
                     widget.mapTo(body, QPoint(0, 0)).toTuple() + widget.size().toTuple()
@@ -442,19 +442,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
                     assert second_start.x() > first_end.x()
                     assert second_start.y() < first_end.y()
             for help_name in ("Watch side", "Device axes", "Minimum section duration"):
-                for control in (window.mapping, window.max_gap, window.min_segment):
-                    # Inspect every ancestor: children must fit horizontally
-                    # as well as vertically, including after a width change.
-                    child = control
-                    while child is not window.analysis_scroll.widget():
-                        parent = child.parentWidget()
-                        assert parent.rect().contains(child.geometry()), (
-                            type(child).__name__,
-                            child.geometry(),
-                            type(parent).__name__,
-                            parent.geometry(),
-                        )
-                        child = parent
+                _assert_nested_analysis_controls_fit(window)
                 center = window.mapping.mapTo(
                     window.analysis_scroll.widget(), window.mapping.rect().center()
                 )
@@ -468,3 +456,19 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
     finally:
         window.close()
         app.processEvents()
+
+
+def _assert_nested_analysis_controls_fit(window):
+    for control in (window.mapping, window.max_gap, window.min_segment):
+        # Inspect every ancestor: children must fit horizontally
+        # as well as vertically, including after a width change.
+        child = control
+        while child is not window.analysis_scroll.widget():
+            parent = child.parentWidget()
+            assert parent.rect().contains(child.geometry()), (
+                type(child).__name__,
+                child.geometry(),
+                type(parent).__name__,
+                parent.geometry(),
+            )
+            child = parent

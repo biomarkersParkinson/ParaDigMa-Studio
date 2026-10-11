@@ -4,38 +4,39 @@ import numpy as np
 from PySide6.QtCore import (
     QAbstractAnimation,
     QAbstractTableModel,
-    QModelIndex,
-    Qt,
-    QEvent,
     QEasingCurve,
-    QVariantAnimation,
-    Signal,
+    QEvent,
+    QModelIndex,
     QRect,
     QSize,
+    Qt,
+    QVariantAnimation,
+    Signal,
 )
-from PySide6.QtGui import QFont, QPalette, QColor
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QBoxLayout,
     QComboBox,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLayout,
     QPlainTextEdit,
     QPushButton,
-    QTableView,
-    QVBoxLayout,
-    QHBoxLayout,
-    QBoxLayout,
-    QWidget,
-    QTabBar,
-    QStylePainter,
-    QStyleOptionTab,
-    QStyle,
     QSizePolicy,
-    QTreeWidget,
+    QStyle,
     QStyledItemDelegate,
+    QStyleOptionTab,
     QStyleOptionViewItem,
+    QStylePainter,
+    QTabBar,
+    QTableView,
+    QTreeWidget,
+    QVBoxLayout,
+    QWidget,
 )
+
 from .theme import light_palette, module_color
 
 

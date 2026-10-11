@@ -1,7 +1,7 @@
 """Build the portable desktop bundle using the repository's packaging options."""
 
-import subprocess
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 

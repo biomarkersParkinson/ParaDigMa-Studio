@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 import json
-import re
 import math
-from datetime import datetime, timezone
+import re
+from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-
-from .serialization import json_value
-from .storage import atomic_file, recording_files, same_file
-from .core import validate_column_mapping, validate_orientation
 from .contracts import (
     AnalysisError,
     AnalysisResults,
@@ -23,10 +19,13 @@ from .contracts import (
     RunOutput,
     RunRecord,
 )
+from .core import validate_column_mapping, validate_orientation
+from .serialization import json_value
+from .storage import atomic_file, recording_files, same_file
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def new_run(source: str, settings: AnalysisSettings) -> RunRecord:
@@ -117,6 +116,71 @@ def migrate_problems(record: RunRecord) -> None:
     )
 
 
+def _read_run_record(path: Path) -> RunRecord:
+    if path.is_symlink():
+        raise ValueError("History entries must be regular files.")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(record, dict)
+        or not re.fullmatch(r"[0-9a-f]{32}", record.get("id", ""))
+        or path.stem != record["id"]
+        or not isinstance(record.get("settings"), dict)
+        or not all(isinstance(record.get(key), str) for key in ("started", "status", "source"))
+        or not isinstance(record.get("outputs"), list)
+        or not isinstance(record.get("warnings"), list)
+    ):
+        raise ValueError("Invalid run metadata.")
+    settings = record["settings"]
+    sources = record.get("sources", {})
+    if not isinstance(sources, dict) or not all(
+        isinstance(key, str) and isinstance(path, str) for key, path in sources.items()
+    ):
+        raise ValueError("Invalid recording sources.")
+    datetime.fromisoformat(record["started"])
+    if record.get("finished") is not None:
+        datetime.fromisoformat(record["finished"])
+    _validate_run_outputs(record, settings)
+    migrate_problems(record)
+    validate_column_mapping(settings.get("column_mapping"))
+    validate_orientation(settings.get("device_orientation"))
+    _validate_preparation_settings(settings)
+    return record
+
+
+def _validate_run_outputs(record, settings):
+    pipelines = settings.get("pipelines", [])
+    if (
+        not isinstance(pipelines, list)
+        or not all(p in ("gait", "tremor", "pulse_rate") for p in pipelines)
+        or not all(isinstance(warning, str) for warning in record["warnings"])
+        or not isinstance(record.get("errors", []), list)
+        or not all(isinstance(error, str) for error in record.get("errors", []))
+        or not isinstance(record.get("log", ""), str)
+        or not all(
+            isinstance(output, dict)
+            and output.get("kind") in ("CSV", "JSON")
+            and isinstance(output.get("path"), str)
+            for output in record["outputs"]
+        )
+    ):
+        raise ValueError("Invalid run parameters or outputs.")
+
+
+def _validate_preparation_settings(settings):
+    for key in ("max_gap_seconds", "min_segment_seconds"):
+        value = settings.get(key)
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, (float, int))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError("Invalid gap duration.")
+    for key in ("skip_preparation", "split_by_gaps", "drop_missing_samples"):
+        if key in settings and not isinstance(settings[key], bool):
+            raise ValueError("Invalid preparation setting.")
+
+
 class RunHistory:
     def __init__(self, directory: PathInput) -> None:
         self.directory = Path(directory)
@@ -133,61 +197,7 @@ class RunHistory:
             return [], [f"Run history could not be read: {exc}"]
         for path in paths:
             try:
-                if path.is_symlink():
-                    raise ValueError("History entries must be regular files.")
-                record = json.loads(path.read_text(encoding="utf-8"))
-                if (
-                    not isinstance(record, dict)
-                    or not re.fullmatch(r"[0-9a-f]{32}", record.get("id", ""))
-                    or path.stem != record["id"]
-                    or not isinstance(record.get("settings"), dict)
-                    or not all(
-                        isinstance(record.get(key), str) for key in ("started", "status", "source")
-                    )
-                    or not isinstance(record.get("outputs"), list)
-                    or not isinstance(record.get("warnings"), list)
-                ):
-                    raise ValueError("Invalid run metadata.")
-                settings = record["settings"]
-                sources = record.get("sources", {})
-                if not isinstance(sources, dict) or not all(
-                    isinstance(key, str) and isinstance(path, str) for key, path in sources.items()
-                ):
-                    raise ValueError("Invalid recording sources.")
-                datetime.fromisoformat(record["started"])
-                if record.get("finished") is not None:
-                    datetime.fromisoformat(record["finished"])
-                pipelines = settings.get("pipelines", [])
-                if (
-                    not isinstance(pipelines, list)
-                    or not all(p in ("gait", "tremor", "pulse_rate") for p in pipelines)
-                    or not all(isinstance(warning, str) for warning in record["warnings"])
-                    or not isinstance(record.get("errors", []), list)
-                    or not all(isinstance(error, str) for error in record.get("errors", []))
-                    or not isinstance(record.get("log", ""), str)
-                    or not all(
-                        isinstance(output, dict)
-                        and output.get("kind") in ("CSV", "JSON")
-                        and isinstance(output.get("path"), str)
-                        for output in record["outputs"]
-                    )
-                ):
-                    raise ValueError("Invalid run parameters or outputs.")
-                migrate_problems(record)
-                validate_column_mapping(settings.get("column_mapping"))
-                validate_orientation(settings.get("device_orientation"))
-                for key in ("max_gap_seconds", "min_segment_seconds"):
-                    value = settings.get(key)
-                    if value is not None and (
-                        isinstance(value, bool)
-                        or not isinstance(value, (float, int))
-                        or not math.isfinite(value)
-                        or value <= 0
-                    ):
-                        raise ValueError("Invalid gap duration.")
-                for key in ("skip_preparation", "split_by_gaps", "drop_missing_samples"):
-                    if key in settings and not isinstance(settings[key], bool):
-                        raise ValueError("Invalid preparation setting.")
+                record = _read_run_record(path)
                 if record["status"] == "Running":
                     record["status"] = "Unfinished"
                 records.append(record)

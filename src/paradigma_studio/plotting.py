@@ -1,7 +1,8 @@
 """Scientific plot presentation: original values, exact state timestamps, scrolling."""
 
-import numpy as np
 from contextlib import contextmanager
+
+import numpy as np
 from matplotlib import dates
 from matplotlib.artist import allow_rasterization
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg

@@ -3,14 +3,12 @@
 import re
 
 import numpy as np
-
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
 from .plotting import ScrollableFigureCanvas
 from .theme import style_axes
 from .widgets import card, label
-
 
 STATISTICS = (
     ("median", "Median"),
@@ -84,7 +82,7 @@ def segment_count_rows(metadata):
                 ]
         rows.extend(
             (branch, duration, {"segment_count": count})
-            for duration, count in zip(("0_20", "20_inf"), counts)
+            for duration, count in zip(("0_20", "20_inf"), counts, strict=False)
         )
     return rows
 
@@ -193,7 +191,7 @@ def _render_gait_metric(figure, canvas, grid, index, metric, heading, unit, metr
             "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
         )
     precision = 0 if metric == "segment_count" else 2 if "_cov_" in metric else 1
-    for position, value in zip(positions, display_numbers):
+    for position, value in zip(positions, display_numbers, strict=False):
         if np.isfinite(value):
             axis.annotate(
                 f"{value:.{precision}f}",

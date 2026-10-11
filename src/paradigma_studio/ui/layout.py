@@ -1,57 +1,59 @@
 """Page construction and shared layout helpers for the existing main-window controls."""
 
 from html import escape
+
+from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QAction, QShortcut, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
+    QListView,
+    QListWidget,
     QPlainTextEdit,
     QProgressBar,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QStackedWidget,
-    QListView,
     QTabWidget,
     QVBoxLayout,
     QWidget,
-    QListWidget,
-    QGridLayout,
-    QLayout,
-    QSizePolicy,
 )
-from matplotlib.figure import Figure
+
+from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
+from ..assets import DATA_DIRECTORY
+from ..branding import APP_NAME
 from ..plot_controls import GraphToolbar, add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
 from ..results_view import MODULE_NAMES
 from ..theme import light_palette
-from ..analysis_help import FIELD_HELP, SOURCE, DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
-from ..time_controls import TimeField
 from ..time_axis import PinnedTimeAxis
+from ..time_controls import TimeField
 from ..widgets import (
-    HoverSidebar,
-    ReadableComboBox,
-    ModuleTabBar,
-    WrappedForm,
     AdaptiveFormColumns,
-    FigureActionBar,
-    SeriesTree,
     CheckLabelDelegate,
-    label,
+    FigureActionBar,
+    HoverSidebar,
+    ModuleTabBar,
+    ReadableComboBox,
+    SeriesTree,
+    WrappedForm,
     button,
     card,
-    table,
-    readout,
     field,
+    label,
+    readout,
+    table,
 )
-from ..assets import DATA_DIRECTORY
-from ..branding import APP_NAME
 
 
 class WorkspaceLayout:

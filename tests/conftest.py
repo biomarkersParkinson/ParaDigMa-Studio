@@ -2,12 +2,14 @@
 
 import os
 from pathlib import Path
+
 import pytest
 
 
 def wait_for_previews(window):
     """Process Qt delivery while read-only recording previews finish in workers."""
     import time
+
     from PySide6.QtWidgets import QApplication
 
     previews = (window._origin_preview, window._time_preview, window._sensor_preview)
@@ -90,6 +92,7 @@ def bar_centers(axes):
 def window(tmp_path):
     """Visible window for UI tests; modules override this for special Qt cases."""
     from PySide6.QtWidgets import QApplication
+
     from paradigma_studio.app import MainWindow
 
     application = QApplication.instance() or QApplication([])

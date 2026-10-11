@@ -4,7 +4,6 @@ import numpy as np
 
 from .results_view import clock_origin
 
-
 EPOCH_SECONDS = 1800.0
 MIN_PRESENCE_SECONDS = EPOCH_SECONDS * 0.05
 
@@ -73,7 +72,7 @@ def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
     epoch_starts = np.arange(first, last, dtype=float) * EPOCH_SECONDS + phase
     epoch_ends = epoch_starts + EPOCH_SECONDS
     merged = []
-    for start, end in sorted(zip(np.maximum(starts, low), np.minimum(ends, high))):
+    for start, end in sorted(zip(np.maximum(starts, low), np.minimum(ends, high), strict=False)):
         if end <= start:
             continue
         if merged and start <= merged[-1][1]:

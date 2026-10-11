@@ -1,15 +1,16 @@
 """Sensor drill-down shares Data's multi-channel workspace without page scrolling."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
-import warnings
+from conftest import wait_for_previews
 from matplotlib import dates
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QPushButton
 
-from conftest import wait_for_previews
 from paradigma_studio.app import MainWindow
 
 
@@ -451,9 +452,9 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
 @pytest.mark.parametrize("origin", ["2026-10-25T00:00:00Z", "1965-01-01T01:02:03.123456Z"])
 def test_calendar_sensor_navigation_matches_full_conversion_at_exact_endpoints(origin):
     from paradigma_studio.exploration import SensorContext
-    from paradigma_studio.sensor_navigation import SensorNavigator
     from paradigma_studio.plotting import time_coordinates
     from paradigma_studio.results_view import clock_times
+    from paradigma_studio.sensor_navigation import SensorNavigator
 
     times = np.array(
         [np.nan, -2.0, 0.0, 0.000001, 2.0000001, 2.0000001, 0.123456789, 3600.0, 7200.0]

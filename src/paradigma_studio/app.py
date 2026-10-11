@@ -1,23 +1,35 @@
 """Native scientific workspace with separate configuration and exploration."""
 
 import json
-from threading import Event
 import sys
 from importlib.metadata import version
 from pathlib import Path
+from threading import Event
 
 import numpy as np
-from PySide6.QtCore import Qt, QStandardPaths, QTimer
-from PySide6.QtGui import QIcon, QColor
+from PySide6.QtCore import QStandardPaths, Qt, QTimer
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QMainWindow,
     QMessageBox,
 )
+
 from .bootstrap import PLOT_CACHE_DIRECTORY as PLOT_CACHE_DIRECTORY
 
-
+# Configure Matplotlib's cache before importing plotting-dependent components.
+# isort: split
+from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
+from .analysis_process import run_isolated_analysis
+from .assets import DATA_DIRECTORY
+from .branding import APP_NAME, user_storage_path
+from .channels import (
+    check_channels,
+    plot_channel_signals,
+    populate_channels,
+    selected_channels,
+)
 from .core import (
     analyze as analyze,
     export_results,
@@ -26,45 +38,31 @@ from .core import (
     validate_column_mapping,
     validate_orientation,
 )
-from .recordings import load_recordings, align_recordings
 from .history import RunHistory, new_run, now
 from .inspection import inspect_recording, sensor_descriptives, time_descriptives
+from .jobs import SignalHandler as SignalHandler, Worker
+from .previews import CachedPreview
+from .recordings import align_recordings, load_recordings
+from .result_controller import ResultCallbacks, ResultController, ResultView
+from .result_data import detail_table_view
 from .results_view import (
     MODULE_NAMES,
     analysis_alignment,
+    normalise_clock,
     output_label,
     plot_metrics,
     preferred_metric,
     recording_clock,
-    normalise_clock,
 )
+from .run_controller import RunCallbacks, RunController, RunView
+from .sensor_controller import ChannelServices, SensorController, SensorView
 from .theme import STYLESHEET, light_palette, module_color
-from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
-from .previews import CachedPreview
-from .analysis_process import run_isolated_analysis
-from .result_data import detail_table_view
-from .assets import DATA_DIRECTORY
-from .branding import APP_NAME, user_storage_path
 from .ui.layout import WorkspaceLayout
 from .ui.result_graphs import ResultGraphs
-from .channels import (
-    selected_channels,
-    check_channels,
-    populate_channels,
-    plot_channel_signals,
-)
-from .jobs import Worker, SignalHandler as SignalHandler
-from .widgets import ReadableTable as ReadableTable
-
-from .widgets import FrameModel, WrappedForm
-
-
-from .workspace_state import InputState, ResultState, RunState, SensorState, state_property
-from .result_controller import ResultController, ResultView, ResultCallbacks
-from .run_controller import RunController, RunView, RunCallbacks
-from .sensor_controller import SensorController, SensorView, ChannelServices
 from .ui.result_overview import ResultOverview
 from .ui.result_series import ResultSeries
+from .widgets import FrameModel, ReadableTable as ReadableTable, WrappedForm
+from .workspace_state import InputState, ResultState, RunState, SensorState, state_property
 
 
 class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
@@ -908,20 +906,20 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 if self.prepared.isChecked()
                 else validate_orientation([v.strip() for v in self.orientation.text().split(",")])
             )
-            settings = dict(
-                pipelines=pipelines,
-                watch_side=self.side.currentText(),
-                accelerometer_units=self.acc.currentText(),
-                gyroscope_units=self.gyro.currentText(),
-                time_input_unit=self.time.currentText(),
-                device_orientation=axes,
-                column_mapping=mapping,
-                skip_preparation=self.prepared.isChecked(),
-                split_by_gaps=self.gaps.isChecked(),
-                drop_missing_samples=self.drop_missing.isChecked(),
-                max_gap_seconds=self.max_gap.value(),
-                min_segment_seconds=self.min_segment.value(),
-            )
+            settings = {
+                "pipelines": pipelines,
+                "watch_side": self.side.currentText(),
+                "accelerometer_units": self.acc.currentText(),
+                "gyroscope_units": self.gyro.currentText(),
+                "time_input_unit": self.time.currentText(),
+                "device_orientation": axes,
+                "column_mapping": mapping,
+                "skip_preparation": self.prepared.isChecked(),
+                "split_by_gaps": self.gaps.isChecked(),
+                "drop_missing_samples": self.drop_missing.isChecked(),
+                "max_gap_seconds": self.max_gap.value(),
+                "min_segment_seconds": self.min_segment.value(),
+            }
             settings["plot_time_origin"] = self.origin_setting()
             if self.prepared.isChecked():
                 settings.update(

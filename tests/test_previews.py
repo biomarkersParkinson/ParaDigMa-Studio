@@ -1,16 +1,16 @@
 """Responsiveness and correctness of background recording previews."""
 
-from threading import Event, get_ident
 import time
+from threading import Event, get_ident
 
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import wait_for_previews
 from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from conftest import wait_for_previews
 from paradigma_studio import app as desktop
 from paradigma_studio.app import MainWindow
 from paradigma_studio.inspection import sensor_descriptives, time_descriptives

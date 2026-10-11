@@ -1,9 +1,10 @@
 """Shared recording clocks, categorical rasters and actual Qt wheel delivery."""
 
-from conftest import wait_for_previews
 import os
 from copy import deepcopy
 from types import SimpleNamespace
+
+from conftest import wait_for_previews
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
@@ -12,19 +13,21 @@ import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QWidget, QStyle, QStyleOptionButton
+from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionButton, QWidget
 
-from paradigma_studio.time_axis import RecordingTimeFormatter
 from paradigma_studio.app import MainWindow
 from paradigma_studio.plotting import binary_indicator
 from paradigma_studio.results_view import clock_times
+from paradigma_studio.time_axis import RecordingTimeFormatter
 from paradigma_studio.time_controls import TimeField
 
 
 @pytest.mark.parametrize("dtype", ["float64", "Float64"])
 def test_gait_window_threshold_boundaries_preserve_probabilities_and_raw_tables(dtype):
     from importlib.resources import files
+
     from paradigma.classification import ClassifierPackage
+
     from paradigma_studio.results_view import plot_tables
 
     for stage, asset, probability, indicator in (
@@ -340,7 +343,7 @@ def test_sidebar_text_anchors_stay_fixed_through_animation(window, brand_font_px
     anchors = [
         widget.mapTo(window, text_box(widget, text).topLeft())
         for widget, text in zip(
-            [*window.nav_buttons, window.about_button], ["1", "2", "3", "4", "About"]
+            [*window.nav_buttons, window.about_button], ["1", "2", "3", "4", "About"], strict=False
         )
     ]
     assert len({point.x() for point in anchors}) == 1  # About shares the number alignment.
@@ -362,7 +365,9 @@ def test_sidebar_text_anchors_stay_fixed_through_animation(window, brand_font_px
             current = [
                 widget.mapTo(window, text_box(widget, text).topLeft())
                 for widget, text in zip(
-                    [*window.nav_buttons, window.about_button], ["1", "2", "3", "4", "About"]
+                    [*window.nav_buttons, window.about_button],
+                    ["1", "2", "3", "4", "About"],
+                    strict=False,
                 )
             ]
             assert current == anchors
@@ -461,6 +466,7 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
 
 def test_module_colors_match_analysis_overview_and_graphs(window):
     from matplotlib.colors import to_rgba
+
     from paradigma_studio.theme import MODULE_PALETTE, module_color
 
     frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "power": [2.0, 3.0, 4.0]})

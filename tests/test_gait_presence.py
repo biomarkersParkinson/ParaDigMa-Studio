@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.gait_presence import gait_presence_intervals, gait_epoch_summaries
+from paradigma_studio.gait_presence import gait_epoch_summaries, gait_presence_intervals
 
 
 def states(starts, ends, values, **keys):
@@ -109,7 +109,7 @@ def test_displayed_gait_predictions_share_epoch_denominator_and_preserve_raw_tab
         window.analyzed(output)
         window.result_tabs.setCurrentIndex(1)
         window.result_series.blockSignals(True)
-        for (name, metric), item in window._series_items.items():
+        for (_name, metric), item in window._series_items.items():
             item.setCheckState(0, Qt.Checked if metric.endswith("_window") else Qt.Unchecked)
         window.result_series.blockSignals(False)
         window.plot()

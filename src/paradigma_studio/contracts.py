@@ -7,7 +7,7 @@ payloads. Keep their values permissive while typing frames and service inputs.
 from __future__ import annotations
 
 from os import PathLike
-from typing import Any, Literal, Protocol, TypeAlias, TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, TypedDict
 
 if TYPE_CHECKING:
     import numpy as np

@@ -12,7 +12,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
 
-
 CONFIG_NAMES = (
     "AZURE_CLIENT_ID",
     "AZURE_TENANT_ID",
@@ -165,7 +164,7 @@ def validate_signed(plan, records, publisher):
 
 
 def verify_with_signtool(bundle, records):
-    kits = Path(os.environ["ProgramFiles(x86)"]) / "Windows Kits" / "10" / "bin"
+    kits = Path(os.environ["PROGRAMFILES(X86)"]) / "Windows Kits" / "10" / "bin"
     candidates = list(kits.glob("*/x64/signtool.exe"))
     if not candidates:
         raise RuntimeError("Install the Windows SDK signing tools to verify Authenticode chains.")

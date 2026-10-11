@@ -1,20 +1,19 @@
 """Multiple same-subject recordings, pooled outputs and source-safe exploration."""
 
-from conftest import wait_for_previews
+import time
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
-import time
 
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import wait_for_previews
 from matplotlib import dates
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from paradigma_studio import app as desktop
-from paradigma_studio import core
+from paradigma_studio import app as desktop, core
 from paradigma_studio.app import MainWindow
 from paradigma_studio.history import load_result_export, new_run
 from paradigma_studio.inspection import inspect_recording

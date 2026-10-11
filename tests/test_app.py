@@ -1,17 +1,19 @@
-from conftest import select_plot_metric, bar_values, bar_starts
 import os
 import time
 from importlib.resources import files
+
+from conftest import bar_starts, bar_values, select_plot_metric
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
-from paradigma_studio.app import MainWindow, Worker
+from PySide6.QtWidgets import QApplication
+
 from paradigma_studio import app as desktop_app
+from paradigma_studio.app import MainWindow, Worker
 
 
 @pytest.fixture(autouse=True)

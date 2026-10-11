@@ -4,6 +4,7 @@ import json
 import math
 
 import numpy as np
+
 from .availability import availability_views
 from .results_view import MODULE_NAMES, clock_origin, clock_times, flat_values, readable_key
 
@@ -47,7 +48,7 @@ def _bounds(provenance):
 def _interval_union(frame, bounds):
     """Elapsed coverage, rather than sample-count ratios or summed overlaps."""
     merged = []
-    for start, end in sorted(zip(frame.time, frame.end)):
+    for start, end in sorted(zip(frame.time, frame.end, strict=False)):
         if not math.isfinite(start) or not math.isfinite(end):
             continue
         if bounds:
@@ -116,12 +117,20 @@ def recording_summary(results, provenance, clock, prepared_views=None):
         if prepared_views is not None
         else availability_views(results, provenance.get("display_offsets", {}))
     )
+    coverage_entries, covered_labels = _coverage_entries(coverage, labels, bounds)
+    entries.extend(coverage_entries)
+    entries.extend(_preparation_entries(preparation, coverage, covered_labels))
+    return entries
+
+
+def _coverage_entries(coverage, labels, bounds):
+    entries = []
     covered_labels = set()
     for name, frame in coverage.items():
         prefix = labels[(name, "available")].removesuffix(" input available")
         covered_labels.update(prefix.split(", "))
 
-        def title(text):
+        def title(text, prefix=prefix):
             return f"{prefix} · {text}" if prefix else text
 
         intervals = _interval_union(frame, bounds)
@@ -133,6 +142,11 @@ def recording_summary(results, provenance, clock, prepared_views=None):
             value += " · Timespan unavailable"
         entries.append((title("Data coverage"), value))
         entries.append((title("Gaps"), str(max(0, len(intervals) - 1))))
+    return entries, covered_labels
+
+
+def _preparation_entries(preparation, coverage, covered_labels):
+    entries = []
     groups = preparation.get("by_module", {}) or {"": preparation}
     unique = {}
     for module, values in groups.items():

@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 from matplotlib import dates
 from matplotlib.backend_bases import MouseEvent
-from PySide6.QtCore import Qt, QPoint
-from PySide6.QtTest import QTest
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow

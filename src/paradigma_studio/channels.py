@@ -3,10 +3,11 @@
 import re
 
 import numpy as np
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QListWidgetItem
 from matplotlib import colormaps, dates
 from matplotlib.lines import Line2D
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QListWidgetItem
+
 from .inspection import TIME_NAMES
 from .plotting import (
     GRAPH_COLORS,
@@ -16,9 +17,9 @@ from .plotting import (
     time_selection_line,
     time_selection_triangle,
 )
-from .theme import style_axes
-from .time_axis import RecordingTimeFormatter, RecordingDateLocator
 from .results_view import clock_times
+from .theme import style_axes
+from .time_axis import RecordingDateLocator, RecordingTimeFormatter
 
 
 def mark_sensor_time(figure, seconds, clock):

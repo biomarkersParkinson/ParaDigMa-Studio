@@ -6,33 +6,32 @@ revision are described in data/paradigma/README.md. Scientific functions are
 never stubbed: observers call the originals and return their outputs unchanged.
 """
 
-from conftest import select_plot_metric, bar_values, bar_centers
+import hashlib
+import json
+import logging
+import os
 from copy import deepcopy
 from functools import wraps
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
-import hashlib
-import json
-import logging
-import os
+
+from conftest import bar_centers, bar_values, select_plot_metric
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
-
 from paradigma.config import PulseRateConfig
 from paradigma.orchestrator import run_paradigma
 from paradigma.pipelines import gait_pipeline, pulse_rate_pipeline, tremor_pipeline
 from paradigma.prepare_data import correct_watch_orientation, prepare_raw_data
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.core import analyze, export_results, export_table_csv, load_sensor_file
 from paradigma_studio.history import load_result_export
-
 
 pytestmark = pytest.mark.scientific
 DATA = Path(__file__).parent / "data" / "paradigma"
@@ -49,32 +48,7 @@ def assert_equivalent(actual, expected, path="results", *, roundtrip=False):
     """
     if isinstance(expected, pd.DataFrame):
         assert isinstance(actual, pd.DataFrame), path
-        # JSON retains column labels, but not pandas' empty RangeIndex type.
-        pd.testing.assert_index_equal(
-            actual.columns, expected.columns, exact=not roundtrip, obj=path
-        )
-        assert actual.shape == expected.shape, path
-        pd.testing.assert_index_equal(actual.index, expected.index, obj=path)
-        for column in expected:
-            left, right = actual[column], expected[column]
-            pd.testing.assert_series_equal(
-                left.isna(), right.isna(), obj=f"{path}/{column} missingness"
-            )
-            discrete = (
-                column == "time"
-                or str(column).endswith(("_nr", "_id"))
-                or (str(column).startswith("pred_") and not str(column).endswith("_proba"))
-                or not pd.api.types.is_float_dtype(right.dtype)
-            )
-            pd.testing.assert_series_equal(
-                left,
-                right,
-                check_dtype=False,
-                check_exact=discrete,
-                rtol=RTOL,
-                atol=ATOL,
-                obj=f"{path}/{column}",
-            )
+        _assert_equivalent_frame(actual, expected, path, roundtrip)
     elif isinstance(expected, dict):
         assert isinstance(actual, dict), path
         right = {str(k): v for k, v in expected.items()} if roundtrip else expected
@@ -83,7 +57,7 @@ def assert_equivalent(actual, expected, path="results", *, roundtrip=False):
             assert_equivalent(actual[key], right[key], f"{path}/{key}", roundtrip=roundtrip)
     elif isinstance(expected, (list, tuple)):
         assert isinstance(actual, (list, tuple)) and len(actual) == len(expected), path
-        for i, (left, right) in enumerate(zip(actual, expected)):
+        for i, (left, right) in enumerate(zip(actual, expected, strict=False)):
             assert_equivalent(left, right, f"{path}/{i}", roundtrip=roundtrip)
     elif isinstance(expected, np.ndarray):
         assert isinstance(actual, np.ndarray) and actual.shape == expected.shape, path
@@ -102,6 +76,33 @@ def assert_equivalent(actual, expected, path="results", *, roundtrip=False):
             )
     else:
         assert actual == expected, path
+
+
+def _assert_equivalent_frame(actual, expected, path, roundtrip):
+    # JSON retains column labels, but not pandas' empty RangeIndex type.
+    pd.testing.assert_index_equal(actual.columns, expected.columns, exact=not roundtrip, obj=path)
+    assert actual.shape == expected.shape, path
+    pd.testing.assert_index_equal(actual.index, expected.index, obj=path)
+    for column in expected:
+        left, right = actual[column], expected[column]
+        pd.testing.assert_series_equal(
+            left.isna(), right.isna(), obj=f"{path}/{column} missingness"
+        )
+        discrete = (
+            column == "time"
+            or str(column).endswith(("_nr", "_id"))
+            or (str(column).startswith("pred_") and not str(column).endswith("_proba"))
+            or not pd.api.types.is_float_dtype(right.dtype)
+        )
+        pd.testing.assert_series_equal(
+            left,
+            right,
+            check_dtype=False,
+            check_exact=discrete,
+            rtol=RTOL,
+            atol=ATOL,
+            obj=f"{path}/{column}",
+        )
 
 
 def observe_stages(operation):
@@ -209,34 +210,9 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
     )
     # Read the independently generated official classification files. The
     # reference does not use the desktop's classification-retention helper.
-    expected["classifications"] = {}
-    names = {
-        "gait": {
-            "detection": "gait_predictions.parquet",
-            "arm_activity": "arm_activity_predictions.parquet",
-        },
-        "tremor": {"": "tremor_predictions.parquet"},
-        "pulse_rate": {"": "ppg_quality_predictions.parquet"},
-    }
-    file_keys = list(reference_input) if isinstance(reference_input, dict) else ["df_1"]
-    for pipeline in pipelines:
-        for stage, filename in names[pipeline].items():
-            frames = []
-            for key in file_keys:
-                exported = (
-                    directory / "official" / "individual_files" / key / "classification" / filename
-                )
-                if exported.exists():
-                    frame_out = pd.read_parquet(exported)
-                    if len(file_keys) > 1:
-                        frame_out["file_key"] = key
-                    frames.append(frame_out)
-            if frames:
-                joined = pd.concat(frames, ignore_index=True)
-                if stage:
-                    expected["classifications"].setdefault(pipeline, {})[stage] = joined
-                else:
-                    expected["classifications"][pipeline] = joined
+    expected["classifications"] = _official_classification_exports(
+        reference_input, pipelines, directory
+    )
     actual, app_stages = observe_stages(
         lambda: analyze(
             frame, pipelines=pipelines, output_dir=directory / "desktop", **deepcopy(settings)
@@ -264,6 +240,38 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
         pd.testing.assert_frame_equal(frame, original, check_exact=True)
     assert_equivalent(reference_input, reference_original, "unchanged reference input")
     return actual, expected, reference_stages
+
+
+def _official_classification_exports(reference_input, pipelines, directory):
+    classifications = {}
+    names = {
+        "gait": {
+            "detection": "gait_predictions.parquet",
+            "arm_activity": "arm_activity_predictions.parquet",
+        },
+        "tremor": {"": "tremor_predictions.parquet"},
+        "pulse_rate": {"": "ppg_quality_predictions.parquet"},
+    }
+    file_keys = list(reference_input) if isinstance(reference_input, dict) else ["df_1"]
+    for pipeline in pipelines:
+        for stage, filename in names[pipeline].items():
+            frames = []
+            for key in file_keys:
+                exported = (
+                    directory / "official" / "individual_files" / key / "classification" / filename
+                )
+                if exported.exists():
+                    frame_out = pd.read_parquet(exported)
+                    if len(file_keys) > 1:
+                        frame_out["file_key"] = key
+                    frames.append(frame_out)
+            if frames:
+                joined = pd.concat(frames, ignore_index=True)
+                if stage:
+                    classifications.setdefault(pipeline, {})[stage] = joined
+                else:
+                    classifications[pipeline] = joined
+    return classifications
 
 
 def upstream_synthetic(pipeline):
@@ -389,6 +397,7 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
     recorded_results, tmp_path
 ):
     from types import SimpleNamespace
+
     from paradigma.classification import ClassifierPackage
 
     actual, expected, _, side = recorded_results
@@ -630,13 +639,13 @@ def test_raw_units_orientation_mapping_and_time_equivalence(time_unit, tmp_path)
         frame[f"gyroscope_{axis}"] *= np.pi / 180  # Express the original signal in radians/s.
     names = {column: f"device_{column}" for column in frame}
     frame = frame.rename(columns=names)
-    settings = dict(
-        column_mapping={value: key for key, value in names.items()},
-        accelerometer_units="m/s^2",
-        gyroscope_units="rad/s",
-        device_orientation=["-y", "x", "z"],
-        time_input_unit=time_unit,
-    )
+    settings = {
+        "column_mapping": {value: key for key, value in names.items()},
+        "accelerometer_units": "m/s^2",
+        "gyroscope_units": "rad/s",
+        "device_orientation": ["-y", "x", "z"],
+        "time_input_unit": time_unit,
+    }
     prepared = official_preparation(frame, **settings)
     compare_workflows(frame, prepared, ["tremor"], tmp_path, **settings)
 

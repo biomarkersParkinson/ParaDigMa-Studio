@@ -1,9 +1,9 @@
 """Native multi-selection and confirmed deletion without losing other data."""
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
-import pytest
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.history import new_run

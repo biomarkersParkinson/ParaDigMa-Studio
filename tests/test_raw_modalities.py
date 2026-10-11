@@ -6,12 +6,12 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import wait_for_previews
 from matplotlib import dates
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from conftest import wait_for_previews
 from paradigma_studio.app import MainWindow
 
 
@@ -80,7 +80,7 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
     assert [[line.get_label() for line in signals(ax)] for ax in figure.axes] == groups
     colors = {line.get_label(): line.get_color() for ax in figure.axes for line in signals(ax)}
     assert len(set(colors.values())) == 6
-    for ax, group in zip(figure.axes, groups):
+    for ax, group in zip(figure.axes, groups, strict=False):
         assert [text.get_text() for text in ax.get_legend().get_texts()] == group
         assert ax.get_shared_x_axes().joined(figure.axes[0], ax)
         for line in signals(ax):

@@ -1,8 +1,8 @@
 """Shared visual language for the desktop workspace."""
 
 from pathlib import Path
-from PySide6.QtGui import QColor, QPalette
 
+from PySide6.QtGui import QColor, QPalette
 
 MODULE_PALETTE = {
     "gait": {"accent": "#477DA3", "tint": "#F1F6FA", "border": "#CFDFEB"},

@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
-from pathlib import Path
 import pickle
-from queue import Empty
 import tempfile
+from pathlib import Path
+from queue import Empty
 from typing import TYPE_CHECKING
 
 from .contracts import AnalysisEvent, AnalysisResults, AnalysisSettings, PathInput, SensorInput
 
 if TYPE_CHECKING:
+    from multiprocessing.process import BaseProcess
     from multiprocessing.queues import Queue
     from threading import Event
 
@@ -78,34 +79,50 @@ def run_isolated_analysis(
         )
         try:
             process.start()
-            while True:
-                if cancel.is_set():
-                    raise AnalysisCancelled()
-                try:
-                    event = queue.get(timeout=0.1)
-                except Empty:
-                    if not process.is_alive():
-                        raise RuntimeError(
-                            f"Analysis process exited unexpectedly ({process.exitcode})."
-                        )
-                    continue
-                if event[0] == "log":
-                    logger.log(event[1], event[2])
-                elif event[0] == "failed":
-                    raise RuntimeError(event[1])
-                elif event[0] == "completed":
-                    if cancel.is_set():
-                        raise AnalysisCancelled()
-                    with output_path.open("rb") as stream:
-                        return pickle.load(stream)
+            return _wait_for_analysis(process, queue, output_path, logger, cancel)
         finally:
-            if process.pid is not None:
-                if process.is_alive():
-                    process.terminate()
-                process.join(timeout=5)
-                if process.is_alive():
-                    process.kill()
-                    process.join(timeout=5)
-                process.close()
-            queue.close()
-            queue.join_thread()
+            _close_analysis_process(process, queue)
+
+
+def _wait_for_analysis(
+    process: BaseProcess,
+    queue: Queue[AnalysisEvent],
+    output_path: Path,
+    logger: logging.Logger,
+    cancel: Event,
+) -> AnalysisResults:
+    """Relay child events until cancellation, failure or a complete result."""
+    while True:
+        if cancel.is_set():
+            raise AnalysisCancelled()
+        try:
+            event = queue.get(timeout=0.1)
+        except Empty:
+            if not process.is_alive():
+                raise RuntimeError(
+                    f"Analysis process exited unexpectedly ({process.exitcode})."
+                ) from None
+            continue
+        if event[0] == "log":
+            logger.log(event[1], event[2])
+        elif event[0] == "failed":
+            raise RuntimeError(event[1])
+        elif event[0] == "completed":
+            if cancel.is_set():
+                raise AnalysisCancelled()
+            with output_path.open("rb") as stream:
+                return pickle.load(stream)
+
+
+def _close_analysis_process(process, queue):
+    """Release only the owned process and queue, including on cancellation."""
+    if process.pid is not None:
+        if process.is_alive():
+            process.terminate()
+        process.join(timeout=5)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=5)
+        process.close()
+    queue.close()
+    queue.join_thread()

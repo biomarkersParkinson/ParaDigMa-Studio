@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 from .history import merge_errors
 from .overview import recording_extent
 from .result_data import prepare_result_data

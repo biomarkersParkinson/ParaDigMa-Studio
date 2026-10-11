@@ -67,10 +67,12 @@ def write_avro(path, records):
             },
         ],
     }
-    with path.open("wb") as stream:
-        with DataFileWriter(stream, DatumWriter(), schema.parse(json.dumps(shape))) as writer:
-            for record in records:
-                writer.append(record)
+    with (
+        path.open("wb") as stream,
+        DataFileWriter(stream, DatumWriter(), schema.parse(json.dumps(shape))) as writer,
+    ):
+        for record in records:
+            writer.append(record)
     return path
 
 
@@ -114,7 +116,7 @@ def test_official_empatica_example_opens_without_gyro():
 
 @pytest.mark.parametrize("version", [(6, 4, 0), (6, 5, 0)])
 def test_optional_gyro_uses_own_scaling(tmp_path, record, version):
-    record["schemaVersion"] = dict(zip(("major", "minor", "patch"), version))
+    record["schemaVersion"] = dict(zip(("major", "minor", "patch"), version, strict=False))
     gyro = copy.deepcopy(record["rawData"]["accelerometer"])
     gyro["imuParams"].update(physicalMin=-50.0, physicalMax=50.0, conversionFactor=0.5)
     record["rawData"]["gyroscope"] = gyro

@@ -6,18 +6,19 @@ import platform
 import statistics
 import tempfile
 import time
-from pathlib import Path
 from importlib.metadata import version
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 from matplotlib import dates
+
+# Importing ParaDigMa warms the scientific stack before interaction timing;
+# the class itself is intentionally unused in this workflow benchmark.
+from paradigma.config import TremorConfig  # noqa: F401
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
-
-# Keep one-time scientific imports outside the interaction measurements.
-from paradigma.config import TremorConfig  # noqa: F401
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.exports import export_selection

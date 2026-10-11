@@ -21,7 +21,7 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
         window.mapping.mapTo(window, window.mapping.rect().topLeft()).y()
         > window.min_segment.mapTo(window, window.min_segment.rect().bottomLeft()).y()
     )
-    for info, description in window.analysis_help.values():
+    for _info, description in window.analysis_help.values():
         assert "color: #1E609E" in description.text()
     info, description = window.analysis_help["Device axes"]
     info.click()

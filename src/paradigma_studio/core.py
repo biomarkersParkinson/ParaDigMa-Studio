@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
 import logging
 import re
 import tempfile
+from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .availability import prepared_availability
+from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
+from .empatica import load_empatica_imu
 from .serialization import (
-    json_value as json_value,
     export_results as export_results,
     export_table_csv as export_table_csv,
+    json_value as json_value,
 )
-from .availability import prepared_availability
-from .empatica import load_empatica_imu
-from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -323,8 +323,6 @@ def _run_prepared_analysis(
     analyzed_samples,
     coverage,
 ):
-    import pandas as pd
-
     # Retain the official classification exports that 1.1.2 computes but
     # omits from its orchestrator return value. A fresh directory prevents
     # a failed run from reading a previous run's predictions.
@@ -357,24 +355,17 @@ def _run_prepared_analysis(
         classifications, keys = _read_classification_outputs(
             run_directory, inputs, pipelines, recordings
         )
-        results["classifications"] = classifications
-        if recordings is not None and len(keys) == 1:
-            for quantified in result_tables(results.get("quantifications", {})).values():
-                if isinstance(quantified, pd.DataFrame) and "file_key" not in quantified:
-                    quantified["file_key"] = keys[0]
-        for error in recorder.errors:
-            if error not in results.setdefault("errors", []):
-                results["errors"].append(error)
-        if exclusion:
-            results.setdefault("metadata", {})["desktop_preparation"] = {
-                **exclusion,
-                "analyzed_samples": analyzed_samples,
-                "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
-            }
-        if recordings is not None:
-            results.setdefault("metadata", {})["desktop_recordings"] = recordings
-        results.setdefault("metadata", {})["desktop_availability"] = coverage
-        return results
+        return _complete_analysis_results(
+            results,
+            classifications,
+            keys,
+            recordings,
+            recorder.errors,
+            exclusion,
+            analyzed_samples,
+            inputs,
+            coverage,
+        )
     finally:
         for target in loggers:
             target.removeHandler(recorder)
@@ -384,6 +375,39 @@ def _run_prepared_analysis(
             if handler not in handlers_before and isinstance(handler, logging.FileHandler):
                 package_logger.removeHandler(handler)
                 handler.close()
+
+
+def _complete_analysis_results(
+    results,
+    classifications,
+    keys,
+    recordings,
+    errors,
+    exclusion,
+    analyzed_samples,
+    inputs,
+    coverage,
+):
+    import pandas as pd
+
+    results["classifications"] = classifications
+    if recordings is not None and len(keys) == 1:
+        for quantified in result_tables(results.get("quantifications", {})).values():
+            if isinstance(quantified, pd.DataFrame) and "file_key" not in quantified:
+                quantified["file_key"] = keys[0]
+    for error in errors:
+        if error not in results.setdefault("errors", []):
+            results["errors"].append(error)
+    if exclusion:
+        results.setdefault("metadata", {})["desktop_preparation"] = {
+            **exclusion,
+            "analyzed_samples": analyzed_samples,
+            "continuous_sections": len(inputs) if isinstance(inputs, dict) else 1,
+        }
+    if recordings is not None:
+        results.setdefault("metadata", {})["desktop_recordings"] = recordings
+    results.setdefault("metadata", {})["desktop_availability"] = coverage
+    return results
 
 
 def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
@@ -480,27 +504,8 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
 def _validate_required_channels(mapped, pipelines, settings):
     import pandas as pd
 
-    required = {"time"}
-    for pipeline in pipelines:
-        if pipeline in ("gait", "tremor"):
-            required.update(f"gyroscope_{axis}" for axis in "xyz")
-        if pipeline == "gait":
-            required.update(f"accelerometer_{axis}" for axis in "xyz")
-        if pipeline == "pulse_rate":
-            required.add("green")
-    accelerometer_columns = {f"accelerometer_{axis}" for axis in "xyz"}
-    if "pulse_rate" in pipelines and (
-        not settings.get("skip_preparation", False) or accelerometer_columns <= set(mapped.columns)
-    ):
-        required.update(accelerometer_columns)
-    missing = required - set(mapped.columns)
-    if missing:
-        message = "Missing sensor columns: " + ", ".join(sorted(missing))
-        if any(column.startswith("gyroscope_") for column in missing):
-            message += ". Gait and tremor require gyroscope samples; an accelerometer-only recording cannot run these pipelines."
-        if "green" in missing:
-            message += ". Pulse rate requires raw green PPG; processed BVP is a different input."
-        raise ValueError(message)
+    required = _required_sensor_channels(mapped, pipelines, settings)
+    _validate_present_channels(mapped, required)
     if len(mapped) < 2:
         raise ValueError("At least two samples are required.")
     if pd.api.types.is_datetime64_any_dtype(
@@ -517,6 +522,34 @@ def _validate_required_channels(mapped, pipelines, settings):
             "Prepared data must use relative seconds. Enable preparation to convert time units."
         )
     return required, time_unit
+
+
+def _required_sensor_channels(mapped, pipelines, settings):
+    required = {"time"}
+    for pipeline in pipelines:
+        if pipeline in ("gait", "tremor"):
+            required.update(f"gyroscope_{axis}" for axis in "xyz")
+        if pipeline == "gait":
+            required.update(f"accelerometer_{axis}" for axis in "xyz")
+        if pipeline == "pulse_rate":
+            required.add("green")
+    accelerometer_columns = {f"accelerometer_{axis}" for axis in "xyz"}
+    if "pulse_rate" in pipelines and (
+        not settings.get("skip_preparation", False) or accelerometer_columns <= set(mapped.columns)
+    ):
+        required.update(accelerometer_columns)
+    return required
+
+
+def _validate_present_channels(mapped, required):
+    missing = required - set(mapped.columns)
+    if missing:
+        message = "Missing sensor columns: " + ", ".join(sorted(missing))
+        if any(column.startswith("gyroscope_") for column in missing):
+            message += ". Gait and tremor require gyroscope samples; an accelerometer-only recording cannot run these pipelines."
+        if "green" in missing:
+            message += ". Pulse rate requires raw green PPG; processed BVP is a different input."
+        raise ValueError(message)
 
 
 def _numeric_sensor_values(mapped, required):

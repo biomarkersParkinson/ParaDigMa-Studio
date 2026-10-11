@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QGridLayout
+from PySide6.QtWidgets import QGridLayout, QWidget
+
 from ..overview import recording_summary
 from ..results_view import MODULE_NAMES, flat_values, readable_key, tremor_overview_entries
 from ..widgets import card, label

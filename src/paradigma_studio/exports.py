@@ -3,7 +3,7 @@
 import csv
 import json
 import re
-from zipfile import ZipFile, ZIP_DEFLATED
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .results_view import aggregation_tables, detail_tables, output_label, readable_key
 from .serialization import (
     _spreadsheet_text,
     _write_export,
@@ -24,7 +25,6 @@ from .serialization import (
     export_table_csv,
     json_value,
 )
-from .results_view import aggregation_tables, detail_tables, output_label, readable_key
 from .widgets import ReadableComboBox
 
 

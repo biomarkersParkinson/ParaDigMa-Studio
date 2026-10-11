@@ -1,22 +1,23 @@
 """Results graph rendering, epoch caches and linked row inspection."""
 
 import numpy as np
-from matplotlib.lines import Line2D
 from matplotlib import dates
+from matplotlib.lines import Line2D
+
+from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
+from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
 from ..plotting import (
-    binary_indicator,
-    plot_states,
-    plot_bars,
     autoscale_bars,
+    binary_indicator,
+    plot_bars,
+    plot_states,
     time_coordinates,
     time_selection_line,
 )
-from ..results_view import MODULE_NAMES, clock_times, clock_origin
-from ..theme import style_axes, module_color, style_result_heading
-from ..time_axis import RecordingTimeFormatter, RecordingDateLocator
-from ..epochs import epoch_phase, epoch_summary, availability_epoch_summary, require_epoch_presence
-from ..gait_presence import gait_presence_intervals, gait_epoch_summaries
+from ..results_view import MODULE_NAMES, clock_origin, clock_times
+from ..theme import module_color, style_axes, style_result_heading
+from ..time_axis import RecordingDateLocator, RecordingTimeFormatter
 
 
 class ResultGraphs:
@@ -486,8 +487,6 @@ class ResultGraphs:
         current = self.result_table.currentIndex()
         if frame is None or not current.isValid() or name not in self._timings:
             return
-        import pandas as pd
-
         row = current.row()
         position = self.active_positions[row]
         timing = self._timings[name].iloc[position]
@@ -508,61 +507,55 @@ class ResultGraphs:
             self._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
-            if getattr(ax, "_paradigma_epoch", False):
-                summary = ax._paradigma_epoch_data
-                selected = summary.loc[(summary.start_s <= seconds) & (seconds < summary.end_s)]
-                value = selected.value.iloc[0] if len(selected) else np.nan
-            else:
-                value = self._plot_tables[name][ax._paradigma_metric].iloc[
-                    self.active_positions[row]
-                ]
-                if (
-                    name == "classifications/gait/arm_activity"
-                    and ax._paradigma_metric == "pred_no_other_arm_activity_window"
-                ):
-                    pairs = self.gait_plot_presence()["filtered"]
-                    if not ((pairs[:, 0] <= seconds) & (seconds < pairs[:, 1])).any():
-                        continue
-            if (
-                pd.isna(value)
-                or not np.isfinite(float(value))
-                or getattr(ax, "_paradigma_binary", False)
-                and float(value) != 1.0
-            ):
-                continue
-            point = Line2D(
-                [x],
-                [float(value)],
-                linestyle="none",
-                marker="o",
-                markersize=9,
-                markerfacecolor="white",
-                markeredgecolor=module_color(name.split("/")[1]),
-                markeredgewidth=2,
-                zorder=8,
-            )
-            point.set_gid("selected-result-point")
-            point.set_animated(self.canvas.supports_blit)
-            ax.add_artist(point)
-            self._result_selection_artists.append(point)
+            self._mark_selected_result(ax, name, row, seconds, x)
 
-    def graph_clicked(self, event):
+    def _mark_selected_result(self, ax, name, row, seconds, x):
+        """Add a point only where the selected result has a visible value."""
         import pandas as pd
 
+        if getattr(ax, "_paradigma_epoch", False):
+            summary = ax._paradigma_epoch_data
+            selected = summary.loc[(summary.start_s <= seconds) & (seconds < summary.end_s)]
+            value = selected.value.iloc[0] if len(selected) else np.nan
+        else:
+            value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
+            if (
+                name == "classifications/gait/arm_activity"
+                and ax._paradigma_metric == "pred_no_other_arm_activity_window"
+            ):
+                pairs = self.gait_plot_presence()["filtered"]
+                if not ((pairs[:, 0] <= seconds) & (seconds < pairs[:, 1])).any():
+                    return
+        if (
+            pd.isna(value)
+            or not np.isfinite(float(value))
+            or getattr(ax, "_paradigma_binary", False)
+            and float(value) != 1.0
+        ):
+            return
+        point = Line2D(
+            [x],
+            [float(value)],
+            linestyle="none",
+            marker="o",
+            markersize=9,
+            markerfacecolor="white",
+            markeredgecolor=module_color(name.split("/")[1]),
+            markeredgewidth=2,
+            zorder=8,
+        )
+        point.set_gid("selected-result-point")
+        point.set_animated(self.canvas.supports_blit)
+        ax.add_artist(point)
+        self._result_selection_artists.append(point)
+
+    def graph_clicked(self, event):
         if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
             return
         name = getattr(event.inaxes, "_paradigma_dataset", self.dataset.currentText())
         if name not in self.tables:
             return
-        anchor = float(event.xdata)
-        if self.display_clock is not None:
-            anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"]))) * 86400
-            # Matplotlib stores dates as floats in days; recover exact nearby
-            # output anchors before choosing the interval that contains a click.
-            all_times = self._timings[name]["Timeline time (s)"].to_numpy()
-            close = np.flatnonzero(np.isfinite(all_times) & (np.abs(all_times - anchor) < 1e-5))
-            if len(close):
-                anchor = float(all_times[close[0]])
+        anchor = self._graph_click_anchor(name, event.xdata)
         self.dataset.setCurrentText(name)
         self.sync_table_outputs(force_detail=True)
         metric = getattr(event.inaxes, "_paradigma_metric", None)
@@ -573,14 +566,48 @@ class ResultGraphs:
         frame = self.active_frame
         if frame is None or frame.empty:
             return
+        row = self._graph_click_row(event.inaxes, name, metric, anchor)
+        if row is None:
+            return
+        self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
+        self.result_table.selectRow(row)
+        self.result_table.scrollTo(self.result_table.currentIndex())
+        self.plot_toolbar.active_axes = next(
+            (
+                ax
+                for ax in self.figure.axes
+                if getattr(ax, "_paradigma_dataset", None) == name
+                and getattr(ax, "_paradigma_metric", None) == metric
+            ),
+            None,
+        )
+        if self.plot_toolbar.settings_action.isChecked():
+            self.plot_toolbar.settings.read_axes()
+
+    def _graph_click_anchor(self, name, xdata):
+        import pandas as pd
+
+        anchor = float(xdata)
+        if self.display_clock is not None:
+            anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"]))) * 86400
+            # Matplotlib stores dates as floats in days; recover exact nearby
+            # output anchors before choosing the interval that contains a click.
+            all_times = self._timings[name]["Timeline time (s)"].to_numpy()
+            close = np.flatnonzero(np.isfinite(all_times) & (np.abs(all_times - anchor) < 1e-5))
+            if len(close):
+                anchor = float(all_times[close[0]])
+        return anchor
+
+    def _graph_click_row(self, ax, name, metric, anchor):
+        """Resolve clicks against unchanged source positions and interval bounds."""
         times = self._timings[name]["Timeline time (s)"].to_numpy()[self.active_positions]
         distances = np.abs(times - anchor)
         finite = np.isfinite(distances)
         if not finite.any():
             return
         row = int(np.argmin(np.where(finite, distances, np.inf)))
-        if getattr(event.inaxes, "_paradigma_epoch", False):
-            summary = event.inaxes._paradigma_epoch_data
+        if getattr(ax, "_paradigma_epoch", False):
+            summary = ax._paradigma_epoch_data
             epoch = summary.loc[(summary.start_s <= anchor) & (anchor < summary.end_s)]
             if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
                 return
@@ -599,8 +626,7 @@ class ResultGraphs:
                 return
             row = int(np.argmin(np.where(matching, distances, np.inf)))
         elif (
-            getattr(event.inaxes, "_paradigma_binary", False)
-            or getattr(event.inaxes, "_paradigma_bars", False)
+            getattr(ax, "_paradigma_binary", False) or getattr(ax, "_paradigma_bars", False)
         ) and metric in self._plot_tables[name]:
             ends = self._interval_ends[name][self.active_positions]
             present = (
@@ -610,7 +636,7 @@ class ResultGraphs:
                 .fillna(False)
                 .to_numpy(dtype=bool)
             )
-            if getattr(event.inaxes, "_paradigma_bars", False):
+            if getattr(ax, "_paradigma_bars", False):
                 starts, all_ends = self._bar_bounds[name]
                 times, ends = starts[self.active_positions], all_ends[self.active_positions]
                 present = (
@@ -619,17 +645,4 @@ class ResultGraphs:
             covering = np.flatnonzero(present & (times <= anchor) & (anchor < ends))
             if len(covering):
                 row = int(covering[-1])
-        self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
-        self.result_table.selectRow(row)
-        self.result_table.scrollTo(self.result_table.currentIndex())
-        self.plot_toolbar.active_axes = next(
-            (
-                ax
-                for ax in self.figure.axes
-                if getattr(ax, "_paradigma_dataset", None) == name
-                and getattr(ax, "_paradigma_metric", None) == metric
-            ),
-            None,
-        )
-        if self.plot_toolbar.settings_action.isChecked():
-            self.plot_toolbar.settings.read_axes()
+        return row

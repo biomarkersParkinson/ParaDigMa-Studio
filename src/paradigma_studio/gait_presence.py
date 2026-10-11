@@ -58,7 +58,9 @@ def gait_presence_intervals(detection, arm_activity):
                 copy[key] = copy[key].astype(object).where(copy[key].notna(), "<unknown>")
         return copy.groupby(keys, dropna=False, sort=False) if keys else [((), copy)]
 
-    filtered_groups = {key: frame for key, frame in groups(arm_activity)}
+    # GroupBy's non-callable keys attribute is not a mapping interface. Use its
+    # pair iterator explicitly, preserving recording/participant group isolation.
+    filtered_groups = dict(iter(groups(arm_activity)))
     observed, positive, filtered, domain = [], [], [], []
     for key, frame in groups(detection):
         known = frame.state.isin([0.0, 1.0])

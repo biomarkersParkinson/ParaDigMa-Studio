@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import csv
 import json
 import math
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .storage import atomic_file, recording_files, same_file
 from .contracts import AnalysisResults, JSONValue, PathInput, Provenance
+from .storage import atomic_file, recording_files, same_file
 
 if TYPE_CHECKING:
     import pandas as pd

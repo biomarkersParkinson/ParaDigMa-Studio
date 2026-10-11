@@ -1,16 +1,16 @@
 """Overview provenance, estimated gait timing and shared scientific selections."""
 
-from conftest import bar_values, bar_starts, bar_centers
 import os
 from copy import deepcopy
 from types import SimpleNamespace
+
+from conftest import bar_centers, bar_starts, bar_values
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import dates
-from paradigma_studio.time_axis import RecordingTimeFormatter
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel
 
@@ -28,6 +28,7 @@ from paradigma_studio.results_view import (
     segment_summary,
     time_bound,
 )
+from paradigma_studio.time_axis import RecordingTimeFormatter
 
 
 @pytest.mark.parametrize("missing", ["green", "gyroscope_x"])
