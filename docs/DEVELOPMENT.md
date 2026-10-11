@@ -1,7 +1,8 @@
 # Development and building
 
-Use Python 3.12 and Git. The dependencies pin official ParaDigMa 1.1.2 and an
-official Open Movement reader revision compatible with NumPy 2 CWA timestamps.
+Use 64-bit Python 3.12 and Git, matching the Windows workflows. Dependencies pin
+official ParaDigMa 1.1.2 and an official Open Movement reader revision compatible
+with NumPy 2 CWA timestamps.
 
 The Python distribution and launcher are `paradigma-studio`; the importable
 package and its `_internal` folder are `paradigma_studio`. New user data goes to
@@ -45,6 +46,8 @@ scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
 The build also places Studio's Apache 2.0 licence and the ParaDigMa
 acknowledgement, licence and citation files
 beside the executable; keep these with any redistributed bundle.
+CI additionally generates the dependency audit, source/package provenance and
+checksums; `build_desktop.py` alone does not create those security reports.
 
 Builds recreate only `dist/ParaDigMaStudio` and `build/desktop` from scratch.
 Python modules are packaged in the executable, without duplicate loose `.py`
@@ -92,6 +95,17 @@ QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m py
 The interactive launcher requires a graphical desktop. Use offscreen pytest and
 the packaged probes for a headless cloud environment.
 
+To check a Linux bundle in that environment:
+
+```bash
+mkdir -p build-reports
+.venv/bin/python scripts/build_desktop.py
+QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio
+QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio --report build-reports/performance.json
+```
+
+These commands verify a Linux executable; the Windows workflows verify the EXE.
+
 `python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
 `analysis_process` and `serialization`. This is a lenient starting point:
 annotated functions are checked, while unannotated helpers and UI code can be
@@ -101,6 +115,27 @@ messages; extensible ParaDigMa payloads and upstream forwarding arguments retain
 `Any`. pandas stubs are development dependencies. Keep scientific type imports
 under `TYPE_CHECKING`; the packaged `py.typed` marker exposes available annotations
 to callers without adding startup imports.
+
+## Python service APIs
+
+Use these entry points for integrations without constructing the desktop window:
+
+| Entry point | Input and return value |
+| --- | --- |
+| `core.load_sensor_file` | A supported file path → one original DataFrame; pickle requires `allow_pickle=True` |
+| `recordings.load_recordings` | Paths → `(sources, frames)`, dictionaries sharing recording identifiers |
+| `core.analyze` | One DataFrame or a dictionary of recordings plus `pipelines` → the result dictionary |
+| `serialization.export_results` | Destination, results and provenance → a structured JSON export of the supplied outputs |
+| `history.load_result_export` | Result JSON path → `(provenance, results)`, without loading sensor recordings |
+
+`pipelines` accepts `gait`, `tremor`, `pulse_rate` or a sequence of those names.
+`analyze` runs synchronously; GUI cancellation uses `analysis_process.run_isolated_analysis`
+through the worker. Missing-sample exclusion defaults to **False** in the Python
+API and **True** in the GUI. Pass all original recording paths through
+`protected_sources` when exporting several recordings programmatically.
+The `core` export aliases remain available for existing callers.
+
+## Test setup and scientific checks
 
 Headless UI tests configure a 1920×1080 virtual Qt screen using
 `tests/data/qt-offscreen.json`. Qt's default 800×800 screen is smaller than the

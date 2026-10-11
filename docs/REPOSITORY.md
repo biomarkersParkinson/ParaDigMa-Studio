@@ -19,7 +19,7 @@ Actions artifacts, rather than in the source repository.
 | `.github/workflows/` | Ordinary and signed Windows build pipelines |
 
 `desktop.py` is the launcher. `pyproject.toml` defines dependencies, packaging,
-pytest and Ruff checks. `README.md` is the user entry point; `SECURITY.md` and
+pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md` and
 `SIGNING.md` describe the distribution and publisher workflows.
 
 ## Application boundaries
@@ -58,6 +58,15 @@ or access an implicit host API. `RunController` also receives the existing
 `RunHistory` and a Qt parent used only for confirmation dialogs. Overview and
 series renderers receive their layout/tree and result inputs directly.
 
+The existing window entry points delegate to these components:
+
+| Window entry point | Implementation |
+| --- | --- |
+| `build_result_overview` | `ui.result_overview.ResultOverview.render` |
+| `analyzed` | `result_controller.ResultController.analyzed` |
+| `populate_result_series` | `ui.result_series.ResultSeries.populate` |
+| `delete_runs` | `run_controller.RunController.delete_runs` |
+
 `workspace_state.py` is the single owner of shared input, result, run and sensor
 state. Window properties preserve the existing attribute API, including the
 plot caches, for integrations and the remaining `WorkspaceLayout` and
@@ -92,6 +101,10 @@ requested result. GUI changes belong on the Qt thread.
 Use `storage.atomic_file` for destination replacement and `recording_files` /
 `same_file` for sensor-file protection. Keep result/history JSON schemas, CSV
 escaping and original-input protections compatible with existing saved runs.
+
+The supported build entry point is `scripts/build_desktop.py`. PyInstaller specs
+are generated under `build/desktop/` and ignored by Git; old specs left in a local
+checkout are not build inputs. Keep generated reports outside the portable app.
 
 Run the [development checks](DEVELOPMENT.md) before submitting changes. The
 [archived codebase audit](archive/codebase-audit-0.5.23.md) records the earlier

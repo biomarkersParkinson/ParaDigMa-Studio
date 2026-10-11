@@ -57,7 +57,9 @@ If one fails, the other workflow's successful outputs remain available, and fail
   Mapping still applies in prepared mode.
 - **Exclude missing sensor samples** removes rows with non-finite required sensor
   values from analysis. Counts are logged and recorded in exported metadata.
-  Uncheck it for strict rejection. Invalid timestamps still require correction.
+  Uncheck it for strict rejection. Non-finite relative or absolute timestamps
+  can also be excluded. Missing time differences cannot be excluded, and retained
+  timestamps must still be strictly increasing.
 - **Split recordings at time gaps** runs continuous sections independently. The
   switch defaults to off, matching ParaDigMa. Maximum gap and minimum section
   duration both default to 1.5 seconds, matching its preparation defaults.

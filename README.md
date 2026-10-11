@@ -12,6 +12,8 @@ and explore results. Recordings and results stay on your computer.
 3. Extract the **entire ZIP** into a new folder, keeping `_internal` beside the executable.
 4. Open **ParaDigMaStudio.exe**.
 
+The download includes Python; no separate Python installation is required.
+
 Performance measurements are in the separate **ParaDigMaStudio-build-reports**
 artifact; you do not need that download to run the app. Keep `_internal`, the
 licence/citation files, and the security/checksum files with the executable.

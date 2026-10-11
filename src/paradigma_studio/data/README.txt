@@ -49,3 +49,12 @@ in that folder for citation sources and the desktop's relationship to ParaDigMa.
 chevron-down.svg is the application's dropdown indicator, created for the
 integrated page layout in version 0.2.1. It is separate from the upstream
 recordings and the repository owner's smartwatch icon.
+
+checkmark.svg and select-time.svg are Studio's checkbox and Results cursor
+graphics. These original application graphics follow Studio's Apache 2.0
+licence in notices/LICENSE-studio.txt.
+
+directions_axes.png is the unchanged ParaDigMa device-orientation reference
+figure from docs/source/_static/img/ at the same upstream revision above.
+It follows the upstream Apache 2.0 licence; see notices/ACKNOWLEDGEMENTS.md
+for its Coordinate System guide link and attribution.

@@ -53,6 +53,9 @@ compatibility alias. Test names distinguish plot zoom, row selection and sensor
 context from scientific filtered-gait processing.
 
 Run the suite and style checks using the [development commands](DEVELOPMENT.md).
+Both Windows workflows also check the typed service APIs with mypy and enforce
+Ruff's expanded rules and complexity limit. These static checks complement the
+runtime and scientific tests; they do not replace them.
 The [scientific methodology](SCIENTIFIC_TESTS.md) explains the independent
 references, tolerances and limits. Native Windows execution and signature checks
 remain responsibilities of the Windows build workflows.
