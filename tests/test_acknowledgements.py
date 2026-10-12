@@ -43,7 +43,15 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     window.about_button.click()
     dialog = window._acknowledgements_dialog
     assert dialog.isVisible()
-    assert dialog.windowTitle() == "About & citations · ParaDigMa Studio"
+    assert dialog.windowTitle() == "About"
+    assert [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())] == [
+        "Overview",
+        "Citations",
+        "Licences",
+    ]
+    assert dialog.tabs.currentIndex() == 0
+    assert "OpenAI Codex" in dialog.overview.toPlainText()
+    assert "endorse" not in (NOTICES / "ACKNOWLEDGEMENTS.md").read_text().lower()
     assert window.windowTitle() == "ParaDigMa Studio"
     assert window.brand.text() == "ParaDigMa Studio"
     assert not hasattr(window, "brand_caption")
@@ -53,14 +61,21 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     )
     assert window.pages.currentIndex() == 1
     assert window.selected_modules() == ["gait", "tremor", "pulse_rate"]
-    assert "10.5281/zenodo.13838392" in dialog.acknowledgement.toPlainText()
-    displayed_licences = dialog.licence.toPlainText()
-    assert (NOTICES / "LICENSE-studio.txt").read_text(encoding="utf-8") in displayed_licences
-    assert (NOTICES / "LICENSE-paradigma.txt").read_text(encoding="utf-8") in displayed_licences
+    assert "10.5281/zenodo.13838392" not in dialog.acknowledgement.toPlainText()
+    assert "10.21105/joss.09502" in dialog.acknowledgement.toPlainText()
+    assert dialog.acknowledgement.toPlainText().count("doi:") == 1
+    dialog.tabs.setCurrentIndex(2)
+    for index, name in enumerate(("LICENSE-studio.txt", "LICENSE-paradigma.txt")):
+        dialog.licence_choice.setCurrentIndex(index)
+        assert (NOTICES / name).read_text(encoding="utf-8") in dialog.licence.toPlainText()
+    dialog.tabs.setCurrentIndex(1)
+    assert dialog.copy_button.isVisible()
     dialog.copy_button.click()
-    assert application.clipboard().text() == (NOTICES / "PARADIGMA-CITATION.bib").read_text(
+    assert application.clipboard().text() == (NOTICES / "PARADIGMA-JOSS-CITATION.bib").read_text(
         encoding="utf-8"
     )
+    dialog.tabs.setCurrentIndex(0)
+    assert not dialog.copy_button.isVisible()
     dialog.close()
     window.about_button.click()
     assert window._acknowledgements_dialog is dialog

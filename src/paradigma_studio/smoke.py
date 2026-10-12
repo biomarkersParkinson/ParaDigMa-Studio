@@ -96,15 +96,16 @@ def _verify_bundled_ui(window, app):
         raise RuntimeError("Bundled ParaDigMa device-axis reference figure could not be rendered")
     window.about_button.click()
     attribution = window._acknowledgements_dialog
-    if "10.5281/zenodo.13838392" not in attribution.acknowledgement.toPlainText():
+    if "10.21105/joss.09502" not in attribution.acknowledgement.toPlainText():
         raise RuntimeError("ParaDigMa research citation is missing from About")
     if "Copyright (c) 2023, Peter Kok" not in attribution.licence.toPlainText():
         raise RuntimeError("The full upstream licence/copyright notice is missing")
     if "Copyright 2026 ParaDigMa Studio contributors" not in attribution.licence.toPlainText():
         raise RuntimeError("The Studio Apache 2.0 licence/copyright notice is missing")
     attribution.copy_button.click()
-    if "@software{paradigma2024" not in app.clipboard().text():
-        raise RuntimeError("ParaDigMa software citation could not be copied")
+    copied = app.clipboard().text()
+    if "@article{post2026paradigma" not in copied or "10.21105/joss.09502" not in copied:
+        raise RuntimeError("ParaDigMa JOSS citation could not be copied")
     attribution.close()
 
 

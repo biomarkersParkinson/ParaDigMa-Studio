@@ -2,9 +2,9 @@
 
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
 
-**About** at the bottom of the sidebar (or **F1**) opens the ParaDigMa acknowledgement, official
-software citation, pipeline publication links and the Studio and ParaDigMa licences.
-**Copy software citation** copies the upstream BibTeX entry for research use.
+**About** at the bottom of the sidebar (or **F1**) has **Overview**, **Citations**
+and **Licences** tabs. **Copy BibTeX**, in Citations, copies the 2026 JOSS paper
+reference. Licences lets you read the complete Studio or ParaDigMa licence.
 
 ## Input and analysis settings
 

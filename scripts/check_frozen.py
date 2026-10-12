@@ -12,6 +12,7 @@ NOTICE_FILES = (
     "LICENSE-paradigma.txt",
     "PARADIGMA-CITATION.bib",
     "PARADIGMA-CITATION.cff",
+    "PARADIGMA-JOSS-CITATION.bib",
 )
 
 

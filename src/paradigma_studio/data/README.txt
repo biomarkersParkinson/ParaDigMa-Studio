@@ -58,3 +58,8 @@ directions_axes.png is the unchanged ParaDigMa device-orientation reference
 figure from docs/source/_static/img/ at the same upstream revision above.
 It follows the upstream Apache 2.0 licence; see notices/ACKNOWLEDGEMENTS.md
 for its Coordinate System guide link and attribution.
+
+notices/PARADIGMA-JOSS-CITATION.bib records the 2026 JOSS paper named in
+Studio's README. The authors are abbreviated to match that reference;
+the DOI links to full metadata. The original upstream BibTeX/CFF files are
+retained unchanged for provenance.
