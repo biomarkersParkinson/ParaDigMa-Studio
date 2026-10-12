@@ -40,6 +40,7 @@ def smoke_test(report_path):
 def _verify_smoke_workflows(window, app, directory, models):
     frame, t = _synthetic_sensor_data()
     source, loaded, results, quantified = _run_tremor_example(directory, frame)
+    quantified = quantified.copy(deep=True)  # Keep a reference independent of the UI result frames.
     _verify_input_graphs(window, source, loaded)
     _verify_data_descriptives(window)
     _verify_analysis_controls(window)
@@ -286,16 +287,27 @@ def _verify_result_navigation(window, app, results, quantified):
 
 def _verify_continuous_outputs(window, quantified):
     import numpy as np
+    import pandas as pd
 
     window.canvas.draw()
     axes = next(
-        ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/tremor"
+        ax
+        for ax in window.figure.axes
+        if ax._paradigma_dataset == "quantifications/tremor"
+        and ax._paradigma_metric == "tremor_power"
     )
     bars = axes.collections[0].get_paths()
-    values = quantified[window.y_column.currentData()].to_numpy()
+    # Independent reference from ParaDigMa aggregate_tremor; the scientific
+    # output is raw, while the graph deliberately uses log10(power + 1).
+    values = np.log10(quantified.tremor_power.to_numpy(dtype=float) + 1)
     finite = np.isfinite(values)
-    if not np.array_equal([bar.vertices[1, 1] for bar in bars], values[finite]):
-        raise RuntimeError("Result bars differ from the original output")
+    if not finite.any() or not np.array_equal([bar.vertices[1, 1] for bar in bars], values[finite]):
+        raise RuntimeError("Tremor bars differ from log10(original power + 1)")
+    if axes.get_ylabel() != "log₁₀(power + 1)":
+        raise RuntimeError("Tremor power axis does not identify the log transformation")
+    pd.testing.assert_frame_equal(
+        window.tables["quantifications/tremor"], quantified, check_exact=True
+    )
     if not any(name.startswith("preparation/") for name in window._plot_tables):
         raise RuntimeError("Prepared-input availability is missing")
     if hasattr(window, "filters_toggle"):
@@ -655,6 +667,7 @@ def _successful_smoke_report(
         "local_results_saved_verified": True,
         "aggregate_overview_verified": True,
         "original_output_tables_verified": True,
+        "tremor_power_log_scale_verified": True,
         "aggregation_tables_verified": True,
         "official_gap_defaults_verified": True,
         "absolute_recording_clock_verified": True,
