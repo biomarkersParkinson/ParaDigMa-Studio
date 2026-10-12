@@ -375,6 +375,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.brand.setVisible(expanded)
         for i, item in enumerate(self.nav_buttons):
             item.setText(f"{i + 1}    {self.SECTIONS[i]}" if expanded else str(i + 1))
+            item.setToolTip("" if expanded else self.SECTIONS[i])
 
     def show_notice(self, message, severity="warning"):
         self.notice.setProperty("severity", severity)
@@ -398,7 +399,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
     def modules_changed(self, changed=None, checked=False):
         selected = self.selected_modules()
-        self.side.setEnabled("gait" in selected)
+        self.side.set_relevant("gait" in selected)
         requirements = []
         if "gait" in selected or ("pulse_rate" in selected and not self.prepared.isChecked()):
             requirements.append("Accelerometer")

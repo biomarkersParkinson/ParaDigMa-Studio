@@ -146,7 +146,6 @@ class ExportDialog(QDialog):
             item = QTreeWidgetItem(roots[stage], [title])
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(0, Qt.Checked)
-            item.setToolTip(0, name)
             self.leaves[name] = item
         layout.addWidget(self.items, 1)
         selection = QHBoxLayout()

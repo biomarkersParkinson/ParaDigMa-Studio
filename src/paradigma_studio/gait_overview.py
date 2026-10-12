@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
 from .plotting import ScrollableFigureCanvas
-from .theme import style_axes
+from .theme import style_axes, tooltip_text
 from .widgets import card, label
 
 STATISTICS = (
@@ -187,8 +187,10 @@ def _render_gait_metric(figure, canvas, grid, index, metric, heading, unit, metr
     if metric == "segment_count":
         axis.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True, min_n_ticks=2))
         canvas.setToolTip(
-            "Segment counts use original unfiltered segment durations, matching ParaDigMa.\n"
-            "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
+            tooltip_text(
+                "Segment counts use original unfiltered segment durations, matching ParaDigMa.\n"
+                "0–20 s excludes 20 s; ≥ 20 s includes it. Missing metadata is shown as —."
+            )
         )
     precision = 0 if metric == "segment_count" else 2 if "_cov_" in metric else 1
     for position, value in zip(positions, display_numbers, strict=False):

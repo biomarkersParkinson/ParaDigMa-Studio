@@ -1,5 +1,6 @@
 """Shared visual language for the desktop workspace."""
 
+from html import escape
 from pathlib import Path
 
 from PySide6.QtGui import QColor, QPalette
@@ -9,6 +10,11 @@ MODULE_PALETTE = {
     "tremor": {"accent": "#8B709F", "tint": "#F7F3FA", "border": "#DDD2E7"},
     "pulse_rate": {"accent": "#468D80", "tint": "#F0F7F5", "border": "#CDDFDA"},
 }
+
+
+def tooltip_text(text: str) -> str:
+    """Wrap explanatory tooltips without interpreting user/output text as HTML."""
+    return "<qt>" + escape(text).replace("\n", "<br>") + "</qt>"
 
 
 def module_color(module):
@@ -59,6 +65,8 @@ def light_palette():
 
 STYLESHEET = """
 QWidget { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 13px; color: #22324a; }
+QToolTip { background: #ffffff; color: #22324a; border: 1px solid #d7dfe9;
+    border-radius: 7px; padding: 8px 12px; font-size: 13px; font-weight: 400; }
 QDialog, QMessageBox { background: #f4f6fa; color: #22324a; }
 QMessageBox QLabel, QDialog QLabel { color: #22324a; background: transparent; }
 QMessageBox QTextEdit { color: #22324a; background: white; }

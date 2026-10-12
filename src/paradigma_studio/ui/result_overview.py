@@ -10,7 +10,8 @@ from PySide6.QtWidgets import QGridLayout, QWidget
 
 from ..overview import recording_summary
 from ..results_view import MODULE_NAMES, flat_values, readable_key, tremor_overview_entries
-from ..widgets import card, label
+from ..theme import tooltip_text
+from ..widgets import card, label, precision_tooltip
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QScrollArea, QVBoxLayout
@@ -69,7 +70,9 @@ class ResultOverview:
                     grid.addWidget(box, index // 3, index % 3)
                     if title.endswith("Gaps"):
                         box.setToolTip(
-                            "Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps."
+                            tooltip_text(
+                                "Interruptions between prepared-data intervals.\nLeading and trailing exclusions reduce coverage but are not counted as gaps."
+                            )
                         )
                     index += 1
             self.layout.addWidget(panel)
@@ -127,7 +130,7 @@ class ResultOverview:
             tremor_overview_entries(results)
         ):
             box, inside = card()
-            box.setToolTip(explanation)
+            box.setToolTip(tooltip_text(explanation))
             inside.addWidget(label(title, "muted"))
             try:
                 number = float(value)
@@ -135,7 +138,7 @@ class ResultOverview:
             except (TypeError, ValueError, OverflowError):
                 text = "—"
             display = label(text, "metricValue")
-            display.setToolTip(str(value))
+            display.setToolTip(precision_tooltip(value, text))
             inside.addWidget(display)
             self.overview_values["tremor", group, path] = display
             grid.addWidget(box, index // 3, index % 3)
@@ -164,7 +167,6 @@ class ResultOverview:
         for index, (path, value) in enumerate(entries):
             box, inside = card()
             title = " · ".join(readable_key(part) for part in path) or "Value"
-            box.setToolTip(" / ".join(path))
             inside.addWidget(label(title, "muted"))
             if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
                 text = "—"
@@ -173,7 +175,7 @@ class ResultOverview:
             else:
                 text = str(value)
             display = label(text, "metricValue")
-            display.setToolTip(str(value))
+            display.setToolTip(precision_tooltip(value, text))
             inside.addWidget(display)
             self.overview_values[(module, heading, path)] = display
             grid.addWidget(box, index // 3, index % 3)

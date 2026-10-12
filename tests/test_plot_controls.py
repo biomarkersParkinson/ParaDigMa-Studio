@@ -139,6 +139,38 @@ def test_date_limits_accept_zoned_timestamps_and_replot_refreshes_settings(windo
     assert window.data_toolbar._nav_stack() is None
 
 
+def test_reset_from_another_result_graph_restores_shared_time_and_selected_y_limits(window):
+    results = {
+        "quantifications": {
+            "tremor": pd.DataFrame({"time": [0.0, 1.0, 2.0], "tremor_power": [2.0, 20.0, 200.0]}),
+            "pulse_rate": pd.DataFrame({"time": [0.0, 1.0, 2.0], "pulse_rate": [60.0, 70.0, 80.0]}),
+        }
+    }
+    window.analyzed(results)
+    first, selected = window.figure.axes
+    initial_x = selected.get_xlim()
+    first.set_ylim(1000, 2000)
+    toolbar = window.plot_toolbar
+    toolbar.active_axes = selected
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    for axis, values in (("x", ("0.5", "1.5")), ("y", ("0", "10"))):
+        automatic, lower, upper = panel.bounds[axis]
+        automatic.setChecked(False)
+        lower.setText(values[0])
+        upper.setText(values[1])
+    panel.apply()
+    assert selected.get_ylim() == (0, 10)
+    panel.reset_button.click()
+    assert all(ax.get_xlim() == pytest.approx(initial_x) for ax in window.figure.axes)
+    assert selected.get_autoscaley_on()
+    assert selected.get_ylim()[0] <= 60 and selected.get_ylim()[1] > 80
+    assert first.get_ylim() == (1000, 2000)
+    pd.testing.assert_frame_equal(
+        window.tables["quantifications/pulse_rate"], results["quantifications"]["pulse_rate"]
+    )
+
+
 def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(window):
     recording(window)
     result = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [10.0, 20.0, 30.0]})

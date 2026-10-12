@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
+    QStyleOptionComboBox,
     QStyleOptionTab,
     QStyleOptionViewItem,
     QStylePainter,
@@ -405,6 +406,17 @@ class HoverSidebar(QFrame):
         return super().eventFilter(watched, event)
 
 
+def precision_tooltip(value, displayed: str) -> str:
+    """Expose numeric precision only when rounding hides part of the value."""
+    if isinstance(value, (float, np.floating)) and np.isfinite(value):
+        try:
+            if float(displayed) != value:
+                return str(value)
+        except ValueError:
+            pass
+    return ""
+
+
 class FrameModel(QAbstractTableModel):
     def __init__(self, frame, compact=False):
         super().__init__()
@@ -424,30 +436,35 @@ class FrameModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.frame.columns)
 
     def data(self, index, role=Qt.DisplayRole):
-        import pandas as pd
-
+        if role == Qt.ToolTipRole and not self.compact:
+            return None
         if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
             column = index.column()
             if column not in self._column_values:
                 self._column_values[column] = self.frame.iloc[:, column].array
             value = self._column_values[column][index.row()]
+            displayed = self._display_value(value)
+            return (
+                precision_tooltip(value, displayed) or None if role == Qt.ToolTipRole else displayed
+            )
+
+    def _display_value(self, value):
+        import pandas as pd
+
+        if self.compact:
             if (
-                self.compact
-                and role == Qt.DisplayRole
-                and (
-                    value is pd.NA
-                    or value is None
-                    or isinstance(value, (float, np.floating))
-                    and np.isnan(value)
-                )
+                value is pd.NA
+                or value is None
+                or isinstance(value, (float, np.floating))
+                and np.isnan(value)
             ):
                 return "—"
-            if self.compact and role == Qt.DisplayRole and isinstance(value, (float, np.floating)):
+            if isinstance(value, (float, np.floating)):
                 return f"{value:.5g}"
-            return str(value)
+        return str(value)
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role in (Qt.DisplayRole, Qt.ToolTipRole):
+        if role == Qt.DisplayRole:
             return (
                 str(self.frame.columns[section])
                 if orientation == Qt.Horizontal
@@ -492,13 +509,13 @@ class RecordModel(FrameModel):
     def data(self, index, role=Qt.DisplayRole):
         if self._frame is not None:
             return super().data(index, role)
-        if index.isValid() and role in (Qt.DisplayRole, Qt.ToolTipRole):
+        if index.isValid() and role == Qt.DisplayRole:
             return str(self._rows[index.row()][index.column()])
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if self._frame is not None:
             return super().headerData(section, orientation, role)
-        if role in (Qt.DisplayRole, Qt.ToolTipRole):
+        if role == Qt.DisplayRole:
             return str(self._columns[section]) if orientation == Qt.Horizontal else str(section + 1)
 
 
@@ -513,6 +530,29 @@ class ReadableComboBox(QComboBox):
         popup.setPalette(palette)
         popup.setAutoFillBackground(True)
         super().showPopup()
+
+
+class ContextComboBox(ReadableComboBox):
+    """Hide an irrelevant value while retaining the user's parameter choice."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._relevant = True
+
+    def set_relevant(self, relevant: bool) -> None:
+        self._relevant = relevant
+        self.setEnabled(relevant)
+        self.update()
+
+    def paintEvent(self, event):
+        if self._relevant:
+            return super().paintEvent(event)
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        option.currentText = ""
+        painter = QStylePainter(self)
+        painter.drawComplexControl(QStyle.CC_ComboBox, option)
+        painter.drawControl(QStyle.CE_ComboBoxLabel, option)
 
 
 class ReadableTable(QTableView):

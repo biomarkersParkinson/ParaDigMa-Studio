@@ -465,7 +465,7 @@ class ResultGraphs:
             else "Inspect sensor context"
         )
         if valid_row:
-            self.context_button.setToolTip("Inspect original samples for the selected result row")
+            self.context_button.setToolTip("")
         if valid_row and not timestamp and segment is None:
             self.context_button.setToolTip("No sensor timing available")
         if self.result_source_frame is None:

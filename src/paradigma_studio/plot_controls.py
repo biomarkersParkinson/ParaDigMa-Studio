@@ -307,6 +307,12 @@ class GraphSettings(QFrame):
         ax = self.axes()
         if ax is None:
             return
+        if self.toolbar.home_callback is not None:
+            # Sensor context loads only the visible samples. Autoscaling those
+            # samples would keep the panned window instead of restoring context.
+            self.toolbar.home_callback()
+            self.read_axes()
+            return
         for automatic, _, _ in self.bounds.values():
             automatic.setChecked(True)
         self.apply()

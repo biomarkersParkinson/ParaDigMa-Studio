@@ -35,12 +35,13 @@ from ..branding import APP_NAME
 from ..plot_controls import GraphToolbar, add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
 from ..results_view import MODULE_NAMES
-from ..theme import light_palette
+from ..theme import light_palette, tooltip_text
 from ..time_axis import PinnedTimeAxis
 from ..time_controls import TimeField
 from ..widgets import (
     AdaptiveFormColumns,
     CheckLabelDelegate,
+    ContextComboBox,
     FigureActionBar,
     HoverSidebar,
     ModuleTabBar,
@@ -60,8 +61,8 @@ class WorkspaceLayout:
     """Page construction using the host MainWindow widgets and callbacks."""
 
     @staticmethod
-    def combo(items=()):
-        combo = ReadableComboBox()
+    def combo(items=(), *, combo_type=ReadableComboBox):
+        combo = combo_type()
         # A Qt list view and explicit palette avoid native dark-theme popups
         # combining dark selection backgrounds with inherited dark text.
         view = QListView()
@@ -89,7 +90,6 @@ class WorkspaceLayout:
         self.brand_icon = label()
         self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
         self.brand_icon.setFixedSize(28, 28)
-        self.brand_icon.setToolTip(APP_NAME)
         brand_row.addWidget(self.brand_icon)
         self.brand = label(APP_NAME, "brand")
         self.brand.setWordWrap(False)
@@ -105,7 +105,6 @@ class WorkspaceLayout:
                 f"{index + 1}    {section}", lambda checked=False, i=index: self.navigate(i)
             )
             item.setCheckable(True)
-            item.setToolTip(section)
             item.setAccessibleName(section)
             item.setShortcut(f"Alt+{index + 1}")
             navigation.addWidget(item)
@@ -204,7 +203,7 @@ class WorkspaceLayout:
         self.data_time_channel = self.combo()
         self.data_time_channel.setPlaceholderText("Select time column")
         self.data_time_channel.setToolTip(
-            "Time column inspected here. Analysis uses its column mapping."
+            tooltip_text("Time column inspected here. Analysis uses its column mapping.")
         )
         time_controls.addWidget(self.data_time_channel, 1)
         self.data_time_unit = self.combo(
@@ -218,7 +217,9 @@ class WorkspaceLayout:
             ]
         )
         self.data_time_unit.setToolTip(
-            "Units for inspecting the raw time column. Analysis parameters are set on Analyze."
+            tooltip_text(
+                "Units for inspecting the raw time column. Analysis parameters are set on Analyze."
+            )
         )
         time_controls.addWidget(self.data_time_unit)
         content.addLayout(time_controls)
@@ -388,7 +389,7 @@ class WorkspaceLayout:
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
             form.setHorizontalSpacing(10)
             form.setVerticalSpacing(12)
-        self.side = self.combo(["left", "right"])
+        self.side = self.combo(["left", "right"], combo_type=ContextComboBox)
         self.acc = self.combo(["g", "m/s^2"])
         self.gyro = self.combo(["deg/s", "rad/s"])
         self.time = self.combo(
@@ -668,7 +669,9 @@ class WorkspaceLayout:
         settings.addWidget(self.dataset_field, 2)
         self.timing_toggle = QCheckBox("Timing details")
         self.timing_toggle.setToolTip(
-            "Add display-only dates and gait timing estimates; original output columns stay unchanged."
+            tooltip_text(
+                "Add display-only dates and gait timing estimates; original output columns stay unchanged."
+            )
         )
         settings.addWidget(self.timing_toggle)
         self.y_column = self.combo()
@@ -705,11 +708,13 @@ class WorkspaceLayout:
         self.result_graph_view.setAccessibleName("Graph time view for all selected series")
         self.result_graph_view.setMinimumWidth(190)
         self.result_graph_view.setToolTip(
-            "30-minute epochs: binary predictions are percentages of valid observations; continuous outcomes are medians.\n"
-            "Gait and filtered gait percentages use the same jointly observed time; filtered positives are a subset of gait.\n"
-            "Gait range of motion / peak velocity and tremor power require at least 90 seconds of presence per epoch.\n"
-            "Input availability is covered time within each epoch's recording span. Missing outcomes stay blank.\n"
-            "Bins use calendar half-hours when dates are known; first/last epochs may be partial."
+            tooltip_text(
+                "Binary predictions show percentages; continuous outcomes show medians.\n"
+                "Gait and filtered gait share the same observed-time denominator.\n"
+                "Gait range of motion / peak velocity and tremor power require 90 seconds of presence per epoch.\n"
+                "Coverage shows prepared input time. Missing outcomes stay blank.\n"
+                "Epochs align to calendar half-hours; first/last epochs may be partial."
+            )
         )
         view_row.addWidget(self.result_graph_view)
         self._build_result_canvas(graph_body)
@@ -756,7 +761,6 @@ class WorkspaceLayout:
         self.canvas.outer_scroll_area = self._result_view_scrolls[1]
         plots.addWidget(graph_scroll, 1)
         graph_layout.addWidget(graph, 1)
-        self.canvas.setToolTip("Click a point to select its detailed output row.")
         graphs.setMinimumHeight(310)
         self.graphs_workspace = graphs
         graph_body.addWidget(graphs, 1)

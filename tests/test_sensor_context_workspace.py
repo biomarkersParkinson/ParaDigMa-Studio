@@ -476,8 +476,9 @@ def test_calendar_sensor_navigation_matches_full_conversion_at_exact_endpoints(o
 
 @pytest.mark.parametrize("calendar", [False, True])
 @pytest.mark.parametrize("gait", [False, True])
-def test_sensor_home_restores_initial_context_after_channel_changes_and_keeps_history(
-    window, calendar, gait
+@pytest.mark.parametrize("action", ["home", "reset_limits"])
+def test_sensor_reset_restores_initial_context_after_channel_changes_and_keeps_history(
+    window, calendar, gait, action
 ):
     open_long_context(window, gait=gait)
     if calendar:
@@ -490,7 +491,11 @@ def test_sensor_home_restores_initial_context_after_channel_changes_and_keeps_hi
     window.sensor_figure.axes[0].set_xlim(*changed)
     window.set_sensor_channels(["gyroscope_z"])
     panned = window.sensor_frame.copy(deep=True)
-    window.sensor_toolbar._actions["home"].trigger()
+    if action == "home":
+        window.sensor_toolbar._actions["home"].trigger()
+    else:
+        window.sensor_toolbar.settings_action.setChecked(True)
+        window.sensor_toolbar.settings.reset_button.click()
     QApplication.instance().processEvents()
     assert window.sensor_figure.axes[0].get_xlim() == initial
     pd.testing.assert_frame_equal(window.sensor_frame, original)

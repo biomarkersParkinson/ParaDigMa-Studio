@@ -15,7 +15,7 @@ from ..results_view import (
     plot_metrics,
     preferred_metric,
 )
-from ..theme import module_color
+from ..theme import module_color, tooltip_text
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QTreeWidget
@@ -86,7 +86,7 @@ class ResultSeries:
                     if name.startswith("preparation/") or choose and metric == default
                     else Qt.Unchecked,
                 )
-                item.setToolTip(0, self._tooltip(module, name, metric, title))
+                item.setToolTip(0, self._tooltip(module, name, metric))
                 items[(name, metric)] = item
             if choose and default is not None:
                 default_modules.add(module)
@@ -112,18 +112,17 @@ class ResultSeries:
         return title
 
     @staticmethod
-    def _tooltip(module, name, metric, title):
+    def _tooltip(module, name, metric):
         if module == "preparation":
-            return title + "\nCoverage of the prepared samples supplied to these pipelines."
+            return "Coverage of the prepared samples supplied to this pipeline."
         if name.startswith("classifications/gait/") and metric in (
             "pred_gait_window",
             "pred_no_other_arm_activity_window",
         ):
             threshold = gait_model_threshold(name.rsplit("/", 1)[-1])
-            return (
-                title
-                + f"\nPresent when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
-                "\nThese window predictions precede the final merged sample labels."
-                "\nFiltered presence is intersected with detected gait. Both epoch percentages use the same observed time."
+            return tooltip_text(
+                f"Present when the window probability is ≥ {threshold:.5g} (bundled model threshold)."
+                "\nWindow predictions precede the final merged sample labels."
+                "\nFiltered presence is intersected with gait; both epoch percentages use the same observed time."
             )
-        return f"{name}\n{metric}"
+        return ""

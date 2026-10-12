@@ -564,3 +564,16 @@ def test_segment_duration_summary_preserves_branch_counts_and_distribution():
         "Duration IQR (s)": 2.0,
         "Duration range (s)": "2 – 6",
     }
+
+
+def test_overview_avoids_redundant_key_and_value_tooltips(window):
+    window.analyzed(
+        {"aggregations": {"test": {"exact": 2.0, "rounded": 1.234567, "missing": None}}}
+    )
+    for key in ("exact", "missing"):
+        widget = window.overview_values["test", "Aggregates", (key,)]
+        assert not widget.toolTip()
+        assert not widget.parentWidget().toolTip()
+    rounded = window.overview_values["test", "Aggregates", ("rounded",)]
+    assert rounded.text() == "1.2346"
+    assert rounded.toolTip() == "1.234567"

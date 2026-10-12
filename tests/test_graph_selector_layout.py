@@ -75,6 +75,11 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
     for item in leaves:
         if item.parent().text(0) == "Gait" and item.text(0).endswith("(prediction)"):
             assert "bundled model threshold" in item.toolTip(0)
+            assert item.text(0) not in item.toolTip(0)
+        elif item.parent().text(0) == "Data coverage":
+            assert "prepared samples" in item.toolTip(0)
+        else:
+            assert not item.toolTip(0)
     assert len({item.text(0) for item in leaves if item.parent().text(0) == "Tremor"}) == 2
 
 

@@ -77,6 +77,27 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
     assert window.gyro.currentText() == "rad/s"
 
 
+def test_irrelevant_watch_side_is_blank_and_retains_the_users_choice(window):
+    window.navigate(1)
+    window.show()
+    window.side.setCurrentText("right")
+    window.set_modules(["tremor", "pulse_rate"])
+    assert not window.side.isEnabled()
+    hidden_right = window.side.grab().toImage()
+    window.side.setCurrentText("left")
+    assert window.side.grab().toImage() == hidden_right
+    window.side.setCurrentText("right")
+    window.set_modules(["gait"])
+    assert window.side.isEnabled()
+    assert window.side.currentText() == "right"
+    assert window.side.grab().toImage() != hidden_right
+    # Disabling the form during a job must not hide a relevant parameter.
+    window.settings_panel.setEnabled(False)
+    shown_right = window.side.grab().toImage()
+    window.side.setCurrentText("left")
+    assert window.side.grab().toImage() != shown_right
+
+
 def test_segmentation_defaults_match_official_package_and_resets_remain_available(window):
     from inspect import signature
 
@@ -467,7 +488,7 @@ def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(w
                     widget.columnWidth(column)
                     >= widget.horizontalHeader().fontMetrics().horizontalAdvance(title) + 28
                 )
-                assert widget.model().headerData(column, Qt.Horizontal, Qt.ToolTipRole) == title
+                assert widget.model().headerData(column, Qt.Horizontal, Qt.ToolTipRole) is None
     window.input_table.setColumnWidth(0, 20)
     assert window.input_table.columnWidth(0) >= window.input_table._heading_widths[0]
 
