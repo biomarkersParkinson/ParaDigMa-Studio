@@ -260,6 +260,7 @@ class SensorController:
             else []
         )
         calendar = self.results.display_clock is not None
+        settings = self.results.provenance.get("settings", {})
         self.channels.plot_channel_signals(
             self.view.sensor_figure,
             self.state.sensor_frame,
@@ -267,7 +268,11 @@ class SensorController:
             self.state._sensor_channel_colors,
             xs,
             "Recording date/time" if calendar else "Analysis time (s)",
-            column_mapping=self.results.provenance.get("settings", {}).get("column_mapping", {}),
+            column_mapping=settings.get("column_mapping", {}),
+            sensor_units={
+                "Accelerometer": settings.get("accelerometer_units"),
+                "Gyroscope": settings.get("gyroscope_units"),
+            },
             calendar=calendar,
             timezone=clock_origin(self.results.display_clock).tz if calendar else None,
             allow_empty=self.state._sensor_context is not None,

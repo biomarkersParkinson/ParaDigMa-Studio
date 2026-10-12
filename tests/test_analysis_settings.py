@@ -6,6 +6,8 @@ from conftest import wait_for_previews
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel
 
+from paradigma_studio.theme import LINK_COLOR
+
 
 def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_guide(window):
     window.navigate(1)
@@ -22,7 +24,7 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
         > window.min_segment.mapTo(window, window.min_segment.rect().bottomLeft()).y()
     )
     for _info, description in window.analysis_help.values():
-        assert "color: #1E609E" in description.text()
+        assert f"color: {LINK_COLOR}" in description.text()
     info, description = window.analysis_help["Device axes"]
     info.click()
     assert '<img src="' in description.text() and "directions_axes.png" in description.text()

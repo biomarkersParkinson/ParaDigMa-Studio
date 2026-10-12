@@ -5,6 +5,8 @@ from pathlib import Path
 
 from PySide6.QtGui import QColor, QPalette
 
+LINK_COLOR = "#1e609e"
+
 MODULE_PALETTE = {
     "gait": {"accent": "#477DA3", "tint": "#F1F6FA", "border": "#CFDFEB"},
     "tremor": {"accent": "#8B709F", "tint": "#F7F3FA", "border": "#DDD2E7"},
@@ -52,8 +54,8 @@ def light_palette():
         QPalette.PlaceholderText: "#68778c",
         QPalette.ToolTipBase: "#ffffff",
         QPalette.ToolTipText: "#22324a",
-        QPalette.Link: "#1e609e",
-        QPalette.LinkVisited: "#1e609e",
+        QPalette.Link: LINK_COLOR,
+        QPalette.LinkVisited: LINK_COLOR,
     }
     for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
         for role, color in colors.items():

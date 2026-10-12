@@ -12,7 +12,16 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QMessageBox
 
-from .history import RunHistory, load_result_export, merge_errors, now, run_status
+from .history import (
+    RunHistory,
+    load_result_export,
+    merge_errors,
+    now,
+    run_exports,
+    run_is_saved,
+    run_status,
+    saved_result_output,
+)
 from .theme import STYLESHEET, light_palette
 from .widgets import RecordModel
 from .workspace_state import InputState, ResultState, RunState
@@ -34,6 +43,7 @@ class RunView:
     run_details: QPlainTextEdit
     run_warnings: QPlainTextEdit
     run_errors: QPlainTextEdit
+    run_saved: QPlainTextEdit
     run_outputs: QPlainTextEdit
     open_run_button: QPushButton
     use_parameters_button: QPushButton
@@ -148,11 +158,21 @@ class RunController:
                     "Modules": ", ".join(record["settings"].get("pipelines", [])),
                     "Warnings": len(record["warnings"]),
                     "Errors": len(record.get("errors", [])),
-                    "Exports": len(record["outputs"]),
+                    "Saved": "Yes" if run_is_saved(record) else "No",
+                    "Exports": len(run_exports(record)),
                 }
                 for record in self.state.runs
             ],
-            columns=["Started", "Status", "Input", "Modules", "Warnings", "Errors", "Exports"],
+            columns=[
+                "Started",
+                "Status",
+                "Input",
+                "Modules",
+                "Saved",
+                "Warnings",
+                "Errors",
+                "Exports",
+            ],
         )
         self.state._run_row_records = tuple(self.state.runs)
         self.view.run_table.setModel(model)
@@ -220,9 +240,16 @@ class RunController:
         self.view.run_outputs.setPlainText(
             "\n\n".join(
                 f"{item.get('kind', 'Export')}: {item.get('path', '')}"
-                for item in record["outputs"]
+                for item in run_exports(record)
             )
-            or "No exports saved."
+            or "No exports."
+        )
+        saved = saved_result_output(record)
+        self.view.run_saved.setPlainText(
+            ("Saved locally" if run_is_saved(record) else "Saved file unavailable")
+            + f"\n{saved['path']}"
+            if saved is not None
+            else "Not saved locally."
         )
         self.view.log.setPlainText(record.get("log", ""))
         self.update_run_actions()
@@ -272,8 +299,15 @@ class RunController:
             self.select_run(self.view.run_table.model().index(row, 0), None)
             return
         record = self.state.selected_run
-        available = record is not None and (
-            "_results" in record or any(item.get("kind") == "JSON" for item in record["outputs"])
+        output = self.reopen_output(record) if record is not None else None
+        available = record is not None and ("_results" in record or output is not None)
+        self.view.open_run_button.setText(
+            "Open exported results"
+            if record is not None
+            and "_results" not in record
+            and output is not None
+            and not output.get("local")
+            else "Open results"
         )
         self.view.open_run_button.setEnabled(
             bool(available) and count == 1 and not self.callbacks.is_busy()
@@ -368,6 +402,7 @@ class RunController:
                 self.view.run_details,
                 self.view.run_warnings,
                 self.view.run_errors,
+                self.view.run_saved,
                 self.view.run_outputs,
                 self.view.log,
             ):
@@ -380,14 +415,27 @@ class RunController:
         if "_results" in record:
             self.restore_run((record["id"], record.get("_provenance", {}), record["_results"]))
             return
-        output = next(
-            (item for item in reversed(record["outputs"]) if item.get("kind") == "JSON"), None
-        )
+        output = self.reopen_output(record)
         if output:
             self.view.status.setText("Opening exported results…")
             self.callbacks.start_job(
                 lambda logger: (record["id"], *load_result_export(output["path"])), self.restore_run
             )
+
+    @staticmethod
+    def reopen_output(record):
+        if run_is_saved(record):
+            return saved_result_output(record)
+        # Keep reopening complete legacy exports possible, but distinguish them
+        # from local saves and never treat a known partial export as a full run.
+        return next(
+            (
+                output
+                for output in reversed(run_exports(record))
+                if output.get("kind") == "JSON" and output.get("complete") is not False
+            ),
+            None,
+        )
 
     def restore_run(self, payload):
         run_id, provenance, results = payload
@@ -402,7 +450,7 @@ class RunController:
         self.results.result_source_frame = record.get("_frame")
         self.results.result_timeline = None
         record["_results"], record["_provenance"] = results, self.results.provenance
-        record.setdefault("_unsaved_results", False)
+        record.setdefault("_unsaved_results", not run_is_saved(record))
         self.callbacks.show_notice("")
         self.callbacks.analyzed(results)
         self.update_run_actions()
@@ -426,8 +474,7 @@ class RunController:
                     if aggregation
                     else self.results.active_selection,
                 )
-            if self.persist_run(self.state.current_run) and kind == "JSON":
-                self.state.current_run["_unsaved_results"] = False
+            self.persist_run(self.state.current_run)
             self.refresh_runs()
 
     def save_run_results(self, records, *, close_after=False):

@@ -166,13 +166,12 @@ class ResultController:
         self.view.dataset.blockSignals(True)
         self.view.dataset.clear()
         self.view.dataset.addItems(self.state.tables)
+        selected = [
+            name for name, _ in self.callbacks.selected_result_series() if name in self.state.tables
+        ]
         preferred = next(
-            (
-                name
-                for name, _ in self.callbacks.selected_result_series()
-                if name.startswith("quantifications/")
-            ),
-            None,
+            (name for name in selected if name.startswith("quantifications/")),
+            selected[0] if selected else None,
         )
         if preferred is None:
             preferred = next(

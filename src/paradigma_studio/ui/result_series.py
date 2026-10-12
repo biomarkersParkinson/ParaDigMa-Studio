@@ -21,6 +21,40 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QTreeWidget
 
 
+DEFAULT_SERIES = {
+    "gait": (
+        ("classifications/gait/detection", "pred_gait_window"),
+        ("quantifications/gait/filtered", "range_of_motion"),
+    ),
+    "tremor": (("classifications/tremor", "pred_tremor_checked"),),
+}
+
+
+def default_series(names, frames, tables):
+    selected = {
+        (name, metric)
+        for choices in DEFAULT_SERIES.values()
+        for name, metric in choices
+        if name in frames and metric in plot_metrics(name, frames[name])
+    }
+    selected_modules = {name.split("/")[1] for name, _ in selected}
+    for name in names:
+        frame = frames[name]
+        if name.startswith("preparation/"):
+            selected.add((name, "available"))
+            continue
+        module = name.split("/")[1]
+        if module in selected_modules or not name.startswith("quantifications/") or not len(frame):
+            continue
+        if name.endswith("/filtered") and len(tables.get("quantifications/gait/unfiltered", [])):
+            continue
+        metric = preferred_metric(name, frame)
+        if metric is not None:
+            selected.add((name, metric))
+            selected_modules.add(module)
+    return selected
+
+
 class ResultSeries:
     def __init__(self, tree: QTreeWidget):
         self.tree = tree
@@ -29,7 +63,7 @@ class ResultSeries:
         self.tree.blockSignals(True)
         self.tree.clear()
         items = {}
-        roots, default_modules = {}, set()
+        roots = {}
         title_counts = {}
         module_order = {
             module: index for index, module in enumerate((*MODULE_NAMES, "preparation"))
@@ -41,6 +75,7 @@ class ResultSeries:
                 len(module_order),
             ),
         )
+        defaults = default_series(names, plot_tables, tables)
         for name in names:
             frame = plot_tables[name]
             module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
@@ -64,17 +99,6 @@ class ResultSeries:
                 root.setExpanded(True)
                 roots[module] = root
             metrics = plot_metrics(name, frame)
-            default = preferred_metric(name, frame)
-            # Favor unfiltered gait and quantified outputs for initial plots.
-            choose = (
-                len(frame) > 0
-                and name.startswith("quantifications/")
-                and module not in default_modules
-                and (
-                    not name.endswith("/filtered")
-                    or not len(tables.get("quantifications/gait/unfiltered", []))
-                )
-            )
             for metric in metrics:
                 title = self._title(module, name, metric, plot_labels, title_counts)
                 item = QTreeWidgetItem(roots[module], [title])
@@ -82,14 +106,10 @@ class ResultSeries:
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 item.setCheckState(
                     0,
-                    Qt.Checked
-                    if name.startswith("preparation/") or choose and metric == default
-                    else Qt.Unchecked,
+                    Qt.Checked if (name, metric) in defaults else Qt.Unchecked,
                 )
                 item.setToolTip(0, self._tooltip(module, name, metric))
                 items[(name, metric)] = item
-            if choose and default is not None:
-                default_modules.add(module)
         self.tree.blockSignals(False)
 
         return items

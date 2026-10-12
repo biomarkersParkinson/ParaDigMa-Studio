@@ -5,6 +5,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import select_plot_metric
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -70,13 +71,13 @@ def test_tremor_power_requires_presence_time_not_median_sample_count_and_keeps_r
     }
     original = deepcopy(output)
     window.analyzed(output)
+    select_plot_metric(window, "quantifications/tremor", "tremor_power")
     window.result_graph_view.setCurrentIndex(1)
     values = epoch_values(window)["quantifications/tremor", "tremor_power"]
     np.testing.assert_array_equal(values, [np.nan, 35, np.nan])
     window.result_graph_view.setCurrentIndex(0)
-    np.testing.assert_array_equal(
-        window.figure.axes[0]._paradigma_bar_data[2], quantifications.tremor_power
-    )
+    power_axis = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
+    np.testing.assert_array_equal(power_axis._paradigma_bar_data[2], quantifications.tremor_power)
     for stage in output:
         pd.testing.assert_frame_equal(output[stage]["tremor"], original[stage]["tremor"])
         pd.testing.assert_frame_equal(window.tables[stage + "/tremor"], original[stage]["tremor"])
@@ -88,6 +89,7 @@ def test_tremor_power_requires_presence_time_not_median_sample_count_and_keeps_r
             "quantifications": {"tremor": quantifications},
         }
     )
+    select_plot_metric(window, "quantifications/tremor", "tremor_power")
     assert np.isnan(epoch_values(window)["quantifications/tremor", "tremor_power"]).all()
 
 

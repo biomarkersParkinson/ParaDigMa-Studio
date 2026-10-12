@@ -5,7 +5,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import bar_starts, bar_values
+from conftest import bar_starts, bar_values, select_plot_metric
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
@@ -19,7 +19,8 @@ def test_continuous_bars_show_exact_values_leave_missing_gaps_and_retain_zero(
     result = tremor_outputs
     original = deepcopy(result)
     window.analyzed(result)
-    axis = window.figure.axes[0]
+    select_plot_metric(window, "quantifications/tremor", "tremor_power")
+    axis = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
     assert not axis.lines
     np.testing.assert_array_equal(bar_values(axis), [2.0, 5.0])
     np.testing.assert_allclose(bar_starts(axis), [0.0, 8.0], atol=1e-12)

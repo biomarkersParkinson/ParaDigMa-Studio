@@ -35,7 +35,7 @@ from ..branding import APP_NAME
 from ..plot_controls import GraphToolbar, add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
 from ..results_view import MODULE_NAMES
-from ..theme import light_palette, tooltip_text
+from ..theme import LINK_COLOR, light_palette, tooltip_text
 from ..time_axis import PinnedTimeAxis
 from ..time_controls import TimeField
 from ..widgets import (
@@ -546,7 +546,7 @@ class WorkspaceLayout:
             )
             link_title = "ParaDigMa documentation · Coordinate System guide"
         description = QLabel(
-            f'{escape(text)}{visual}<br><a style="color: #1E609E; text-decoration: underline;" '
+            f'{escape(text)}{visual}<br><a style="color: {LINK_COLOR}; text-decoration: underline;" '
             f'href="{url}">{link_title}</a>'
         )
         description.setWordWrap(True)
@@ -729,7 +729,7 @@ class WorkspaceLayout:
         graph_layout = QHBoxLayout(graphs)
         graph_layout.setContentsMargins(0, 0, 0, 0)
         self.result_series = SeriesTree()
-        self.result_series.setIndentation(8)
+        self.result_series.setIndentation(6)
         self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 0px; }")
         self.result_series.setHeaderLabel("Plot series")
         self.result_series.setPalette(light_palette())
@@ -882,7 +882,8 @@ class WorkspaceLayout:
         self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
         content.addWidget(self.run_summary)
         self.run_detail_tabs = QTabWidget()
-        self.run_details, self.run_warnings, self.run_errors, self.run_outputs = (
+        self.run_details, self.run_warnings, self.run_errors, self.run_saved, self.run_outputs = (
+            readout(),
             readout(),
             readout(),
             readout(),
@@ -893,7 +894,8 @@ class WorkspaceLayout:
             (self.run_details, "Parameters"),
             (self.run_warnings, "Warnings"),
             (self.run_errors, "Errors"),
-            (self.run_outputs, "Outputs"),
+            (self.run_saved, "Saved run"),
+            (self.run_outputs, "Exports"),
             (self.log, "Processing log"),
         ):
             self.run_detail_tabs.addTab(widget, title)

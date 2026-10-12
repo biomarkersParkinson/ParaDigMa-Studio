@@ -4,7 +4,8 @@ See the [README](../README.md) for downloading the Windows app and the basic wor
 
 **About** at the bottom of the sidebar (or **F1**) has **Overview**, **Citations**
 and **Licences** tabs. **Copy BibTeX**, in Citations, copies the 2026 JOSS paper
-reference. Licences lets you read the complete Studio or ParaDigMa licence.
+reference; pipeline methods and validation publications are listed below it.
+Licences shows the complete Studio and ParaDigMa licences under separate headings.
 
 ## Input and analysis settings
 
@@ -164,7 +165,9 @@ within each epoch, including partial edge epochs. These summaries affect graphs
 only; tables, exports and official aggregates remain unchanged.
 
 Plots are grouped by module, following Plot series order, and long
-series names wrap in full. Gait and filtered gait share one observed-time denominator, so filtered
+series names wrap in full. The default selection is gait presence (prediction),
+filtered gait range of motion and tremor presence (prediction), when available.
+Gait and filtered gait share one observed-time denominator, so filtered
 gait cannot have a higher percentage. Gait-positive time without filtering results
 is excluded from both denominators. Other binary outcomes use finite observations.
 Missing outputs stay blank. Click module titles to expand or collapse Plot series;
@@ -194,8 +197,9 @@ modalities; unidentified scalar streams stay separate. Use **Select all** and
 **Clear**. The complete figure resizes to fit the page;
 the channel list and **Tables** can scroll independently. Channel selections are
 retained when inspecting another result. Drag with **Pan** to move through the
-original recording beyond the initial context, up to its boundaries. New samples
-load as you move; gaps stay blank. **Close**, alongside the recording summary
+original recording beyond the initial context, up to its boundaries. Sensor-context
+axes use the accelerometer and gyroscope units stored in that run's Analyze settings.
+New samples load as you move; gaps stay blank. **Close**, alongside the recording summary
 at the top right, dismisses the sensor-context tab.
 Adding or removing channels keeps the current time window. **Home** returns to
 the original ±10-second context or complete gait segment, including after
@@ -228,7 +232,7 @@ per channel; result bars and binary indicators retain every output.
 tables or metadata groups to include:
 
 - **JSON:** one structured file containing selected outputs and analysis provenance.
-  Non-finite values become null. Full JSON exports reopen after restarting without
+  Non-finite values become null. Full JSON exports can reopen after restarting without
   loading the sensor recording. Select all outputs/metadata to preserve all drill-down
   timing information.
 - **CSV:** one table exports as CSV. Multiple tables or metadata selections export as
@@ -240,9 +244,12 @@ tables or metadata groups to include:
   recordings are not copied. The button appears on every Results tab.
 - **Runs:** stores status, parameters, separate warnings and errors, logs and saved
   result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
+  **Saved** reports whether a local result snapshot is available; **Exports** counts
+  separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
   Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
-  stores all unsaved runs before closing. Partial JSON or CSV exports do not
-  preserve the complete run; a complete JSON export also counts as saved.
+  stores all unsaved runs before closing. Exporting, including complete JSON,
+  does not mark a run as saved locally or clear that warning. Complete legacy
+  exports can still reopen through **Open exported results**; local saves take precedence.
 
 Existing installations continue using their earlier `ParaDigMaDesktop` history
 folder when a Studio history folder does not yet exist. Saved result files stay

@@ -71,6 +71,27 @@ def run_status(record: RunRecord) -> str:
     return "Completed with warnings" if status == "Completed" and record["warnings"] else status
 
 
+def saved_result_output(record: RunRecord) -> RunOutput | None:
+    """Local snapshots are distinct from configurable user exports."""
+    return next(
+        (
+            output
+            for output in reversed(record["outputs"])
+            if output.get("local") and output.get("kind") == "JSON"
+        ),
+        None,
+    )
+
+
+def run_is_saved(record: RunRecord) -> bool:
+    output = saved_result_output(record)
+    return output is not None and Path(output["path"]).is_file()
+
+
+def run_exports(record: RunRecord) -> list[RunOutput]:
+    return [output for output in record["outputs"] if not output.get("local")]
+
+
 def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
     """Prefer structured pipeline errors over duplicate log messages."""
     messages = [error_text(error) for error in errors]
@@ -256,6 +277,21 @@ class RunHistory:
                 path.unlink(missing_ok=True)
             raise
         return outputs
+
+    def validate_export_destination(self, path: PathInput, records: Iterable[RunRecord]) -> None:
+        """An adjustable export must not replace a local snapshot or its history."""
+        for record in records:
+            saved = saved_result_output(record)
+            protected = [
+                self.directory / f"{record['id']}.json",
+                self.directory / "results" / f"{record['id']}.json",
+            ]
+            if saved is not None:
+                protected.append(Path(saved["path"]))
+            if any(same_file(path, original) for original in protected):
+                raise ValueError(
+                    "An export cannot overwrite a saved run or its history entry. Choose another filename."
+                )
 
     def removal_files(
         self,

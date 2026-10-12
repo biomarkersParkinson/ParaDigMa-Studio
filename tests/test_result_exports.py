@@ -138,7 +138,7 @@ def test_batched_json_preserves_schema_values_and_limits_temporary_rows(tmp_path
     value = json.loads(destination.read_text())
     assert value["results"] == expected
     assert value["analysis"] == {"source": "sensor.csv"}
-    assert batch_sizes == [5000, 5000, 3]
+    assert sum(batch_sizes) == count and max(batch_sizes) <= 1000
 
 
 def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_path, monkeypatch):

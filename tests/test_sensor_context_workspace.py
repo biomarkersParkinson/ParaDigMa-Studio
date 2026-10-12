@@ -539,3 +539,30 @@ def test_context_close_shares_recording_summary_row_and_nested_tabs_have_compact
     assert window.sensor_close.isVisible()
     window.sensor_close.click()
     assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
+
+
+@pytest.mark.parametrize("gait", [False, True])
+@pytest.mark.parametrize("accelerometer_unit, gyroscope_unit", [("g", "deg/s"), ("m/s^2", "rad/s")])
+def test_context_uses_saved_analysis_units_for_single_and_multiple_channels(
+    window, gait, accelerometer_unit, gyroscope_unit
+):
+    source = open_long_context(window, gait=gait)
+    source["accelerometer_x"] = np.sin(source.time)
+    window.inspect_sensor_context()
+    window.provenance.setdefault("settings", {}).update(
+        accelerometer_units=accelerometer_unit, gyroscope_units=gyroscope_unit
+    )
+    # Current form changes must not relabel an earlier run's original samples.
+    window.acc.setCurrentText("m/s^2" if accelerometer_unit == "g" else "g")
+    window.gyro.setCurrentText("rad/s" if gyroscope_unit == "deg/s" else "deg/s")
+    original = window.sensor_frame.copy(deep=True)
+    window.set_sensor_channels(["accelerometer_x", "gyroscope_x", "gyroscope_z"])
+    labels = [ax.get_ylabel() for ax in window.sensor_figure.axes]
+    assert set(labels) == {
+        f"accelerometer_x\n({accelerometer_unit})",
+        f"Gyroscope\n({gyroscope_unit})",
+    }
+    for ax in window.sensor_figure.axes:
+        for line in signal_lines(ax):
+            np.testing.assert_array_equal(line.get_ydata(), original[line.get_label()])
+    pd.testing.assert_frame_equal(window.sensor_frame, original)

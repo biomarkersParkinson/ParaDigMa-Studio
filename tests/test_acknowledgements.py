@@ -8,10 +8,11 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtCore import QStandardPaths
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from paradigma_studio.acknowledgements import NOTICE_FILES, NOTICES
 from paradigma_studio.app import MainWindow
+from paradigma_studio.theme import LINK_COLOR
 from scripts.build_desktop import copy_notices
 from scripts.check_frozen import check_bundle
 
@@ -63,13 +64,40 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     assert window.selected_modules() == ["gait", "tremor", "pulse_rate"]
     assert "10.5281/zenodo.13838392" not in dialog.acknowledgement.toPlainText()
     assert "10.21105/joss.09502" in dialog.acknowledgement.toPlainText()
-    assert dialog.acknowledgement.toPlainText().count("doi:") == 1
+    citations = dialog.acknowledgement.toPlainText()
+    for doi in (
+        "10.21105/joss.09502",
+        "10.1186/s12984-025-01578-z",
+        "10.64898/2026.01.06.26343500",
+        "10.1038/s41531-025-01056-2",
+        "10.1002/ana.78236",
+        "10.1186/s12984-026-01994-9",
+    ):
+        assert citations.count(doi) == 1
+    assert citations.count("doi:") == 6
+    assert not hasattr(dialog, "licence_choice")
     dialog.tabs.setCurrentIndex(2)
-    for index, name in enumerate(("LICENSE-studio.txt", "LICENSE-paradigma.txt")):
-        dialog.licence_choice.setCurrentIndex(index)
+    for name in ("LICENSE-studio.txt", "LICENSE-paradigma.txt"):
         assert (NOTICES / name).read_text(encoding="utf-8") in dialog.licence.toPlainText()
     dialog.tabs.setCurrentIndex(1)
     assert dialog.copy_button.isVisible()
+    close = next(b for b in dialog.findChildren(QPushButton) if b.text() == "Close")
+    assert dialog.copy_button.y() == close.y()
+    for browser in (dialog.overview, dialog.acknowledgement, dialog.licence):
+        assert browser.openExternalLinks()
+        block = browser.document().begin()
+        anchors = []
+        while block.isValid():
+            fragments = block.begin()
+            while not fragments.atEnd():
+                style = fragments.fragment().charFormat()
+                if style.isAnchor():
+                    anchors.append(style.anchorHref())
+                    assert style.foreground().color().name() == LINK_COLOR
+                    assert style.fontUnderline()
+                fragments += 1
+            block = block.next()
+        assert anchors
     dialog.copy_button.click()
     assert application.clipboard().text() == (NOTICES / "PARADIGMA-JOSS-CITATION.bib").read_text(
         encoding="utf-8"

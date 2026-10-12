@@ -166,6 +166,7 @@ def plot_channel_signals(
     empty_text="No original samples in this context",
     allow_empty=False,
     empty_schema=None,
+    sensor_units=None,
 ):
     figure.clear()
     if frame is None or (frame.empty and not allow_empty) or not channels:
@@ -189,7 +190,17 @@ def plot_channel_signals(
             if first_axes is None:
                 first_axes = ax
             for channel in group:
-                _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs)
+                _plot_sensor_channel(
+                    ax,
+                    frame,
+                    channel,
+                    group,
+                    modality,
+                    flags,
+                    colors,
+                    xs,
+                    (sensor_units or {}).get(modality),
+                )
             _style_sensor_group(ax, group, time_label, calendar, timezone, index == len(groups) - 1)
 
 
@@ -218,7 +229,7 @@ def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
     return groups, flags
 
 
-def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs):
+def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs, unit):
     if channel in flags:
         plot_states(
             ax,
@@ -244,8 +255,12 @@ def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs)
             colors[channel],
             label=str(channel),
         )
+        title = str(group[0]) if len(group) == 1 else modality
+        ylabel = (
+            f"{title}\n({unit})" if unit else title if len(group) == 1 else f"{title}\n(file units)"
+        )
         ax.set_ylabel(
-            str(group[0]) if len(group) == 1 else f"{modality}\n(file units)",
+            ylabel,
             rotation=0,
             ha="right",
             va="center",

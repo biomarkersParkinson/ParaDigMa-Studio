@@ -52,6 +52,10 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
     window.save_results_button.click()
     finish_job(window)
     assert not window.unsaved_result_runs()
+    shown = window.run_table.model().frame.iloc[0]
+    assert shown["Saved"] == "Yes" and shown["Exports"] == 0
+    assert window.run_outputs.toPlainText() == "No exports."
+    assert "Saved locally" in window.run_saved.toPlainText()
     saved = Path(record["outputs"][-1]["path"])
     assert saved.parent == window.history.directory / "results"
     provenance, results = load_result_export(saved)
@@ -81,6 +85,74 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
     finally:
         reopened.close()
         QApplication.instance().processEvents()
+
+
+def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, tmp_path):
+    from paradigma_studio.core import export_results
+
+    record = analyzed_run(window, tremor_outputs, tmp_path)
+    window.save_results()
+    finish_job(window)
+    changed = {
+        **tremor_outputs,
+        "quantifications": {
+            "tremor": tremor_outputs["quantifications"]["tremor"].assign(tremor_power=999.0)
+        },
+    }
+    path = tmp_path / "user-export.json"
+    export_results(path, changed, window.provenance)
+    window.record_output(path, "JSON")
+    shown = window.run_table.model().frame.iloc[0]
+    assert shown["Saved"] == "Yes" and shown["Exports"] == 1
+    assert str(path) in window.run_outputs.toPlainText()
+    assert str(path) not in window.run_saved.toPlainText()
+    window.close()
+    reopened = MainWindow(window.history.directory)
+    try:
+        reopened.open_run()
+        finish_job(reopened)
+        pd.testing.assert_frame_equal(
+            reopened.results["quantifications"]["tremor"],
+            tremor_outputs["quantifications"]["tremor"],
+        )
+        assert reopened.current_run["id"] == record["id"]
+    finally:
+        reopened.close()
+
+
+def test_missing_local_snapshot_is_unsaved_even_if_exports_exist(window, tremor_outputs, tmp_path):
+    record = analyzed_run(window, tremor_outputs, tmp_path)
+    window.save_results()
+    finish_job(window)
+    Path(record["outputs"][-1]["path"]).unlink()
+    window.refresh_runs()
+    assert window.run_table.model().frame.iloc[0]["Saved"] == "No"
+    assert "unavailable" in window.run_saved.toPlainText()
+    assert window.unsaved_result_runs() == [record]
+
+
+@pytest.mark.parametrize("destination", ["saved", "history"])
+def test_exports_cannot_replace_saved_runs_or_their_history(
+    window, tremor_outputs, tmp_path, monkeypatch, destination
+):
+    record = analyzed_run(window, tremor_outputs, tmp_path)
+    window.save_results()
+    finish_job(window)
+    path = (
+        Path(record["outputs"][-1]["path"])
+        if destination == "saved"
+        else window.history.directory / f"{record['id']}.json"
+    )
+    original = path.read_bytes()
+    monkeypatch.setattr(ExportDialog, "exec", lambda dialog: True)
+    monkeypatch.setattr(
+        "paradigma_studio.app.QFileDialog.getSaveFileName", lambda *args: (str(path), "JSON")
+    )
+    window.choose_export()
+    finish_job(window)
+    assert path.read_bytes() == original
+    assert "cannot overwrite a saved run" in window.notice.text()
+    assert window.run_table.model().frame.iloc[0]["Exports"] == 0
 
 
 def test_repeated_local_save_reuses_file_and_run_deletion_removes_it(
@@ -121,6 +193,14 @@ def test_save_does_not_block_navigation_or_allow_competing_operations(
         window.navigate(0)
         QApplication.instance().processEvents()
         assert window.pages.currentIndex() == 0
+        assert (
+            window.progress.isVisible()
+            and window.progress.minimum() == window.progress.maximum() == 0
+        )
+        QTest.qWait(80)
+        first = window.progress.grab().toImage()
+        QTest.qWait(120)
+        assert window.progress.grab().toImage() != first
     finally:
         release.set()
         finish_job(window)
@@ -200,7 +280,7 @@ def test_failed_history_save_keeps_window_open_and_results_unsaved(
 
 
 @pytest.mark.parametrize("complete", [False, True])
-def test_only_complete_json_export_clears_unsaved_warning(
+def test_json_exports_remain_separate_from_local_saved_status(
     window, tremor_outputs, tmp_path, monkeypatch, complete
 ):
     record = analyzed_run(window, tremor_outputs, tmp_path)
@@ -214,8 +294,10 @@ def test_only_complete_json_export_clears_unsaved_warning(
     )
     window.choose_export()
     finish_job(window)
-    assert bool(window.unsaved_result_runs()) != complete
+    assert window.unsaved_result_runs() == [record]
     assert record["outputs"][-1]["complete"] == complete
+    shown = window.run_table.model().frame.iloc[0]
+    assert shown["Saved"] == "No" and shown["Exports"] == 1
 
 
 def test_local_save_does_not_overwrite_original_recordings(window, tremor_outputs, tmp_path):

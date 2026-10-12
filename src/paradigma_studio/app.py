@@ -38,7 +38,7 @@ from .core import (
     validate_column_mapping,
     validate_orientation,
 )
-from .history import RunHistory, new_run, now
+from .history import RunHistory, new_run, now, run_is_saved
 from .inspection import inspect_recording, sensor_descriptives, time_descriptives
 from .jobs import SignalHandler as SignalHandler, Worker
 from .previews import CachedPreview
@@ -190,6 +190,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             run_details=self.run_details,
             run_warnings=self.run_warnings,
             run_errors=self.run_errors,
+            run_saved=self.run_saved,
             run_outputs=self.run_outputs,
             open_run_button=self.open_run_button,
             use_parameters_button=self.use_parameters_button,
@@ -1360,6 +1361,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         )
         if path:
             try:
+                self.history.validate_export_destination(path, self.runs)
                 export_results(
                     path,
                     self.results,
@@ -1398,6 +1400,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         protected = [*self.sources.values(), *provenance.get("sources", {}).values()]
 
         def write(logger):
+            self.history.validate_export_destination(path, self.runs)
             export_selection(
                 path, results, provenance, selected, format_name, protected_sources=protected
             )
@@ -1414,8 +1417,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                         "complete": complete,
                     }
                 )
-                if self.persist_run(run) and complete:
-                    run["_unsaved_results"] = False
+                self.persist_run(run)
                 self.refresh_runs()
             self.status.setText(f"Results exported to {output_path}")
 
@@ -1431,6 +1433,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         )
         if path:
             try:
+                self.history.validate_export_destination(path, self.runs)
                 export_table_csv(
                     path,
                     frame,
@@ -1446,7 +1449,11 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 self.failure(str(exc))
 
     def unsaved_result_runs(self):
-        return [record for record in self.runs if record.get("_unsaved_results")]
+        return [
+            record
+            for record in self.runs
+            if "_results" in record and (record.get("_unsaved_results") or not run_is_saved(record))
+        ]
 
     def save_results(self):
         if self.worker is not None or self.current_run is None or self.results is None:

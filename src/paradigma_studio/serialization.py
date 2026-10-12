@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,6 +20,12 @@ if TYPE_CHECKING:
 
 
 def json_value(value: Any) -> JSONValue:
+    # DataFrame.to_dict produces native scalars. Keep their frequent path free
+    # of repeated scientific-type checks and pandas imports during large saves.
+    if value is None or type(value) in (str, int, bool):
+        return value
+    if type(value) is float:
+        return value if math.isfinite(value) else None
     import pandas as pd
 
     if isinstance(value, pd.DataFrame):
@@ -61,11 +68,14 @@ def _write_json(stream, value):
 
     if isinstance(value, pd.DataFrame):
         stream.write('{"columns":' + encode(json_value(list(value.columns))) + ',"data":[')
-        for start in range(0, len(value), 5000):
+        for start in range(0, len(value), 1000):
             if start:
                 stream.write(",")
-            records = json_value(value.iloc[start : start + 5000].to_dict(orient="records"))
+            records = json_value(value.iloc[start : start + 1000].to_dict(orient="records"))
             stream.write(encode(records)[1:-1])
+            # Short native encoding blocks and an explicit yield keep Qt's busy
+            # indicator and navigation responsive during large background saves.
+            time.sleep(0)
         stream.write("]}")
     elif isinstance(value, dict):
         stream.write("{")

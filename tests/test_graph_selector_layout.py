@@ -106,7 +106,7 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
     QTest.qWait(30)
     tree = window.result_series
     root = tree.topLevelItem(0)
-    assert tree.indentation() == 8
+    assert tree.indentation() == 6
     assert {root.child(i).text(0) for i in range(root.childCount())} == {
         "Tremor presence (prediction)",
         "Arm at rest (prediction)",
@@ -122,7 +122,9 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
         )
         assert root.isExpanded() != expanded
         QTest.mouseClick(
-            tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() - 6, rect.center().y())
+            tree.viewport(),
+            Qt.LeftButton,
+            pos=QPoint(rect.left() - tree.indentation() // 2, rect.center().y()),
         )
         assert root.isExpanded() == expanded
         assert root.data(0, Qt.CheckStateRole) is None
@@ -185,7 +187,7 @@ def test_selected_graphs_follow_module_groups_in_both_views_and_long_labels_wrap
             assert item.text(0) == f"Filtered gait presence ({suffix})"
             assert (
                 window.result_series.visualItemRect(item).height()
-                > window.result_series.fontMetrics().height() * 2
+                >= window.result_series.fontMetrics().height() + 10
             )
         for mode in (0, 1):
             window.result_graph_view.setCurrentIndex(mode)
@@ -302,3 +304,45 @@ def test_large_native_toolbar_wraps_context_without_hiding_actions_or_expanding_
     assert window.context_controls.isVisible()
     assert window.graph_footer.isAncestorOf(window.context_controls)
     assert window.figure_actions.isAncestorOf(window.graph_view_controls)
+
+
+@pytest.mark.parametrize("empty_filtered", [False, True])
+def test_requested_defaults_select_predictions_and_filtered_rom_without_extra_metrics(
+    window, empty_filtered
+):
+    gait = pd.DataFrame(
+        {"time": [0.0, 1.0], "range_of_motion": [10.0, 20.0], "peak_velocity": [30.0, 40.0]}
+    )
+    filtered = gait.iloc[:0].copy() if empty_filtered else gait.copy()
+    outputs = {
+        "classifications": {
+            "gait": {
+                "detection": pd.DataFrame({"time": [0.0, 1.0], "pred_gait_proba": [0.1, 0.9]})
+            },
+            "tremor": pd.DataFrame(
+                {"time": [0.0, 1.0], "pred_tremor_checked": [0, 1], "pred_arm_at_rest": [1, 1]}
+            ),
+        },
+        "quantifications": {
+            "gait": {"filtered": filtered, "unfiltered": gait},
+            "tremor": pd.DataFrame({"time": [0.0, 1.0], "tremor_power": [2.0, 3.0]}),
+            "pulse_rate": pd.DataFrame({"time": [0.0, 1.0], "pulse_rate": [60.0, 70.0]}),
+        },
+        "metadata": {"desktop_availability": {"gait": {"df_1": {"intervals": [[0.0, 2.0]]}}}},
+    }
+    window.analyzed(outputs)
+    wanted = {
+        ("classifications/gait/detection", "pred_gait_window"),
+        ("quantifications/gait/filtered", "range_of_motion"),
+        ("classifications/tremor", "pred_tremor_checked"),
+        ("quantifications/pulse_rate", "pulse_rate"),
+        ("preparation/gait", "available"),
+    }
+    assert set(window.selected_result_series()) == wanted
+    assert {(ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes} == wanted
+    pd.testing.assert_frame_equal(window.tables["quantifications/gait/filtered"], filtered)
+    pd.testing.assert_frame_equal(window.tables["quantifications/gait/unfiltered"], gait)
+    window.result_tabs.setCurrentIndex(1)
+    QApplication.instance().processEvents()
+    for item in window._series_items.values():
+        assert window.result_series.visualItemRect(item).left() <= 12
