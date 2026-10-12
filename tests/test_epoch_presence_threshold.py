@@ -74,10 +74,14 @@ def test_tremor_power_requires_presence_time_not_median_sample_count_and_keeps_r
     select_plot_metric(window, "quantifications/tremor", "tremor_power")
     window.result_graph_view.setCurrentIndex(1)
     values = epoch_values(window)["quantifications/tremor", "tremor_power"]
-    np.testing.assert_array_equal(values, [np.nan, 35, np.nan])
+    np.testing.assert_allclose(values, [np.nan, np.mean(np.log10([31, 41])), np.nan])
+    power_axis = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
+    assert power_axis.get_ylabel() == "Median log₁₀(power + 1)"
     window.result_graph_view.setCurrentIndex(0)
     power_axis = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
-    np.testing.assert_array_equal(power_axis._paradigma_bar_data[2], quantifications.tremor_power)
+    np.testing.assert_allclose(
+        power_axis._paradigma_bar_data[2], np.log10(quantifications.tremor_power + 1)
+    )
     for stage in output:
         pd.testing.assert_frame_equal(output[stage]["tremor"], original[stage]["tremor"])
         pd.testing.assert_frame_equal(window.tables[stage + "/tremor"], original[stage]["tremor"])

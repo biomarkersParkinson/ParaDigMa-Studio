@@ -20,6 +20,10 @@ from ..theme import module_color, style_axes, style_result_heading
 from ..time_axis import RecordingDateLocator, RecordingTimeFormatter
 
 
+def _is_tremor_power(name, metric):
+    return name.split("/")[1] == "tremor" and metric == "tremor_power"
+
+
 class ResultGraphs:
     """Results rendering using the host MainWindow selection and cache state."""
 
@@ -78,11 +82,7 @@ class ResultGraphs:
                     times, self._interval_ends[name][positions], phase=phase, bounds=bounds
                 )
             else:
-                values = (
-                    self._plot_tables[name][metric]
-                    .iloc[positions]
-                    .to_numpy(dtype=float, na_value=np.nan)
-                )
+                values = self._result_plot_values(name, metric, positions)
                 frame = epoch_summary(times, values, binary=binary, phase=phase)
                 if (
                     name.startswith("quantifications/gait/")
@@ -274,7 +274,7 @@ class ResultGraphs:
         )
         times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
         percentage = binary or name.startswith("preparation/")
-        ys = self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+        ys = self._result_plot_values(name, metric, positions)
         xs = clock_times(times, self.display_clock)
         ax._paradigma_epoch = epochs
         if epochs:
@@ -287,13 +287,18 @@ class ResultGraphs:
                 self._render_binary_series(ax, name, metric, positions, xs, ys, color)
             else:
                 starts, ends = self._bar_bounds[name]
-                plot_bars(
+                bars = plot_bars(
                     ax,
                     clock_times(starts[positions], self.display_clock),
                     clock_times(ends[positions], self.display_clock),
                     ys,
                     color,
                 )
+                if _is_tremor_power(name, metric):
+                    # A subpixel rectangle can vanish when zoomed out, hiding
+                    # the very peak that determines the automatic Y range.
+                    bars.set_edgecolor(color)
+                    bars.set_linewidth(0.5)
         else:
             ax.text(
                 0.5,
@@ -304,6 +309,17 @@ class ResultGraphs:
                 color="#68778c",
             )
         self._style_result_series(ax, name, metric, binary, epochs, percentage)
+
+    def _result_plot_values(self, name, metric, positions):
+        values = (
+            self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+        )
+        if _is_tremor_power(name, metric):
+            # Match ParaDigMa's aggregation transform, before epoch medians.
+            # Create a separate array; scientific tables and exports stay raw.
+            with np.errstate(divide="ignore", invalid="ignore"):
+                values = np.log10(values + 1)
+        return values
 
     def _render_epoch_series(self, ax, name, metric, positions, binary, percentage):
         summary = self.epoch_plot_data(name, metric, positions, binary)
@@ -371,6 +387,10 @@ class ResultGraphs:
             ax.set_ylabel(
                 ("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
                 if epochs and percentage
+                else "Median log₁₀(power + 1)"
+                if epochs and _is_tremor_power(name, metric)
+                else "log₁₀(power + 1)"
+                if _is_tremor_power(name, metric)
                 else "Median"
                 if epochs
                 else str(metric).replace("_", " "),
@@ -518,7 +538,9 @@ class ResultGraphs:
             selected = summary.loc[(summary.start_s <= seconds) & (seconds < summary.end_s)]
             value = selected.value.iloc[0] if len(selected) else np.nan
         else:
-            value = self._plot_tables[name][ax._paradigma_metric].iloc[self.active_positions[row]]
+            value = self._result_plot_values(
+                name, ax._paradigma_metric, [self.active_positions[row]]
+            )[0]
             if (
                 name == "classifications/gait/arm_activity"
                 and ax._paradigma_metric == "pred_no_other_arm_activity_window"

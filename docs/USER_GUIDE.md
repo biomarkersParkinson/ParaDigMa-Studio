@@ -153,7 +153,10 @@ probabilities. Raw tables retain the official probability columns.
 
 **View**, at the right of the figure toolbar, switches all graphs between Detailed
 and 30-minute epochs. Continuous values show the median; binary predictions show
-percentages. Epochs align to calendar half-hours when a recording clock is known,
+percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
+aggregate transformation; epoch medians are calculated after this transformation.
+The y-axis labels identify the log scale. Tables and data exports retain raw power.
+Epochs align to calendar half-hours when a recording clock is known,
 or elapsed half-hours otherwise. Gait range of motion and peak velocity require
 at least 90 seconds of the corresponding filtered or unfiltered gait presence
 per epoch; tremor power requires at least 90 seconds of checked tremor presence.

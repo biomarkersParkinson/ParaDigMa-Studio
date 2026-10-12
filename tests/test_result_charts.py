@@ -22,12 +22,13 @@ def test_continuous_bars_show_exact_values_leave_missing_gaps_and_retain_zero(
     select_plot_metric(window, "quantifications/tremor", "tremor_power")
     axis = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
     assert not axis.lines
-    np.testing.assert_array_equal(bar_values(axis), [2.0, 5.0])
+    np.testing.assert_allclose(bar_values(axis), np.log10([3.0, 6.0]), rtol=1e-12)
     np.testing.assert_allclose(bar_starts(axis), [0.0, 8.0], atol=1e-12)
-    assert not any(path.contains_point((6.0, 1.0)) for path in axis.collections[0].get_paths())
+    assert not any(path.contains_point((6.0, 0.5)) for path in axis.collections[0].get_paths())
     axis.set_xlim(8.5, 9.5)
     window.canvas.draw()
-    assert axis.collections[0].get_paths()[1].contains_point((9.0, 1.0))
+    assert axis.collections[0].get_paths()[1].contains_point((9.0, 0.5))
+    assert axis.get_ylabel() == "log₁₀(power + 1)"
     pd.testing.assert_frame_equal(
         result["quantifications"]["tremor"], original["quantifications"]["tremor"]
     )
@@ -46,11 +47,11 @@ def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or
     frame = pd.DataFrame({"time": [0.0, 4.0, 8.0, 12.0], "tremor_power": [2.0, 3.0, 200.0, np.nan]})
     window.analyzed({"quantifications": {"tremor": frame}})
     axes = window.figure.axes[0]
-    assert axes.get_ylim() == pytest.approx((0.0, 216.0))
+    assert axes.get_ylim() == pytest.approx((0.0, np.log10(201.0) * 1.08))
     axes.set_xlim(0.5, 7.5)
-    assert axes.get_ylim() == pytest.approx((0.0, 3.24))
+    assert axes.get_ylim() == pytest.approx((0.0, np.log10(4.0) * 1.08))
     axes.set_xlim(8.5, 9.0)
-    assert axes.get_ylim() == pytest.approx((0.0, 216.0))  # The full extreme remains when visible.
+    assert axes.get_ylim() == pytest.approx((0.0, np.log10(201.0) * 1.08))
     axes.set_ylim(-10.0, 500.0)
     axes.set_xlim(0.5, 7.5)
     assert axes.get_ylim() == (-10.0, 500.0)
@@ -58,11 +59,38 @@ def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or
     panel.read_axes()
     panel.bounds["y"][0].setChecked(True)
     panel.apply()
-    assert axes.get_ylim() == pytest.approx((0.0, 3.24))
+    assert axes.get_ylim() == pytest.approx((0.0, np.log10(4.0) * 1.08))
     axes.set_xlim(12.0, 14.0)
     assert axes.get_ylim() == (0.0, 1.0)  # A missing bar never retains the preceding extreme.
-    np.testing.assert_array_equal(bar_values(axes), [2.0, 3.0, 200.0])
+    np.testing.assert_allclose(bar_values(axes), np.log10([3.0, 4.0, 201.0]), rtol=1e-12)
     pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame)
+
+
+def test_detailed_power_keeps_narrow_peaks_visible_and_marks_transformed_selected_value(window):
+    from types import SimpleNamespace
+
+    frame = pd.DataFrame({"time": [0.0, 100000.0, 200000.0], "tremor_power": [0.0, 3500.0, 1100.0]})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    window.canvas.draw()
+    axes = window.figure.axes[0]
+    peak = np.log10(3501.0)
+    assert axes.get_ylim() == pytest.approx((0, peak * 1.08))
+    assert len(axes.collections[0].get_paths()) == 3  # Zero is retained too.
+    x, y = axes.transData.transform((100002.0, peak * 0.8))
+    image = np.asarray(window.canvas.buffer_rgba())
+    row, column = round(image.shape[0] - y), round(x)
+    assert image[row - 2 : row + 3, column - 2 : column + 3, :3].min() < 190
+    limits = axes.get_ylim()
+    window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=100002.0))
+    marker = next(
+        artist
+        for artist in window._result_selection_artists
+        if artist.get_gid() == "selected-result-point"
+    )
+    assert marker.get_ydata()[0] == pytest.approx(peak)
+    assert axes.get_ylim() == limits
+    pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame, check_exact=True)
 
 
 @pytest.mark.parametrize("automatic", [True, False])
@@ -90,7 +118,7 @@ def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, a
         toolbar.drag_pan(MouseEvent("motion_notify_event", window.canvas, *last, buttons={1}))
         toolbar.release_pan(MouseEvent("button_release_event", window.canvas, *last, button=1))
     assert axes.get_autoscaley_on() == automatic
-    assert axes.get_ylim()[1] < 4 if automatic else axes.get_ylim()[1] > 100, (
+    assert axes.get_ylim()[1] < 1 if automatic else axes.get_ylim()[1] > 100, (
         axes.get_xlim(),
         axes.get_ylim(),
     )

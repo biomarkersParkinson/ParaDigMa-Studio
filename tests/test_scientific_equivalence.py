@@ -393,6 +393,30 @@ def test_recorded_gait_and_tremor_outputs_are_numerically_equivalent(recorded_re
         assert any(stage["stage"].endswith("/" + name) for stage in stages)
 
 
+def test_tremor_power_plot_matches_official_aggregate_transform_and_preserves_exports(
+    recorded_results, window, tmp_path
+):
+    actual, expected, _, _ = recorded_results
+    reference = expected["quantifications"]["tremor"]
+    # Use the formula in ParaDigMa aggregate_tremor, independently of UI helpers.
+    transformed = np.log10(reference.tremor_power.to_numpy() + 1)
+    window.analyzed(actual)
+    select_plot_metric(window, "quantifications/tremor", "tremor_power")
+    axes = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
+    np.testing.assert_allclose(
+        bar_values(axes), transformed[np.isfinite(transformed)], rtol=RTOL, atol=ATOL
+    )
+    assert axes.get_ylabel() == "log₁₀(power + 1)"
+    pd.testing.assert_frame_equal(
+        window.tables["quantifications/tremor"], reference, check_exact=True
+    )
+    path = tmp_path / "raw-results.json"
+    export_results(path, window.results, window.provenance)
+    _, reopened = load_result_export(path)
+    assert_equivalent(reopened["quantifications"]["tremor"], reference, roundtrip=True)
+    assert_equivalent(reopened["aggregations"]["tremor"], expected["aggregations"]["tremor"])
+
+
 def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs(
     recorded_results, tmp_path
 ):

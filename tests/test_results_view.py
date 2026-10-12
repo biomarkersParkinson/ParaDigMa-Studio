@@ -418,7 +418,7 @@ def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_
     assert window.active_positions.tolist() == [0, 1, 2, 3]
     assert window._detail_selections["quantifications/tremor"][1].tolist() == [0, 1, 2, 3]
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), [10.0, 20.0, 30.0, 40.0])
-    np.testing.assert_array_equal(bar_values(window.figure.axes[1]), [1.0, 2.0, 3.0, 4.0])
+    np.testing.assert_allclose(bar_values(window.figure.axes[1]), np.log10([2.0, 3.0, 4.0, 5.0]))
     path = tmp_path / "selection.csv"
     from paradigma_studio import app as desktop
 

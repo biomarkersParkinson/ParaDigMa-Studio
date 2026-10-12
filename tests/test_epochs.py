@@ -153,7 +153,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
         assert ax._left_title.get_bbox_patch() is not None
     assert len({ax.get_xlim() for ax in axes.values()}) == 1
     power = axes["quantifications/tremor", "tremor_power"]
-    np.testing.assert_array_equal(power._paradigma_epoch_data.value, [5, np.nan, np.nan])
+    np.testing.assert_allclose(power._paradigma_epoch_data.value, [np.log10(6), np.nan, np.nan])
     np.testing.assert_allclose(
         axes["classifications/tremor", "pred_tremor_checked"]._paradigma_epoch_data.value,
         [25 / 450 * 100, 0, 100],
@@ -167,7 +167,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     np.testing.assert_array_equal(coverage._paradigma_epoch_data.value, [100, 0, 100])
     assert axes["classifications/tremor", "pred_tremor_checked"].get_ylim() == (0, 100)
     # Selecting an aggregate bar links to an actual row; its marker uses the
-    # aggregate height rather than the original value (100 versus median 5).
+    # transformed epoch median rather than the selected raw power (100).
     window.graph_clicked(SimpleNamespace(inaxes=power, xdata=900.0))
     assert window.result_table.currentIndex().row() == 1
     marker = next(
@@ -175,7 +175,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
         for artist in window._result_selection_artists
         if artist.get_gid() == "selected-result-point"
     )
-    assert marker.get_ydata()[0] == 5
+    assert marker.get_ydata()[0] == pytest.approx(np.log10(6))
     cached = power._paradigma_epoch_data
     coverage_key = next(key for key in window._series_items if key[0].startswith("preparation/"))
     window._series_items[coverage_key].setCheckState(0, Qt.Unchecked)
