@@ -217,7 +217,8 @@ X limits apply to linked plots; Y limits apply to the clicked plot.
 The selected graph is shaded while editing. **Reset limits** restores automatic
 ranges. In sensor context it returns to the original context window, like Home.
 **Close** dismisses the panel. Home, Back, Forward and figure
-saving remain on the toolbar. Saved figures include the time axis.
+saving remain on the toolbar. Images are saved at **600 DPI**; saved results
+figures include the time axis.
 Raw sensor plots retain continuous signal lines and limit display to 20,000 samples
 per channel; result bars and binary indicators retain every output.
 

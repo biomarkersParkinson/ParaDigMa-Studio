@@ -2,7 +2,7 @@
 
 import math
 
-from matplotlib import dates
+from matplotlib import dates, rcParams
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
@@ -68,6 +68,16 @@ class GraphToolbar(NavigationToolbar2QT):
         if self.home_callback is None:
             return super().home(*args)
         self.home_callback()
+
+    def save_figure(self, *args):
+        # Set export resolution only during Save. Restore this one setting so
+        # Matplotlib still remembers the chosen directory for subsequent saves.
+        previous_dpi = rcParams["savefig.dpi"]
+        rcParams["savefig.dpi"] = 600
+        try:
+            return super().save_figure(*args)
+        finally:
+            rcParams["savefig.dpi"] = previous_dpi
 
     def pan(self, *args):
         super().pan(*args)
