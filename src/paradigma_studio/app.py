@@ -188,6 +188,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             run_heading=self.run_heading,
             run_summary=self.run_summary,
             run_details=self.run_details,
+            run_recordings=self.run_recordings,
             run_warnings=self.run_warnings,
             run_errors=self.run_errors,
             run_saved=self.run_saved,

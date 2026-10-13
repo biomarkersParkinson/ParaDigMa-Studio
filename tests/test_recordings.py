@@ -137,7 +137,12 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
         pd.testing.assert_frame_equal(captured[0][0][key], frames[key])
     assert window.runs[0]["sources"] == sources
     assert window.run_table.model().frame.Input.iloc[0] == "2 recordings"
-    assert all(path in window.run_summary.text() for path in sources.values())
+    assert (
+        window.run_detail_tabs.tabText(window.run_detail_tabs.indexOf(window.run_recordings))
+        == "Recordings"
+    )
+    assert window.run_recordings.toPlainText().splitlines() == list(sources.values())
+    assert all(path not in window.run_summary.text() for path in sources.values())
     saved, issues = window.history.load()
     assert not issues and saved[0]["sources"] == sources
 

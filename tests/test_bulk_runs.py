@@ -128,6 +128,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(
         return QMessageBox.Yes if confirm else QMessageBox.Cancel
 
     monkeypatch.setattr(QMessageBox, "exec", answer)
+    assert window.run_recordings.toPlainText() == window.selected_run["source"]
     window.clear_runs_button.click()
     assert len(prompts) == 1
     assert len(window.runs) == (0 if confirm else 5)
@@ -136,6 +137,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(
     assert len(list(window.history.directory.glob("*.json"))) == (0 if confirm else 5)
     if confirm:
         assert window.current_run is None and window.results is None
+        assert window.run_recordings.toPlainText() == ""
         assert not window.clear_runs_button.isEnabled() and not window.delete_run_button.isEnabled()
 
 

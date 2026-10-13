@@ -882,6 +882,7 @@ class WorkspaceLayout:
         self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
         content.addWidget(self.run_summary)
         self.run_detail_tabs = QTabWidget()
+        self.run_recordings = readout()
         self.run_details, self.run_warnings, self.run_errors, self.run_saved, self.run_outputs = (
             readout(),
             readout(),
@@ -892,6 +893,7 @@ class WorkspaceLayout:
         self.log = readout()
         for widget, title in (
             (self.run_details, "Parameters"),
+            (self.run_recordings, "Recordings"),
             (self.run_warnings, "Warnings"),
             (self.run_errors, "Errors"),
             (self.run_saved, "Saved run"),

@@ -257,6 +257,7 @@ tables or metadata groups to include:
   recordings are not copied. The button appears on every Results tab.
 - **Runs:** stores status, parameters, separate warnings and errors, logs and saved
   result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
+  The **Recordings** tab lists the selected run's input filenames and paths.
   **Saved** reports whether a local result snapshot is available; **Exports** counts
   separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
   Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save

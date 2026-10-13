@@ -170,6 +170,7 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
         run_heading=QLabel(parent),
         run_summary=QLabel(parent),
         run_details=QPlainTextEdit(parent),
+        run_recordings=QPlainTextEdit(parent),
         run_warnings=QPlainTextEdit(parent),
         run_errors=QPlainTextEdit(parent),
         run_saved=QPlainTextEdit(parent),

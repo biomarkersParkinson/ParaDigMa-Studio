@@ -41,6 +41,7 @@ class RunView:
     run_heading: QLabel
     run_summary: QLabel
     run_details: QPlainTextEdit
+    run_recordings: QPlainTextEdit
     run_warnings: QPlainTextEdit
     run_errors: QPlainTextEdit
     run_saved: QPlainTextEdit
@@ -225,6 +226,9 @@ class RunController:
         )
         self.view.run_heading.setToolTip(f"Run ID: {record['id']}")
         self.view.run_summary.setText(self.run_summary_text(record))
+        self.view.run_recordings.setPlainText(
+            "\n".join(record.get("sources", {}).values()) or record["source"]
+        )
         self.view.run_details.setPlainText(
             "\n".join(
                 f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}"
@@ -266,7 +270,7 @@ class RunController:
         )
         return (
             f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
-            f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)\n{chr(10).join(record.get('sources', {}).values()) or record['source']}"
+            f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)"
         )
 
     def selected_run_records(self):
@@ -400,6 +404,7 @@ class RunController:
             self.view.run_summary.clear()
             for view in (
                 self.view.run_details,
+                self.view.run_recordings,
                 self.view.run_warnings,
                 self.view.run_errors,
                 self.view.run_saved,

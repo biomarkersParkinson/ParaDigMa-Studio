@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Move the Runs filename list into a dedicated Recordings detail tab.
 - Reconstruct elapsed seconds in Data graphs when `difference_s` or
   `difference_ms` is selected, and refresh the plot when its time format changes.
 - Apply TSDF metadata `scale_factors` once during import, consistently for Data
