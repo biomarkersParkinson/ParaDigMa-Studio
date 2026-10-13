@@ -1,8 +1,47 @@
-"""Read-only descriptive statistics; never prepare or alter analysis inputs."""
+"""Read-only descriptives and display timelines; never alter analysis inputs."""
+
+from __future__ import annotations
+
+from datetime import tzinfo
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+if TYPE_CHECKING:
+    import pandas as pd
+
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
+
+
+def input_plot_time(
+    series: pd.Series, unit: str = "relative_s"
+) -> tuple[pd.Series | None, str, tzinfo | None]:
+    """Interpret the selected raw time encoding without changing source values.
+
+    Match ParaDigMa's difference-time conversion: cumulative increments,
+    including the first increment, expressed in seconds. Missing increments
+    leave the elapsed timeline unknown instead of silently bridging them.
+    """
+    import pandas as pd
+
+    if pd.api.types.is_datetime64_any_dtype(series.dtype):
+        return series, "Time", series.dt.tz
+    if pd.api.types.is_timedelta64_dtype(series.dtype):
+        return series.dt.total_seconds(), "Time (s)", None
+    if pd.api.types.is_complex_dtype(series.dtype):
+        return None, "Time (file units)", None
+    times = pd.to_numeric(series, errors="coerce")
+    if unit.startswith("difference"):
+        values = times.to_numpy(dtype=float, na_value=np.nan)
+        if not np.isfinite(values).all():
+            return None, "Elapsed time (s)", None
+        times = pd.Series(
+            np.cumsum(values) / (1000 if unit.endswith("ms") else 1),
+            index=series.index,
+            name=series.name,
+        )
+        return times, "Elapsed time (s)", None
+    return times, "Time (file units)", None
 
 
 def default_time_column(frame):

@@ -20,6 +20,12 @@ one original file at a time; Analyze reports the complete selection and sample
 count. One set of units, mappings, watch side and preparation settings applies
 to every file, so select files with compatible sensor conventions.
 
+Data's time-column format controls both its time statistics and graphs.
+With `difference_s` or `difference_ms`, graphs reconstruct cumulative elapsed
+seconds from the complete increment column before display sampling. Tables retain
+the original increments. Missing increments use sample positions rather than
+inventing elapsed times. Changing Data's selection does not change Analyze settings.
+
 Each recording is validated and prepared separately. Feature windows and
 filtering never cross file boundaries. Classification and quantification tables
 are combined; the official orchestrator assigns unique gait segments across files;

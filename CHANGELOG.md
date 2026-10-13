@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reconstruct elapsed seconds in Data graphs when `difference_s` or
+  `difference_ms` is selected, and refresh the plot when its time format changes.
 - Apply TSDF metadata `scale_factors` once during import, consistently for Data
   plots, sensor context and analysis. ParaDigMa 1.1.2's loader and preparation do
   not apply this decoding. Re-run analyses of TSDF inputs with non-unit factors

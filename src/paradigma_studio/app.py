@@ -39,7 +39,7 @@ from .core import (
     validate_orientation,
 )
 from .history import RunHistory, new_run, now, run_is_saved
-from .inspection import inspect_recording, sensor_descriptives, time_descriptives
+from .inspection import input_plot_time, inspect_recording, sensor_descriptives, time_descriptives
 from .jobs import SignalHandler as SignalHandler, Worker
 from .previews import CachedPreview
 from .recordings import align_recordings, load_recordings
@@ -328,6 +328,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.data_time_channel.currentIndexChanged.connect(self.refresh_data_descriptives)
         self.time.currentTextChanged.connect(self.data_time_unit.setCurrentText)
         self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
+        self.data_time_unit.currentTextChanged.connect(self.input_plot_changed)
         self.dataset.currentTextChanged.connect(self.select_dataset)
         self.table_dataset.currentIndexChanged.connect(self.select_output_table)
         self.table_module_tabs.currentChanged.connect(self.table_module_changed)
@@ -337,7 +338,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.result_series.currentItemChanged.connect(self.select_plot_series)
         self.clock_input.valueEdited.connect(self.origin_edited)
         self.mapping.textChanged.connect(self.update_origin_default)
-        self.mapping.textChanged.connect(self.input_mapping_changed)
+        self.mapping.textChanged.connect(self.input_plot_changed)
         for control in (self.time,):
             control.currentTextChanged.connect(self.update_origin_default)
         for control in (self.prepared, self.drop_missing):
@@ -770,7 +771,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             selection=selection,
         )
 
-    def input_mapping_changed(self):
+    def input_plot_changed(self):
         self._data_plot_dirty = True
         if self.pages.currentIndex() == 0:
             self.data_tab_changed(self.data_tabs.currentIndex())
@@ -789,13 +790,9 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         if self.frame is not None:
             column = self.data_time_channel.currentData()
             if column in self.frame:
-                series = self.frame[column]
-                if pd.api.types.is_datetime64_any_dtype(series.dtype):
-                    times, time_label, timezone = series, "Time", series.dt.tz
-                elif pd.api.types.is_timedelta64_dtype(series.dtype):
-                    times, time_label = series.dt.total_seconds(), "Time (s)"
-                elif not pd.api.types.is_complex_dtype(series.dtype):
-                    times = pd.to_numeric(series, errors="coerce")
+                times, time_label, timezone = input_plot_time(
+                    self.frame[column], self.data_time_unit.currentText()
+                )
         usable = times is not None and times.notna().all()
         xs = times if usable else np.arange(len(self.frame)) if self.frame is not None else []
         self.plot_channel_signals(
