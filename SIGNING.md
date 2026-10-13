@@ -27,7 +27,7 @@ Normal push/PR builds continue to produce unsigned artifacts.
    | Field | Value |
    | --- | --- |
    | Issuer | `https://token.actions.githubusercontent.com` |
-   | Subject | `repo:lucevers1991/ParaDigMa-Studio:environment:windows-signing` |
+   | Subject | `repo:biomarkersParkinson/ParaDigMa-Studio:environment:windows-signing` |
    | Audience | `api://AzureADTokenExchange` |
 
    If signing was configured before the repository rename, update the existing

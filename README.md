@@ -6,14 +6,16 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-1. Open [GitHub Actions](https://github.com/lucevers1991/ParaDigMa-Studio/actions/workflows/windows.yml)
-   and select the latest **successful Windows desktop** run for `main`.
-2. Under **Artifacts**, download **ParaDigMaStudio-Windows**.
-3. Extract the **entire ZIP** into a new folder, keeping `_internal` beside the executable.
-4. Open **ParaDigMaStudio.exe**.
+1. Open the [first preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a1).
+2. Under **Assets**, download **ParaDigMaStudio-0.6.0a1-Windows-x64.zip**.
+3. Extract the **entire ZIP** into a new folder.
+4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
 
 The download includes Python; no separate Python installation is required.
+This is a preview for evaluation and feedback. See the [release notes](CHANGELOG.md).
 
+Development builds remain available under
+[GitHub Actions](https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/workflows/windows.yml).
 Performance measurements are in the separate **ParaDigMaStudio-build-reports**
 artifact; you do not need that download to run the app. Keep `_internal`, the
 licence/citation files, and the security/checksum files with the executable.
@@ -92,5 +94,5 @@ are also included beside the Windows executable.
 
 OpenAI Codex was used to support the development, testing and documentation of ParaDigMa Studio.
 
-Version **0.5.32**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.6.0a1 (preview)**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

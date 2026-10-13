@@ -1,7 +1,7 @@
 # Security review
 
 Recorded review: **11 October 2026**, ParaDigMa Studio **0.5.32**,
-[commit `9b5b228`](https://github.com/lucevers1991/ParaDigMa-Studio/commit/9b5b2287e38b21b4b6ea23bb72ec15ec32aaea9c).
+[commit `9b5b228`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/9b5b2287e38b21b4b6ea23bb72ec15ec32aaea9c).
 Scope: application, build/signing workflows, installed dependencies and the local
 Linux bundle. The figures below apply to that commit, before the subsequent
 component, typing and lint refactoring; they are not a fresh audit of the latest

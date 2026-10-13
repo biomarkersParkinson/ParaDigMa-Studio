@@ -14,7 +14,7 @@ package and its `_internal` folder are `paradigma_studio`. New user data goes to
 Clone the repository and run these commands in PowerShell:
 
 ```powershell
-git clone https://github.com/lucevers1991/ParaDigMa-Studio.git
+git clone https://github.com/biomarkersParkinson/ParaDigMa-Studio.git
 cd ParaDigMa-Studio
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2,<27"

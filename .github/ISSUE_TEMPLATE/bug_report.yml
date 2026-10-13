@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a problem with ParaDigMa Studio or its scientific output.
+body:
+  - type: markdown
+    attributes:
+      value: Please omit private sensor data and identifying file paths. Small synthetic examples are welcome.
+  - type: input
+    id: version
+    attributes:
+      label: Studio version
+      description: Find the version in About.
+      placeholder: 0.6.0a1
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11, 64-bit
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the actual and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the sensor file format and relevant Analyze or graph settings.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Error message or processing log
+      render: text

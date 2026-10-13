@@ -5,13 +5,23 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      source_commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+      - name: Record the checked-out commit, including annotated release tags
+        id: source
+        run: '"commit=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT'
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
+      - name: Check release tag against the application version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/prepare_release.py version --tag "$env:RELEASE_TAG"
       - run: python -m pip install --upgrade "pip>=26.2,<27"
       - run: python -m pip install -e ".[dev]" "pip-audit==2.10.1"
       - name: Audit installed dependencies
@@ -71,3 +81,128 @@ jobs:
           # Native dependencies use directories such as sklearn/.libs. Upload
           # only this bundle, including its hidden runtime directories.
           include-hidden-files: true
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    outputs:
+      archive_sha256: ${{ steps.package.outputs.archive_sha256 }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ParaDigMaStudio-Windows
+          path: bundle
+      - name: Check the downloaded bundle layout
+        run: python -c "from scripts.check_frozen import check_layout; check_layout('bundle/ParaDigMaStudio.exe')"
+      - name: Verify provenance and package the portable Windows release
+        id: package
+        run: >-
+          python scripts/prepare_release.py prepare --tag "$RELEASE_TAG"
+          --source-commit "$SOURCE_COMMIT" --bundle bundle --output-dir release-assets
+          --github-output "$GITHUB_OUTPUT"
+      - name: Upload, verify and publish the matching release draft
+        env:
+          RELEASE_ARCHIVE: ${{ steps.package.outputs.archive }}
+          RELEASE_CHECKSUMS: ${{ steps.package.outputs.checksums }}
+          RELEASE_NOTES: ${{ steps.package.outputs.notes }}
+          RELEASE_TITLE: ${{ steps.package.outputs.title }}
+          PRERELEASE: ${{ steps.package.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          preview_args=()
+          if [[ "$PRERELEASE" == true ]]; then preview_args+=(--prerelease); fi
+          # The tag API can hide drafts; gh finds drafts and returns their ID-based API URL.
+          if ! endpoint="$(gh release view "$RELEASE_TAG" --json apiUrl --jq .apiUrl)"; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --target "$SOURCE_COMMIT" \
+              --title "$RELEASE_TITLE" --notes-file "$RELEASE_NOTES" "${preview_args[@]}"
+            endpoint="$(gh release view "$RELEASE_TAG" --json apiUrl --jq .apiUrl)"
+          fi
+          gh api "$endpoint" > release-assets/github-release.json
+          python scripts/prepare_release.py verify-upload --plan release-assets/release-plan.json \
+            --metadata release-assets/github-release.json --stage draft
+          gh release upload "$RELEASE_TAG" "$RELEASE_ARCHIVE" "$RELEASE_CHECKSUMS" --clobber
+          gh api "$endpoint" > release-assets/github-release.json
+          python scripts/prepare_release.py verify-upload --plan release-assets/release-plan.json \
+            --metadata release-assets/github-release.json --stage assets
+          latest=true
+          if [[ "$PRERELEASE" == true ]]; then latest=false; fi
+          gh release edit "$RELEASE_TAG" --draft=false --latest="$latest" \
+            --title "$RELEASE_TITLE" --notes-file "$RELEASE_NOTES" "${preview_args[@]}"
+          gh api "$endpoint" > release-assets/github-release.json
+          python scripts/prepare_release.py verify-upload --plan release-assets/release-plan.json \
+            --metadata release-assets/github-release.json --stage published
+          echo "Published $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  release-status:
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: release-status-notes
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      SOURCE_COMMIT: ${{ needs.build.outputs.source_commit || github.sha }}
+      BUILD_RESULT: ${{ needs.build.result }}
+      PUBLISH_RESULT: ${{ needs.release.result }}
+      ARCHIVE_SHA256: ${{ needs.release.outputs.archive_sha256 }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        # This metadata-only job needs credentials solely to push its Git note.
+      - name: Record publication status for Git-only cloud workspaces
+        run: |
+          set -euo pipefail
+          export SOURCE_COMMIT="$(git rev-parse HEAD)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > /tmp/release-jobs.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          jobs = json.loads(Path('/tmp/release-jobs.json').read_text())['jobs']
+          failed = [
+              {'job': job['name'], 'step': step['name'], 'result': step['conclusion']}
+              for job in jobs for step in job.get('steps', [])
+              if step.get('conclusion') in ('failure', 'cancelled')
+          ]
+          repo = os.environ['GITHUB_REPOSITORY']
+          server = os.environ['GITHUB_SERVER_URL']
+          result = {
+              'tag': os.environ['RELEASE_TAG'],
+              'source_commit': os.environ['SOURCE_COMMIT'],
+              'status': 'published' if os.environ['PUBLISH_RESULT'] == 'success' else 'failed',
+              'build_result': os.environ['BUILD_RESULT'],
+              'publish_result': os.environ['PUBLISH_RESULT'],
+              'archive_sha256': os.environ['ARCHIVE_SHA256'],
+              'release_url': f"{server}/{repo}/releases/tag/{os.environ['RELEASE_TAG']}",
+              'workflow_url': f"{server}/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              'failed_steps': failed,
+          }
+          Path('/tmp/release-status.json').write_text(json.dumps(result, indent=2))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [[ -n "$(git ls-remote origin refs/notes/paradigma-releases)" ]]; then
+            git fetch origin refs/notes/paradigma-releases:refs/notes/paradigma-releases
+          fi
+          git notes --ref=paradigma-releases add -f -F /tmp/release-status.json "$SOURCE_COMMIT"
+          git push origin refs/notes/paradigma-releases

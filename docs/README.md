@@ -5,6 +5,7 @@
 | [User guide](USER_GUIDE.md) | Analysis settings, result interpretation, sensor context, saving, exports and troubleshooting |
 | [Workspace](WORKSPACE.md) | Short guide to the four application pages |
 | [Development](DEVELOPMENT.md) | Source installation, checks and Windows packaging |
+| [Releases](RELEASES.md) | Versioning, checked Windows downloads and publishing |
 | [Repository map](REPOSITORY.md) | Folder responsibilities, module boundaries and maintenance conventions |
 | [Test suite](TEST_SUITE.md) | Current coverage and shared test helpers |
 | [Scientific tests](SCIENTIFIC_TESTS.md) | Independent official ParaDigMa comparisons, fixtures, tolerances and limitations |

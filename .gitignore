@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 build/
 build-reports/
+release-assets/
 dist/
 *.spec
 dependency-audit.json
