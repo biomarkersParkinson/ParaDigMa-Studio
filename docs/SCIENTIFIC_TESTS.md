@@ -31,6 +31,15 @@ The actual path calls the real desktop `analyze` function. Both paths receive
 fresh configuration objects because upstream preprocessing updates sampling
 frequency settings during a run. Inputs must remain unchanged.
 
+TSDF import tests use real binary streams and an independent reference multiplication
+of each channel by its metadata `scale_factors`, following the
+[TSDF pandas tutorial](https://biomarkersparkinson.github.io/tsdf/basic_reading_and_writing_pandas.html).
+ParaDigMa 1.1.2's loader returns unscaled stored values; its preparation converts
+units but does not decode these scale factors. Studio decodes them before display
+and preparation. Tests compare every real tremor stage and output with a directly
+scaled official workflow, with preparation both enabled and skipped, and verify
+that Data graphs show the physical values and source files remain unchanged.
+
 For missing data, the Physilog reference uses independently known source row
 intervals: missing gyroscope samples are rows `[2000,2010)`, and time gaps occur
 at rows 6010 and 8010. Each retained interval is passed to the official

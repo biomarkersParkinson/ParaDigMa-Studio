@@ -660,6 +660,28 @@ def test_raw_units_orientation_mapping_and_time_equivalence(time_unit, tmp_path)
     compare_workflows(frame, prepared, ["tremor"], tmp_path, **settings)
 
 
+@pytest.mark.parametrize("skip_preparation", [False, True])
+def test_tsdf_scaling_matches_independently_scaled_official_pipeline(
+    tsdf_writer, tmp_path, skip_preparation
+):
+    from paradigma.load import load_tsdf_data
+
+    factors = [0.001, 0.002, 0.005]
+    stored = upstream_synthetic("tremor")
+    stored["time"] *= 1000
+    for column, factor in zip(stored.columns[1:], factors, strict=True):
+        stored[column] = np.rint(stored[column] / factor)
+    path = tsdf_writer(stored, scale_factors=factors, time_scale_factors=[0.001])
+    reference, _, _ = load_tsdf_data(path.parent, "IMU")
+    reference = reference.multiply([0.001, *factors], axis="columns")
+    loaded = load_sensor_file(path)
+    pd.testing.assert_frame_equal(loaded, reference)
+    prepared = reference if skip_preparation else official_preparation(reference)
+    # Compare real scientific stages and every output to a direct official run.
+    # Already-prepared inputs must not apply TSDF scaling for a second time.
+    compare_workflows(loaded, prepared, ["tremor"], tmp_path, skip_preparation=skip_preparation)
+
+
 @pytest.mark.parametrize("side", ["left", "right"])
 def test_official_cwa_loading_preparation_and_gait_equivalence(side, tmp_path):
     frame = load_sensor_file(files("paradigma_studio") / "data" / "test_data.CWA")

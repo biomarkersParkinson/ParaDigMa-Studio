@@ -20,6 +20,7 @@ from .serialization import (
     export_table_csv as export_table_csv,
     json_value as json_value,
 )
+from .tsdf_input import load_tsdf_sensor_file
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -131,6 +132,10 @@ def load_sensor_file(path: PathInput, *, allow_pickle: bool = False) -> pd.DataF
         raise ValueError("Pickle loading is disabled unless the file is explicitly trusted.")
     if path.suffix.lower() == ".avro":
         frame = load_empatica_imu(path)
+    elif path.suffix.lower() == ".json":
+        frame, start = load_tsdf_sensor_file(path)
+        if start is not None:
+            frame.attrs["desktop_recording_start"] = str(start)
     else:
         _, frame, start = load_single_data_file(path)
         if start is not None:

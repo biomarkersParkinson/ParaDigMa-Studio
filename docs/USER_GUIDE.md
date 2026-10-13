@@ -10,7 +10,11 @@ Licences shows the complete Studio and ParaDigMa licences under separate heading
 ## Input and analysis settings
 
 The app uses the official ParaDigMa loaders and processing functions, with an
-Empatica IMU import adapter. **Open sensor files** accepts one or more recordings
+Empatica IMU import adapter and TSDF metadata scaling. TSDF's per-channel
+`scale_factors` are applied once on loading, for both display and analysis;
+absent or empty factors leave stored values unchanged. Analyze units describe
+these scaled physical values. ParaDigMa's preparation then performs unit conversion.
+**Open sensor files** accepts one or more recordings
 for the same subject. For several files, the Data recording selector inspects
 one original file at a time; Analyze reports the complete selection and sample
 count. One set of units, mappings, watch side and preparation settings applies

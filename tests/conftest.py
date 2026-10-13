@@ -6,6 +6,49 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture
+def tsdf_writer(tmp_path):
+    """Write real binary TSDF inputs without using the application's decoder."""
+    import json
+
+    import numpy as np
+
+    def write(frame, *, scale_factors=(), time_scale_factors=(), dtype="float64"):
+        metadata = {}
+        streams = {"time": ["time"], "values": [column for column in frame if column != "time"]}
+        for name, channels in streams.items():
+            filename = f"IMU_{name}.bin"
+            values = frame[channels].to_numpy(dtype=dtype)
+            values.tofile(tmp_path / filename)
+            entry = {
+                "metadata_version": "0.1",
+                "study_id": "test",
+                "subject_id": "test",
+                "device_id": "test",
+                "start_iso8601": "2026-10-13T10:00:00+00:00",
+                "end_iso8601": "2026-10-13T10:01:00+00:00",
+                "file_name": filename,
+                "rows": len(frame),
+                "channels": channels,
+                "units": ["relative_s" if name == "time" else "deg/s"] * len(channels),
+                "data_type": "int" if np.issubdtype(values.dtype, np.integer) else "float",
+                "bits": values.dtype.itemsize * 8,
+                "endianness": "little",
+            }
+            factors = time_scale_factors if name == "time" else scale_factors
+            if factors != ():
+                entry["scale_factors"] = factors
+            metadata[filename] = entry
+        path = tmp_path / "IMU_meta.json"
+        path.write_text(
+            json.dumps({"metadata_version": "0.1", "datasets": list(metadata.values())}),
+            encoding="utf-8",
+        )
+        return path
+
+    return write
+
+
 def wait_for_previews(window):
     """Process Qt delivery while read-only recording previews finish in workers."""
     import time

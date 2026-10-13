@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Apply TSDF metadata `scale_factors` once during import, consistently for Data
+  plots, sensor context and analysis. ParaDigMa 1.1.2's loader and preparation do
+  not apply this decoding. Re-run analyses of TSDF inputs with non-unit factors
+  created using earlier builds; existing saved results are not recalculated.
+
 ## 0.6.0a1 — 2026-10-13
 
 First public preview of **ParaDigMa Studio**, a Windows workspace around the
