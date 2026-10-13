@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib import dates
 from matplotlib.lines import Line2D
 
+from ..daily import daily_availability_summary, daily_summary, gait_daily_summaries
 from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
@@ -59,6 +60,8 @@ class ResultGraphs:
         return self._gait_presence_cache
 
     def epoch_plot_data(self, name, metric, positions, binary):
+        if self.result_graph_view.currentIndex() == 2:
+            return self.daily_plot_data(name, metric, positions, binary)
         key = name, metric, id(positions)
         if key not in self._epoch_views:
             times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
@@ -91,6 +94,40 @@ class ResultGraphs:
                     and "tremor_power" in str(metric)
                 ):
                     frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
+            self._epoch_views[key] = frame
+        return self._epoch_views[key]
+
+    def daily_plot_data(self, name, metric, positions, binary):
+        key = "day", name, metric, id(positions)
+        if key not in self._epoch_views:
+            if name.startswith("classifications/gait/") and metric in (
+                "pred_gait_window",
+                "pred_no_other_arm_activity_window",
+            ):
+                gait_key = "day", "gait_presence"
+                if gait_key not in self._epoch_views:
+                    self._epoch_views[gait_key] = gait_daily_summaries(
+                        self.gait_plot_presence(), self.display_clock
+                    )
+                frame = self._epoch_views[gait_key][
+                    "gait" if metric == "pred_gait_window" else "filtered"
+                ]
+            elif name.startswith("preparation/"):
+                frame = daily_availability_summary(
+                    self._timings[name]["Timeline time (s)"].to_numpy()[positions],
+                    self._interval_ends[name][positions],
+                    self.display_clock,
+                )
+            else:
+                starts, ends = self._bar_bounds[name]
+                frame = daily_summary(
+                    self._timings[name]["Timeline time (s)"].to_numpy()[positions],
+                    self._result_plot_values(name, metric, positions),
+                    starts[positions],
+                    ends[positions],
+                    self.display_clock,
+                    binary=binary,
+                )
             self._epoch_views[key] = frame
         return self._epoch_views[key]
 
@@ -143,14 +180,15 @@ class ResultGraphs:
 
     def plot(self, *_):
         chosen = self.selected_result_series()
-        epochs = self.result_graph_view.currentIndex() == 1
-        signature = epochs, tuple(chosen)
+        mode = self.result_graph_view.currentIndex()
+        epochs = mode != 0
+        signature = mode, tuple(chosen)
         if self._plot_signature == signature and self.figure.axes:
             self.highlight_result_row()
             return
-        previous_mode, viewport, previous_y = self._result_plot_viewport(chosen, epochs)
+        previous_mode, viewport, previous_y = self._result_plot_viewport(chosen, mode)
         self._plot_signature = signature
-        existing, shared = self._retain_result_axes(chosen, epochs, previous_mode)
+        existing, shared = self._retain_result_axes(chosen, mode, previous_mode)
         actual_binaries = [
             (
                 name.startswith("classifications/gait/")
@@ -185,13 +223,13 @@ class ResultGraphs:
             self._render_result_series(ax, name, metric, actual_binaries[index], epochs)
         self._finish_result_plot(first_axes, shared, viewport, previous_y)
 
-    def _result_plot_viewport(self, chosen, epochs):
+    def _result_plot_viewport(self, chosen, mode):
         previous_mode, previous_chosen = self._plot_signature or (None, ())
         changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (
             self._plot_signature is not None
             and bool(changed)
-            and epochs == previous_mode
+            and mode == previous_mode
             and bool(set(chosen).intersection(previous_chosen))
             and all(name.startswith("preparation/") for name, metric in changed)
         )
@@ -212,7 +250,7 @@ class ResultGraphs:
                 }
         return previous_mode, viewport, previous_y
 
-    def _retain_result_axes(self, chosen, epochs, previous_mode):
+    def _retain_result_axes(self, chosen, mode, previous_mode):
         self.result_overlay.invalidate()
         for artist in self._result_selection_artists:
             artist.remove()
@@ -226,7 +264,7 @@ class ResultGraphs:
         # series. A changed result or view still needs fresh scientific data.
         shared = self._result_shared_axes
         reuse = (
-            previous_mode == epochs
+            previous_mode == mode
             and shared in self.figure.axes
             and shared is not None
             and (
@@ -336,7 +374,9 @@ class ResultGraphs:
                 color,
             )
         if not len(summary) or not np.isfinite(summary.value).any():
-            if "presence_s" in summary:
+            if "data_s" in summary:
+                message = "No days with ≥14 min 24 s of valid metric data"
+            elif "presence_s" in summary:
                 subject = (
                     ("filtered gait" if name.endswith("/filtered") else "gait")
                     if "/gait/" in name

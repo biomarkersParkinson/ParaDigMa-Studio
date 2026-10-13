@@ -162,7 +162,7 @@ windows; ParaDigMa's final sample segmentation additionally averages overlapping
 probabilities. Raw tables retain the official probability columns.
 
 **View**, at the right of the figure toolbar, switches all graphs between Detailed
-and 30-minute epochs. Continuous values show the median; binary predictions show
+and 30-minute epochs or Day. Continuous values show the median; binary predictions show
 percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
 aggregate transformation; epoch medians are calculated after this transformation.
 The y-axis labels identify the log scale. Tables and data exports retain raw power.
@@ -176,6 +176,18 @@ without gait classifications, known gait-segment boundaries provide the fallback
 Data coverage instead shows covered time as a percentage of the recording span
 within each epoch, including partial edge epochs. These summaries affect graphs
 only; tables, exports and official aggregates remain unchanged.
+
+**Day** groups outputs by calendar day, from midnight to midnight in the recording's
+display timezone, including daylight-saving changes. Without an absolute clock,
+it uses elapsed 24-hour blocks from the recording's time origin. Each metric needs
+at least **864 seconds (14 minutes 24 seconds)** of valid data in a day—1% of a
+24-hour period. This fixed minimum also applies to partial and daylight-saving days.
+Both zero and one predictions count as available binary data; missing or non-finite
+outcomes do not count. Overlapping intervals count once, and recording gaps are
+preserved. Gait metrics use their estimated within-segment intervals; missing swing
+values contribute no coverage. Gait and filtered gait percentages share observed
+time. Data coverage shows prepared time as a percentage of the full calendar day.
+This daily availability rule is separate from the 30-minute presence rule above.
 
 Plots are grouped by module, following Plot series order, and long
 series names wrap in full. The default selection is gait presence (prediction),

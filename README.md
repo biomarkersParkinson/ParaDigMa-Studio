@@ -36,9 +36,10 @@ A verified signing identity must be configured before the signed workflow can pr
    selected metrics from multiple modules across recording time; Tables includes each module's
    classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
-   Switch **View** between Detailed and 30-minute epochs (binary percentages
-   and continuous medians). Gait range of motion / peak velocity and tremor
-   power require at least 90 seconds of the corresponding presence per epoch.
+   Switch **View** between Detailed, 30-minute epochs and Day (binary percentages
+   and continuous medians). The 30-minute view requires 90 seconds of presence
+   for arm swing and tremor power; Day requires 14 minutes 24 seconds of valid
+   data per metric, grouped by calendar day in recording time.
    Tables and exports retain the original outputs.
 4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every

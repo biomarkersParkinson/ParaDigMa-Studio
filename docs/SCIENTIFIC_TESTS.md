@@ -179,6 +179,12 @@ bar clicks and clearly labeled gait estimates. Original values and missingness a
 checked against the official output; no lines interpolate across missing estimates.
 Estimated gait positions stay within their official segments and are never inserted
 into scientific result tables. Plot zoom leaves the complete raw tables unchanged.
+Daily presentation tests independently check the 864-second valid-data minimum
+per metric, zero predictions, missing values, overlapping intervals, recording gaps,
+calendar-midnight boundaries and 23/25-hour daylight-saving days. Daily medians and
+percentages preserve the original scientific tables and the separate 30-minute
+presence rule. Gait metric coverage uses the estimated within-segment support of
+finite outcomes; missing swing values contribute no coverage.
 Binary tests verify positive spans, actual timestamps, gaps, missing states and
 isolated detections. `tests/test_gait_presence.py` checks the common observed-time
 percentage denominator, conditional filtering, unequal cadences, gaps and missing

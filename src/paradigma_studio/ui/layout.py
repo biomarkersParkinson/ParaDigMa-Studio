@@ -704,7 +704,7 @@ class WorkspaceLayout:
         view_row = QHBoxLayout(self.graph_view_controls)
         view_row.setContentsMargins(0, 0, 0, 0)
         view_row.addWidget(label("View", "muted"))
-        self.result_graph_view = self.combo(["Detailed", "30-minute epochs"])
+        self.result_graph_view = self.combo(["Detailed", "30-minute epochs", "Day"])
         self.result_graph_view.setAccessibleName("Graph time view for all selected series")
         self.result_graph_view.setMinimumWidth(190)
         self.result_graph_view.setToolTip(
@@ -712,6 +712,7 @@ class WorkspaceLayout:
                 "Binary predictions show percentages; continuous outcomes show medians.\n"
                 "Gait and filtered gait share the same observed-time denominator.\n"
                 "Gait range of motion / peak velocity and tremor power require 90 seconds of presence per epoch.\n"
+                "Day: calendar days in recording time; each metric requires 1% valid data (14 min 24 s).\n"
                 "Coverage shows prepared input time. Missing outcomes stay blank.\n"
                 "Epochs align to calendar half-hours; first/last epochs may be partial."
             )

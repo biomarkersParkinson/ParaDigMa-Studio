@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add Day graphs: calendar-day percentages and medians, requiring 864 seconds
+  of valid data for each metric; preserve the existing 30-minute presence rules.
 - Move the Runs filename list into a dedicated Recordings detail tab.
 - Reconstruct elapsed seconds in Data graphs when `difference_s` or
   `difference_ms` is selected, and refresh the plot when its time format changes.
