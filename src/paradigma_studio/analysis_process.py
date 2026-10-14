@@ -10,6 +10,7 @@ from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING
 
+from .analysis_limits import parallel_worker_count
 from .contracts import AnalysisEvent, AnalysisResults, AnalysisSettings, PathInput, SensorInput
 
 if TYPE_CHECKING:
@@ -23,12 +24,20 @@ class AnalysisCancelled(Exception):
 
 
 class QueueLogHandler(logging.Handler):
-    def __init__(self, queue: Queue[AnalysisEvent]) -> None:
+    def __init__(self, queue: Queue[AnalysisEvent], recording: str = "") -> None:
         super().__init__()
         self.queue = queue
+        self.recording = recording
 
     def emit(self, record: logging.LogRecord) -> None:
-        self.queue.put(("log", record.levelno, record.getMessage()))
+        from .history import error_summary
+
+        message = record.getMessage()
+        if self.recording and not error_summary(message):
+            # Keep the original prefix for warning/failure recognition while
+            # making interleaved pipeline steps attributable to their recording.
+            message += f" [{self.recording}]"
+        self.queue.put(("log", record.levelno, message))
 
 
 def _analyze_child(
@@ -54,9 +63,27 @@ def _analyze_child(
 
 
 def run_isolated_analysis(
-    frame: SensorInput, settings: AnalysisSettings, logger: logging.Logger, cancel: Event
+    frame: SensorInput,
+    settings: AnalysisSettings,
+    logger: logging.Logger,
+    cancel: Event,
+    *,
+    max_workers: int | None = None,
 ) -> AnalysisResults:
     """Stop only the owned child; never terminate Qt's thread or other programs."""
+    workers = parallel_worker_count(frame, settings)
+    if max_workers is not None:
+        if (
+            isinstance(max_workers, bool)
+            or not isinstance(max_workers, int)
+            or max_workers not in (1, 2)
+        ):
+            raise ValueError("max_workers must be 1 or 2.")
+        workers = min(workers, max_workers)
+    if isinstance(frame, dict) and len(frame) > 1 and workers > 1:
+        from .parallel_analysis import run_parallel_analysis
+
+        return run_parallel_analysis(frame, settings, logger, cancel, workers)
     context = multiprocessing.get_context("spawn")
     with tempfile.TemporaryDirectory(prefix="paradigma-analysis-") as directory:
         input_path, output_path = Path(directory) / "input.pkl", Path(directory) / "results.pkl"

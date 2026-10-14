@@ -48,6 +48,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["view_toolbar_verified"]
     assert data["selected_result_marker_verified"]
     assert data["gait_sensor_context_verified"]
+    assert data["parallel_recordings_verified"]
     assert data["run_history_reopened"]
     assert data["quantified_rows"] > 0
     assert len(data["models_loaded"]) == 4

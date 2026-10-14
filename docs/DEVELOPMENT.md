@@ -107,7 +107,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/Par
 These commands verify a Linux executable; the Windows workflows verify the EXE.
 
 `python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
-`analysis_process` and `serialization`. This is a lenient starting point:
+`analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`
+and `serialization`. This is a lenient starting point:
 annotated functions are checked, while unannotated helpers and UI code can be
 typed incrementally. Extend the file list in `pyproject.toml` as coverage grows.
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
@@ -130,7 +131,12 @@ Use these entry points for integrations without constructing the desktop window:
 
 `pipelines` accepts `gait`, `tremor`, `pulse_rate` or a sequence of those names.
 `analyze` runs synchronously; GUI cancellation uses `analysis_process.run_isolated_analysis`
-through the worker. Missing-sample exclusion defaults to **False** in the Python
+through the worker. Its multiple-recording path owns up to two spawned processes
+directly and merges their outputs with official pooled aggregation functions.
+One original recording uses the original single-process path even when its
+preparation creates several gap sections. `max_workers=1` forces sequential
+execution for profiling; it is an execution keyword, not an analytical setting.
+Missing-sample exclusion defaults to **False** in the Python
 API and **True** in the GUI. Pass all original recording paths through
 `protected_sources` when exporting several recordings programmatically.
 The `core` export aliases remain available for existing callers.

@@ -195,7 +195,18 @@ Other tests exercise real Qt wheel/touchpad events, the pinned time axis, source
 precision and Analyze's calendar defaults, including wider Windows-sized editors.
 Selective JSON/CSV/ZIP tests retain native columns, metadata and integer precision,
 neutralize spreadsheet formulas and protect every original input from overwriting.
-Cancellation tests stop an actual owned child process and verify cleanup. Run-deletion
+`test_parallel_scientific.py` compares real spawned recording workers with the
+independent official batch workflow, including unequal recorded IMU inputs, both
+watch sides, all module groups, missing-sample and difference-time preparation,
+gap sections, custom duration categories/statistics, empty gait outcomes and
+partial failures. Gait segment IDs and metadata are reconciled in input order;
+official aggregation functions consume pooled quantifications. Original samples,
+classifications, quantifications, aggregates and metadata must remain equivalent.
+Protocol tests verify overlapping execution, worker reuse and input ordering,
+single-recording routing, CPU/RAM limits and cleanup after processing or aggregation
+cancellation and worker failure. The frozen smoke probe forces a small two-worker
+batch to verify spawned imports and private transfers in the executable.
+Cancellation tests stop actual owned child processes and verify cleanup. Run-deletion
 tests require confirmation and protect original inputs, TSDF companions and shared exports.
 Analyze is checked with larger native controls, labels, checkboxes and buttons.
 At 1200 × 900 every parameter must fit without scrolling and rows must retain

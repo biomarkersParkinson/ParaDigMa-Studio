@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Process multiple recordings in up to two reusable, CPU/RAM-limited workers.
+  Preserve the official pipelines and pooled aggregates; single recordings,
+  including their gap sections, still use one worker. Stop cleans up all workers.
 - Automatically scale percentage graphs in 30-minute and Day views to the
   visible bars, with manual limits and Reset limits available as before.
 - Order run-detail tabs as Recordings, Parameters, Warnings, Errors,

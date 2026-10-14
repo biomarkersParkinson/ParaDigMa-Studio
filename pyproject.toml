@@ -13,6 +13,7 @@ dependencies = [
     "paradigma==1.1.2",
     "PySide6==6.11.2",
     "matplotlib==3.11.2",
+    "threadpoolctl==3.7.0",
     # PyPI 0.0.1 overflows when reading fractional CWA timestamps with NumPy 2.
     "openmovement @ git+https://github.com/digitalinteraction/openmovement-python.git@087ac7b5a80b866c400d8021b7a2716d247fc034",
 ]
@@ -66,6 +67,9 @@ files = [
     "src/paradigma_studio/history.py",
     "src/paradigma_studio/jobs.py",
     "src/paradigma_studio/analysis_process.py",
+    "src/paradigma_studio/analysis_limits.py",
+    "src/paradigma_studio/parallel_analysis.py",
+    "src/paradigma_studio/recording_results.py",
     "src/paradigma_studio/serialization.py",
 ]
 # Start with service APIs. Unannotated private helpers and the Qt UI can be
@@ -77,4 +81,9 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = ["paradigma.*", "openmovement.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["threadpoolctl"]
+# The native thread-limit helper ships neither stubs nor a py.typed marker.
 ignore_missing_imports = true

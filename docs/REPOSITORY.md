@@ -38,7 +38,8 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 | Shared channel selection and original sensor plotting | `channels.py` |
 | Original output tables, presentation timing and optional table columns | `result_data.py`, `results_view.py` |
 | Official ParaDigMa loading, preparation and orchestration | `core.py`, `empatica.py`, `recordings.py` |
-| Scientific worker isolation/cancellation and job signals | `analysis_process.py`, `jobs.py` |
+| Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py` |
+| Ordered recording-output merging and official pooled aggregation | `recording_results.py` |
 | Read-only, replaceable recording previews | `previews.py`, `inspection.py` |
 | Coverage, epoch summaries, gait presence and overview charts | `availability.py`, `epochs.py`, `gait_presence.py`, `gait_overview.py`, `overview.py` |
 | Export selection, encoding and safe file writes | `exports.py`, `serialization.py`, `storage.py` |

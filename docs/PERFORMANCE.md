@@ -15,6 +15,17 @@
   source timestamps and loads the visible window while preserving the initial
   context, selected time and navigation history. Original tables and exports
   retain all samples; Results retain every output value.
+- Analysis uses one owned process for a single recording. Multiple recordings
+  can use two workers, reused within the batch, with one native computation thread
+  per worker. Existing gap sections stay inside their recording's worker.
+  Dispatch reserves a CPU and 1 GiB of available RAM, estimating each worker's
+  need as at least 1 GiB or 12 times the largest loaded frame. Low/unknown RAM,
+  limited CPU, explicit mutable toolbox configs or restricted `run_steps` retain
+  sequential execution. These are conservative estimates, not hard memory limits.
+  Results merge in input order; official aggregation functions run once on the
+  pooled quantifications, with consistent gait segment IDs. Stop terminates all
+  owned workers before deleting their private temporary files. Worker startup and
+  file transfers can outweigh parallel gains for short recordings.
 - Saving serializes the complete in-memory result to JSON in a background worker.
   Temporary analysis files have already been removed; saving writes a snapshot,
   including tables, metadata and provenance. It does not rerun analysis. Large
@@ -27,6 +38,13 @@ redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
 ## Reproduce measurements
+
+An isolated Linux check on 14 October 2026 compared the production single-worker
+and automatic paths on four prepared gait recordings, each an eightfold synthetic
+repetition of the bundled recorded IMU fixture (583,576 rows; about 97 minutes).
+Complete runtime, including process startup, private transfers and pooled
+aggregation, decreased from 8.72 s to 7.09 s with two workers. All result values
+matched. This one measurement is not a timing guarantee for Windows or other data.
 
 Install the development dependencies and build on Windows as described in
 [Development](DEVELOPMENT.md). Run from the repository root in PowerShell:

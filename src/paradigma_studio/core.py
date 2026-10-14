@@ -257,19 +257,10 @@ def _prepare_analysis_inputs(
     frame, pipelines, column_mapping, logger, drop_missing_samples, settings
 ):
     """Prepare inputs and retain source/section identities for combined outputs."""
-    import pandas as pd
 
     recordings = None
     if isinstance(frame, dict):
-        if not frame or any(
-            not isinstance(key, str)
-            or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", key)
-            or not isinstance(value, pd.DataFrame)
-            for key, value in frame.items()
-        ):
-            raise ValueError(
-                "Recordings must be a non-empty mapping of safe identifiers to sensor tables."
-            )
+        validate_recordings(frame)
         inputs, sections, preparation = {}, {}, {}
         for key, recording in frame.items():
             (logger or logging.getLogger("paradigma")).info(
@@ -315,6 +306,21 @@ def _prepare_analysis_inputs(
         )
         exclusion = exclusion or {"input_samples": len(frame), "excluded_samples": 0}
     return inputs, exclusion, analyzed_samples, recordings
+
+
+def validate_recordings(frame: dict[str, pd.DataFrame]) -> None:
+    """Validate original recording identifiers and tables before job dispatch."""
+    import pandas as pd
+
+    if not frame or any(
+        not isinstance(key, str)
+        or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", key)
+        or not isinstance(value, pd.DataFrame)
+        for key, value in frame.items()
+    ):
+        raise ValueError(
+            "Recordings must be a non-empty mapping of safe identifiers to sensor tables."
+        )
 
 
 def _run_prepared_analysis(

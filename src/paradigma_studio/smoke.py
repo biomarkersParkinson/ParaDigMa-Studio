@@ -480,8 +480,9 @@ def _verify_gait_workspace(window, app, cwa_source, cwa_frame, cwa_results):
 def _verify_multiple_recordings(window, directory, frame):
     import numpy as np
 
-    from .core import analyze, export_results
+    from .core import export_results
     from .inspection import inspect_recording
+    from .parallel_analysis import run_parallel_analysis
     from .recordings import load_recordings
 
     batch_paths = [directory / "subject-part1.csv", directory / "subject-part2.csv"]
@@ -490,7 +491,15 @@ def _verify_multiple_recordings(window, directory, frame):
     second["gyroscope_x"] += 0.002
     second.to_csv(batch_paths[1], index=False)
     batch_sources, batch_frames = load_recordings(batch_paths)
-    batch_results = analyze(batch_frames, pipelines=["tremor"])
+    # Force the tiny validation batch through two spawned workers regardless of
+    # build-runner CPU/RAM heuristics, including in the frozen executable.
+    batch_results = run_parallel_analysis(
+        batch_frames,
+        {"pipelines": ["tremor"]},
+        logging.Logger("parallel-smoke", logging.INFO),
+        Event(),
+        workers=2,
+    )
     batch_quantified = batch_results["quantifications"]["tremor"]
     if batch_results["errors"] or set(batch_quantified.file_key) != set(batch_frames):
         raise RuntimeError("Multiple-recording analysis lost a recording")
@@ -681,6 +690,7 @@ def _successful_smoke_report(
         "calendar_time_controls_verified": True,
         "gait_sensor_context_verified": True,
         "multiple_recordings_verified": True,
+        "parallel_recordings_verified": True,
         "run_history_reopened": True,
         "models_loaded": models,
         "quantified_rows": len(quantified),

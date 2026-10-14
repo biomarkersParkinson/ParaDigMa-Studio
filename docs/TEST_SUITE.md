@@ -12,6 +12,7 @@ trigger and expected behavior still apply.
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
 | Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
+| Spawned recording workers, limits, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |

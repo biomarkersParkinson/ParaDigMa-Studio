@@ -27,8 +27,11 @@ the original increments. Missing increments use sample positions rather than
 inventing elapsed times. Changing Data's selection does not change Analyze settings.
 
 Each recording is validated and prepared separately. Feature windows and
-filtering never cross file boundaries. Classification and quantification tables
-are combined; the official orchestrator assigns unique gait segments across files;
+filtering never cross file boundaries. Multiple recordings can run in up to two
+workers when CPU and available RAM permit; a single recording always uses one
+worker, including its gap sections. Stop terminates every owned worker and removes
+temporary processing files. Classification and quantification tables
+are combined in input order with unique gait segments across files;
 aggregates are computed from the combined quantifications using ParaDigMa's own
 aggregation functions. They are not averages of per-file aggregate percentages.
 Detailed tables and CSV exports retain `file_key`; Runs and JSON exports retain

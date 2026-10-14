@@ -29,7 +29,7 @@ outcomes. The [older review](docs/archive/security-review-2026-10-06.md) is arch
 | Writes | Atomic exports/snapshots protect existing destinations after failed writes. Known inputs, TSDF companions and filesystem aliases are protected. CSV formula-like text is prefixed; spreadsheet import behavior still matters. |
 | Persistence | History, paths, logs and complete saved results persist as plaintext under `%LOCALAPPDATA%\ParaDigMaStudio\runs`. Legacy history remains usable; original recordings are not copied. |
 | Deletion | Single/bulk deletion and Clear all require confirmation, defaulting to Cancel. Listed outputs are permanently removed; inputs, directories and outputs shared with retained runs are protected. |
-| Analysis | Stop terminates only the owned child; temporary files are cleaned after success, failure or cancellation. Process separation is not a security sandbox. |
+| Analysis | Stop terminates all owned workers; private transfer and processing files are cleaned after success, failure or cancellation. Process separation is not a security sandbox. |
 
 The reviewed wrapper has no automatic recording-upload, elevation or registry/service
 installation functionality. Documentation links open an external browser. Build
