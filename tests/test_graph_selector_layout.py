@@ -233,7 +233,12 @@ def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readabl
         ).y()
         assert abs(tree_bottom - footer_bottom) <= 1
         footer_top = window.graph_footer.mapTo(window, QPoint(0, 0)).y()
-        assert footer_top == ruler_bottom
+        scroll_top = window.result_time_scroll.mapTo(window, QPoint(0, 0)).y()
+        scroll_bottom = window.result_time_scroll.mapTo(
+            window, QPoint(0, window.result_time_scroll.height())
+        ).y()
+        assert scroll_top == ruler_bottom and scroll_bottom == footer_top
+        assert window.result_time_scroll.visibleRegion().contains(window.result_time_scroll.rect())
         page_bottom = window.graph_view.mapTo(window, QPoint(0, window.graph_view.height())).y()
         controls_bottom = window.context_controls.mapTo(
             window, QPoint(0, window.context_controls.height())

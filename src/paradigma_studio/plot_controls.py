@@ -48,7 +48,7 @@ class GraphToolbar(NavigationToolbar2QT):
             self.select_action.setChecked(True)
             self.select_action.setToolTip("Select a timepoint by clicking a graph")
             self.select_action.triggered.connect(self.select_timepoint)
-            self.insertAction(self._actions["pan"], self.select_action)
+            self.insertAction(self._actions.get("pan", self._actions["zoom"]), self.select_action)
         self.settings = GraphSettings(canvas, self)
         self.settings_action = QAction("Axis limits", self)
         self.settings_action.setCheckable(True)
@@ -66,9 +66,9 @@ class GraphToolbar(NavigationToolbar2QT):
     def select_timepoint(self):
         if self.select_action is None:
             return
-        if self._actions["pan"].isChecked():
+        if self.mode.name == "PAN":
             self.pan()
-        elif self._actions["zoom"].isChecked():
+        elif self.mode.name == "ZOOM":
             self.zoom()
         self.select_action.setChecked(True)
 

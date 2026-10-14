@@ -32,8 +32,9 @@ from PySide6.QtWidgets import (
 from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
 from ..assets import DATA_DIRECTORY
 from ..branding import APP_NAME
-from ..plot_controls import GraphToolbar, add_graph_controls
+from ..plot_controls import add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
+from ..result_navigation import ResultsToolbar, ResultTimeScroll
 from ..results_view import MODULE_NAMES
 from ..theme import LINK_COLOR, light_palette, tooltip_text
 from ..time_axis import PinnedTimeAxis
@@ -750,7 +751,7 @@ class WorkspaceLayout:
         self.canvas.defer_when_hidden = True
         self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
         self.canvas.pinned_time_axis = True
-        self.plot_toolbar = GraphToolbar(self.canvas, self)
+        self.plot_toolbar = ResultsToolbar(self.canvas, self)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
         self.figure_actions.set_context(self.graph_view_controls)
         self.figure_actions_layout = self.figure_actions.primary
@@ -787,6 +788,8 @@ class WorkspaceLayout:
         self.graph_view_layout.addWidget(self.plot_toolbar.settings)
         plot_view_layout.addWidget(scroll, 1)
         plot_view_layout.addWidget(self.time_axis)
+        self.result_time_scroll = ResultTimeScroll(self.plot_toolbar)
+        plot_view_layout.addWidget(self.result_time_scroll)
         self.graph_footer = QWidget()
         self.graph_footer_layout = QHBoxLayout(self.graph_footer)
         self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)

@@ -94,7 +94,7 @@ def test_detailed_power_keeps_narrow_peaks_visible_and_marks_transformed_selecte
 
 
 @pytest.mark.parametrize("automatic", [True, False])
-@pytest.mark.parametrize("action", ["zoom", "pan"])
+@pytest.mark.parametrize("action", ["zoom", "scroll"])
 def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, automatic, action):
     frame = pd.DataFrame({"time": [0.0, 4.0, 8.0], "tremor_power": [2.0, 3.0, 200.0]})
     window.analyzed({"quantifications": {"tremor": frame}})
@@ -111,12 +111,8 @@ def test_toolbar_navigation_preserves_y_scaling_choice_for_result_bars(window, a
         toolbar.press_zoom(MouseEvent("button_press_event", window.canvas, *first, button=1))
         toolbar.release_zoom(MouseEvent("button_release_event", window.canvas, *last, button=1))
     else:
-        toolbar.pan()
-        first = axes.transData.transform((0.5, axes.get_ylim()[1] * 0.5))
-        last = axes.transData.transform((7.5, axes.get_ylim()[1] * 0.5))
-        toolbar.press_pan(MouseEvent("button_press_event", window.canvas, *first, button=1))
-        toolbar.drag_pan(MouseEvent("motion_notify_event", window.canvas, *last, buttons={1}))
-        toolbar.release_pan(MouseEvent("button_release_event", window.canvas, *last, button=1))
+        axes.set_xlim(0.5, 7.5)
+        window.result_time_scroll.setValue(0)
     assert axes.get_autoscaley_on() == automatic
     assert axes.get_ylim()[1] < 1 if automatic else axes.get_ylim()[1] > 100, (
         axes.get_xlim(),

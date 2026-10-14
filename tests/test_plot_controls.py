@@ -50,7 +50,8 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
     for toolbar in (window.data_toolbar, window.plot_toolbar, window.sensor_toolbar):
         actions = [action.text() for action in toolbar.actions() if not action.isSeparator()]
         assert actions.count("Axis limits") == 1
-        assert {"Home", "Back", "Forward", "Pan", "Zoom", "Save"} <= set(actions)
+        assert {"Home", "Back", "Forward", "Zoom", "Save"} <= set(actions)
+        assert ("Pan" in actions) == (toolbar is not window.plot_toolbar)
         assert ("Select timepoint" in actions) == (toolbar is window.plot_toolbar)
         assert not {"Graph settings", "Subplots", "Customize"} & set(actions)
         toolbar.settings_action.setChecked(True)
@@ -202,10 +203,10 @@ def test_cursor_modes_are_exclusive_and_default_to_selection(window):
     for toolbar in (window.plot_toolbar,):
         assert toolbar.select_action.isChecked() and not toolbar.mode
         assert not toolbar.select_action.icon().pixmap(24, 24).isNull()
-        for mode in ("pan", "zoom", "pan"):
-            toolbar._actions[mode].trigger()
-            assert toolbar.mode and not toolbar.select_action.isChecked()
-            assert sum(toolbar._actions[name].isChecked() for name in ("pan", "zoom")) == 1
+        assert "pan" not in toolbar._actions
+        toolbar._actions["zoom"].trigger()
+        assert toolbar.mode and not toolbar.select_action.isChecked()
+        assert toolbar._actions["zoom"].isChecked()
         toolbar.select_action.trigger()
         assert not toolbar.mode and toolbar.select_action.isChecked()
         toolbar.select_action.trigger()

@@ -551,6 +551,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.context_button.setEnabled(False)
         self.figure.clear()
         self.time_axis.bind(None)
+        self.result_time_scroll.bind(None)
         self.plot_toolbar.refresh()
         self.sensor_toolbar.refresh()
         self.canvas.draw_idle()

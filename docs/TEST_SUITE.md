@@ -19,8 +19,8 @@ trigger and expected behavior still apply.
 | Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py`, `test_daily.py` |
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | `test_epoch_profile.py` |
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
-| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py` |
-| Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_pan_performance.py` |
+| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py` |
+| Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, serialization and background completion | `test_result_exports.py` |
 | Complete local snapshots, reopening and unsaved-close warnings | `test_saved_results.py` |

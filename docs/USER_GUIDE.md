@@ -272,11 +272,15 @@ channel changes; Back can return to the view before Home.
 The selected result time is marked whenever it is in view.
 Clicking either a checkbox or its label toggles a channel or plot series.
 
-Results graphs have three cursor modes: **Select timepoint** (default), **Pan** and
-**Zoom**. Click a plotted timepoint to mark it; its date and time appear above
-the time axis. Choose Pan to move the view or Zoom to draw a zoom rectangle,
-and Select timepoint to resume selection. Data and sensor-context graphs have
-Pan (default) and Zoom. Sensor context retains the time selected in Results.
+Results graphs have **Select timepoint** (default) and **Zoom**. Click a plotted
+timepoint to mark it; its date and time appear above the time axis. Zoom selects
+a time interval across all linked graphs without selecting a vertical range.
+After zooming in, the horizontal scrollbar below the time axis moves through the
+full time range while keeping the window duration. Its handle indicates how much time
+is visible; it is disabled when the full range is shown. Home, Back and Forward
+include scrollbar navigation. Choose Select timepoint to resume selection.
+Data and sensor-context graphs retain Pan (default) and zooming in both axes.
+Sensor context retains the time selected in Results.
 
 **Axis limits** opens the only graph settings panel. Click the graph you want
 to adjust, uncheck **Automatic** for X or Y, enter the minimum and maximum,

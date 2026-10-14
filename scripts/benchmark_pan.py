@@ -1,4 +1,4 @@
-"""Measure real toolbar drags and queued Qt painting using synthetic series."""
+"""Measure Results time scrolling and raw panning with queued Qt painting."""
 
 import argparse
 import json
@@ -26,7 +26,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
         "platform": platform.platform(),
         "app_version": version("paradigma-studio"),
         "qt_platform": app.platformName(),
-        "conditions": "Source app; Fusion, 1450x920; warm caches; actual toolbar drags and queued Qt paints, without a profiler. Synthetic data only. Release redraw is measured separately.",
+        "conditions": "Source app; Fusion, 1450x920; warm caches; Results scrollbar drags, raw toolbar pans and queued Qt paints, without a profiler. Synthetic data only. Release redraw is measured separately.",
         "frames_per_drag": frames,
         "repeats": repeats,
         "measurements": {},
@@ -35,14 +35,19 @@ def benchmark(report_path, *, frames=8, repeats=3):
         window = MainWindow(Path(directory) / "runs")
         window.resize(1450, 920)
         window.show()
-        output, full = _prepare_result_pan(window)
+        output, full = _prepare_result_scroll(window)
 
         def measure(name, canvas, toolbar, limits):
             _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames)
 
-        measure("results_full_6x30000", window.canvas, window.plot_toolbar, full)
+        wide = full[0], full[0] + (full[1] - full[0]) * 0.75
+        _measure_time_scroll(
+            app, report, "results_wide_scroll_6x30000", window, wide, repeats, frames
+        )
         zoomed = full[0] + 0.5, full[0] + 0.5 + 900 / 86400
-        measure("results_zoomed_6x30000", window.canvas, window.plot_toolbar, zoomed)
+        _measure_time_scroll(
+            app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
+        )
         sensor = _synthetic_pan_sensors()
         window.loaded(("sensor.csv", sensor))
         deadline = time.monotonic() + 30
@@ -108,17 +113,42 @@ def _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames):
         toolbar.release_pan(MouseEvent("button_release_event", canvas, x + frames * 3, y, button=1))
         app.processEvents()
         release_times.append(time.perf_counter() - started)
+    _record_measurement(report, name, frame_times, release_times, len(canvas.figure.axes))
+
+
+def _measure_time_scroll(app, report, name, window, limits, repeats, frames):
+    canvas, bar = window.canvas, window.result_time_scroll
+    frame_times, release_times = [], []
+    for _ in range(repeats):
+        canvas.figure.axes[0].set_xlim(*limits)
+        canvas.draw()
+        app.processEvents()
+        bar.setSliderDown(True)
+        start, step = bar.value(), max(1, bar.maximum() // (frames * 4))
+        for index in range(1, frames + 1):
+            started = time.perf_counter()
+            bar.setValue(min(bar.maximum(), start + step * index))
+            app.processEvents()
+            frame_times.append(time.perf_counter() - started)
+        started = time.perf_counter()
+        bar.setSliderDown(False)
+        app.processEvents()
+        release_times.append(time.perf_counter() - started)
+    _record_measurement(report, name, frame_times, release_times, len(canvas.figure.axes))
+
+
+def _record_measurement(report, name, frame_times, release_times, graphs):
     report["measurements"][name] = {
         "frame_seconds": frame_times,
         "median_frame_seconds": statistics.median(frame_times),
         "release_seconds": release_times,
         "median_release_seconds": statistics.median(release_times),
-        "graphs": len(canvas.figure.axes),
+        "graphs": graphs,
     }
     print(f"{name}: {statistics.median(frame_times):.4f} s/frame", flush=True)
 
 
-def _prepare_result_pan(window):
+def _prepare_result_scroll(window):
     window.provenance = {
         "display_clock": {
             "origin": "2026-10-10T00:00:00+02:00",

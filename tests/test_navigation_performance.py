@@ -1,4 +1,4 @@
-"""Pan frames keep exact visible data, stable layout and complete final exports."""
+"""Time scrolling keeps exact visible pixels, stable layouts and complete exports."""
 
 from io import BytesIO
 
@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import dates
-from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import ConstrainedLayoutEngine
@@ -45,26 +44,26 @@ def window(tmp_path):
     app.processEvents()
 
 
-def start_pan(window):
-    toolbar, canvas = window.plot_toolbar, window.canvas
-    toolbar.pan()
-    point = canvas.figure.axes[0].transAxes.transform((0.5, 0.5))
-    toolbar.press_pan(MouseEvent("button_press_event", canvas, *point, button=1))
-    assert toolbar._pan_info is not None and canvas.panning
-    return point
+def start_scroll(window):
+    axes = window.figure.axes[0]
+    low, high = axes.get_xlim()
+    axes.set_xlim(low, low + (high - low) / 2)
+    window.canvas.draw()
+    window.result_time_scroll.setSliderDown(True)
+    assert window.plot_toolbar.scrolling_time and window.canvas.panning
 
 
 @pytest.mark.parametrize("pixel_ratio", [1, 2])
 @pytest.mark.parametrize("scroll", [0, 450])
-def test_pan_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_values(
+def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_values(
     window, monkeypatch, pixel_ratio, scroll
 ):
-    figure, canvas, toolbar = window.figure, window.canvas, window.plot_toolbar
+    figure, canvas = window.figure, window.canvas
     window.graph_scroll.verticalScrollBar().setValue(scroll)
     canvas._set_device_pixel_ratio(pixel_ratio)
     figure.axes[1].set_ylim(0.5, 4.0)
-    canvas.draw()
     automatic = [ax.get_autoscaley_on() for ax in figure.axes]
+    start_scroll(window)
     engine = figure.get_layout_engine()
     paths = [[p.vertices.copy() for p in ax.collections[0].get_paths()] for ax in figure.axes]
     positions = [ax.get_position().bounds for ax in figure.axes]
@@ -85,8 +84,7 @@ def test_pan_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_va
                 original(renderer),
             )[1],
         )
-    x, y = start_pan(window)
-    toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, x + 20, y, buttons={1}))
+    window.result_time_scroll.setValue(window.result_time_scroll.maximum() // 5)
     QApplication.instance().processEvents()
     assert figure not in executions
     assert 0 < len(set(drawn)) < len(figure.axes)
@@ -111,7 +109,7 @@ def test_pan_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_va
         for path, values in zip(ax.collections[0].get_paths(), expected, strict=False):
             np.testing.assert_array_equal(path.vertices, values)
     drawn.clear()
-    toolbar.release_pan(MouseEvent("button_release_event", canvas, x + 20, y, button=1))
+    window.result_time_scroll.setSliderDown(False)
     QApplication.instance().processEvents()
     assert not canvas.panning and figure in executions
     assert set(drawn) == set(figure.axes)
@@ -120,9 +118,11 @@ def test_pan_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_va
     np.testing.assert_allclose(window.time_axis.axes.get_xlim(), figure.axes[0].get_xlim())
 
 
-def test_export_during_pan_includes_every_axes_and_render_errors_restore_state(window, monkeypatch):
+def test_export_during_scroll_includes_every_axes_and_render_errors_restore_state(
+    window, monkeypatch
+):
     canvas, figure = window.canvas, window.figure
-    start_pan(window)
+    start_scroll(window)
     engine = figure.get_layout_engine()
     drawn = []
     for ax in figure.axes:
@@ -149,22 +149,24 @@ def test_export_during_pan_includes_every_axes_and_render_errors_restore_state(w
             canvas.draw()
     assert figure.get_layout_engine() is engine and all(ax.get_visible() for ax in figure.axes)
     canvas.draw()
-    window.plot_toolbar.release_pan(None)
+    window.result_time_scroll.setSliderDown(False)
 
 
-@pytest.mark.parametrize("end", ["lost_button", "refresh", "clear_results"])
-def test_pan_ends_cleanly_when_button_is_lost_or_graphs_change(window, end):
-    x, y = start_pan(window)
-    if end == "lost_button":
-        window.plot_toolbar.drag_pan(
-            MouseEvent("motion_notify_event", window.canvas, x + 20, y, buttons=set())
-        )
+@pytest.mark.parametrize("end", ["release", "refresh", "clear_results", "hide"])
+def test_scroll_ends_cleanly_when_released_or_graphs_change(window, end):
+    start_scroll(window)
+    if end == "release":
+        window.result_time_scroll.setSliderDown(False)
     elif end == "refresh":
         window.plot_toolbar.refresh()
-    else:
+    elif end == "clear_results":
         window.clear_results()
+    else:
+        window.result_tabs.setCurrentIndex(0)
     QApplication.instance().processEvents()
-    assert window.plot_toolbar._pan_info is None and not window.canvas.panning
+    assert not window.plot_toolbar.scrolling_time and not window.canvas.panning
+    if end in ("release", "clear_results", "hide"):
+        assert not window.result_time_scroll.isSliderDown()
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam"])

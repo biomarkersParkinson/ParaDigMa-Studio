@@ -572,8 +572,9 @@ class ResultGraphs:
         ):
             locator = first_axes.xaxis.get_major_locator()
             MidnightBridges(self.figure, locator.timezone, calendar=locator.calendar)
-        self.time_axis.bind(first_axes)
         self.plot_toolbar.refresh()
+        self.result_time_scroll.bind(first_axes)
+        self.time_axis.bind(first_axes)
         if viewport is not None and first_axes is not None:
             # Keep Home as the full extent, while coverage toggles retain the
             # user's current view instead of making outcomes appear to change.

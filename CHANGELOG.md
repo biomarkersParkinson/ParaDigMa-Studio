@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace Results panning with a shared horizontal time scrollbar and restrict
+  Results zoom selections to time; retain raw-data pan and zoom controls.
 - Share the grouped date/time axis between Detailed and 30-minute graphs, retaining
   spaced midnight labels on multi-day ranges and precise times when zoomed in.
 - Anchor the first date label in 30-minute graphs at the left edge, while keeping
