@@ -86,6 +86,7 @@ class ResultController:
     def _invalidate_views(self):
         self.sensors._sensor_time_indices.clear()
         self.state._plot_signature = None
+        self.state._profile_selection = None
         self.state._epoch_views.clear()
         self.state._epoch_presence_views.clear()
         self.state._gait_presence_cache = self.state._gait_epoch_cache = None

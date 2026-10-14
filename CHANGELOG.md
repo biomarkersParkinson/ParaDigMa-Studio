@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a 24-hour profile averaging valid 30-minute summaries at each time of day
+  across recordings' days. Give each day equal weight, retain existing presence
+  thresholds, exclude missing epochs and preserve the recording timezone.
 - Make days recognizable in 30-minute graphs with continuous midnight separators
   across plots and their gaps, and clock times above centered dates. Preserve
   the recording's timezone and existing bars.

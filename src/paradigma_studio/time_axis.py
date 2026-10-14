@@ -9,6 +9,7 @@ from PySide6.QtCore import QPoint, Signal
 from .day_axis import RecordingDayFormatter, RecordingDayLocator
 from .epoch_axis import style_epoch_axis
 from .plotting import time_selection_triangle
+from .profile_axis import style_profile_axis
 
 
 class RecordingDateLocator(dates.AutoDateLocator):
@@ -158,7 +159,11 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
             self.axes.xaxis.remove_overlapping_locs = True
             self.axes.tick_params(axis="x", which="major", colors="#60728A", length=3, pad=6)
             locator = source.xaxis.get_major_locator()
-            if getattr(source, "_paradigma_day_groups", False):
+            if getattr(source, "_paradigma_profile", False):
+                self._date_timezone = None
+                style_profile_axis(self.axes, labels=True)
+                self.setFixedHeight(42)
+            elif getattr(source, "_paradigma_day_groups", False):
                 self._date_timezone = locator.timezone if locator.calendar else None
                 style_epoch_axis(
                     self.axes,

@@ -62,6 +62,7 @@ class ResultState:
     _gait_presence_cache: Any = None
     _gait_epoch_cache: Any = None
     _plot_signature: Any = None
+    _profile_selection: tuple[str, str, float] | None = None
     _table_output_names: Any = None
     active_frame: pd.DataFrame | None = None
     display_frame: pd.DataFrame | None = None

@@ -99,6 +99,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
     _gait_presence_cache = state_property("_result_state", "_gait_presence_cache")
     _gait_epoch_cache = state_property("_result_state", "_gait_epoch_cache")
     _plot_signature = state_property("_result_state", "_plot_signature")
+    _profile_selection = state_property("_result_state", "_profile_selection")
     _table_output_names = state_property("_result_state", "_table_output_names")
     active_frame = state_property("_result_state", "active_frame")
     display_frame = state_property("_result_state", "display_frame")
@@ -518,6 +519,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._result_selection_artists.clear()
         self._epoch_views.clear()
         self._epoch_presence_views.clear()
+        self._profile_selection = None
         self._gait_presence_cache = self._gait_epoch_cache = None
         self._table_views.clear()
         self.result_overlay.invalidate()
@@ -996,6 +998,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self.table_module_tabs.setVisible(index == 2)
         self.timing_toggle.setVisible(index == 2 and not aggregation)
         self.selection_note.setVisible(index == 2)
+        if self.results is not None:
+            self.update_context_action(self.result_table.currentIndex())
 
     def sync_table_outputs(self, force_detail=False):
         names = [*self.tables, *self.aggregation_tables]

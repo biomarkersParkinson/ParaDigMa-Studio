@@ -164,8 +164,8 @@ Filtered-positive intervals are restricted to detected gait. These describe indi
 windows; ParaDigMa's final sample segmentation additionally averages overlapping
 probabilities. Raw tables retain the official probability columns.
 
-**View**, at the right of the figure toolbar, switches all graphs between Detailed
-and 30-minute epochs or Day. Continuous values show the median; binary predictions show
+**View**, at the right of the figure toolbar, switches all graphs between Detailed,
+30-minute epochs, Day and 24-hour profile. Continuous epoch values show the median; binary predictions show
 percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
 aggregate transformation; epoch medians are calculated after this transformation.
 The y-axis labels identify the log scale. Tables and data exports retain raw power.
@@ -205,6 +205,24 @@ preserved. Gait metrics use their estimated within-segment intervals; missing sw
 values contribute no coverage. Gait and filtered gait percentages share observed
 time. Data coverage shows prepared time as a percentage of the full calendar day.
 This daily availability rule is separate from the 30-minute presence rule above.
+
+**24-hour profile** combines matching half-hour slots across all available days
+into 48 bars from 00:00 to 24:00. Each bar is the arithmetic mean of the valid
+30-minute summaries: percentages for indicators and coverage, and epoch medians
+for continuous outcomes. Tremor power retains the log transformation. The existing
+90-second presence rules apply to each day's epoch before averaging; the Day
+view's 1% threshold does not apply. Each day contributes equally, regardless of
+sample count. Missing or insufficient epochs are excluded, while valid zeros
+remain included. A slot with no qualifying days stays blank.
+
+Slots use the recording's original timezone, with no assumed timezone when it is
+unspecified. A repeated half-hour during a daylight-saving fallback contributes
+its mean once for that day; skipped spring-forward slots are missing. Without a
+recording clock, slots use elapsed 24-hour periods starting at analysis zero.
+Clicking a bar selects its half-hour slot and displays the contributing-day count;
+it does not select one dated sample. Use Tables or another graph view for sensor
+context. Profile X limits accept HH:MM or seconds since midnight; Reset limits and
+Home restore the full 24-hour range. Original tables and exports remain unchanged.
 
 Plots are grouped by module, following Plot series order, and long
 series names wrap in full. The default selection is gait presence (prediction),

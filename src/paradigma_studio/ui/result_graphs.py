@@ -4,10 +4,17 @@ import numpy as np
 from matplotlib import dates
 from matplotlib.lines import Line2D
 
-from ..daily import daily_availability_summary, daily_summary, gait_daily_summaries
+from ..daily import DAY_SECONDS, daily_availability_summary, daily_summary, gait_daily_summaries
 from ..day_axis import RecordingDayFormatter, RecordingDayLocator
 from ..epoch_axis import MidnightBridges, MidnightSeparators, style_epoch_axis
-from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
+from ..epoch_profile import format_profile_time, mean_epoch_profile
+from ..epochs import (
+    EPOCH_SECONDS,
+    availability_epoch_summary,
+    epoch_phase,
+    epoch_summary,
+    require_epoch_presence,
+)
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
 from ..plotting import (
@@ -18,9 +25,12 @@ from ..plotting import (
     time_coordinates,
     time_selection_line,
 )
+from ..profile_axis import style_profile_axis
 from ..results_view import MODULE_NAMES, clock_origin, clock_times
 from ..theme import module_color, style_axes, style_result_heading
 from ..time_axis import RecordingDateLocator, RecordingTimeFormatter
+
+PROFILE_VIEW = 3
 
 
 def _is_tremor_power(name, metric):
@@ -97,7 +107,13 @@ class ResultGraphs:
                 ):
                     frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
             self._epoch_views[key] = frame
-        return self._epoch_views[key]
+        summary = self._epoch_views[key]
+        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+            profile_key = "profile", *key
+            if profile_key not in self._epoch_views:
+                self._epoch_views[profile_key] = mean_epoch_profile(summary, self.display_clock)
+            return self._epoch_views[profile_key]
+        return summary
 
     def daily_plot_data(self, name, metric, positions, binary):
         key = "day", name, metric, id(positions)
@@ -227,6 +243,10 @@ class ResultGraphs:
 
     def _result_plot_viewport(self, chosen, mode):
         previous_mode, previous_chosen = self._plot_signature or (None, ())
+        if mode != previous_mode and PROFILE_VIEW in (mode, previous_mode):
+            # A clock-slot axis and an absolute recording timeline use different
+            # coordinates; carrying their limits over would hide the new view.
+            return previous_mode, None, {}
         changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (
             self._plot_signature is not None
@@ -314,12 +334,15 @@ class ResultGraphs:
         )
         times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
         percentage = binary or name.startswith("preparation/")
-        ys = self._result_plot_values(name, metric, positions)
-        xs = clock_times(times, self.display_clock)
         ax._paradigma_epoch = epochs
+        ax._paradigma_profile = self.result_graph_view.currentIndex() == PROFILE_VIEW
         if epochs:
             self._render_epoch_series(ax, name, metric, positions, binary)
         elif len(selected) and np.isfinite(times).any():
+            # Aggregated views reuse their summaries; only Detailed needs
+            # per-sample plotting arrays and recording-clock conversion here.
+            ys = self._result_plot_values(name, metric, positions)
+            xs = clock_times(times, self.display_clock)
             color = module_color(
                 "preparation" if name.startswith("preparation/") else name.split("/")[1]
             )
@@ -370,13 +393,19 @@ class ResultGraphs:
         if len(summary):
             plot_bars(
                 ax,
-                clock_times(summary.start_s, self.display_clock),
-                clock_times(summary.end_s, self.display_clock),
+                summary.start_s
+                if ax._paradigma_profile
+                else clock_times(summary.start_s, self.display_clock),
+                summary.end_s
+                if ax._paradigma_profile
+                else clock_times(summary.end_s, self.display_clock),
                 summary.value,
                 color,
             )
         if not len(summary) or not np.isfinite(summary.value).any():
-            if "data_s" in summary:
+            if ax._paradigma_profile:
+                message = "No valid 30-minute epochs across days"
+            elif "data_s" in summary:
                 message = "No days with ≥14 min 24 s of valid metric data"
             elif "presence_s" in summary:
                 subject = (
@@ -424,7 +453,7 @@ class ResultGraphs:
 
     def _style_result_series(self, ax, name, metric, binary, epochs, percentage):
         if epochs or not binary:
-            ax.set_ylabel(
+            ylabel = (
                 ("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
                 if epochs and percentage
                 else "Median log₁₀(power + 1)"
@@ -433,9 +462,19 @@ class ResultGraphs:
                 if _is_tremor_power(name, metric)
                 else "Median"
                 if epochs
-                else str(metric).replace("_", " "),
-                fontsize=9,
+                else str(metric).replace("_", " ")
             )
+            if ax._paradigma_profile:
+                ylabel = (
+                    "Mean availability (%)"
+                    if name.startswith("preparation/")
+                    else "Mean presence (%)"
+                    if percentage
+                    else "Mean epoch median\nlog₁₀(power + 1)"
+                    if _is_tremor_power(name, metric)
+                    else "Mean epoch median"
+                )
+            ax.set_ylabel(ylabel, fontsize=9)
         item = self._series_items.get((name, metric))
         metric_title = (
             item.text(0)
@@ -468,13 +507,26 @@ class ResultGraphs:
                 if len(self.provenance.get("sources", {})) > 1
                 else "Elapsed analysis time (s)"
             )
-        if self.result_graph_view.currentIndex() == 2:
+        if ax._paradigma_profile:
+            self._style_profile_axis(ax)
+        elif self.result_graph_view.currentIndex() == 2:
             self._style_daily_axis(ax)
         elif self.result_graph_view.currentIndex() == 1:
             self._style_epoch_axis(ax)
         ax.tick_params(axis="x", labelbottom=False)
         ax.xaxis.label.set_visible(False)
         ax.xaxis.offsetText.set_visible(False)
+
+    def _style_profile_axis(self, ax):
+        style_profile_axis(ax)
+        ax.format_xdata = format_profile_time
+        ax.set_xlabel(
+            f"Time of day ({self.display_clock.get('timezone') or 'timezone unspecified'}) · average across days"
+            if self.display_clock
+            else "Time in elapsed 24-hour period · average across days"
+        )
+        ax.margins(x=0)
+        ax.update_datalim([[0, 0], [DAY_SECONDS, 0]])
 
     def _style_epoch_axis(self, ax):
         calendar = self.display_clock is not None
@@ -537,10 +589,14 @@ class ResultGraphs:
                     ax.set_ylim(*previous[0], auto=False)
                 autoscale_bars(ax)
             self.plot_toolbar.push_current()
-        self.highlight_result_row()
+        self.result_row_changed(self.result_table.currentIndex(), None)
         self.canvas.draw_idle()
 
     def result_row_changed(self, current, previous):
+        self.update_context_action(current)
+        self.highlight_result_row()
+
+    def update_context_action(self, current):
         import pandas as pd
 
         frame = self.active_frame
@@ -557,7 +613,15 @@ class ResultGraphs:
             if valid_row
             else None
         )
-        usable = self.result_source_frame is not None and (timestamp or segment is not None)
+        profile = (
+            self.result_graph_view.currentIndex() == PROFILE_VIEW
+            and self.result_tabs.currentIndex() == 1
+        )
+        usable = (
+            not profile
+            and self.result_source_frame is not None
+            and (timestamp or segment is not None)
+        )
         self.context_button.setEnabled(bool(usable))
         self.context_button.setText(
             "Inspect gait segment"
@@ -570,7 +634,10 @@ class ResultGraphs:
             self.context_button.setToolTip("No sensor timing available")
         if self.result_source_frame is None:
             self.context_button.setToolTip("Original sensor data unavailable")
-        self.highlight_result_row()
+        if profile:
+            self.context_button.setToolTip(
+                "A 24-hour profile combines multiple days. Select another view to inspect an actual timepoint."
+            )
 
     def highlight_result_row(self):
         with self.result_overlay.edit():
@@ -583,6 +650,9 @@ class ResultGraphs:
             artist.remove()
         self._result_selection_artists = []
         self.time_axis.set_selection(None)
+        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+            self._update_profile_marker()
+            return
         name, frame = self.dataset.currentText(), self.active_frame
         current = self.result_table.currentIndex()
         if frame is None or not current.isValid() or name not in self._timings:
@@ -635,6 +705,9 @@ class ResultGraphs:
             and float(value) != 1.0
         ):
             return
+        self._mark_result_value(ax, name, x, float(value))
+
+    def _mark_result_value(self, ax, name, x, value):
         point = Line2D(
             [x],
             [float(value)],
@@ -651,8 +724,48 @@ class ResultGraphs:
         ax.add_artist(point)
         self._result_selection_artists.append(point)
 
+    def _update_profile_marker(self):
+        if self._profile_selection is None:
+            return
+        name, metric, x = self._profile_selection
+        label = f"{format_profile_time(x - EPOCH_SECONDS / 2)}–{format_profile_time(x + EPOCH_SECONDS / 2)}"
+        self.time_axis.set_selection(x, label)
+        for ax in self.figure.axes:
+            if not getattr(ax, "_paradigma_profile", False):
+                continue
+            line = time_selection_line(ax, x, animated=self.canvas.supports_blit)
+            self._result_selection_artists.append(line)
+            if (ax._paradigma_dataset, ax._paradigma_metric) != (name, metric):
+                continue
+            summary = ax._paradigma_epoch_data
+            selected = summary.loc[(summary.start_s <= x) & (x < summary.end_s)]
+            if len(selected) and np.isfinite(selected.value.iloc[0]):
+                self._mark_result_value(ax, name, x, selected.value.iloc[0])
+                days = int(selected.n_days.iloc[0])
+                self.time_axis.set_selection(
+                    x, f"{label} · {days} {'day' if days == 1 else 'days'}"
+                )
+
+    def _profile_clicked(self, event):
+        ax = event.inaxes
+        if not getattr(ax, "_paradigma_profile", False):
+            return
+        summary = ax._paradigma_epoch_data
+        epoch = summary.loc[(summary.start_s <= event.xdata) & (event.xdata < summary.end_s)]
+        if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
+            return
+        self._profile_selection = (
+            ax._paradigma_dataset,
+            ax._paradigma_metric,
+            float((epoch.start_s.iloc[0] + epoch.end_s.iloc[0]) / 2),
+        )
+        self.highlight_result_row()
+
     def graph_clicked(self, event):
         if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
+            return
+        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+            self._profile_clicked(event)
             return
         name = getattr(event.inaxes, "_paradigma_dataset", self.dataset.currentText())
         if name not in self.tables:

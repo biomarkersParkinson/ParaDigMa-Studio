@@ -29,7 +29,7 @@ def presence_axis(window):
     )
 
 
-@pytest.mark.parametrize("view", [1, 2], ids=["30-minute", "day"])
+@pytest.mark.parametrize("view", [1, 2, 3], ids=["30-minute", "day", "profile"])
 @pytest.mark.parametrize("percentage", [0, 10, 100])
 def test_percentage_and_coverage_bars_start_with_automatic_limits(window, view, percentage):
     results = percentage_results(percentage, percentage)

@@ -71,6 +71,7 @@ files = [
     "src/paradigma_studio/parallel_analysis.py",
     "src/paradigma_studio/recording_results.py",
     "src/paradigma_studio/serialization.py",
+    "src/paradigma_studio/epoch_profile.py",
 ]
 # Start with service APIs. Unannotated private helpers and the Qt UI can be
 # typed incrementally; imported modules still supply their available contracts.

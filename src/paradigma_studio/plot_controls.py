@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from .assets import DATA_DIRECTORY
+from .epoch_profile import format_profile_time, parse_profile_time
 from .plotting import autoscale_bars
 from .theme import light_palette
 
@@ -265,14 +266,26 @@ class GraphSettings(QFrame):
         for axis, (automatic, lower, upper) in self.bounds.items():
             automatic.setChecked(getattr(ax, f"get_autoscale{axis}_on")())
             is_date, timezone = _calendar_axis(ax, axis)
-            lower.setToolTip("ISO date/time, including time zone" if is_date else "Finite number")
-            lower.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Minimum")
-            upper.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Maximum")
+            profile = axis == "x" and getattr(ax, "_paradigma_profile", False)
+            lower.setToolTip(
+                "Time of day as HH:MM[:SS] or seconds since midnight"
+                if profile
+                else "ISO date/time, including time zone"
+                if is_date
+                else "Finite number"
+            )
+            placeholder = "HH:MM" if profile else "YYYY-MM-DD HH:MM:SS" if is_date else None
+            lower.setPlaceholderText(placeholder or "Minimum")
+            upper.setPlaceholderText(placeholder or "Maximum")
             upper.setToolTip(lower.toolTip())
             values = getattr(ax, f"get_{axis}lim")()
             for edit, value in zip((lower, upper), values, strict=False):
                 edit.setText(
-                    dates.num2date(value, tz=timezone).isoformat() if is_date else f"{value:.12g}"
+                    format_profile_time(value)
+                    if profile
+                    else dates.num2date(value, tz=timezone).isoformat()
+                    if is_date
+                    else f"{value:.12g}"
                 )
         self.error.hide()
 
@@ -288,7 +301,13 @@ class GraphSettings(QFrame):
                     limits[axis] = None
                     continue
                 is_date, _ = _calendar_axis(ax, axis)
-                parse = dates.datestr2num if is_date else float
+                parse = (
+                    parse_profile_time
+                    if axis == "x" and getattr(ax, "_paradigma_profile", False)
+                    else dates.datestr2num
+                    if is_date
+                    else float
+                )
                 values = tuple(float(parse(edit.text().strip())) for edit in (lower, upper))
                 if not all(math.isfinite(value) for value in values) or values[0] >= values[1]:
                     raise ValueError
