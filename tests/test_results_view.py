@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.core import export_results
+from paradigma_studio.day_axis import RecordingDayFormatter
 from paradigma_studio.history import load_result_export
 from paradigma_studio.results_view import (
     aggregation_tables,
@@ -28,7 +29,6 @@ from paradigma_studio.results_view import (
     segment_summary,
     time_bound,
 )
-from paradigma_studio.time_axis import RecordingTimeFormatter
 
 
 @pytest.mark.parametrize("missing", ["green", "gyroscope_x"])
@@ -406,7 +406,7 @@ def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_
     }
     axes = window.figure.axes
     assert len(axes) == 2 and axes[0].get_shared_x_axes().joined(*axes)
-    assert all(isinstance(ax.xaxis.get_major_formatter(), RecordingTimeFormatter) for ax in axes)
+    assert all(isinstance(ax.xaxis.get_major_formatter(), RecordingDayFormatter) for ax in axes)
     assert all("Recording time" in ax.get_xlabel() for ax in axes)
     np.testing.assert_allclose(
         bar_centers(axes[0]),

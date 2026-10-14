@@ -175,13 +175,15 @@ The y-axis labels identify the log scale. Tables and data exports retain raw pow
 Bar graphs use automatic y-axis limits based on the visible values, including
 prediction and data-coverage percentages; they are not fixed to 0–100%.
 Manual limits override this scaling until automatic scaling or Reset limits is selected.
-In 30-minute view, thin vertical separators mark midnight continuously across
-the graphs and their gaps. The shared axis shows clock times above dates centered
-beneath their days, retaining the recording's timezone (or leaving it unspecified
-when the original data has none). Labels adapt to the available width and zoom;
-wide ranges omit repeated midnight-only clock labels. Without a calendar clock,
-elapsed Day 1, Day 2 and hours are shown instead. Saved figures retain both rows.
-Bars and aggregation rules remain the same.
+Detailed and 30-minute views share a time-axis layout: thin vertical separators
+mark midnight continuously across the graphs and their gaps, with clock times
+above dates. The first date label starts at the left edge; later dates are centered
+beneath their days. The recording's timezone is retained (or left unspecified when
+the original data has none). Labels adapt to width and zoom, keeping midnight
+times visible across multiple days and spacing them out on longer ranges. Zooming
+in reveals hours, minutes, seconds and fractions of a second as needed. Without a
+calendar clock, elapsed Day 1, Day 2 and clock-style times are shown instead.
+Saved figures retain both rows. Bars and aggregation rules remain the same.
 Epochs align to calendar half-hours when a recording clock is known,
 or elapsed half-hours otherwise. Gait range of motion and peak velocity require
 at least 90 seconds of the corresponding filtered or unfiltered gait presence

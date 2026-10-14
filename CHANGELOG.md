@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Share the grouped date/time axis between Detailed and 30-minute graphs, retaining
+  spaced midnight labels on multi-day ranges and precise times when zoomed in.
 - Anchor the first date label in 30-minute graphs at the left edge, while keeping
   its date, later centered labels and non-overlapping spacing unchanged.
 - Explain worker selection in the processing log, including detected CPU count,

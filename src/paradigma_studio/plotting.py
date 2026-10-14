@@ -227,13 +227,19 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
         if not self.pinned_time_axis or not self.figure.axes:
             return super().print_figure(*args, **kwargs)
         axis = self.figure.axes[-1]
+        original_size = self.figure.get_size_inches().copy()
         self.exporting_time_axis = True
         axis.tick_params(axis="x", which="both", labelbottom=True)
         axis.xaxis.label.set_visible(True)
         axis.xaxis.offsetText.set_visible(True)
         try:
+            if getattr(axis, "_paradigma_day_groups", False):
+                # Compact indicator tracks have no live axis below them. Reserve
+                # its two rows in exports without resizing the Qt canvas.
+                self.figure.set_size_inches(original_size + [0, 0.65], forward=False)
             return super().print_figure(*args, **kwargs)
         finally:
+            self.figure.set_size_inches(original_size, forward=False)
             axis.tick_params(axis="x", which="both", labelbottom=False)
             axis.xaxis.label.set_visible(False)
             axis.xaxis.offsetText.set_visible(False)

@@ -28,7 +28,7 @@ from ..plotting import (
 from ..profile_axis import style_profile_axis
 from ..results_view import MODULE_NAMES, clock_origin, clock_times
 from ..theme import module_color, style_axes, style_result_heading
-from ..time_axis import RecordingDateLocator, RecordingTimeFormatter
+from ..time_axis import RecordingTimeFormatter
 
 PROFILE_VIEW = 3
 
@@ -492,9 +492,6 @@ class ResultGraphs:
         )
         if self.display_clock is not None:
             timezone = clock_origin(self.display_clock).tz
-            locator = RecordingDateLocator(tz=timezone)
-            ax.xaxis.set_major_locator(locator)
-            ax.xaxis.set_major_formatter(RecordingTimeFormatter(timezone))
             ax.set_xlabel(
                 f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
             )
@@ -511,8 +508,8 @@ class ResultGraphs:
             self._style_profile_axis(ax)
         elif self.result_graph_view.currentIndex() == 2:
             self._style_daily_axis(ax)
-        elif self.result_graph_view.currentIndex() == 1:
-            self._style_epoch_axis(ax)
+        else:
+            self._style_grouped_time_axis(ax)
         ax.tick_params(axis="x", labelbottom=False)
         ax.xaxis.label.set_visible(False)
         ax.xaxis.offsetText.set_visible(False)
@@ -528,7 +525,7 @@ class ResultGraphs:
         ax.margins(x=0)
         ax.update_datalim([[0, 0], [DAY_SECONDS, 0]])
 
-    def _style_epoch_axis(self, ax):
+    def _style_grouped_time_axis(self, ax):
         calendar = self.display_clock is not None
         timezone = clock_origin(self.display_clock).tz if calendar else None
         style_epoch_axis(

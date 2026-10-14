@@ -16,9 +16,9 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionButton, QWidget
 
 from paradigma_studio.app import MainWindow
+from paradigma_studio.day_axis import RecordingDayFormatter
 from paradigma_studio.plotting import binary_indicator
 from paradigma_studio.results_view import clock_times
-from paradigma_studio.time_axis import RecordingTimeFormatter
 from paradigma_studio.time_controls import TimeField
 
 
@@ -434,7 +434,7 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
     assert window.graph_view.isAncestorOf(window.time_axis)
     assert not window.results_scroll.isAncestorOf(window.time_axis)
     assert not window.graph_scroll.isAncestorOf(window.time_axis)
-    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingTimeFormatter)
+    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
     assert "Recording time" in window.time_axis.axes.get_xlabel()
     for bar in (window.results_scroll.verticalScrollBar(), window.graph_scroll.verticalScrollBar()):
         assert bar.maximum() > 100

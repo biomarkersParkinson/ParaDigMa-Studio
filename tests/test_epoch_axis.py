@@ -1,7 +1,8 @@
-"""Grouped 30-minute dates/hours preserve data and use true midnight boundaries."""
+"""Grouped Results dates/hours preserve data and use true midnight boundaries."""
 
 from copy import deepcopy
 from io import BytesIO
+from warnings import catch_warnings, filterwarnings
 
 import numpy as np
 import pandas as pd
@@ -150,11 +151,26 @@ def test_fallback_hour_disambiguation_is_retained_on_the_clock_row():
     figure.canvas.draw()
 
 
-def test_long_ranges_thin_dates_omit_redundant_hours_and_restore_hours_on_zoom():
+@pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam", "Asia/Kathmandu"])
+def test_multi_day_clock_row_shows_every_local_midnight_when_there_is_room(timezone):
+    figure, axis, stamps = epoch_axis(start="2026-10-23", days=7, timezone=timezone)
+    figure.canvas.draw()
+    np.testing.assert_allclose(axis.get_xticks(minor=True), dates.date2num(stamps))
+    labels = axis.get_xticklabels(minor=True)
+    assert all(label.get_text() == "00:00" for label in labels)
+    boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in labels]
+    assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
+
+
+def test_long_ranges_thin_dates_and_midnight_times_and_restore_hours_on_zoom():
     figure, axis, stamps = epoch_axis(days=60, width=600)
     figure.canvas.draw()
     assert 0 < len(axis.get_xticks()) < 60
-    assert not len(axis.get_xticks(minor=True))
+    times = axis.get_xticklabels(minor=True)
+    assert 0 < len(times) < 60
+    assert all(label.get_text() == "00:00" for label in times)
+    time_boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in times]
+    assert all(left.x1 < right.x0 for left, right in zip(time_boxes, time_boxes[1:], strict=False))
     boxes = [
         label.get_window_extent(figure.canvas.get_renderer()) for label in axis.get_xticklabels()
     ]
@@ -164,6 +180,27 @@ def test_long_ranges_thin_dates_omit_redundant_hours_and_restore_hours_on_zoom()
     figure.canvas.draw()
     assert [label.get_text() for label in axis.get_xticklabels()] == ["14 Oct 2026"]
     assert len(axis.get_xticks(minor=True)) > 1
+
+
+@pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
+@pytest.mark.parametrize("span", [20, 0.2], ids=["seconds", "subseconds"])
+def test_zoomed_clock_row_keeps_distinct_precise_times(calendar, span):
+    figure, axis, stamps = epoch_axis()
+    start = dates.date2num(stamps[0]) if calendar else 0
+    unit = 86400 if calendar else 1
+    style_epoch_axis(
+        axis,
+        "Europe/Amsterdam" if calendar else None,
+        calendar=calendar,
+        clock_formatter=RecordingTimeFormatter("Europe/Amsterdam", show_date=False),
+        labels=True,
+    )
+    axis.set_xlim(start + 0.1 / unit, start + (0.1 + span) / unit)
+    figure.canvas.draw()
+    labels = [label.get_text() for label in axis.get_xticklabels(minor=True)]
+    assert len(labels) > 1 and len(set(labels)) == len(labels)
+    assert all(label.count(":") == 2 and "\n" not in label for label in labels)
+    assert all("." in label for label in labels) == (span < 1)
 
 
 def test_elapsed_day_groups_do_not_invent_dates_or_change_the_numeric_timeline():
@@ -178,6 +215,11 @@ def test_elapsed_day_groups_do_not_invent_dates_or_change_the_numeric_timeline()
         [segment[0, 0] for segment in separator.lines.get_segments()], [0, 86400, 172800]
     )
     assert axis.get_xlim() == (0, 172800)
+
+    axis.set_xlim(0, 7 * 86400)
+    figure.canvas.draw()
+    np.testing.assert_array_equal(axis.get_xticks(minor=True), np.arange(8) * 86400)
+    assert all(label.get_text() == "00:00" for label in axis.get_xticklabels(minor=True))
 
 
 def test_repeated_drawing_reuses_time_ticks_and_separator_geometry(monkeypatch):
@@ -253,10 +295,10 @@ def test_graph_changes_reuse_one_bridge_and_other_views_and_clear_remove_it(wind
             artist for artist in window.figure.artists if isinstance(artist, MidnightBridges)
         ] == [bridge]
         assert bool(bridge.lines.get_segments()) == (state == Qt.Checked)
-    for mode in (2, 0, 1):
+    for mode in (2, 0, 3, 1):
         window.result_graph_view.setCurrentIndex(mode)
         assert any(isinstance(artist, MidnightBridges) for artist in window.figure.artists) == (
-            mode == 1
+            mode in (0, 1)
         )
     window.clear_results()
     assert not any(isinstance(artist, MidnightBridges) for artist in window.figure.artists)
@@ -303,7 +345,8 @@ def test_axis_limits_keep_dates_or_seconds_for_all_views(window, view, calendar)
     )
 
 
-def test_live_epoch_axis_and_exports_keep_days_hours_selection_and_values(window):
+@pytest.mark.parametrize("view", [0, 1], ids=["detailed", "30-minute"])
+def test_live_grouped_axis_and_exports_keep_days_hours_selection_and_values(window, view):
     window.resize(1450, 920)
     window.provenance = {
         "display_clock": {"origin": "2026-10-14T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
@@ -312,12 +355,12 @@ def test_live_epoch_axis_and_exports_keep_days_hours_selection_and_values(window
     original = deepcopy(results)
     window.analyzed(results)
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
-    window.result_graph_view.setCurrentIndex(1)
+    window.result_graph_view.setCurrentIndex(view)
     QApplication.instance().processEvents()
     window.canvas.draw()
     window.time_axis.draw()
     axis = window.figure.axes[0]
-    summary = axis._paradigma_epoch_data.copy(deep=True)
+    summary = axis._paradigma_epoch_data.copy(deep=True) if view == 1 else None
     values = [path.vertices.copy() for path in axis.collections[0].get_paths()]
     facecolors = axis.collections[0].get_facecolors().copy()
     assert any(isinstance(artist, MidnightSeparators) for artist in axis.artists)
@@ -344,10 +387,15 @@ def test_live_epoch_axis_and_exports_keep_days_hours_selection_and_values(window
             )
         ),
     )
-    window.figure.savefig(image, format="png", dpi=150)
+    original_size = window.figure.get_size_inches().copy()
+    with catch_warnings():
+        filterwarnings("error", message="constrained_layout not applied.*")
+        window.figure.savefig(image, format="png", dpi=150)
     assert image.getvalue().startswith(b"\x89PNG") and (True, True) in seen
+    np.testing.assert_array_equal(window.figure.get_size_inches(), original_size)
     assert not axis.get_xticklabels() and not axis.get_xticklabels(minor=True)
-    pd.testing.assert_frame_equal(axis._paradigma_epoch_data, summary, check_exact=True)
+    if summary is not None:
+        pd.testing.assert_frame_equal(axis._paradigma_epoch_data, summary, check_exact=True)
     np.testing.assert_array_equal(axis.collections[0].get_facecolors(), facecolors)
     for path, before in zip(axis.collections[0].get_paths(), values, strict=True):
         np.testing.assert_array_equal(path.vertices, before)
@@ -360,5 +408,26 @@ def test_live_epoch_axis_and_exports_keep_days_hours_selection_and_values(window
     assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
     assert not window.time_axis.axes.get_xticklabels(minor=True)
     window.result_graph_view.setCurrentIndex(0)
-    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingTimeFormatter)
-    assert not window.time_axis.axes.get_xticklabels(minor=True)
+    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
+    assert window.time_axis.axes.get_xticklabels(minor=True)
+
+
+def test_failed_grouped_axis_export_restores_live_size_and_label_visibility(window, monkeypatch):
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+
+    window.analyzed(epoch_results())
+    select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
+    original_size = window.figure.get_size_inches().copy()
+    original_canvas_size = window.canvas.size()
+
+    def fail(*args, **kwargs):
+        raise OSError("Cannot write figure")
+
+    monkeypatch.setattr(FigureCanvasQTAgg, "print_figure", fail)
+    with pytest.raises(OSError, match="Cannot write figure"):
+        window.figure.savefig(BytesIO(), format="png")
+    np.testing.assert_array_equal(window.figure.get_size_inches(), original_size)
+    assert window.canvas.size() == original_canvas_size
+    assert not window.canvas.exporting_time_axis
+    assert not window.figure.axes[-1].get_xticklabels()
+    assert not window.figure.axes[-1].get_xticklabels(minor=True)

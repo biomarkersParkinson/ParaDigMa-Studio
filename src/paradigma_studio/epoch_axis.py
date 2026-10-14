@@ -1,4 +1,4 @@
-"""Grouped day/time axes for epoch graphs, retaining the original bars."""
+"""Grouped day/time axes shared by detailed and epoch Results graphs."""
 
 import numpy as np
 from matplotlib import dates, ticker
@@ -10,7 +10,7 @@ from .day_axis import RecordingDayFormatter, RecordingDayLocator, _visible_days
 
 
 class EpochHourLocator(ticker.Locator):
-    """Subday clock ticks only when there is space for meaningful hour labels."""
+    """Clock ticks with readable spacing, retaining midnights on wide ranges."""
 
     def __init__(self, timezone=None, *, calendar=True):
         self.timezone, self.calendar = timezone, calendar
@@ -36,23 +36,45 @@ class EpochHourLocator(ticker.Locator):
             locator.set_axis(self.axis)
             locations = locator()
             if locator._freq <= dates.DAILY:
-                return np.array([])
+                return self._midnight_locations(low, high, capacity)
         else:
-            steps = np.array(
-                [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200]
-            )
-            target = (high - low) / capacity
-            if target > steps[-1]:
-                return np.array([])
-            step = steps[np.searchsorted(steps, target)]
-            locations = np.arange(np.ceil(low / step), np.floor(high / step) + 1) * step
+            locations = self._elapsed_locations(low, high, capacity)
         return locations[(locations >= low) & (locations <= high)]
+
+    def _elapsed_locations(self, low, high, capacity):
+        steps = np.array(
+            [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200]
+        )
+        target = (high - low) / capacity
+        if target < 1:
+            return ticker.MaxNLocator(nbins=capacity).tick_values(low, high)
+        if target > steps[-1]:
+            return self._midnight_locations(low, high, capacity)
+        step = steps[np.searchsorted(steps, target)]
+        return np.arange(np.ceil(low / step), np.floor(high / step) + 1) * step
+
+    def _midnight_locations(self, low, high, capacity):
+        starts, ends, numbers = _visible_days(low, high, self.timezone, self.calendar)
+        positions = np.r_[starts, ends[-1:]]
+        numbers = np.r_[numbers, numbers[-1:] + 1]
+        visible = (positions >= low) & (positions <= high)
+        positions, numbers = positions[visible], numbers[visible]
+        stride = max(1, int(np.ceil(len(positions) / capacity)))
+        return positions[numbers % stride == 0]
 
 
 class ElapsedHourFormatter(ticker.Formatter):
     def __call__(self, value, pos=None):
-        seconds = round(value) % int(DAY_SECONDS)
-        return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}"
+        span = abs(np.diff(self.axis.get_view_interval())[0])
+        seconds = round(value, 3) % DAY_SECONDS
+        hours, seconds = divmod(seconds, 3600)
+        minutes, seconds = divmod(seconds, 60)
+        text = f"{int(hours):02d}:{int(minutes):02d}"
+        if span < 2:
+            text += f":{seconds:06.3f}"
+        elif span < 120:
+            text += f":{int(seconds):02d}"
+        return text
 
 
 def _midnight_positions(low, high, width, timezone, calendar):
