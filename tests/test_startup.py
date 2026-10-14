@@ -90,6 +90,38 @@ def test_first_window_does_not_load_analysis_stack(tmp_path):
     assert 0 < data["import_seconds"] <= data["first_paint_seconds"]
 
 
+def test_empty_graph_views_do_not_import_the_data_or_analysis_stack(tmp_path):
+    report = tmp_path / "startup-empty-graphs.json"
+    code = """import sys, time
+started = time.perf_counter()
+from paradigma_studio.startup import startup_test
+from paradigma_studio.app import MainWindow
+original = MainWindow.show
+def show_graphs(self):
+    self.navigate(2)
+    self.result_tabs.setCurrentIndex(1)
+    for index in range(self.result_graph_view.count()):
+        self.result_graph_view.setCurrentIndex(index)
+        assert not self.context_button.isEnabled()
+    original(self)
+MainWindow.show = show_graphs
+sys.exit(startup_test(sys.argv[1], started))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(report)],
+        cwd=tmp_path,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "MPLCONFIGDIR": str(tmp_path / "mpl")},
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(report.read_text())
+    assert data["status"] == "passed"
+    assert data["data_modules_loaded"] == []
+    assert data["analysis_modules_loaded"] == []
+
+
 @pytest.mark.parametrize("run_count", [0, 200])
 def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_path, run_count):
     from paradigma_studio.history import new_run

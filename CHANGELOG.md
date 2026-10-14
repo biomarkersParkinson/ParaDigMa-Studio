@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep pandas and pyarrow deferred while opening the empty workspace, Runs and
+  empty graph views; inspect sensor-context row values only when a row exists.
 - Add a 24-hour profile averaging valid 30-minute summaries at each time of day
   across recordings' days. Give each day equal weight, retain existing presence
   thresholds, exclude missing epochs and preserve the recording timezone.

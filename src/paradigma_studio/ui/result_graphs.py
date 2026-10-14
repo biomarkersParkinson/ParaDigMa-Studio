@@ -597,17 +597,20 @@ class ResultGraphs:
         self.highlight_result_row()
 
     def update_context_action(self, current):
-        import pandas as pd
-
         frame = self.active_frame
         valid_row = current.isValid() and frame is not None
-        timestamp = (
-            valid_row
-            and "time" in frame
-            and pd.api.types.is_numeric_dtype(frame["time"].dtype)
-            and pd.notna(frame["time"].iloc[current.row()])
-            and np.isfinite(frame["time"].iloc[current.row()])
-        )
+        timestamp = False
+        if valid_row:
+            # Empty Results plots also refresh this button during startup.
+            # Inspect tabular values only after a real result row exists.
+            import pandas as pd
+
+            timestamp = (
+                "time" in frame
+                and pd.api.types.is_numeric_dtype(frame["time"].dtype)
+                and pd.notna(frame["time"].iloc[current.row()])
+                and np.isfinite(frame["time"].iloc[current.row()])
+            )
         segment = (
             gait_context(self.results, self.dataset.currentText(), frame.iloc[current.row()])
             if valid_row
