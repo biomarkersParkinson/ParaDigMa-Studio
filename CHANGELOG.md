@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Automatically scale percentage graphs in 30-minute and Day views to the
+  visible bars, with manual limits and Reset limits available as before.
+- Order run-detail tabs as Recordings, Parameters, Warnings, Errors,
+  Processing log, Saved run and Exports.
 - Add Day graphs: calendar-day percentages and medians, requiring 864 seconds
   of valid data for each metric; preserve the existing 30-minute presence rules.
 - Move the Runs filename list into a dedicated Recordings detail tab.

@@ -166,6 +166,9 @@ and 30-minute epochs or Day. Continuous values show the median; binary predictio
 percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
 aggregate transformation; epoch medians are calculated after this transformation.
 The y-axis labels identify the log scale. Tables and data exports retain raw power.
+Bar graphs use automatic y-axis limits based on the visible values, including
+prediction and data-coverage percentages; they are not fixed to 0–100%.
+Manual limits override this scaling until automatic scaling or Reset limits is selected.
 Epochs align to calendar half-hours when a recording clock is known,
 or elapsed half-hours otherwise. Gait range of motion and peak velocity require
 at least 90 seconds of the corresponding filtered or unfiltered gait presence
@@ -270,6 +273,8 @@ tables or metadata groups to include:
 - **Runs:** stores status, parameters, separate warnings and errors, logs and saved
   result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
   The **Recordings** tab lists the selected run's input filenames and paths.
+  Detail tabs are ordered Recordings, Parameters, Warnings, Errors,
+  Processing log, Saved run and Exports.
   **Saved** reports whether a local result snapshot is available; **Exports** counts
   separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
   Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save

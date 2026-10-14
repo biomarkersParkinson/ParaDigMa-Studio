@@ -893,13 +893,13 @@ class WorkspaceLayout:
         )
         self.log = readout()
         for widget, title in (
-            (self.run_details, "Parameters"),
             (self.run_recordings, "Recordings"),
+            (self.run_details, "Parameters"),
             (self.run_warnings, "Warnings"),
             (self.run_errors, "Errors"),
+            (self.log, "Processing log"),
             (self.run_saved, "Saved run"),
             (self.run_outputs, "Exports"),
-            (self.log, "Processing log"),
         ):
             self.run_detail_tabs.addTab(widget, title)
         content.addWidget(self.run_detail_tabs, 1)

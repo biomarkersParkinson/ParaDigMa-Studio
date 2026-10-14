@@ -316,7 +316,7 @@ class ResultGraphs:
         xs = clock_times(times, self.display_clock)
         ax._paradigma_epoch = epochs
         if epochs:
-            self._render_epoch_series(ax, name, metric, positions, binary, percentage)
+            self._render_epoch_series(ax, name, metric, positions, binary)
         elif len(selected) and np.isfinite(times).any():
             color = module_color(
                 "preparation" if name.startswith("preparation/") else name.split("/")[1]
@@ -359,7 +359,7 @@ class ResultGraphs:
                 values = np.log10(values + 1)
         return values
 
-    def _render_epoch_series(self, ax, name, metric, positions, binary, percentage):
+    def _render_epoch_series(self, ax, name, metric, positions, binary):
         summary = self.epoch_plot_data(name, metric, positions, binary)
         ax._paradigma_epoch_data = summary
         color = module_color(
@@ -394,8 +394,6 @@ class ResultGraphs:
                 color="#68778c",
                 fontsize=9,
             )
-        if percentage:
-            ax.set_ylim(0, 100)
 
     def _render_binary_series(self, ax, name, metric, positions, xs, ys, color):
         if (

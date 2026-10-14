@@ -165,7 +165,9 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     )
     coverage = next(ax for (name, metric), ax in axes.items() if name.startswith("preparation/"))
     np.testing.assert_array_equal(coverage._paradigma_epoch_data.value, [100, 0, 100])
-    assert axes["classifications/tremor", "pred_tremor_checked"].get_ylim() == (0, 100)
+    presence = axes["classifications/tremor", "pred_tremor_checked"]
+    assert presence.get_autoscaley_on()
+    assert presence.get_ylim()[0] == 0 and presence.get_ylim()[1] > 100
     # Selecting an aggregate bar links to an actual row; its marker uses the
     # transformed epoch median rather than the selected raw power (100).
     window.graph_clicked(SimpleNamespace(inaxes=power, xdata=900.0))
