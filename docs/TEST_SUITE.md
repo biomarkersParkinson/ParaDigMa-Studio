@@ -16,9 +16,9 @@ trigger and expected behavior still apply.
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |
-| Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py` |
+| Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py`, `test_daily.py` |
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
-| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_time_axis.py` |
+| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_time_axis.py`, `test_day_axis.py` |
 | Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_pan_performance.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, serialization and background completion | `test_result_exports.py` |

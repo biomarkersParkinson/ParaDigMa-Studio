@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint, Signal
 
+from .day_axis import RecordingDayFormatter, RecordingDayLocator
 from .plotting import time_selection_triangle
 
 
@@ -151,7 +152,16 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         if source is not None:
             self._source_connection = source.callbacks.connect("xlim_changed", self.synchronize)
             locator = source.xaxis.get_major_locator()
-            if isinstance(locator, dates.DateLocator):
+            if isinstance(locator, RecordingDayLocator):
+                self._date_timezone = locator.timezone if locator.calendar else None
+                self.axes.xaxis.set_major_locator(
+                    RecordingDayLocator(locator.timezone, calendar=locator.calendar)
+                )
+                self.axes.xaxis.set_major_formatter(
+                    RecordingDayFormatter(locator.timezone, calendar=locator.calendar)
+                )
+                self.setFixedHeight(62 if locator.calendar else 42)
+            elif isinstance(locator, dates.DateLocator):
                 self._date_timezone = locator.tz
                 locator = RecordingDateLocator(tz=locator.tz, minticks=3, maxticks=7)
                 self.axes.xaxis.set_major_locator(locator)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Center date labels beneath each day in Day graphs, adapting their spacing to
+  the available width and zoom; retain the existing bars and background.
 - Reduce raw-input loading overhead by reusing missing-value counts and avoiding
   redundant statistics/scaling arrays. Preserve exact samples and statistics;
   initial loading still completes every statistic before displaying recordings.

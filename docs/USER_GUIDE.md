@@ -185,7 +185,11 @@ only; tables, exports and official aggregates remain unchanged.
 
 **Day** groups outputs by calendar day, from midnight to midnight in the recording's
 display timezone, including daylight-saving changes. Without an absolute clock,
-it uses elapsed 24-hour blocks from the recording's time origin. Each metric needs
+it uses elapsed 24-hour blocks from the recording's time origin. The shared axis
+centers a date beneath each day, with the year on a second line. Dates appear for
+every day when they fit; a longer range or narrower window spaces them out, and
+zooming in restores the individual dates. Without an absolute clock, the labels
+use Day 1, Day 2, and so on. Figure exports retain these labels. Each metric needs
 at least **864 seconds (14 minutes 24 seconds)** of valid data in a day—1% of a
 24-hour period. This fixed minimum also applies to partial and daylight-saving days.
 Both zero and one predictions count as available binary data; missing or non-finite

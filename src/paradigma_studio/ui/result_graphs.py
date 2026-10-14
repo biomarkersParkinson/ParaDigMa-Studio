@@ -5,6 +5,7 @@ from matplotlib import dates
 from matplotlib.lines import Line2D
 
 from ..daily import daily_availability_summary, daily_summary, gait_daily_summaries
+from ..day_axis import RecordingDayFormatter, RecordingDayLocator
 from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
@@ -466,9 +467,22 @@ class ResultGraphs:
                 if len(self.provenance.get("sources", {})) > 1
                 else "Elapsed analysis time (s)"
             )
+        if self.result_graph_view.currentIndex() == 2:
+            self._style_daily_axis(ax)
         ax.tick_params(axis="x", labelbottom=False)
         ax.xaxis.label.set_visible(False)
         ax.xaxis.offsetText.set_visible(False)
+
+    def _style_daily_axis(self, ax):
+        calendar = self.display_clock is not None
+        timezone = clock_origin(self.display_clock).tz if calendar else None
+        ax.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar))
+        ax.xaxis.set_major_formatter(RecordingDayFormatter(timezone, calendar=calendar))
+        ax.set_xlabel(
+            f"Recording date ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+            if calendar
+            else "Day (elapsed 24-hour periods)"
+        )
 
     def _finish_result_plot(self, first_axes, shared, viewport, previous_y):
         # Recompute the shared full extent even if the retained master was
