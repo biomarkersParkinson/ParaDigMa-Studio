@@ -7,6 +7,12 @@
   of data still pays the deferred import cost.
 - Data statistics and clock previews use bounded background caches. Recording
   switches reuse previews; obsolete requests cannot replace the latest selection.
+  Initial inspection counts missing values once per column and reuses those
+  counts in the channel summaries. Finite channels avoid a filtered sample copy;
+  quantiles retain their own workspace so source values stay unchanged. TSDF
+  scaling casts and multiplies into one double-precision output array through
+  NumPy, retaining the official reader and metadata validation. Every initial
+  statistic still finishes before a recording is displayed.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
   Panning reuses settled layouts and redraws visible plots before a full redraw
@@ -38,6 +44,25 @@ redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
 ## Reproduce measurements
+
+An isolated Linux loading check on 14 October 2026 compared these changes with
+commit `7ed2988` using a synthetic 24-hour, 100 Hz TSDF recording (8,640,000 rows,
+six int16 sensor channels, 0.01 scaling factors and difference-ms time). Warm
+imports and file caches, five repeats per operation, and exact comparisons of
+the complete loaded frames and statistics produced these median times:
+
+| Operation | Before | After |
+| --- | --- | --- |
+| Decode and scale TSDF | 0.50 s | 0.40 s |
+| Complete initial statistics | 2.10 s | 1.84 s |
+| Decode, scale and complete statistics | 2.40 s | 2.07 s |
+
+The combined operation took about 14% less time. Separately measured peak traced
+allocations were essentially unchanged: remaining reader and time-statistic
+workspaces still dominate the peak. This comparison excludes Qt rendering and
+does not predict cold-file loading, Windows timings or other input distributions.
+Regression cases compare exact dtypes, missingness and float bit patterns against
+the previous scaling operation, and verify untouched files/shared source arrays.
 
 An isolated Linux check on 14 October 2026 compared the production single-worker
 and automatic paths on four prepared gait recordings, each an eightfold synthetic

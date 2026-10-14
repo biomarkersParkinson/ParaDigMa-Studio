@@ -96,3 +96,61 @@ def test_no_intervals_produces_unknown_cadence_not_an_invented_rate(series):
 def test_custom_time_channel_is_not_counted_as_a_sensor():
     frame = pd.DataFrame({"device_ticks": [0, 10, 20], "gyroscope_x": [1.0, 2.0, 3.0]})
     assert sensor_descriptives(frame, "device_ticks")["Channel"].tolist() == ["gyroscope_x"]
+
+
+def test_inspection_counts_all_missing_values_and_preserves_mixed_source_types():
+    frame = pd.DataFrame(
+        {
+            "time": [0.0, 0.01, np.nan, 0.03, 0.04, 0.05],
+            "time_dt": pd.to_datetime(["2026-10-14"] * 5 + [None], utc=True),
+            "gyroscope_x": pd.Series([0, 2, 4, 6, pd.NA, pd.NA], dtype="Int64"),
+            "gyroscope_y": [0.0, 2.0, 4.0, 6.0, np.inf, -np.inf],
+            "quality": pd.Series([True, False, True, False, pd.NA, pd.NA], dtype="boolean"),
+            "label": pd.Series(["a", None, "b", "c", "d", "e"], dtype="string"),
+            "category": pd.Categorical(["a", "b", None, "a", "b", "a"]),
+            "complex": [1j, 2j, 3j, 4j, complex(np.nan, 0), 6j],
+        }
+    )
+    frame.attrs["desktop_recording_start"] = "2026-10-14T00:00:00+00:00"
+    original = frame.copy(deep=True)
+    report = inspect_recording(frame, "relative_s")
+    sensors = report["sensors"].set_index("Channel")
+    assert report["missing"] == 9
+    assert sensors["Missing"].to_dict() == {
+        "gyroscope_x": 2,
+        "gyroscope_y": 0,
+        "quality": 2,
+        "label": 1,
+        "category": 1,
+        "complex": 1,
+    }
+    for channel in ("gyroscope_x", "gyroscope_y"):
+        assert sensors.loc[channel, "Median"] == 3
+        assert sensors.loc[channel, "IQR"] == 3
+        assert sensors.loc[channel, "Range"] == "0 – 6"
+    assert sensors.loc["gyroscope_y", "Infinite"] == 2
+    pd.testing.assert_frame_equal(
+        report["sensors"], sensor_descriptives(frame, "time"), check_exact=True
+    )
+    pd.testing.assert_frame_equal(report["time"], time_descriptives(frame.time), check_exact=True)
+    pd.testing.assert_frame_equal(frame, original, check_exact=True)
+    assert frame.attrs == original.attrs
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64", "Int64"])
+@pytest.mark.parametrize("missing", [False, True])
+def test_exact_sensor_quantiles_and_source_samples_remain_unchanged(dtype, missing):
+    observations = [8, -4, 6, 0, 2, 10, -2, 4]
+    series = pd.Series(observations, dtype=dtype)
+    if missing:
+        series.iloc[2] = pd.NA if dtype == "Int64" else np.nan
+    frame = pd.DataFrame({"time": np.arange(len(series)) * 0.01, "sensor": series})
+    original = frame.copy(deep=True)
+    expected = series.dropna().astype(float).describe(percentiles=[0.25, 0.5, 0.75])
+    report = inspect_recording(frame, "relative_s")
+    sensor = report["sensors"].iloc[0]
+    assert sensor["Median"] == expected["50%"]
+    assert sensor["IQR"] == expected["75%"] - expected["25%"]
+    assert sensor["Range"] == f"{expected['min']:.5g} – {expected['max']:.5g}"
+    assert report["missing"] == int(missing)
+    pd.testing.assert_frame_equal(frame, original, check_exact=True)

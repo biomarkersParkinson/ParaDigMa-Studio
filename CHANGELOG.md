@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reduce raw-input loading overhead by reusing missing-value counts and avoiding
+  redundant statistics/scaling arrays. Preserve exact samples and statistics;
+  initial loading still completes every statistic before displaying recordings.
 - Process multiple recordings in up to two reusable, CPU/RAM-limited workers.
   Preserve the official pipelines and pooled aggregates; single recordings,
   including their gap sections, still use one worker. Stop cleans up all workers.

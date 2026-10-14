@@ -10,7 +10,7 @@ trigger and expected behavior still apply.
 | Responsibility | Test modules |
 | --- | --- |
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
-| Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py` |
+| Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py`, `test_tsdf_input.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
 | Spawned recording workers, limits, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
@@ -36,6 +36,12 @@ and a packaged probe checks that frozen imports and classifier assets work.
 Those layers are complementary. Performance regressions primarily check retained
 values, cache reuse, redraw counts and event-loop responsiveness; hardware timings
 belong in the benchmark scripts rather than strict CI time limits.
+
+Loading regressions check exact TSDF values/dtypes against the previous scaling
+operation, signed-zero and float bit patterns, metadata errors, and untouched
+source files/shared arrays. Inspection cases retain exact quantiles and complete
+missing counts, including nullable, non-sensor and time columns. Scientific
+TSDF comparisons continue to exercise the real official pipeline stages.
 
 ## Shared fixtures and interactions
 

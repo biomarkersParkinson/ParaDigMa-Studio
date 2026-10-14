@@ -46,6 +46,8 @@ def _scale_stream(frame: pd.DataFrame, metadata: Any) -> None:
         raise ValueError("TSDF scale_factors must contain one finite number per channel.")
     for channel, factor in zip(metadata.channels, factors, strict=True):
         if factor != 1:
-            # Convert before multiplying: integer storage may otherwise overflow
-            # or truncate fractional physical values.
-            frame[channel] = frame[channel].astype(float) * factor
+            # Cast within the ufunc before multiplying, preserving double
+            # precision and avoiding an additional converted array. The output
+            # is new storage; the reader's potentially read-only view is untouched.
+            with np.errstate(all="ignore"):
+                frame[channel] = np.multiply(frame[channel].to_numpy(), factor, dtype=float)

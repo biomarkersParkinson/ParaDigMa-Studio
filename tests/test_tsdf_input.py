@@ -1,6 +1,7 @@
 """TSDF decoding follows its documented channel-wise physical scaling."""
 
 import hashlib
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,7 @@ from paradigma.load import load_tsdf_data
 
 from paradigma_studio.core import load_sensor_file
 from paradigma_studio.recordings import load_recordings
+from paradigma_studio.tsdf_input import _scale_stream
 
 
 @pytest.fixture
@@ -86,3 +88,59 @@ def test_data_graphs_display_scaled_values(tsdf_writer, stored_samples, window):
         scale = 0.1 if line.get_label() == "gyroscope_x" else 0.01
         np.testing.assert_allclose(line.get_ydata(), stored_samples[line.get_label()] * scale)
         np.testing.assert_array_equal(line.get_xdata(), stored_samples.time)
+
+
+@pytest.mark.parametrize("dtype", ["int16", "int64", "float32", "float64"])
+def test_tsdf_loaded_data_is_exactly_equal_to_previous_scaling(tsdf_writer, dtype):
+    samples = pd.DataFrame(
+        {
+            "time": [0, 10, 20, 30],
+            "gyroscope_x": [32767, -32768, 123, 0],
+            "gyroscope_y": [-4, 3, -2, 1],
+            "gyroscope_z": [1, 2, 3, 4],
+        }
+    )
+    if dtype == "int64":
+        samples["gyroscope_x"] = [2**63 - 1, -(2**63), 2**53 + 1, 0]
+    if dtype.startswith("float"):
+        samples["gyroscope_x"] = [-0.0, np.nan, np.inf, -np.inf]
+    factors = [0.1, -0.5, 1]
+    path = tsdf_writer(samples, dtype=dtype, scale_factors=factors, time_scale_factors=[0.001])
+    hashes = {file: hashlib.sha256(file.read_bytes()).digest() for file in path.parent.iterdir()}
+    expected, time_metadata, value_metadata = load_tsdf_data(path.parent, "IMU")
+    for metadata in (time_metadata, value_metadata):
+        for channel, factor in zip(metadata.channels, metadata.scale_factors, strict=True):
+            if factor != 1:
+                expected[channel] = expected[channel].astype(float) * factor
+    loaded = load_sensor_file(path)
+    pd.testing.assert_frame_equal(loaded, expected, check_exact=True)
+    for column in ("time", "gyroscope_x", "gyroscope_y"):
+        np.testing.assert_array_equal(
+            loaded[column].to_numpy().view("uint64"), expected[column].to_numpy().view("uint64")
+        )
+    assert loaded.attrs["desktop_recording_start"] == "2026-10-13 10:00:00+00:00"
+    assert hashes == {file: hashlib.sha256(file.read_bytes()).digest() for file in hashes}
+
+
+@pytest.mark.parametrize("dtype", ["int16", "int64", "uint64", "float32", "float64", ">i2", ">f8"])
+def test_scaling_preserves_shared_read_only_counts_and_float_bit_patterns(dtype):
+    observations = [0, 1, 2, 32767] if "u" in dtype else [0, 1, -2, -32768]
+    if dtype == "uint64":
+        observations = [0, 2**53 + 1, 2**63 + 1, 2**64 - 1]
+    if "f" in dtype:
+        observations = [-0.0, np.nan, np.inf, -np.inf]
+    source = np.asarray(observations, dtype=dtype)
+    source.flags.writeable = False
+    stored_bytes = source.tobytes()
+    for factor in (0.1, -0.5, 2, -0.0, 1e300):
+        frame = pd.DataFrame({"sensor": source}, copy=False)
+        alias = frame.copy(deep=False)
+        expected = frame.sensor.astype(float) * factor
+        with np.errstate(all="raise"):
+            _scale_stream(frame, SimpleNamespace(channels=["sensor"], scale_factors=[factor]))
+        pd.testing.assert_series_equal(frame.sensor, expected, check_exact=True)
+        np.testing.assert_array_equal(
+            frame.sensor.to_numpy().view("uint64"), expected.to_numpy().view("uint64")
+        )
+        assert source.tobytes() == stored_bytes
+        assert alias.sensor.to_numpy().tobytes() == stored_bytes

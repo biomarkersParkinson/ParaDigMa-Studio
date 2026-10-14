@@ -57,6 +57,10 @@ def default_time_column(frame):
 
 
 def sensor_descriptives(frame, time_column):
+    return _sensor_descriptives(frame, time_column, {})
+
+
+def _sensor_descriptives(frame, time_column, missing_counts):
     import pandas as pd
 
     records = []
@@ -74,7 +78,9 @@ def sensor_descriptives(frame, time_column):
         record = {
             "Channel": str(column),
             "Type": str(series.dtype),
-            "Missing": int(series.isna().sum()),
+            "Missing": (
+                missing_counts[column] if column in missing_counts else int(series.isna().sum())
+            ),
             "Infinite": 0,
             "Range": "—",
             "Median": np.nan,
@@ -85,7 +91,10 @@ def sensor_descriptives(frame, time_column):
         ):
             values = series.to_numpy(dtype=float, na_value=np.nan)
             record["Infinite"] = int(np.isinf(values).sum())
-            finite = values[np.isfinite(values)]
+            finite_mask = np.isfinite(values)
+            # Healthy channels need no filtered copy. Quantile keeps its own
+            # workspace, so source samples remain unchanged in either branch.
+            finite = values if finite_mask.all() else values[finite_mask]
             if len(finite):
                 q1, median, q3 = np.quantile(finite, [0.25, 0.5, 0.75])
                 record.update(
@@ -177,10 +186,13 @@ def time_descriptives(series, unit="relative_s"):
 
 def inspect_recording(frame, time_unit):
     column = default_time_column(frame)
+    # Count each column once, including time/non-sensor columns in the total,
+    # without constructing another full-table missingness mask.
+    missing_counts = {column: int(frame[column].isna().sum()) for column in frame}
     return {
         "time_column": column,
         "time_unit": time_unit,
-        "missing": int(frame.isna().sum().sum()),
-        "sensors": sensor_descriptives(frame, column),
+        "missing": sum(missing_counts.values()),
+        "sensors": _sensor_descriptives(frame, column, missing_counts),
         "time": time_descriptives(frame[column], time_unit) if column is not None else None,
     }
