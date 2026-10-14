@@ -41,21 +41,43 @@ def epoch_axis(start="2026-10-14", days=3, timezone="Europe/Amsterdam", width=10
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam", "Asia/Kathmandu"])
-def test_calendar_dates_and_clock_times_are_separate_and_centered(timezone):
+def test_first_date_starts_at_left_edge_and_later_dates_stay_centered(timezone):
     figure, axis, stamps = epoch_axis(timezone=timezone)
     figure.canvas.draw()
     assert [label.get_text() for label in axis.get_xticklabels()] == stamps[:-1].strftime(
         "%d %b %Y"
     ).tolist()
     boundaries = dates.date2num(stamps)
-    np.testing.assert_allclose(axis.get_xticks(), (boundaries[:-1] + boundaries[1:]) / 2)
+    expected = (boundaries[:-1] + boundaries[1:]) / 2
+    expected[0] = boundaries[0]
+    np.testing.assert_allclose(axis.get_xticks(), expected)
     clock = [label.get_text() for label in axis.get_xticklabels(minor=True)]
     assert clock and all("\n" not in label for label in clock)
     assert "00:00" in clock and any(label != "00:00" for label in clock)
     renderer = figure.canvas.get_renderer()
     dates_box = axis.get_xticklabels()[0].get_window_extent(renderer)
     clocks_box = axis.get_xticklabels(minor=True)[0].get_window_extent(renderer)
+    assert dates_box.x0 == pytest.approx(axis.bbox.x0)
     assert clocks_box.y0 > dates_box.y1
+
+
+def test_partial_day_margin_keeps_selected_date_at_left_without_inventing_another_date():
+    figure, axis, stamps = epoch_axis(start="2020-10-29", days=7, width=1800)
+    lower, upper = dates.date2num(stamps[[0, -1]])
+    axis.set_xlim(lower + 23.5 / 24, upper)
+    figure.canvas.draw()
+    labels = axis.get_xticklabels()
+    assert labels[0].get_text() == "30 Oct 2020"
+    boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in labels]
+    assert boxes[0].x0 == pytest.approx(axis.bbox.x0)
+    assert boxes[-1].x1 <= axis.bbox.x1
+    assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
+    axis.set_xlim(lower + 1.25, lower + 2.75)
+    figure.canvas.draw()
+    assert axis.get_xticklabels()[0].get_text() == "30 Oct 2020"
+    assert axis.get_xticklabels()[0].get_window_extent(figure.canvas.get_renderer()).x0 == (
+        pytest.approx(axis.bbox.x0)
+    )
 
 
 def stacked_epoch_axes():
@@ -136,6 +158,7 @@ def test_long_ranges_thin_dates_omit_redundant_hours_and_restore_hours_on_zoom()
     boxes = [
         label.get_window_extent(figure.canvas.get_renderer()) for label in axis.get_xticklabels()
     ]
+    assert boxes[0].x0 == pytest.approx(axis.bbox.x0)
     assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
     axis.set_xlim(dates.date2num(stamps[[0, 1]]))
     figure.canvas.draw()

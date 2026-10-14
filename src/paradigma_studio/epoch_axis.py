@@ -151,9 +151,11 @@ class MidnightBridges(Artist):
 
 def style_epoch_axis(axis, timezone, *, calendar, clock_formatter, labels=False):
     """Dates and hours occupy separate rows; do not add a shaded background."""
-    axis.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar, split_year=False))
+    axis.xaxis.set_major_locator(
+        RecordingDayLocator(timezone, calendar=calendar, split_year=False, first_at_start=True)
+    )
     axis.xaxis.set_major_formatter(
-        RecordingDayFormatter(timezone, calendar=calendar, split_year=False)
+        RecordingDayFormatter(timezone, calendar=calendar, split_year=False, first_at_start=True)
     )
     axis.xaxis.set_minor_locator(EpochHourLocator(timezone, calendar=calendar))
     axis.xaxis.set_minor_formatter(clock_formatter if calendar else ElapsedHourFormatter())

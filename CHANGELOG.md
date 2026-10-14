@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Anchor the first date label in 30-minute graphs at the left edge, while keeping
+  its date, later centered labels and non-overlapping spacing unchanged.
 - Explain worker selection in the processing log, including detected CPU count,
   available RAM, recording-memory estimates and single-worker fallback reasons.
 - Keep pandas and pyarrow deferred while opening the empty workspace, Runs and

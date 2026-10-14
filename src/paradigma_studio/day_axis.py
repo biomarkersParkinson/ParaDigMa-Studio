@@ -32,11 +32,12 @@ def _visible_days(low, high, timezone, calendar):
 
 
 class RecordingDayLocator(ticker.Locator):
-    """One centered date per day when measured label widths permit it."""
+    """One date per day, optionally anchoring the first at the visible start."""
 
-    def __init__(self, timezone=None, *, calendar=True, split_year=True):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True, first_at_start=False):
         self.timezone, self.calendar = timezone, calendar
         self.split_year = split_year
+        self.first_at_start = first_at_start
         self._layout_key = None
 
     def __call__(self):
@@ -47,6 +48,9 @@ class RecordingDayLocator(ticker.Locator):
         if key != self._layout_key:
             self._layout_key = key
             self._locations = self._day_locations(low, high, font)
+            self._first_label_value = self._locations[0] if len(self._locations) else None
+            if self.first_at_start and len(self._locations):
+                self._locations[0] = low
         return self._locations
 
     def _day_locations(self, low, high, font):
@@ -92,11 +96,25 @@ class RecordingDayLocator(ticker.Locator):
 
 
 class RecordingDayFormatter(ticker.Formatter):
-    def __init__(self, timezone=None, *, calendar=True, split_year=True):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True, first_at_start=False):
         self.timezone, self.calendar = timezone, calendar
         self.split_year = split_year
+        self.first_at_start = first_at_start
+        self._first_label_value = None
+
+    def set_locs(self, locs):
+        super().set_locs(locs)
+        locator = self.axis.get_major_locator()
+        self._first_label_value = getattr(locator, "_first_label_value", None)
+        for index, tick in enumerate(self.axis.get_major_ticks(len(locs))):
+            tick.label1.set_horizontalalignment(
+                "left" if self.first_at_start and index == 0 else "center"
+            )
 
     def __call__(self, value, pos=None):
+        if self.first_at_start and pos == 0 and self._first_label_value is not None:
+            # Keep the selected date even if the left margin lies on a prior day.
+            value = self._first_label_value
         if self.calendar:
             pattern = "%d %b\n%Y" if self.split_year else "%d %b %Y"
             return dates.num2date(value, tz=self.timezone).strftime(pattern)
