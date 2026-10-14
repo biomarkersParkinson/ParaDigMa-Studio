@@ -2,59 +2,106 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from .contracts import AnalysisSettings, SensorInput
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 GIB = 1024**3
 
 
-def parallel_worker_count(frame: SensorInput, settings: AnalysisSettings) -> int:
+def parallel_worker_count(
+    frame: SensorInput, settings: AnalysisSettings, logger: logging.Logger | None = None
+) -> int:
     """Use at most two workers, only across original recordings, with RAM headroom."""
     if not isinstance(frame, dict) or len(frame) < 2:
-        return 1
+        return _worker_selection(
+            logger, 1, "One original recording; its gap sections stay together."
+        )
     from .core import validate_recordings
 
     try:
         validate_recordings(frame)
     except ValueError:
-        return 1
+        return _worker_selection(
+            logger, 1, "Recording identifiers or tables need sequential validation."
+        )
     if any(
         other.startswith(key + "__segment_") for key in frame for other in frame if other != key
     ):
         # Preserve the sequential validator for ambiguous source/section names.
-        return 1
+        return _worker_selection(
+            logger, 1, "Recording identifiers overlap with section identifiers."
+        )
     # Explicit mutable toolbox configurations can carry state between files in
     # the official orchestrator. Preserve that behavior through its single-worker
     # path. The desktop's ordinary scalar parameters remain parallel-compatible.
-    if (
-        any(
-            settings.get(name) is not None
-            for name in (
-                "imu_config",
-                "ppg_config",
-                "gait_config",
-                "arm_activity_config",
-                "tremor_config",
-                "pulse_rate_config",
-            )
+    if any(
+        settings.get(name) is not None
+        for name in (
+            "imu_config",
+            "ppg_config",
+            "gait_config",
+            "arm_activity_config",
+            "tremor_config",
+            "pulse_rate_config",
         )
-        or settings.get("run_steps", "all") != "all"
     ):
-        return 1
-    cpu_limit = max(1, _available_cpu_count() - 1)
+        return _worker_selection(
+            logger, 1, "Custom mutable toolbox configurations require sequential execution."
+        )
+    if settings.get("run_steps", "all") != "all":
+        return _worker_selection(
+            logger, 1, "Restricted pipeline steps require sequential execution."
+        )
+    return _resource_worker_count(frame, logger)
+
+
+def _resource_worker_count(frames: dict[str, pd.DataFrame], logger: logging.Logger | None) -> int:
+    cpus = _available_cpu_count()
+    cpu_limit = max(1, cpus - 1)
     available = available_memory()
     if available is None:
-        return 1
-    largest = max(int(recording.memory_usage(deep=True).sum()) for recording in frame.values())
+        return _worker_selection(
+            logger, 1, f"Available CPUs: {cpus}; available RAM could not be determined."
+        )
+    largest = max(int(recording.memory_usage(deep=True).sum()) for recording in frames.values())
     # Preparation, resampling and windowed features use substantially more RAM
     # than a source frame. Reserve space for Qt, retained inputs and other apps.
     per_worker = max(GIB, largest * 12)
     memory_limit = max(1, (available - GIB) // per_worker)
-    return min(2, len(frame), cpu_limit, memory_limit)
+    workers = min(2, len(frames), cpu_limit, memory_limit)
+    details = (
+        f"Available CPUs: {cpus}; available RAM: {available / GIB:.2f} GiB; "
+        f"largest loaded recording: {largest / GIB:.2f} GiB; "
+        f"estimated RAM per worker: {per_worker / GIB:.2f} GiB; "
+        "RAM reserve: 1.00 GiB."
+    )
+    limits = []
+    if cpu_limit < 2:
+        limits.append("CPU limit (one CPU is reserved for the interface)")
+    if memory_limit < 2:
+        limits.append(
+            f"RAM limit (two workers need at least {(2 * per_worker + GIB) / GIB:.2f} GiB available)"
+        )
+    reason = (
+        "Single-worker fallback: " + "; ".join(limits) if limits else "Two workers are available"
+    )
+    return _worker_selection(logger, workers, f"{details} {reason}.")
+
+
+def _worker_selection(logger: logging.Logger | None, workers: int, reason: str) -> int:
+    if logger is not None:
+        logger.info(
+            "Worker selection: %s %s. %s", workers, "worker" if workers == 1 else "workers", reason
+        )
+    return workers
 
 
 def _available_cpu_count() -> int:

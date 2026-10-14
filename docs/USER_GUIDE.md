@@ -29,8 +29,11 @@ inventing elapsed times. Changing Data's selection does not change Analyze setti
 Each recording is validated and prepared separately. Feature windows and
 filtering never cross file boundaries. Multiple recordings can run in up to two
 workers when CPU and available RAM permit; a single recording always uses one
-worker, including its gap sections. Stop terminates every owned worker and removes
-temporary processing files. Classification and quantification tables
+worker, including its gap sections. The processing log reports the selected worker
+count and any fallback reason. Resource decisions show detected CPU count, free
+RAM after loading, largest recording size and estimated RAM per worker; installed
+RAM alone does not determine the worker count. Stop terminates every owned worker
+and removes temporary processing files. Classification and quantification tables
 are combined in input order with unique gait segments across files;
 aggregates are computed from the combined quantifications using ParaDigMa's own
 aggregation functions. They are not averages of per-file aggregate percentages.

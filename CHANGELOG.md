@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explain worker selection in the processing log, including detected CPU count,
+  available RAM, recording-memory estimates and single-worker fallback reasons.
 - Keep pandas and pyarrow deferred while opening the empty workspace, Runs and
   empty graph views; inspect sensor-context row values only when a row exists.
 - Add a 24-hour profile averaging valid 30-minute summaries at each time of day

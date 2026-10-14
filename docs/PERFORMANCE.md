@@ -28,6 +28,8 @@
   need as at least 1 GiB or 12 times the largest loaded frame. Low/unknown RAM,
   limited CPU, explicit mutable toolbox configs or restricted `run_steps` retain
   sequential execution. These are conservative estimates, not hard memory limits.
+  The processing log records measured CPU availability, free RAM, frame size and
+  the estimated worker budget, and explains any single-worker fallback.
   Results merge in input order; official aggregation functions run once on the
   pooled quantifications, with consistent gait segment IDs. Stop terminates all
   owned workers before deleting their private temporary files. Worker startup and

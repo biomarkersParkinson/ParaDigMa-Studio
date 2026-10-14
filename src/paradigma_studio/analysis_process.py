@@ -71,7 +71,7 @@ def run_isolated_analysis(
     max_workers: int | None = None,
 ) -> AnalysisResults:
     """Stop only the owned child; never terminate Qt's thread or other programs."""
-    workers = parallel_worker_count(frame, settings)
+    workers = parallel_worker_count(frame, settings, logger)
     if max_workers is not None:
         if (
             isinstance(max_workers, bool)
@@ -79,11 +79,15 @@ def run_isolated_analysis(
             or max_workers not in (1, 2)
         ):
             raise ValueError("max_workers must be 1 or 2.")
+        if max_workers < workers:
+            logger.info("Worker count capped at %s by the caller.", max_workers)
         workers = min(workers, max_workers)
     if isinstance(frame, dict) and len(frame) > 1 and workers > 1:
         from .parallel_analysis import run_parallel_analysis
 
         return run_parallel_analysis(frame, settings, logger, cancel, workers)
+    if isinstance(frame, dict) and len(frame) > 1:
+        logger.info("Processing %s recordings with 1 worker", len(frame))
     context = multiprocessing.get_context("spawn")
     with tempfile.TemporaryDirectory(prefix="paradigma-analysis-") as directory:
         input_path, output_path = Path(directory) / "input.pkl", Path(directory) / "results.pkl"

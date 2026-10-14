@@ -87,16 +87,25 @@ def wait_for(predicate):
     assert predicate(), "Recording workers did not reach the expected phase"
 
 
-def test_multiple_recordings_overlap_reuse_workers_and_collect_in_source_order(execution, tmp_path):
+@pytest.mark.parametrize("recording_count", [3, 7])
+def test_multiple_recordings_overlap_reuse_workers_and_collect_in_source_order(
+    execution, tmp_path, recording_count
+):
     frames, settings, logger, handler = execution
+    frames.update(
+        {
+            f"extra_{index}": pd.DataFrame({"time": [0.0, 1.0]})
+            for index in range(3, recording_count)
+        }
+    )
     before = {child.pid for child in multiprocessing.active_children()}
     result = analysis_process.run_isolated_analysis(frames, settings, logger, Event())
-    assert [row["index"] for row in result["rows"]] == [0, 1, 2]
+    assert [row["index"] for row in result["rows"]] == list(range(recording_count))
     assert [row["key"] for row in result["rows"]] == list(frames)
     pids = {row["pid"] for row in result["rows"]}
     assert len(pids) == 2 and result["merge_pid"] in pids
     assert next(message for message in handler.messages if message.startswith("Completed")) == (
-        "Completed recording 1/3: second"
+        f"Completed recording 1/{recording_count}: second"
     )
     assert {child.pid for child in multiprocessing.active_children()} == before
     assert not list(tmp_path.iterdir())
@@ -207,6 +216,90 @@ def test_large_recordings_and_mutable_scientific_configs_keep_sequential_path(mo
     assert analysis_limits.parallel_worker_count(frames, {}) == 1
     for configuration in ("imu_config", "pulse_rate_config", "gait_config"):
         assert analysis_limits.parallel_worker_count(frames, {configuration: object()}) == 1
+
+
+@pytest.mark.parametrize(
+    "cpus,available,largest,expected,reason",
+    [
+        (8, 32, 0.5, 2, "Two workers are available"),
+        (8, 24, 0.5, 2, "Two workers are available"),
+        (8, 13, 0.5, 2, "Two workers are available"),
+        (8, 12, 0.5, 1, "RAM limit (two workers need at least 13.00 GiB available)"),
+        (2, 24, 0.5, 1, "CPU limit"),
+        (2, 12, 0.5, 1, "CPU limit"),
+        (8, None, 0.5, 1, "available RAM could not be determined"),
+    ],
+)
+def test_seven_recording_worker_decision_reports_measured_resources(
+    monkeypatch, cpus, available, largest, expected, reason
+):
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: cpus)
+    monkeypatch.setattr(
+        analysis_limits,
+        "available_memory",
+        lambda: int(available * analysis_limits.GIB) if available is not None else None,
+    )
+    frame = pd.DataFrame({"time": [0.0]})
+    monkeypatch.setattr(
+        frame, "memory_usage", lambda **_: pd.Series([int(largest * analysis_limits.GIB)])
+    )
+    frames = {f"recording_{index:03d}": frame for index in range(1, 8)}
+    handler = Messages()
+    logger = logging.Logger("resources", logging.INFO)
+    logger.addHandler(handler)
+    assert analysis_limits.parallel_worker_count(frames, {}, logger) == expected
+    assert len(handler.messages) == 1
+    message = handler.messages[0]
+    assert message.startswith(f"Worker selection: {expected} worker") and reason in message
+    assert f"Available CPUs: {cpus}" in message
+    if available is not None:
+        assert f"available RAM: {available:.2f} GiB" in message
+        assert "largest loaded recording: 0.50 GiB" in message
+        assert "estimated RAM per worker: 6.00 GiB" in message
+        assert "RAM reserve: 1.00 GiB" in message
+    if cpus == 2 and available == 12:
+        assert "RAM limit" in message
+
+
+@pytest.mark.parametrize(
+    "settings,reason",
+    [
+        ({"gait_config": object()}, "Custom mutable toolbox configurations"),
+        ({"run_steps": ["classification"]}, "Restricted pipeline steps"),
+    ],
+)
+def test_configuration_fallback_is_explained_without_probing_resources(
+    monkeypatch, settings, reason
+):
+    monkeypatch.setattr(
+        analysis_limits, "available_memory", lambda: pytest.fail("Unexpected memory probe")
+    )
+    handler = Messages()
+    logger = logging.Logger("settings", logging.INFO)
+    logger.addHandler(handler)
+    frame = pd.DataFrame({"time": [0.0]})
+    assert analysis_limits.parallel_worker_count({"a": frame, "b": frame}, settings, logger) == 1
+    assert reason in handler.messages[0]
+
+
+def test_forced_single_worker_reports_actual_batch_worker_count(monkeypatch, synthetic_imu):
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: 8)
+    monkeypatch.setattr(analysis_limits, "available_memory", lambda: 24 * analysis_limits.GIB)
+    handler = Messages()
+    logger = logging.Logger("single-worker-batch", logging.INFO)
+    logger.addHandler(handler)
+    frame = synthetic_imu.iloc[:2000].copy()
+    result = analysis_process.run_isolated_analysis(
+        {"a": frame, "b": frame.copy()},
+        {"pipelines": ["tremor"], "skip_preparation": True},
+        logger,
+        Event(),
+        max_workers=1,
+    )
+    assert not result["errors"]
+    assert any(message.startswith("Worker selection: 2 workers.") for message in handler.messages)
+    assert "Worker count capped at 1 by the caller." in handler.messages
+    assert "Processing 2 recordings with 1 worker" in handler.messages
 
 
 def test_windows_memory_query_checks_native_success(monkeypatch):
