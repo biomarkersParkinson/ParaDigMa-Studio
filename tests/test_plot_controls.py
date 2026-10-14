@@ -50,7 +50,8 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
     for toolbar in (window.data_toolbar, window.plot_toolbar, window.sensor_toolbar):
         actions = [action.text() for action in toolbar.actions() if not action.isSeparator()]
         assert actions.count("Axis limits") == 1
-        assert {"Home", "Back", "Forward", "Zoom", "Save"} <= set(actions)
+        assert {"Home", "Back", "Forward", "Save"} <= set(actions)
+        assert ("Select time interval" if toolbar is window.plot_toolbar else "Zoom") in actions
         assert ("Pan" in actions) == (toolbar is not window.plot_toolbar)
         assert ("Select timepoint" in actions) == (toolbar is window.plot_toolbar)
         assert not {"Graph settings", "Subplots", "Customize"} & set(actions)

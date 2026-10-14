@@ -42,6 +42,35 @@ def test_every_day_gets_a_centered_date_when_labels_fit(timezone):
     ).tolist()
 
 
+def test_date_width_metrics_are_reused_during_pan_and_follow_font_and_dpi_changes(monkeypatch):
+    from matplotlib.backends.backend_agg import RendererAgg
+
+    figure, axis, stamps = calendar_axis()
+    figure.canvas.draw()
+    locator = axis.xaxis.get_major_locator()
+    font = axis.get_xticklabels()[0].get_fontproperties().copy()
+    centers = dates.date2num(stamps[[0, -2]]) + 0.5
+    initial = locator._label_width(font, centers)
+    calls = []
+    measure = RendererAgg.get_text_width_height_descent
+
+    def record(self, text, properties, math):
+        calls.append(text)
+        return measure(self, text, properties, math)
+
+    monkeypatch.setattr(RendererAgg, "get_text_width_height_descent", record)
+    for shift in (0.01, 0.02, 0.03):
+        assert locator._label_width(font, centers + shift) == initial
+    assert not calls
+    font.set_size(font.get_size() + 4)
+    larger = locator._label_width(font, centers)
+    assert larger > initial and calls
+    calls.clear()
+    figure.set_dpi(150)
+    scaled = locator._label_width(font, centers)
+    assert calls and scaled == pytest.approx(larger * 1.5, rel=0.1)
+
+
 @pytest.mark.parametrize("days,width", [(40, 600), (365, 600), (7, 300)])
 def test_labels_thin_without_overlap_and_return_on_zoom(days, width):
     figure, axis, stamps = calendar_axis(days, width)

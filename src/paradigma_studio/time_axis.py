@@ -101,6 +101,10 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.label_source = label_source
         self.figure.set_facecolor("white")
         self.axes = self.figure.add_axes((0.1, 0.62, 0.85, 0.1))
+        # The ruler has no native title or caption. Its caption occupies a Qt
+        # row, so automatic title/label placement only repeats tick-bound scans.
+        self.axes.set_title("", y=1.0)
+        self.axes.xaxis.set_label_coords(0.5, 0)
         self.axes.yaxis.set_visible(False)
         for side in ("top", "right", "left"):
             self.axes.spines[side].set_visible(False)

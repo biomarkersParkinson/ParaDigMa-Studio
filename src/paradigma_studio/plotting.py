@@ -61,17 +61,72 @@ class ViewportPolyCollection(PolyCollection):
                 self._render_paths = PolyCollection(merged).get_paths()
         self._starts = vertices[:, :, 0].min(axis=1) if len(vertices) else np.array([])
         self._ends = vertices[:, :, 0].max(axis=1) if len(vertices) else np.array([])
+        self._bottoms = vertices[:, :, 1].min(axis=1) if len(vertices) else np.array([])
+        self._tops = vertices[:, :, 1].max(axis=1) if len(vertices) else np.array([])
+        self._ordered_intervals = (np.diff(self._starts) >= 0).all() and (
+            np.diff(self._ends) >= 0
+        ).all()
+
+    def _scroll_preview(self, visible):
+        if self.axes is None or self.axes.get_xscale() != "linear":
+            return None
+        canvas = self.get_figure(root=True).canvas
+        if not getattr(canvas, "time_scrolling", False) or not canvas.panning or canvas.is_saving():
+            return None
+        left = self._starts if visible is None else self._starts[visible]
+        right = self._ends if visible is None else self._ends[visible]
+        count = len(left)
+        columns = max(1, int(np.ceil(self.axes.bbox.width)))
+        if count <= max(512, columns * 2):
+            return None
+        low, high = sorted(self.axes.get_xlim())
+        step = (high - low) / columns
+        short = right - left <= step
+        if np.count_nonzero(short) < count / 2:
+            return None
+        # Only intervals narrower than a physical pixel enter the envelope.
+        # Longer intervals retain their original bounds, including real gaps.
+        first = np.clip(np.floor((left[short] - low) / step).astype(int), 0, columns - 1)
+        last = np.clip(np.ceil((right[short] - low) / step).astype(int) - 1, 0, columns - 1)
+        indices = np.r_[first, last]
+        bottoms = self._bottoms if visible is None else self._bottoms[visible]
+        tops = self._tops if visible is None else self._tops[visible]
+        lower, upper = np.full(columns, np.inf), np.full(columns, -np.inf)
+        np.minimum.at(lower, indices, np.tile(bottoms[short], 2))
+        np.maximum.at(upper, indices, np.tile(tops[short], 2))
+        occupied = np.flatnonzero(np.isfinite(lower))
+        starts = low + occupied * step
+        left = np.r_[starts, left[~short]]
+        right = np.r_[starts + step, right[~short]]
+        lower = np.r_[lower[occupied], bottoms[~short]]
+        upper = np.r_[upper[occupied], tops[~short]]
+        preview = np.empty((len(left), 4, 2))
+        preview[:, :, 0] = np.column_stack((left, left, right, right))
+        preview[:, :, 1] = np.column_stack((lower, upper, upper, lower))
+        return PolyCollection(preview).get_paths()
+
+    def _visible_intervals(self, low, high):
+        if self._ordered_intervals:
+            return slice(
+                np.searchsorted(self._ends, low, side="left"),
+                np.searchsorted(self._starts, high, side="right"),
+            )
+        return (self._ends >= low) & (self._starts <= high)
 
     @allow_rasterization
     def draw(self, renderer):
         paths = self._paths
         draw_paths = self._render_paths
+        visible = None
         if self.axes is not None and len(draw_paths) >= 512:
             low, high = sorted(self.axes.get_xlim())
-            visible = (self._ends >= low) & (self._starts <= high)
-            if not visible.all():
+            visible = self._visible_intervals(low, high)
+            if isinstance(visible, slice):
+                draw_paths = draw_paths[visible]
+            elif not visible.all():
                 draw_paths = [draw_paths[index] for index in np.flatnonzero(visible)]
-        self._paths = draw_paths
+        preview = self._scroll_preview(visible)
+        self._paths = draw_paths if preview is None else preview
         try:
             return super().draw(renderer)
         finally:

@@ -40,6 +40,8 @@ class RecordingDayLocator(ticker.Locator):
         self.adaptive_first = adaptive_first
         self._layout_key = None
         self._left_label = None
+        self._width_key = None
+        self._text_widths = {}
 
     def __call__(self):
         low, high = sorted(self.axis.get_view_interval())
@@ -121,8 +123,17 @@ class RecordingDayLocator(ticker.Locator):
             dpi = self.axis.axes.figure.dpi
             return max(map(len, labels), default=6) * font.get_size() * dpi / 72 * 0.65
         renderer = renderer()
+        key = str(font), self.axis.axes.figure.dpi, type(renderer)
+        if key != self._width_key or len(self._text_widths) >= 128:
+            self._width_key = key
+            self._text_widths.clear()
+        for label in labels:
+            if label not in self._text_widths:
+                self._text_widths[label] = renderer.get_text_width_height_descent(
+                    label, font, False
+                )[0]
         return max(
-            (renderer.get_text_width_height_descent(label, font, False)[0] for label in labels),
+            (self._text_widths[label] for label in labels),
             default=0,
         )
 

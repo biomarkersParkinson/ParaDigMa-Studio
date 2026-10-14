@@ -1,4 +1,4 @@
-"""Measure Results time scrolling and raw panning with queued Qt painting."""
+"""Measure Results time navigation and raw panning with queued Qt painting."""
 
 import argparse
 import json
@@ -26,7 +26,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
         "platform": platform.platform(),
         "app_version": version("paradigma-studio"),
         "qt_platform": app.platformName(),
-        "conditions": "Source app; Fusion, 1450x920; warm caches; Results scrollbar drags, raw toolbar pans and queued Qt paints, without a profiler. Synthetic data only. Release redraw is measured separately.",
+        "conditions": "Source app; Fusion, 1450x920; warm caches; Results scrollbar drags and interval selection, raw toolbar pans and queued Qt paints, without a profiler. Synthetic data only. Release redraw is measured separately.",
         "frames_per_drag": frames,
         "repeats": repeats,
         "measurements": {},
@@ -48,6 +48,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
         _measure_time_scroll(
             app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
         )
+        _measure_time_selection(app, report, window, full, repeats, frames)
         sensor = _synthetic_pan_sensors()
         window.loaded(("sensor.csv", sensor))
         deadline = time.monotonic() + 30
@@ -146,6 +147,37 @@ def _record_measurement(report, name, frame_times, release_times, graphs):
         "graphs": graphs,
     }
     print(f"{name}: {statistics.median(frame_times):.4f} s/frame", flush=True)
+
+
+def _measure_time_selection(app, report, window, limits, repeats, frames):
+    canvas, toolbar = window.canvas, window.plot_toolbar
+    frame_times, release_times = [], []
+    if not toolbar._actions["zoom"].isChecked():
+        toolbar.zoom()
+    for _ in range(repeats):
+        axes = canvas.figure.axes[0]
+        axes.set_xlim(*limits)
+        canvas.draw()
+        app.processEvents()
+        start = axes.transAxes.transform((0.2, 0.5))
+        toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
+        for fraction in np.linspace(0.3, 0.7, frames):
+            end = axes.transAxes.transform((fraction, 0.5))
+            started = time.perf_counter()
+            toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons={1}))
+            app.processEvents()
+            frame_times.append(time.perf_counter() - started)
+        started = time.perf_counter()
+        toolbar.release_zoom(MouseEvent("button_release_event", canvas, *end, button=1))
+        app.processEvents()
+        release_times.append(time.perf_counter() - started)
+    _record_measurement(
+        report,
+        "results_interval_selection_6x30000",
+        frame_times,
+        release_times,
+        len(canvas.figure.axes),
+    )
 
 
 def _prepare_result_scroll(window):

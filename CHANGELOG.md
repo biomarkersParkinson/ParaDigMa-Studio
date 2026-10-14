@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Speed up Results horizontal scrolling with peak-preserving previews and reused
+  axis geometry; restore full graph detail when scrolling stops.
+- Make Results interval shading follow the pointer without redrawing graph data.
+  Allow selection to start between graphs and use a time-interval icon and label.
 - Bound Results zoom to the full time range, hide the time scrollbar at full range,
   support horizontal trackpad gestures, shade drag selections continuously across
   graphs and their gaps, and add Zoom in/out buttons. Fit the first date without

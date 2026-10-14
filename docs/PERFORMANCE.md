@@ -15,10 +15,14 @@
   statistic still finishes before a recording is displayed.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
-  Results scrollbar drags and horizontal trackpad gestures reuse settled layouts
-  and redraw visible plots before a full redraw when navigation stops. Zoom
-  selection shading shares the timepoint marker's cached overlay. Raw graphs retain panning. Dense
-  full-recording plots still cost more than zoomed views.
+  Results scrollbar drags and horizontal trackpad gestures reuse settled axes,
+  tick positions and measured date-label widths. Ordered intervals use indexed
+  viewport lookup. Dense scrolling previews retain pixel-column minima/maxima,
+  gaps and long intervals; the full bars return when movement stops, and exports
+  always use original bars. Only visible plots redraw during a gesture. Interval
+  selection paints directly over the cached Qt image without redrawing graph data,
+  including when the figure exceeds the timepoint overlay's memory budget. Raw
+  graphs retain panning. Dense full-recording plots still cost more than zoomed views.
 - Raw plots display at most 20,000 samples per channel. Sensor context indexes
   source timestamps and loads the visible window while preserving the initial
   context, selected time and navigation history. Original tables and exports
@@ -48,6 +52,18 @@ redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
 ## Reproduce measurements
+
+An isolated Linux check on 15 October 2026 compared time-interval selection with
+commit `4092a6e` on six graphs of 30,000 points each (Fusion, 1450×920, eight drag
+updates with queued Qt painting). Median updates decreased from 1.26 s to 7.3 ms
+at normal pixel density and from 1.87 s to 8.6 ms at double density. Full graph
+redraws decreased from eight to zero during each drag. These are synthetic,
+offscreen measurements; Windows timings depend on the display and data.
+
+A warm three-repeat scrollbar benchmark on the same six graphs (eight updates
+per drag, normal pixel density) measured 0.62 s → 0.10 s per update for a wide
+view and 0.11 s → 0.057 s when zoomed in. The wide view uses a temporary
+peak-preserving preview; stopping and exporting retain the full original bars.
 
 An isolated Linux loading check on 14 October 2026 compared these changes with
 commit `7ed2988` using a synthetic 24-hour, 100 Hz TSDF recording (8,640,000 rows,
@@ -90,7 +106,7 @@ New-Item -ItemType Directory -Force build-reports | Out-Null
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
 | `ui-performance.json` | Synthetic input switching, settings, Results interactions, exports and history |
-| `pan-performance.json` | Toolbar drags and queued painting in Results, Data and sensor context |
+| `pan-performance.json` | Results time scrolling and interval selection, raw toolbar drags and queued painting |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 
 Both Windows workflows publish these files in the separate

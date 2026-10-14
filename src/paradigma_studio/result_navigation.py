@@ -3,8 +3,6 @@
 import math
 from copy import copy
 
-from matplotlib.patches import Rectangle
-from matplotlib.transforms import blended_transform_factory
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QScrollBar
@@ -14,43 +12,15 @@ from .plot_controls import GraphToolbar
 from .theme import tooltip_text
 
 
-class _ZoomInterval(Rectangle):
-    """Shade linked plots and their gaps using the settled figure geometry."""
-
-    def __init__(self, axes, left, right):
-        super().__init__(
-            (left, 0),
-            right - left,
-            1,
-            transform=blended_transform_factory(axes.transData, axes.figure.transFigure),
-            facecolor="#477DA3",
-            edgecolor="#477DA3",
-            alpha=0.2,
-            animated=True,
-            clip_on=False,
-        )
-        self.set_in_layout(False)
-        self.set_gid("selected-zoom-interval")
-        axes.figure.add_artist(self)
-
-    def draw(self, renderer):
-        bounds = [ax.get_position() for ax in self.figure.axes]
-        if not bounds:
-            return
-        bottom, top = min(box.y0 for box in bounds), max(box.y1 for box in bounds)
-        self.set_y(bottom)
-        self.set_height(top - bottom)
-        super().draw(renderer)
-
-
 class ResultsToolbar(GraphToolbar):
     toolitems = tuple(item for item in GraphToolbar.toolitems if item[0] != "Pan")
 
-    def __init__(self, canvas, parent, *, overlay):
+    def __init__(self, canvas, parent):
         super().__init__(canvas, parent)
-        self.overlay, self.zoom_regions = overlay, []
         self.scrolling_time = False
         self.time_scroll = None
+        self._actions["zoom"].setText("Select time interval")
+        self._actions["zoom"].setIcon(QIcon(str(DATA_DIRECTORY / "select-interval.svg")))
         self._actions["zoom"].setToolTip("Select a time interval to zoom into all linked graphs")
         actions = self.actions()
         following = actions[actions.index(self._actions["zoom"]) + 1]
@@ -80,7 +50,37 @@ class ResultsToolbar(GraphToolbar):
 
     def press_zoom(self, event):
         self.stop_navigation()
+        event = self._interval_event(event)
+        if event.inaxes is not None and self._nav_stack() is None:
+            # Save Home before GraphToolbar captures automatic Y axes. A
+            # time-only selection needs no Y refit or graph redraw on press.
+            self.push_current()
         super().press_zoom(event)
+
+    def _interval_event(self, event):
+        if event.inaxes is not None or event.x is None or event.y is None:
+            return event
+        axes = [ax for ax in self.canvas.figure.axes if ax.get_navigate() and ax.can_zoom()]
+        if not axes:
+            return event
+        source = axes[0]
+        bottom, top = min(ax.bbox.y0 for ax in axes), max(ax.bbox.y1 for ax in axes)
+        if not (source.bbox.x0 <= event.x <= source.bbox.x1 and bottom <= event.y <= top):
+            return event
+        # Project a gutter press onto the shared time axis without changing the
+        # event received by row selection and other canvas callbacks.
+        projected = copy(event)
+        projected.inaxes = source
+        projected.y = (source.bbox.y0 + source.bbox.y1) / 2
+        projected.xdata, projected.ydata = source.transData.inverted().transform(
+            (projected.x, projected.y)
+        )
+        return projected
+
+    def _update_cursor(self, event):
+        if self.mode.name == "ZOOM":
+            event = self._interval_event(event)
+        super()._update_cursor(event)
 
     def drag_zoom(self, event):
         event = copy(event)
@@ -94,26 +94,14 @@ class ResultsToolbar(GraphToolbar):
         super().release_zoom(event)
 
     def draw_rubberband(self, event, x0, y0, x1, y1):
-        axes = self._zoom_info.axes[0]
-        left, right = sorted(axes.transData.inverted().transform([(x0, y0), (x1, y1)])[:, 0])
-        with self.overlay.edit():
-            if not self.zoom_regions:
-                self.zoom_regions.append(_ZoomInterval(axes, left, right))
-            else:
-                for region in self.zoom_regions:
-                    region.set_x(left)
-                    region.set_width(right - left)
-        self.overlay.paint()
+        bounds = [ax.bbox for ax in self.canvas.figure.axes]
+        bottom, top = min(box.y0 for box in bounds), max(box.y1 for box in bounds)
+        self.canvas.drawRectangle(
+            (min(x0, x1), self.canvas.figure.bbox.height - top, abs(x1 - x0), top - bottom)
+        )
 
     def remove_rubberband(self):
-        if not self.zoom_regions:
-            return
-        with self.overlay.edit():
-            for region in self.zoom_regions:
-                if region.figure is not None:
-                    region.remove()
-            self.zoom_regions.clear()
-        self.overlay.paint()
+        self.canvas.drawRectangle(None)
 
     def _cleanup_post_zoom(self):
         super()._cleanup_post_zoom()
@@ -136,7 +124,7 @@ class ResultsToolbar(GraphToolbar):
         if self._zoom_info is not None:
             self._cleanup_post_zoom()
         self._push_changed_view()
-        self.scrolling_time = self.canvas.panning = True
+        self.scrolling_time = self.canvas.panning = self.canvas.time_scrolling = True
         self._automatic_bar_y = [
             ax
             for ax in self.canvas.figure.axes
@@ -144,11 +132,13 @@ class ResultsToolbar(GraphToolbar):
         ]
         for ax in self._automatic_bar_y:
             ax.set_autoscaley_on(False)
+        self.canvas.prepare_time_scroll()
 
     def end_time_scroll(self):
         if not self.scrolling_time:
             return
-        self.scrolling_time = self.canvas.panning = False
+        self.scrolling_time = self.canvas.panning = self.canvas.time_scrolling = False
+        self.canvas.finish_time_scroll()
         self.restore_automatic_bar_y()
         self._automatic_bar_y = []
         self._push_changed_view()

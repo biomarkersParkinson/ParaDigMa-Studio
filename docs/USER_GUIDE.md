@@ -273,19 +273,23 @@ channel changes; Back can return to the view before Home.
 The selected result time is marked whenever it is in view.
 Clicking either a checkbox or its label toggles a channel or plot series.
 
-Results graphs have **Select timepoint** (default), **Zoom**, **Zoom in** and
+Results graphs have **Select timepoint** (default), **Select time interval**, **Zoom in** and
 **Zoom out**. Click a plotted timepoint to mark it; its date and time appear above
-the time axis. Zoom selects a time interval across all linked graphs without
-selecting a vertical range.
+the time axis. Select time interval uses a shaded-band icon: drag within a graph
+or in the gaps between graphs to zoom into the same time interval across all
+linked graphs without selecting a Y range.
 After zooming in, the horizontal scrollbar below the time axis moves through the
 full time range while keeping the window duration. Its handle indicates how much
 time is visible; it disappears when the full range is shown. Two-finger horizontal
 trackpad gestures also scroll time over the graphs and time axis. Vertical gestures
 still scroll through the graph list. Zoom never extends beyond the full X range.
-Drag zoom shades the selected interval continuously across all graphs and their
+Dense graphs use a temporary preview while scrolling, preserving peaks and gaps
+at the display's pixel resolution. Full bars return when movement stops; tables
+and exports always retain the original values.
+The drag shades the selected interval continuously across all graphs and their
 gaps. **Zoom in** and **Zoom out** buttons change the visible duration by a factor
-of two. Home, Back and Forward
-include these navigation changes. Choose Select timepoint to resume selection.
+of two. Home, Back and Forward include these navigation changes. Choose Select
+timepoint to resume selection.
 Data and sensor-context graphs retain Pan (default) and zooming in both axes.
 Sensor context retains the time selected in Results.
 

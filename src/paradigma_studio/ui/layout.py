@@ -34,6 +34,7 @@ from ..assets import DATA_DIRECTORY
 from ..branding import APP_NAME
 from ..plot_controls import add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
+from ..result_canvas import ResultFigureCanvas
 from ..result_navigation import ResultsToolbar, ResultTimeScroll
 from ..results_view import MODULE_NAMES
 from ..theme import LINK_COLOR, light_palette, tooltip_text
@@ -747,14 +748,11 @@ class WorkspaceLayout:
         plots = QVBoxLayout(graph)
         plots.setContentsMargins(0, 0, 0, 0)
         self.figure = Figure(layout="constrained")
-        self.canvas = ScrollableFigureCanvas(self.figure)
+        self.canvas = ResultFigureCanvas(self.figure)
         self.canvas.defer_when_hidden = True
-        self.result_overlay = SelectionOverlay(
-            self.canvas,
-            lambda: [*self.plot_toolbar.zoom_regions, *self._result_selection_artists],
-        )
+        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
         self.canvas.pinned_time_axis = True
-        self.plot_toolbar = ResultsToolbar(self.canvas, self, overlay=self.result_overlay)
+        self.plot_toolbar = ResultsToolbar(self.canvas, self)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
         self.figure_actions.set_context(self.graph_view_controls)
         self.figure_actions_layout = self.figure_actions.primary

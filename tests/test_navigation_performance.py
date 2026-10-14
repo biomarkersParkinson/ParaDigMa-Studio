@@ -6,13 +6,16 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib import dates
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import ConstrainedLayoutEngine
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
+from paradigma_studio.plotting import ViewportPolyCollection
 from paradigma_studio.time_axis import RecordingDateLocator
 
 
@@ -167,6 +170,99 @@ def test_scroll_ends_cleanly_when_released_or_graphs_change(window, end):
     assert not window.plot_toolbar.scrolling_time and not window.canvas.panning
     if end in ("release", "clear_results", "hide"):
         assert not window.result_time_scroll.isSliderDown()
+
+
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+@pytest.mark.parametrize("scroll", [0, 450])
+def test_interval_drag_never_redraws_graphs_even_without_an_overlay_background(
+    window, monkeypatch, pixel_ratio, scroll
+):
+    canvas, toolbar, figure = window.canvas, window.plot_toolbar, window.figure
+    canvas.setFixedHeight(3200)
+    canvas._set_device_pixel_ratio(pixel_ratio)
+    window.graph_scroll.verticalScrollBar().setValue(scroll)
+    QApplication.instance().processEvents()
+    canvas.draw()
+    QApplication.instance().processEvents()
+    if pixel_ratio == 2:
+        assert figure.bbox.width * figure.bbox.height * 4 > 32 * 1024**2
+        assert window.result_overlay.background is None
+    limits = [(ax.get_xlim(), ax.get_ylim()) for ax in figure.axes]
+    positions = [ax.bbox.bounds for ax in figure.axes]
+    draws = []
+    original_draw = canvas.draw
+
+    def draw():
+        draws.append(True)
+        return original_draw()
+
+    monkeypatch.setattr(canvas, "draw", draw)
+    toolbar.zoom()
+    start = figure.axes[0].transAxes.transform((0.2, 0.5))
+    toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
+    for fraction in (0.3, 0.6, 0.4):
+        end = figure.axes[0].transAxes.transform((fraction, 0.5))
+        toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons={1}))
+        QApplication.instance().processEvents()
+        assert canvas.zoom_rectangle is not None and canvas.zoom_rectangle.width() > 0
+        assert not draws, "Selecting time must repaint the cached image without graph redraws"
+    assert [(ax.get_xlim(), ax.get_ylim()) for ax in figure.axes] == limits
+    assert [ax.bbox.bounds for ax in figure.axes] == positions
+    toolbar.stop_navigation()
+    assert canvas.zoom_rectangle is None
+
+
+@pytest.mark.parametrize("control", ["scrollbar", "trackpad"])
+def test_dense_horizontal_navigation_bounds_render_work_and_restores_full_bars(
+    window, monkeypatch, control
+):
+    from matplotlib.collections import PolyCollection
+
+    times = np.arange(20000) * 4.0
+    frame = pd.DataFrame({"time": times, "pulse_rate": 65 + 20 * np.sin(times / 100)})
+    original = frame.copy(deep=True)
+    window.analyzed({"quantifications": {"pulse_rate": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    toolbar, canvas, bar = window.plot_toolbar, window.canvas, window.result_time_scroll
+    toolbar._actions["zoom_in"].trigger()
+    QApplication.instance().processEvents()
+    canvas.draw()
+    axes = window.figure.axes[0]
+    collection = next(item for item in axes.collections if isinstance(item, ViewportPolyCollection))
+    counts = []
+    native_draw = PolyCollection.draw
+
+    def record(self, renderer):
+        if self is collection:
+            counts.append(len(self.get_paths()))
+        return native_draw(self, renderer)
+
+    monkeypatch.setattr(PolyCollection, "draw", record)
+    if control == "scrollbar":
+        bar.setSliderDown(True)
+        bar.setValue(bar.maximum() // 3)
+    else:
+        event = QWheelEvent(
+            QPointF(30, 30),
+            QPointF(30, 30),
+            QPoint(-120, 0),
+            QPoint(),
+            Qt.NoButton,
+            Qt.NoModifier,
+            Qt.ScrollUpdate,
+            False,
+        )
+        QApplication.sendEvent(canvas, event)
+        assert event.isAccepted()
+    QApplication.instance().processEvents()
+    assert canvas.time_scrolling and counts and max(counts) <= np.ceil(axes.bbox.width)
+    assert len(collection.get_paths()) == len(frame)
+    counts.clear()
+    bar.finish_gesture()
+    QApplication.instance().processEvents()
+    assert not canvas.time_scrolling and counts and max(counts) > axes.bbox.width * 2
+    assert not canvas._scroll_y_ticks
+    pd.testing.assert_frame_equal(window.tables["quantifications/pulse_rate"], original)
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam"])

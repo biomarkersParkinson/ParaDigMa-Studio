@@ -1,5 +1,7 @@
 """Results time scrolling and time-only zoom leave raw graph navigation intact."""
 
+from io import BytesIO
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -91,18 +93,20 @@ def test_zoom_preview_shades_every_graph_and_vertical_only_drags_do_not_zoom(win
     toolbar.press_zoom(MouseEvent("button_press_event", canvas, *first, button=1))
     toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *last, buttons={1}))
     canvas.draw()
-    assert len(toolbar.zoom_regions) == 1
-    region = toolbar.zoom_regions[0]
-    assert region.figure is window.figure
-    assert region.get_y() == min(ax.get_position().y0 for ax in window.figure.axes)
-    assert region.get_y() + region.get_height() == pytest.approx(
-        max(ax.get_position().y1 for ax in window.figure.axes)
+    region = canvas.zoom_rectangle
+    assert region is not None
+    assert region.top() == pytest.approx(
+        (window.figure.bbox.height - max(ax.bbox.y1 for ax in window.figure.axes))
+        / canvas.device_pixel_ratio
     )
-    assert all(0 < region.get_alpha() < 1 for region in toolbar.zoom_regions)
+    assert region.bottom() == pytest.approx(
+        (window.figure.bbox.height - min(ax.bbox.y0 for ax in window.figure.axes))
+        / canvas.device_pixel_ratio
+    )
     assert [ax.dataLim.bounds for ax in window.figure.axes] == original_bounds
     toolbar.release_zoom(MouseEvent("button_release_event", canvas, *last, button=1))
     assert axes.get_xlim() == full
-    assert not toolbar.zoom_regions
+    assert canvas.zoom_rectangle is None
 
 
 def test_scroll_history_home_keyboard_and_series_changes_follow_the_same_time_range(window):
@@ -193,6 +197,8 @@ def test_clearing_results_cancels_active_zoom_and_releases_its_graphs(window):
 def test_zoom_buttons_and_zoom_out_selection_never_exceed_the_full_time_range(window, view):
     result_graphs(window, view=view, calendar=True)
     toolbar, axes, bar = window.plot_toolbar, window.figure.axes[0], window.result_time_scroll
+    assert toolbar._actions["zoom"].text() == "Select time interval"
+    assert not toolbar._actions["zoom"].icon().isNull()
     full = axes.get_xlim()
     assert not toolbar._actions["zoom_out"].isEnabled() and bar.isHidden()
     toolbar._actions["zoom_in"].trigger()
@@ -310,28 +316,99 @@ def test_drag_zoom_shades_graphs_and_gaps_continuously_and_cleans_up_on_cancel(w
     toolbar, canvas, axes = window.plot_toolbar, window.canvas, window.figure.axes[0]
     canvas._set_device_pixel_ratio(pixel_ratio)
     canvas.draw()
-    original = np.asarray(canvas.buffer_rgba()).copy()
+    original = canvas.grab().toImage()
+    image_buffer = np.asarray(canvas.buffer_rgba()).copy()
     bounds = [ax.dataLim.bounds for ax in window.figure.axes]
     toolbar.zoom()
     start, end = axes.transAxes.transform([(0.005, 0.3), (0.65, 0.7)])
     toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
     toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons={1}))
-    canvas.draw()
-    assert len(toolbar.zoom_regions) == 1
-    first = toolbar.zoom_regions[0]
-    assert first.get_width() > 0
-    actual = np.asarray(canvas.buffer_rgba()).copy()
+    assert canvas.zoom_rectangle.width() > 0
+    actual = canvas.grab().toImage()
     boxes = sorted((ax.bbox for ax in window.figure.axes), key=lambda box: box.y0)
     for lower, upper in zip(boxes, boxes[1:], strict=False):
-        row = actual.shape[0] - round((lower.y1 + upper.y0) / 2)
-        column = round((start[0] + end[0]) / 2)
-        expected = original[row, column, :3] * 0.8 + np.array([71, 125, 163]) * 0.2
-        np.testing.assert_allclose(actual[row, column, :3], expected, atol=2)
+        scale = actual.devicePixelRatio() / pixel_ratio
+        row = round((window.figure.bbox.height - (lower.y1 + upper.y0) / 2) * scale)
+        column = round((start[0] + end[0]) / 2 * scale)
+        expected = np.array(original.pixelColor(column, row).getRgb()[:3]) * 0.8 + (
+            np.array([71, 125, 163]) * 0.2
+        )
+        np.testing.assert_allclose(actual.pixelColor(column, row).getRgb()[:3], expected, atol=2)
+    np.testing.assert_array_equal(canvas.buffer_rgba(), image_buffer)
     assert [ax.dataLim.bounds for ax in window.figure.axes] == bounds
     toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons=set()))
-    assert not toolbar.zoom_regions and toolbar._zoom_info is None
-    assert first not in window.figure.artists
+    assert canvas.zoom_rectangle is None and toolbar._zoom_info is None
     assert not toolbar._automatic_bar_y
+
+
+@pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])
+@pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
+def test_time_interval_selection_can_start_in_the_gap_between_graphs(window, view, calendar):
+    result_graphs(window, view=view, calendar=calendar)
+    toolbar, canvas = window.plot_toolbar, window.canvas
+    upper, lower = window.figure.axes
+    original = upper.get_xlim()
+    manual_y = (40, 90)
+    lower.set_ylim(*manual_y)
+    canvas.draw()
+    gap_y = (upper.bbox.y0 + lower.bbox.y1) / 2
+    start_x, end_x = upper.transAxes.transform([(0.2, 0.5), (0.65, 0.5)])[:, 0]
+    press = MouseEvent("button_press_event", canvas, start_x, gap_y, button=1)
+    assert press.inaxes is None
+    toolbar._actions["zoom"].trigger()
+    canvas.callbacks.process("button_press_event", press)
+    assert toolbar._zoom_info is not None and press.inaxes is None
+    drag = MouseEvent("motion_notify_event", canvas, end_x, gap_y, buttons={1})
+    canvas.callbacks.process("motion_notify_event", drag)
+    assert canvas.zoom_rectangle is not None and drag.inaxes is None
+    assert canvas.cursor().shape() == Qt.CrossCursor
+    release = MouseEvent("button_release_event", canvas, end_x, gap_y, button=1)
+    expected = upper.transData.inverted().transform([(press.x, gap_y), (release.x, gap_y)])[:, 0]
+    canvas.callbacks.process("button_release_event", release)
+    assert all(ax.get_xlim() == pytest.approx(expected) for ax in window.figure.axes)
+    assert lower.get_ylim() == manual_y
+    assert canvas.zoom_rectangle is None
+    toolbar.home()
+    assert upper.get_xlim() == original
+
+
+def test_qt_pointer_events_select_time_from_a_gap_and_keep_shading_out_of_saved_figures(window):
+    result_graphs(window, view=1, calendar=True)
+    toolbar, canvas = window.plot_toolbar, window.canvas
+    upper, lower = window.figure.axes
+    before = BytesIO()
+    window.figure.savefig(before, format="png", dpi=80)
+    QApplication.instance().processEvents()
+    canvas.draw()
+    gap_y = (upper.bbox.y0 + lower.bbox.y1) / 2
+    x = upper.transAxes.transform([(0.2, 0.5), (0.65, 0.5)])[:, 0]
+    start, end = [QPoint(round(value), round(canvas.height() - gap_y)) for value in x]
+    toolbar._actions["zoom"].trigger()
+    QTest.mousePress(canvas, Qt.LeftButton, pos=start)
+    QTest.mouseMove(canvas, end, delay=10)
+    assert toolbar._zoom_info is not None and canvas.zoom_rectangle is not None
+    selected = BytesIO()
+    window.figure.savefig(selected, format="png", dpi=80)
+    assert selected.getvalue() == before.getvalue()
+    QTest.mouseRelease(canvas, Qt.LeftButton, pos=end)
+    assert toolbar._zoom_info is None and canvas.zoom_rectangle is None
+
+
+@pytest.mark.parametrize("position", ["left", "right", "above", "below"])
+def test_interval_selection_does_not_start_outside_the_shaded_plot_area(window, position):
+    result_graphs(window)
+    toolbar, canvas, axes = window.plot_toolbar, window.canvas, window.figure.axes
+    left, right = axes[0].bbox.intervalx
+    bottom, top = min(ax.bbox.y0 for ax in axes), max(ax.bbox.y1 for ax in axes)
+    point = {
+        "left": (left - 5, (bottom + top) / 2),
+        "right": (right + 5, (bottom + top) / 2),
+        "above": ((left + right) / 2, top + 5),
+        "below": ((left + right) / 2, bottom - 5),
+    }[position]
+    toolbar.zoom()
+    toolbar.press_zoom(MouseEvent("button_press_event", canvas, *point, button=1))
+    assert toolbar._zoom_info is None and canvas.zoom_rectangle is None
 
 
 @pytest.mark.parametrize("sensor_context", [False, True], ids=["data", "sensor-context"])

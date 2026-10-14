@@ -99,6 +99,78 @@ def test_failed_render_does_not_discard_offscreen_data(monkeypatch):
     assert len(collection.get_paths()) == len(starts)
 
 
+def test_dense_scroll_preview_retains_peaks_gaps_and_long_intervals_then_restores_exact_pixels(
+    monkeypatch,
+):
+    figure = Figure(figsize=(8, 3), dpi=100)
+    canvas = FigureCanvasAgg(figure)
+    axes = figure.add_subplot()
+    starts = np.arange(16000, dtype=float) / 100
+    ends = starts + 0.01
+    values = 30 * np.sin(starts)
+    values[5000:6000] = np.nan
+    values[2000], values[10000] = 900, -700
+    ends[0], values[0] = 8.0, 15.0
+    collection = plot_bars(axes, starts, ends, values, "#168B82")
+    axes.set_xlim(0, 160)
+    canvas.draw()
+    reference = np.asarray(canvas.buffer_rgba()).copy()
+    original = collection.get_paths()
+    vertices = np.array([path.vertices.copy() for path in original])
+    drawn = []
+    real_draw = PolyCollection.draw
+
+    def record_draw(self, renderer):
+        if self is collection:
+            drawn.append(np.array([path.vertices.copy() for path in self.get_paths()]))
+        return real_draw(self, renderer)
+
+    monkeypatch.setattr(PolyCollection, "draw", record_draw)
+    canvas.time_scrolling = canvas.panning = True
+    canvas.draw()
+    preview = drawn[-1]
+    assert 0 < len(preview) <= np.ceil(axes.bbox.width) + 1
+    assert preview[:, :, 1].max() == 900 and preview[:, :, 1].min() == -700
+    assert any(np.array_equal(path, vertices[0]) for path in preview)
+    assert not any(path[:, 0].min() < 56 and path[:, 0].max() > 54 for path in preview)
+    assert collection.get_paths() is original
+    np.testing.assert_array_equal([path.vertices for path in original], vertices)
+    destination = BytesIO()
+    figure.savefig(destination, format="png")
+    assert len(drawn[-1]) == len(original), "Exports retain all original visible bars"
+    canvas.time_scrolling = canvas.panning = False
+    canvas.draw()
+    np.testing.assert_array_equal(canvas.buffer_rgba(), reference)
+    canvas.time_scrolling = canvas.panning = True
+
+    def fail(*_):
+        raise RuntimeError("preview render failed")
+
+    monkeypatch.setattr(PolyCollection, "draw", fail)
+    with pytest.raises(RuntimeError, match="preview render failed"):
+        canvas.draw()
+    assert collection.get_paths() is original
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_interval_lookup_preserves_native_pixels_for_sorted_and_unsorted_data(monkeypatch, reverse):
+    figure = Figure()
+    canvas = FigureCanvasAgg(figure)
+    axes = figure.add_subplot()
+    starts = np.arange(15000, dtype=float)
+    if reverse:
+        starts = starts[::-1]
+    collection = plot_bars(axes, starts, starts + 0.9, np.sin(starts) * 30, "#168B82")
+    axes.set_xlim(400.2, 530.4)
+    canvas.draw()
+    actual = np.asarray(canvas.buffer_rgba()).copy()
+    monkeypatch.setattr(
+        collection, "draw", lambda renderer: PolyCollection.draw(collection, renderer)
+    )
+    canvas.draw()
+    np.testing.assert_array_equal(canvas.buffer_rgba(), actual)
+
+
 def test_changing_active_table_keeps_graph_zoom_settings_and_cached_row_selection(window):
     frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [2.0, 3.0, 4.0]})
     window.analyzed({"quantifications": {"tremor": frame, "pulse_rate": frame.copy()}})
