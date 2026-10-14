@@ -42,7 +42,7 @@ def epoch_axis(start="2026-10-14", days=3, timezone="Europe/Amsterdam", width=10
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam", "Asia/Kathmandu"])
-def test_first_date_starts_at_left_edge_and_later_dates_stay_centered(timezone):
+def test_dates_stay_centered_when_their_full_days_fit(timezone):
     figure, axis, stamps = epoch_axis(timezone=timezone)
     figure.canvas.draw()
     assert [label.get_text() for label in axis.get_xticklabels()] == stamps[:-1].strftime(
@@ -50,7 +50,6 @@ def test_first_date_starts_at_left_edge_and_later_dates_stay_centered(timezone):
     ).tolist()
     boundaries = dates.date2num(stamps)
     expected = (boundaries[:-1] + boundaries[1:]) / 2
-    expected[0] = boundaries[0]
     np.testing.assert_allclose(axis.get_xticks(), expected)
     clock = [label.get_text() for label in axis.get_xticklabels(minor=True)]
     assert clock and all("\n" not in label for label in clock)
@@ -58,11 +57,12 @@ def test_first_date_starts_at_left_edge_and_later_dates_stay_centered(timezone):
     renderer = figure.canvas.get_renderer()
     dates_box = axis.get_xticklabels()[0].get_window_extent(renderer)
     clocks_box = axis.get_xticklabels(minor=True)[0].get_window_extent(renderer)
-    assert dates_box.x0 == pytest.approx(axis.bbox.x0)
+    assert dates_box.x0 > axis.bbox.x0
+    assert axis.get_xticklabels()[0].get_ha() == "center"
     assert clocks_box.y0 > dates_box.y1
 
 
-def test_partial_day_margin_keeps_selected_date_at_left_without_inventing_another_date():
+def test_hidden_first_date_never_promotes_the_next_date_to_the_left_edge():
     figure, axis, stamps = epoch_axis(start="2020-10-29", days=7, width=1800)
     lower, upper = dates.date2num(stamps[[0, -1]])
     axis.set_xlim(lower + 23.5 / 24, upper)
@@ -70,15 +70,56 @@ def test_partial_day_margin_keeps_selected_date_at_left_without_inventing_anothe
     labels = axis.get_xticklabels()
     assert labels[0].get_text() == "30 Oct 2020"
     boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in labels]
-    assert boxes[0].x0 == pytest.approx(axis.bbox.x0)
+    assert boxes[0].x0 > axis.bbox.x0
+    assert labels[0].get_ha() == "center"
+    assert axis.get_xticks()[0] == pytest.approx(dates.date2num(stamps[1]) + 0.5)
     assert boxes[-1].x1 <= axis.bbox.x1
     assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
     axis.set_xlim(lower + 1.25, lower + 2.75)
     figure.canvas.draw()
     assert axis.get_xticklabels()[0].get_text() == "30 Oct 2020"
-    assert axis.get_xticklabels()[0].get_window_extent(figure.canvas.get_renderer()).x0 == (
-        pytest.approx(axis.bbox.x0)
-    )
+    assert axis.get_xticklabels()[0].get_ha() == "center"
+
+
+@pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam", "Asia/Kathmandu"])
+def test_first_date_centers_then_aligns_left_then_hides_without_moving_the_second_date(timezone):
+    figure, axis, stamps = epoch_axis(start="2026-10-24", days=8, width=1800, timezone=timezone)
+    boundaries = dates.date2num(stamps)
+    second_center = (boundaries[1] + boundaries[2]) / 2
+    for fraction, alignment in ((0, "center"), (0.35, "left"), (0.95, None)):
+        low = boundaries[0] + fraction
+        axis.set_xlim(low, low + 7)
+        figure.canvas.draw()
+        labels = {
+            label.get_text(): (value, label)
+            for value, label in zip(axis.get_xticks(), axis.get_xticklabels(), strict=True)
+        }
+        value, second = labels["25 Oct 2026"]
+        assert value == pytest.approx(second_center) and second.get_ha() == "center"
+        if alignment is None:
+            assert "24 Oct 2026" not in labels
+        else:
+            value, first = labels["24 Oct 2026"]
+            assert first.get_ha() == alignment
+            if alignment == "left":
+                assert first.get_window_extent(figure.canvas.get_renderer()).x0 == pytest.approx(
+                    axis.bbox.x0
+                )
+        boxes = [
+            label.get_window_extent(figure.canvas.get_renderer()) for _, label in labels.values()
+        ]
+        assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
+
+
+@pytest.mark.parametrize("days,width", [(7, 300), (7, 600), (40, 600), (365, 1000)])
+def test_grouped_dates_remain_inside_the_axis_and_do_not_overlap_when_crowded(days, width):
+    figure, axis, _ = epoch_axis(days=days, width=width)
+    figure.canvas.draw()
+    boxes = [
+        label.get_window_extent(figure.canvas.get_renderer()) for label in axis.get_xticklabels()
+    ]
+    assert boxes and boxes[0].x0 >= axis.bbox.x0 and boxes[-1].x1 <= axis.bbox.x1
+    assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
 
 
 def stacked_epoch_axes():
@@ -174,7 +215,7 @@ def test_long_ranges_thin_dates_and_midnight_times_and_restore_hours_on_zoom():
     boxes = [
         label.get_window_extent(figure.canvas.get_renderer()) for label in axis.get_xticklabels()
     ]
-    assert boxes[0].x0 == pytest.approx(axis.bbox.x0)
+    assert boxes[0].x0 >= axis.bbox.x0
     assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
     axis.set_xlim(dates.date2num(stamps[[0, 1]]))
     figure.canvas.draw()

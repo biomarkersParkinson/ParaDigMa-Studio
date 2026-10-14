@@ -138,7 +138,7 @@ class SelectionOverlay:
         if restore:
             self.canvas.restore_region(self.background)
         for artist in self.artists():
-            artist.axes.draw_artist(artist)
+            self.canvas.figure.draw_artist(artist)
         if restore:
             self.canvas.blit(self.canvas.figure.bbox)
         # A normal draw already schedules Qt painting. Repainting inside its

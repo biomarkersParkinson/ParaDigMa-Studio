@@ -15,8 +15,9 @@
   statistic still finishes before a recording is displayed.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
-  Dragging the Results time scrollbar reuses settled layouts and redraws visible
-  plots before a full redraw on release. Raw graphs retain panning. Dense
+  Results scrollbar drags and horizontal trackpad gestures reuse settled layouts
+  and redraw visible plots before a full redraw when navigation stops. Zoom
+  selection shading shares the timepoint marker's cached overlay. Raw graphs retain panning. Dense
   full-recording plots still cost more than zoomed views.
 - Raw plots display at most 20,000 samples per channel. Sensor context indexes
   source timestamps and loads the visible window while preserving the initial

@@ -204,6 +204,7 @@ class ResultGraphs:
         if self._plot_signature == signature and self.figure.axes:
             self.highlight_result_row()
             return
+        self.plot_toolbar.stop_navigation()
         previous_mode, viewport, previous_y = self._result_plot_viewport(chosen, mode)
         self._plot_signature = signature
         existing, shared = self._retain_result_axes(chosen, mode, previous_mode)

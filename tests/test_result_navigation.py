@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.backend_bases import MouseEvent
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionSlider
 
@@ -37,11 +38,11 @@ def test_scrollbar_preserves_duration_shared_axes_tables_and_manual_y_limits(
     original = frame.copy(deep=True)
     axes, bar = window.figure.axes, window.result_time_scroll
     full = axes[0].get_xlim()
-    assert not bar.isEnabled() and bar.maximum() == 0
+    assert not bar.isEnabled() and bar.maximum() == 0 and bar.isHidden()
     span = (full[1] - full[0]) / 4
     axes[1].set_ylim(40, 90)
     axes[0].set_xlim(full[0] + span, full[0] + 2 * span)
-    assert bar.isEnabled() and 0 < bar.pageStep() < bar.STEPS
+    assert bar.isEnabled() and not bar.isHidden() and 0 < bar.pageStep() < bar.STEPS
     for position, left in ((bar.maximum(), full[1] - span), (0, full[0])):
         bar.setValue(position)
         for ax in axes:
@@ -79,22 +80,29 @@ def test_result_zoom_selects_only_time_even_for_a_horizontal_drag(window, manual
     assert window.result_time_scroll.isEnabled()
 
 
-def test_zoom_preview_spans_full_graph_height_and_vertical_only_drags_do_not_zoom(
-    window, monkeypatch
-):
+def test_zoom_preview_shades_every_graph_and_vertical_only_drags_do_not_zoom(window):
     result_graphs(window)
     axes, toolbar, canvas = window.figure.axes[0], window.plot_toolbar, window.canvas
     full = axes.get_xlim()
     first = axes.transAxes.transform((0.3, 0.2))
     last = axes.transAxes.transform((0.3, 0.8))
-    boxes = []
-    monkeypatch.setattr(toolbar, "draw_rubberband", lambda event, *bounds: boxes.append(bounds))
+    original_bounds = [ax.dataLim.bounds for ax in window.figure.axes]
     toolbar.zoom()
     toolbar.press_zoom(MouseEvent("button_press_event", canvas, *first, button=1))
     toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *last, buttons={1}))
-    assert boxes[-1][1::2] == pytest.approx(axes.bbox.intervaly)
+    canvas.draw()
+    assert len(toolbar.zoom_regions) == 1
+    region = toolbar.zoom_regions[0]
+    assert region.figure is window.figure
+    assert region.get_y() == min(ax.get_position().y0 for ax in window.figure.axes)
+    assert region.get_y() + region.get_height() == pytest.approx(
+        max(ax.get_position().y1 for ax in window.figure.axes)
+    )
+    assert all(0 < region.get_alpha() < 1 for region in toolbar.zoom_regions)
+    assert [ax.dataLim.bounds for ax in window.figure.axes] == original_bounds
     toolbar.release_zoom(MouseEvent("button_release_event", canvas, *last, button=1))
     assert axes.get_xlim() == full
+    assert not toolbar.zoom_regions
 
 
 def test_scroll_history_home_keyboard_and_series_changes_follow_the_same_time_range(window):
@@ -119,20 +127,23 @@ def test_scroll_history_home_keyboard_and_series_changes_follow_the_same_time_ra
     item.setCheckState(0, Qt.Checked)
     assert axes.get_xlim() == shifted and bar.isEnabled()
     toolbar.home()
-    assert axes.get_xlim() == full and not bar.isEnabled()
+    assert axes.get_xlim() == full and not bar.isEnabled() and bar.isHidden()
     window.clear_results()
     assert not bar.isEnabled() and bar.maximum() == 0
 
 
-def test_scrollbar_is_pinned_below_the_time_axis_and_manual_outside_limits_are_preserved(window):
+def test_scrollbar_is_pinned_and_manual_time_limits_are_bounded_by_the_recording(window):
     result_graphs(window)
     bar, axes = window.result_time_scroll, window.figure.axes[0]
     assert window.graph_view.isAncestorOf(bar)
     assert not window.graph_scroll.isAncestorOf(bar)
-    assert bar.visibleRegion().contains(bar.rect())
+    assert bar.isHidden()
     full = axes.get_xlim()
     axes.set_xlim(full[0] - 100, full[0] + 100)
-    assert axes.get_xlim() == (full[0] - 100, full[0] + 100)
+    window.plot_toolbar.push_current()
+    assert axes.get_xlim() == (full[0], full[0] + 200)
+    QApplication.instance().processEvents()
+    assert bar.isVisible() and bar.visibleRegion().contains(bar.rect())
     bar.setValue(bar.maximum())
     assert axes.get_xlim() == pytest.approx((full[1] - 200, full[1]))
 
@@ -176,6 +187,151 @@ def test_clearing_results_cancels_active_zoom_and_releases_its_graphs(window):
     window.clear_results()
     assert toolbar._zoom_info is None and not toolbar._automatic_bar_y
     assert not window.result_time_scroll.isEnabled()
+
+
+@pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])
+def test_zoom_buttons_and_zoom_out_selection_never_exceed_the_full_time_range(window, view):
+    result_graphs(window, view=view, calendar=True)
+    toolbar, axes, bar = window.plot_toolbar, window.figure.axes[0], window.result_time_scroll
+    full = axes.get_xlim()
+    assert not toolbar._actions["zoom_out"].isEnabled() and bar.isHidden()
+    toolbar._actions["zoom_in"].trigger()
+    assert axes.get_xlim()[1] - axes.get_xlim()[0] == pytest.approx((full[1] - full[0]) / 2)
+    assert not bar.isHidden() and toolbar._actions["zoom_out"].isEnabled()
+    toolbar._actions["zoom_out"].trigger()
+    assert axes.get_xlim() == pytest.approx(full) and bar.isHidden()
+    window.canvas.draw()
+    toolbar.zoom()
+    start, end = axes.transAxes.transform([(0.45, 0.3), (0.55, 0.7)])
+    toolbar.press_zoom(MouseEvent("button_press_event", window.canvas, *start, button=3))
+    toolbar.release_zoom(MouseEvent("button_release_event", window.canvas, *end, button=3))
+    assert all(ax.get_xlim() == pytest.approx(full) for ax in window.figure.axes)
+    assert bar.isHidden()
+    for raw_toolbar in (window.data_toolbar, window.sensor_toolbar):
+        assert "zoom_in" not in raw_toolbar._actions and "zoom_out" not in raw_toolbar._actions
+
+
+def send_wheel(widget, *, pixels=0, angle=0, vertical=0, phase=Qt.ScrollUpdate, inverted=False):
+    event = QWheelEvent(
+        QPointF(30, 30),
+        QPointF(widget.mapToGlobal(QPoint(30, 30))),
+        QPoint(pixels, vertical),
+        QPoint(angle, 0),
+        Qt.NoButton,
+        Qt.NoModifier,
+        phase,
+        inverted,
+    )
+    QApplication.sendEvent(widget, event)
+    return event
+
+
+@pytest.mark.parametrize("target", ["canvas", "time_axis", "viewport"])
+@pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
+def test_horizontal_trackpad_scrolls_shared_time_and_keeps_one_navigation_step(
+    window, target, calendar
+):
+    result_graphs(window, calendar=calendar)
+    toolbar, axes, bar = window.plot_toolbar, window.figure.axes[0], window.result_time_scroll
+    full = axes.get_xlim()
+    original_y = window.figure.axes[1].get_ylim()
+    window.figure.axes[1].set_ylim(*original_y)
+    toolbar._actions["zoom_in"].trigger()
+    window.canvas.draw()
+    original = axes.get_xlim()
+    widget = window.graph_scroll.viewport() if target == "viewport" else getattr(window, target)
+    width = axes.bbox.width / window.canvas.device_pixel_ratio
+    event = send_wheel(widget, pixels=-60, vertical=5)
+    assert event.isAccepted() and toolbar.scrolling_time
+    expected = original[0] + 60 / width * (original[1] - original[0])
+    assert axes.get_xlim()[0] - original[0] == pytest.approx(
+        expected - original[0], rel=1e-5, abs=(original[1] - original[0]) / bar.STEPS * 2
+    )
+    assert window.figure.axes[1].get_ylim() == original_y
+    shifted = axes.get_xlim()
+    assert send_wheel(widget, phase=Qt.ScrollEnd).isAccepted()
+    assert not toolbar.scrolling_time
+    assert window.time_axis.axes.get_xlim() == pytest.approx(shifted)
+    toolbar.back()
+    assert axes.get_xlim() == pytest.approx(original)
+    toolbar.back()
+    assert axes.get_xlim() == pytest.approx(full) and bar.isHidden()
+
+
+def test_trackpad_angle_fallback_debounce_and_recording_edges(window):
+    result_graphs(window)
+    toolbar, axes = window.plot_toolbar, window.figure.axes[0]
+    full = axes.get_xlim()
+    toolbar._actions["zoom_in"].trigger()
+    span = axes.get_xlim()[1] - axes.get_xlim()[0]
+    before = axes.get_xlim()
+    assert send_wheel(window.canvas, angle=-120, phase=Qt.NoScrollPhase).isAccepted()
+    assert axes.get_xlim()[0] > before[0]
+    QTest.qWait(250)
+    assert not toolbar.scrolling_time
+    send_wheel(window.canvas, pixels=-100000, inverted=True)
+    assert axes.get_xlim() == pytest.approx((full[1] - span, full[1]))
+    send_wheel(window.canvas, pixels=100000, inverted=True)
+    assert axes.get_xlim() == pytest.approx((full[0], full[0] + span))
+    send_wheel(window.canvas, phase=Qt.ScrollEnd)
+
+
+@pytest.mark.parametrize("action", ["home", "back", "series", "drag-zoom"])
+def test_interrupting_trackpad_gestures_preserves_automatic_y_and_navigation(window, action):
+    result_graphs(window)
+    toolbar, axes, bar = window.plot_toolbar, window.figure.axes[0], window.result_time_scroll
+    full = axes.get_xlim()
+    toolbar._actions["zoom_in"].trigger()
+    zoomed = axes.get_xlim()
+    send_wheel(window.canvas, pixels=-60)
+    shifted = axes.get_xlim()
+    assert toolbar.scrolling_time and not axes.get_autoscaley_on()
+    if action == "series":
+        window._series_items[("quantifications/pulse_rate", "other")].setCheckState(0, Qt.Unchecked)
+        assert axes.get_xlim() == shifted
+    elif action == "drag-zoom":
+        toolbar.zoom()
+        start = axes.transAxes.transform((0.3, 0.3))
+        toolbar.press_zoom(MouseEvent("button_press_event", window.canvas, *start, button=1))
+        assert toolbar._zoom_info is not None
+        toolbar.stop_navigation()
+    else:
+        getattr(toolbar, action)()
+        assert axes.get_xlim() == (full if action == "home" else zoomed)
+    assert not toolbar.scrolling_time and not bar._wheel_timer.isActive()
+    assert all(ax.get_autoscaley_on() for ax in window.figure.axes)
+    toolbar.home()
+    assert axes.get_xlim() == full and bar.isHidden()
+
+
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+def test_drag_zoom_shades_graphs_and_gaps_continuously_and_cleans_up_on_cancel(window, pixel_ratio):
+    result_graphs(window)
+    toolbar, canvas, axes = window.plot_toolbar, window.canvas, window.figure.axes[0]
+    canvas._set_device_pixel_ratio(pixel_ratio)
+    canvas.draw()
+    original = np.asarray(canvas.buffer_rgba()).copy()
+    bounds = [ax.dataLim.bounds for ax in window.figure.axes]
+    toolbar.zoom()
+    start, end = axes.transAxes.transform([(0.005, 0.3), (0.65, 0.7)])
+    toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
+    toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons={1}))
+    canvas.draw()
+    assert len(toolbar.zoom_regions) == 1
+    first = toolbar.zoom_regions[0]
+    assert first.get_width() > 0
+    actual = np.asarray(canvas.buffer_rgba()).copy()
+    boxes = sorted((ax.bbox for ax in window.figure.axes), key=lambda box: box.y0)
+    for lower, upper in zip(boxes, boxes[1:], strict=False):
+        row = actual.shape[0] - round((lower.y1 + upper.y0) / 2)
+        column = round((start[0] + end[0]) / 2)
+        expected = original[row, column, :3] * 0.8 + np.array([71, 125, 163]) * 0.2
+        np.testing.assert_allclose(actual[row, column, :3], expected, atol=2)
+    assert [ax.dataLim.bounds for ax in window.figure.axes] == bounds
+    toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons=set()))
+    assert not toolbar.zoom_regions and toolbar._zoom_info is None
+    assert first not in window.figure.artists
+    assert not toolbar._automatic_bar_y
 
 
 @pytest.mark.parametrize("sensor_context", [False, True], ids=["data", "sensor-context"])

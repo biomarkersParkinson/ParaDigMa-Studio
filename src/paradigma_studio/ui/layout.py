@@ -749,9 +749,12 @@ class WorkspaceLayout:
         self.figure = Figure(layout="constrained")
         self.canvas = ScrollableFigureCanvas(self.figure)
         self.canvas.defer_when_hidden = True
-        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
+        self.result_overlay = SelectionOverlay(
+            self.canvas,
+            lambda: [*self.plot_toolbar.zoom_regions, *self._result_selection_artists],
+        )
         self.canvas.pinned_time_axis = True
-        self.plot_toolbar = ResultsToolbar(self.canvas, self)
+        self.plot_toolbar = ResultsToolbar(self.canvas, self, overlay=self.result_overlay)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
         self.figure_actions.set_context(self.graph_view_controls)
         self.figure_actions_layout = self.figure_actions.primary
@@ -789,6 +792,7 @@ class WorkspaceLayout:
         plot_view_layout.addWidget(scroll, 1)
         plot_view_layout.addWidget(self.time_axis)
         self.result_time_scroll = ResultTimeScroll(self.plot_toolbar)
+        self.result_time_scroll.watch(self.canvas, self.graph_scroll.viewport(), self.time_axis)
         plot_view_layout.addWidget(self.result_time_scroll)
         self.graph_footer = QWidget()
         self.graph_footer_layout = QHBoxLayout(self.graph_footer)

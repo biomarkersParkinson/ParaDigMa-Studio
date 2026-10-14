@@ -511,6 +511,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
     def clear_results(self):
         self.disconnect_sensor_view()
+        self.plot_toolbar.stop_navigation()
         for toolbar in (self.plot_toolbar, self.sensor_toolbar):
             if toolbar._pan_info is not None:
                 toolbar.release_pan(None)

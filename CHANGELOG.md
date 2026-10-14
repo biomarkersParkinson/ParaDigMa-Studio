@@ -2,12 +2,14 @@
 
 ## Unreleased
 
+- Bound Results zoom to the full time range, hide the time scrollbar at full range,
+  support horizontal trackpad gestures, shade drag selections continuously across
+  graphs and their gaps, and add Zoom in/out buttons. Fit the first date without
+  relocating later labels.
 - Replace Results panning with a shared horizontal time scrollbar and restrict
   Results zoom selections to time; retain raw-data pan and zoom controls.
 - Share the grouped date/time axis between Detailed and 30-minute graphs, retaining
   spaced midnight labels on multi-day ranges and precise times when zoomed in.
-- Anchor the first date label in 30-minute graphs at the left edge, while keeping
-  its date, later centered labels and non-overlapping spacing unchanged.
 - Explain worker selection in the processing log, including detected CPU count,
   available RAM, recording-memory estimates and single-worker fallback reasons.
 - Keep pandas and pyarrow deferred while opening the empty workspace, Runs and

@@ -32,13 +32,14 @@ def _visible_days(low, high, timezone, calendar):
 
 
 class RecordingDayLocator(ticker.Locator):
-    """One date per day, optionally anchoring the first at the visible start."""
+    """Spaced dates with an optional centered/left/hidden first-day label."""
 
-    def __init__(self, timezone=None, *, calendar=True, split_year=True, first_at_start=False):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True, adaptive_first=False):
         self.timezone, self.calendar = timezone, calendar
         self.split_year = split_year
-        self.first_at_start = first_at_start
+        self.adaptive_first = adaptive_first
         self._layout_key = None
+        self._left_label = None
 
     def __call__(self):
         low, high = sorted(self.axis.get_view_interval())
@@ -47,15 +48,15 @@ class RecordingDayLocator(ticker.Locator):
         key = low, high, axes.bbox.width, axes.figure.dpi, str(font)
         if key != self._layout_key:
             self._layout_key = key
+            self._left_label = None
             self._locations = self._day_locations(low, high, font)
-            self._first_label_value = self._locations[0] if len(self._locations) else None
-            if self.first_at_start and len(self._locations):
-                self._locations[0] = low
         return self._locations
 
     def _day_locations(self, low, high, font):
         if not np.isfinite([low, high]).all() or high <= low:
             return np.array([])
+        if self.adaptive_first:
+            return self._grouped_locations(low, high, font)
         starts, ends, numbers = _visible_days(low, high, self.timezone, self.calendar)
         centers = (np.maximum(starts, low) + np.minimum(ends, high)) / 2
         width = max(1, self.axis.axes.bbox.width)
@@ -69,6 +70,37 @@ class RecordingDayLocator(ticker.Locator):
         stride = max(1, int(np.ceil(label_width / max(1, spacing))))
         selected = numbers % stride == 0
         return centers[selected] if selected.any() else centers[:1]
+
+    def _grouped_locations(self, low, high, font):
+        starts, ends, numbers = _visible_days(low, high, self.timezone, self.calendar)
+        centers = (np.maximum(starts, low) + np.minimum(ends, high)) / 2
+        centers[0] = (starts[0] + ends[0]) / 2
+        width = max(1, self.axis.axes.bbox.width)
+        scale = width / (high - low)
+        pixels = (centers - low) * scale
+        label_width = self._label_width(font, centers) + 12
+        half = label_width / 2
+        fitting = (pixels >= half) & (pixels <= width - half)
+        first_end = (min(ends[0], high) - low) * scale
+        fitting[0] &= pixels[0] + half <= first_end
+        if not fitting[0] and first_end >= label_width:
+            centers[0], pixels[0], fitting[0] = low, 0, True
+            self._left_label = low
+        # Use full day widths, so hiding the first date cannot change which
+        # subsequent dates are selected or move them from their normal centers.
+        spacing = max(1, np.min(ends - starts) * scale)
+        stride = max(1, int(np.ceil(label_width / spacing)))
+        indices = np.flatnonzero(fitting & (numbers % stride == 0))
+        if len(indices) > 1:
+            first, second = indices[:2]
+            first_right = (
+                label_width if centers[first] == self._left_label else pixels[first] + half
+            )
+            if first == 0 and first_right > pixels[second] - half:
+                indices = indices[1:]
+        if len(indices) > 1 and pixels[indices[-1]] - pixels[indices[-2]] < label_width:
+            indices = indices[:-1]
+        return centers[indices]
 
     def _label_width(self, font, centers):
         formatter = RecordingDayFormatter(
@@ -96,25 +128,18 @@ class RecordingDayLocator(ticker.Locator):
 
 
 class RecordingDayFormatter(ticker.Formatter):
-    def __init__(self, timezone=None, *, calendar=True, split_year=True, first_at_start=False):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True):
         self.timezone, self.calendar = timezone, calendar
         self.split_year = split_year
-        self.first_at_start = first_at_start
-        self._first_label_value = None
 
     def set_locs(self, locs):
         super().set_locs(locs)
         locator = self.axis.get_major_locator()
-        self._first_label_value = getattr(locator, "_first_label_value", None)
-        for index, tick in enumerate(self.axis.get_major_ticks(len(locs))):
-            tick.label1.set_horizontalalignment(
-                "left" if self.first_at_start and index == 0 else "center"
-            )
+        left_label = getattr(locator, "_left_label", None)
+        for value, tick in zip(locs, self.axis.get_major_ticks(len(locs)), strict=True):
+            tick.label1.set_horizontalalignment("left" if value == left_label else "center")
 
     def __call__(self, value, pos=None):
-        if self.first_at_start and pos == 0 and self._first_label_value is not None:
-            # Keep the selected date even if the left margin lies on a prior day.
-            value = self._first_label_value
         if self.calendar:
             pattern = "%d %b\n%Y" if self.split_year else "%d %b %Y"
             return dates.num2date(value, tz=self.timezone).strftime(pattern)
