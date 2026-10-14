@@ -21,6 +21,13 @@ from .plotting import autoscale_bars
 from .theme import light_palette
 
 
+def _calendar_axis(axes, name):
+    locator = getattr(axes, f"{name}axis").get_major_locator()
+    calendar = getattr(locator, "calendar", isinstance(locator, dates.DateLocator))
+    timezone = getattr(locator, "timezone", getattr(locator, "tz", None))
+    return bool(calendar), timezone
+
+
 class GraphToolbar(NavigationToolbar2QT):
     # Subplot spacing and the generic figure editor overlap and inherit the
     # system dialog palette. Constrained layout already handles subplot spacing.
@@ -257,7 +264,7 @@ class GraphSettings(QFrame):
         )
         for axis, (automatic, lower, upper) in self.bounds.items():
             automatic.setChecked(getattr(ax, f"get_autoscale{axis}_on")())
-            is_date = isinstance(getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator)
+            is_date, timezone = _calendar_axis(ax, axis)
             lower.setToolTip("ISO date/time, including time zone" if is_date else "Finite number")
             lower.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Minimum")
             upper.setPlaceholderText("YYYY-MM-DD HH:MM:SS" if is_date else "Maximum")
@@ -265,11 +272,7 @@ class GraphSettings(QFrame):
             values = getattr(ax, f"get_{axis}lim")()
             for edit, value in zip((lower, upper), values, strict=False):
                 edit.setText(
-                    dates.num2date(
-                        value, tz=getattr(ax, f"{axis}axis").get_major_locator().tz
-                    ).isoformat()
-                    if is_date
-                    else f"{value:.12g}"
+                    dates.num2date(value, tz=timezone).isoformat() if is_date else f"{value:.12g}"
                 )
         self.error.hide()
 
@@ -284,9 +287,7 @@ class GraphSettings(QFrame):
                 if automatic.isChecked():
                     limits[axis] = None
                     continue
-                is_date = isinstance(
-                    getattr(ax, f"{axis}axis").get_major_locator(), dates.DateLocator
-                )
+                is_date, _ = _calendar_axis(ax, axis)
                 parse = dates.datestr2num if is_date else float
                 values = tuple(float(parse(edit.text().strip())) for edit in (lower, upper))
                 if not all(math.isfinite(value) for value in values) or values[0] >= values[1]:

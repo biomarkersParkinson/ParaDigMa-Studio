@@ -7,6 +7,7 @@ from matplotlib.lines import Line2D
 from PySide6.QtCore import QPoint, Signal
 
 from .day_axis import RecordingDayFormatter, RecordingDayLocator
+from .epoch_axis import style_epoch_axis
 from .plotting import time_selection_triangle
 
 
@@ -28,8 +29,9 @@ class RecordingDateLocator(dates.AutoDateLocator):
 class RecordingTimeFormatter(ticker.Formatter):
     """Time on the first line; date at the first visible tick and day changes."""
 
-    def __init__(self, timezone=None):
+    def __init__(self, timezone=None, *, show_date=True):
         self.timezone = timezone
+        self.show_date = show_date
         self._dates = {}
         self._offset_ticks = set()
         self._subsecond = False
@@ -82,7 +84,7 @@ class RecordingTimeFormatter(ticker.Formatter):
         # Offset distinguishes repeated local times at a daylight-saving change.
         if float(value) in self._offset_ticks:
             time += stamp.strftime(" %z")
-        text = time + "\n" + self._dates.get(float(value), "")
+        text = time + "\n" + self._dates.get(float(value), "") if self.show_date else time
         self._labels[float(value)] = text
         return text
 
@@ -151,14 +153,32 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.set_visible(source is not None)
         if source is not None:
             self._source_connection = source.callbacks.connect("xlim_changed", self.synchronize)
+            self.axes.xaxis.set_minor_locator(ticker.NullLocator())
+            self.axes.xaxis.set_minor_formatter(ticker.NullFormatter())
+            self.axes.xaxis.remove_overlapping_locs = True
+            self.axes.tick_params(axis="x", which="major", colors="#60728A", length=3, pad=6)
             locator = source.xaxis.get_major_locator()
-            if isinstance(locator, RecordingDayLocator):
+            if getattr(source, "_paradigma_day_groups", False):
+                self._date_timezone = locator.timezone if locator.calendar else None
+                style_epoch_axis(
+                    self.axes,
+                    locator.timezone,
+                    calendar=locator.calendar,
+                    clock_formatter=RecordingTimeFormatter(locator.timezone, show_date=False),
+                    labels=True,
+                )
+                self.setFixedHeight(62)
+            elif isinstance(locator, RecordingDayLocator):
                 self._date_timezone = locator.timezone if locator.calendar else None
                 self.axes.xaxis.set_major_locator(
-                    RecordingDayLocator(locator.timezone, calendar=locator.calendar)
+                    RecordingDayLocator(
+                        locator.timezone, calendar=locator.calendar, split_year=locator.split_year
+                    )
                 )
                 self.axes.xaxis.set_major_formatter(
-                    RecordingDayFormatter(locator.timezone, calendar=locator.calendar)
+                    RecordingDayFormatter(
+                        locator.timezone, calendar=locator.calendar, split_year=locator.split_year
+                    )
                 )
                 self.setFixedHeight(62 if locator.calendar else 42)
             elif isinstance(locator, dates.DateLocator):

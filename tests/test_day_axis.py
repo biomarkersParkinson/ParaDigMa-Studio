@@ -167,7 +167,9 @@ def test_live_day_axis_aligns_graphs_exports_dates_and_preserves_series(window):
     coverage.setCheckState(0, Qt.Checked)
     assert all(axis in window.figure.axes for axis in axes)
     window.result_graph_view.setCurrentIndex(1)
-    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingTimeFormatter)
+    assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
+    assert isinstance(window.time_axis.axes.xaxis.get_minor_formatter(), RecordingTimeFormatter)
+    assert not window.time_axis.axes.xaxis.get_minor_formatter().show_date
     for stage in ("classifications", "quantifications"):
         for module in original[stage]:
             pd.testing.assert_frame_equal(

@@ -6,6 +6,7 @@ from matplotlib.lines import Line2D
 
 from ..daily import daily_availability_summary, daily_summary, gait_daily_summaries
 from ..day_axis import RecordingDayFormatter, RecordingDayLocator
+from ..epoch_axis import MidnightBridges, MidnightSeparators, style_epoch_axis
 from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
@@ -469,9 +470,29 @@ class ResultGraphs:
             )
         if self.result_graph_view.currentIndex() == 2:
             self._style_daily_axis(ax)
+        elif self.result_graph_view.currentIndex() == 1:
+            self._style_epoch_axis(ax)
         ax.tick_params(axis="x", labelbottom=False)
         ax.xaxis.label.set_visible(False)
         ax.xaxis.offsetText.set_visible(False)
+
+    def _style_epoch_axis(self, ax):
+        calendar = self.display_clock is not None
+        timezone = clock_origin(self.display_clock).tz if calendar else None
+        style_epoch_axis(
+            ax,
+            timezone,
+            calendar=calendar,
+            clock_formatter=RecordingTimeFormatter(timezone, show_date=False),
+        )
+        ax._paradigma_day_groups = True
+        if not calendar:
+            ax.set_xlabel(
+                "File-order timeline (days / hours)"
+                if len(self.provenance.get("sources", {})) > 1
+                else "Elapsed analysis time (days / hours)"
+            )
+        MidnightSeparators(ax, timezone, calendar=calendar)
 
     def _style_daily_axis(self, ax):
         calendar = self.display_clock is not None
@@ -495,6 +516,13 @@ class ResultGraphs:
         # Fit each automatic Y range against that final shared view.
         for ax in self.figure.axes:
             autoscale_bars(ax)
+        if (
+            first_axes is not None
+            and getattr(first_axes, "_paradigma_day_groups", False)
+            and not any(isinstance(artist, MidnightBridges) for artist in self.figure.artists)
+        ):
+            locator = first_axes.xaxis.get_major_locator()
+            MidnightBridges(self.figure, locator.timezone, calendar=locator.calendar)
         self.time_axis.bind(first_axes)
         self.plot_toolbar.refresh()
         if viewport is not None and first_axes is not None:

@@ -228,13 +228,13 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
             return super().print_figure(*args, **kwargs)
         axis = self.figure.axes[-1]
         self.exporting_time_axis = True
-        axis.tick_params(axis="x", labelbottom=True)
+        axis.tick_params(axis="x", which="both", labelbottom=True)
         axis.xaxis.label.set_visible(True)
         axis.xaxis.offsetText.set_visible(True)
         try:
             return super().print_figure(*args, **kwargs)
         finally:
-            axis.tick_params(axis="x", labelbottom=False)
+            axis.tick_params(axis="x", which="both", labelbottom=False)
             axis.xaxis.label.set_visible(False)
             axis.xaxis.offsetText.set_visible(False)
             self.exporting_time_axis = False

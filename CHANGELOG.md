@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Make days recognizable in 30-minute graphs with continuous midnight separators
+  across plots and their gaps, and clock times above centered dates. Preserve
+  the recording's timezone and existing bars.
+  Keep ISO date/time limits working with the grouped date axes in every view.
 - Center date labels beneath each day in Day graphs, adapting their spacing to
   the available width and zoom; retain the existing bars and background.
 - Reduce raw-input loading overhead by reusing missing-value counts and avoiding

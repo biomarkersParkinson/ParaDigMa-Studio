@@ -34,8 +34,9 @@ def _visible_days(low, high, timezone, calendar):
 class RecordingDayLocator(ticker.Locator):
     """One centered date per day when measured label widths permit it."""
 
-    def __init__(self, timezone=None, *, calendar=True):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True):
         self.timezone, self.calendar = timezone, calendar
+        self.split_year = split_year
         self._layout_key = None
 
     def __call__(self):
@@ -66,7 +67,9 @@ class RecordingDayLocator(ticker.Locator):
         return centers[selected] if selected.any() else centers[:1]
 
     def _label_width(self, font, centers):
-        formatter = RecordingDayFormatter(self.timezone, calendar=self.calendar)
+        formatter = RecordingDayFormatter(
+            self.timezone, calendar=self.calendar, split_year=self.split_year
+        )
         labels = [
             line
             for value in centers[:1].tolist() + centers[-1:].tolist()
@@ -75,7 +78,8 @@ class RecordingDayLocator(ticker.Locator):
         if self.calendar:
             # Bound measurement work even when thousands of days are visible;
             # the widest month and year determine the date-label footprint.
-            labels.extend(datetime(2026, month, 28).strftime("%d %b") for month in range(1, 13))
+            pattern = "%d %b" if self.split_year else "%d %b %Y"
+            labels.extend(datetime(2026, month, 28).strftime(pattern) for month in range(1, 13))
         renderer = getattr(self.axis.axes.figure.canvas, "get_renderer", None)
         if renderer is None:
             dpi = self.axis.axes.figure.dpi
@@ -88,10 +92,12 @@ class RecordingDayLocator(ticker.Locator):
 
 
 class RecordingDayFormatter(ticker.Formatter):
-    def __init__(self, timezone=None, *, calendar=True):
+    def __init__(self, timezone=None, *, calendar=True, split_year=True):
         self.timezone, self.calendar = timezone, calendar
+        self.split_year = split_year
 
     def __call__(self, value, pos=None):
         if self.calendar:
-            return dates.num2date(value, tz=self.timezone).strftime("%d %b\n%Y")
+            pattern = "%d %b\n%Y" if self.split_year else "%d %b %Y"
+            return dates.num2date(value, tz=self.timezone).strftime(pattern)
         return f"Day {int(np.floor(value / DAY_SECONDS)) + 1}"
