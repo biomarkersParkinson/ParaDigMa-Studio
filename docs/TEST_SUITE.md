@@ -27,7 +27,7 @@ trigger and expected behavior still apply.
 | Complete local snapshots, reopening and unsaved-close warnings | `test_saved_results.py` |
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
-| Startup, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
+| Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |

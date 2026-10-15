@@ -67,8 +67,10 @@ Qt platform initialization and Matplotlib cache configuration ahead of the
 imports that depend on them. The justified `isort: split` boundary in `app.py`
 keeps cache initialization ahead of plotting imports during automatic sorting.
 Keep pandas/Arrow and scientific-stack imports deferred until data is needed.
-Fresh-process startup tests check both the empty workspace and saved run history;
-`benchmark_desktop.py` enforces the same import boundary in packaged builds.
+Keep Matplotlib imports and graph construction behind first use, and reuse the
+created canvases. Fresh-process startup tests check the empty workspace, saved
+run history and independent graph initialization; `benchmark_desktop.py` enforces
+the same startup import boundary in packaged builds.
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,

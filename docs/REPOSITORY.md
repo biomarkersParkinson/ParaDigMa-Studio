@@ -33,6 +33,7 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
 | Construction of the four existing pages and their controls | `ui/layout.py` |
+| First-use graph construction behind the existing window attributes | `ui/deferred.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
 | Results rendering, epoch caches and linked graph selection | `ui/result_graphs.py` |
 | Shared channel selection and original sensor plotting | `channels.py` |

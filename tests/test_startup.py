@@ -85,6 +85,8 @@ def test_first_window_does_not_load_analysis_stack(tmp_path):
     assert data["status"] == "passed"
     assert data["analysis_modules_loaded"] == []
     assert data["data_modules_loaded"] == []
+    assert data["plotting_modules_loaded"] == []
+    assert data["graph_workspaces_created"] == []
     assert data["empty_history"]
     assert data["qt_platform"] == "offscreen"
     assert 0 < data["import_seconds"] <= data["first_paint_seconds"]
@@ -122,6 +124,69 @@ sys.exit(startup_test(sys.argv[1], started))
     assert data["analysis_modules_loaded"] == []
 
 
+def test_graph_workspaces_initialize_independently_and_reuse_their_canvases(tmp_path):
+    code = """import sys
+from PySide6.QtWidgets import QApplication
+from paradigma_studio.app import MainWindow
+app = QApplication([])
+app.setStyle('Fusion')
+window = MainWindow(sys.argv[1])
+window.show()
+app.processEvents()
+try:
+    for index in (1, 3, 2, 0):
+        window.navigate(index)
+        app.processEvents()
+    assert 'matplotlib' not in sys.modules
+    window.data_tabs.setCurrentIndex(1)
+    app.processEvents()
+    assert window._data_graph.initialized
+    assert not window.graph_view.initialized
+    assert not window._sensor_graph.initialized
+    data_canvas = window.data_canvas
+    window.navigate(2)
+    window.result_tabs.setCurrentIndex(1)
+    app.processEvents()
+    assert window.graph_view.initialized
+    assert not window._sensor_graph.initialized
+    assert window.result_graph_view.isVisible()
+    assert not window.figure_actions.secondary.isVisible()
+    assert window.figure_actions.height() == window.figure_actions.sizeHint().height()
+    result_canvas = window.canvas
+    assert len(window.figure.axes) == 1
+    assert window.figure.axes[0].texts[0].get_text() == 'Select metrics to plot'
+    window.result_tabs.setTabVisible(window.sensor_tab_index, True)
+    window.result_tabs.setCurrentIndex(window.sensor_tab_index)
+    app.processEvents()
+    assert window._sensor_graph.initialized
+    sensor_canvas = window.sensor_canvas
+    assert window.sensor_toolbar.home_callback == window.reset_sensor_context
+    for _ in range(2):
+        window.navigate(0)
+        window.data_tabs.setCurrentIndex(0)
+        window.data_tabs.setCurrentIndex(1)
+        window.navigate(2)
+        window.result_tabs.setCurrentIndex(1)
+        window.result_tabs.setCurrentIndex(window.sensor_tab_index)
+        app.processEvents()
+    assert window.data_canvas is data_canvas
+    assert window.canvas is result_canvas
+    assert window.sensor_canvas is sensor_canvas
+    assert not {'pandas', 'pyarrow', 'paradigma', 'sklearn', 'scipy', 'openmovement'} & sys.modules.keys()
+finally:
+    window.close()
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(tmp_path / "runs")],
+        cwd=tmp_path,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "MPLCONFIGDIR": str(tmp_path / "mpl")},
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize("run_count", [0, 200])
 def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_path, run_count):
     from paradigma_studio.history import new_run
@@ -157,4 +222,6 @@ sys.exit(startup_test(sys.argv[1], started, history_dir=sys.argv[2]))
     assert data["status"] == "passed"
     assert data["run_history_count"] == run_count
     assert data["data_modules_loaded"] == []
+    assert data["plotting_modules_loaded"] == []
+    assert data["graph_workspaces_created"] == []
     assert data["analysis_modules_loaded"] == []

@@ -2,6 +2,7 @@
 
 import json
 import sys
+from functools import cached_property
 from importlib.metadata import version
 from pathlib import Path
 from threading import Event
@@ -57,6 +58,7 @@ from .results_view import (
 from .run_controller import RunCallbacks, RunController, RunView
 from .sensor_controller import ChannelServices, SensorController, SensorView
 from .theme import STYLESHEET, light_palette, module_color
+from .ui.deferred import deferred_attribute
 from .ui.layout import WorkspaceLayout
 from .ui.result_graphs import ResultGraphs
 from .ui.result_overview import ResultOverview
@@ -66,6 +68,26 @@ from .workspace_state import InputState, ResultState, RunState, SensorState, sta
 
 
 class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
+    # Plot widgets retain their public API, but are constructed only when their
+    # tab is shown or code actually needs a canvas, figure or toolbar.
+    data_figure = deferred_attribute("_data_graph")
+    data_canvas = deferred_attribute("_data_graph")
+    data_toolbar = deferred_attribute("_data_graph")
+    sensor_figure = deferred_attribute("_sensor_graph")
+    sensor_canvas = deferred_attribute("_sensor_graph")
+    sensor_toolbar = deferred_attribute("_sensor_graph")
+    figure = deferred_attribute("graph_view")
+    canvas = deferred_attribute("graph_view")
+    plot_toolbar = deferred_attribute("graph_view")
+    result_overlay = deferred_attribute("graph_view")
+    figure_actions = deferred_attribute("graph_view")
+    figure_actions_layout = deferred_attribute("graph_view")
+    graphs_workspace = deferred_attribute("graph_view")
+    graph_scroll = deferred_attribute("graph_view")
+    time_axis = deferred_attribute("graph_view")
+    result_time_scroll = deferred_attribute("graph_view")
+    recording_time_label = deferred_attribute("graph_view")
+
     # Keep the existing widget/mixin/integration API backed by one state owner.
     # Components receive the state objects directly, rather than this window.
     frame = state_property("_input_state", "frame")
@@ -179,7 +201,6 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._series = ResultSeries(self.result_series)
         self._compose_run_controller()
         self._compose_result_controller()
-        self._compose_sensor_controller()
 
     def _compose_run_controller(self):
         run_view = RunView(
@@ -260,7 +281,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             result_callbacks,
         )
 
-    def _compose_sensor_controller(self):
+    @cached_property
+    def _sensor_controller(self):
         sensor_view = SensorView(
             result_table=self.result_table,
             context_button=self.context_button,
@@ -280,7 +302,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             populate_channels=lambda *args, **kwargs: self.populate_channels(*args, **kwargs),
             plot_channel_signals=lambda *args, **kwargs: self.plot_channel_signals(*args, **kwargs),
         )
-        self._sensor_controller = SensorController(
+        return SensorController(
             self._sensor_state,
             self._result_state,
             sensor_view,
@@ -346,8 +368,6 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         for control in (self.prepared, self.drop_missing):
             control.toggled.connect(self.update_origin_default)
         self.sensor_channels.itemChanged.connect(self.plot_sensor)
-        self.sensor_toolbar.home_callback = self.reset_sensor_context
-        self.canvas.mpl_connect("button_press_event", self.graph_clicked)
         self.modules_changed()
         self.preparation_changed()
 

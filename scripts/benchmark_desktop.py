@@ -45,9 +45,11 @@ def benchmark(executable, report_path, repetitions=5):
                 data.get("status") != "passed"
                 or data.get("analysis_modules_loaded")
                 or data.get("data_modules_loaded")
+                or data.get("plotting_modules_loaded")
+                or data.get("graph_workspaces_created")
             ):
                 raise RuntimeError(
-                    f"Startup did not remain independent of analysis imports: {data}"
+                    f"Startup loaded deferred data, analysis or plotting components: {data}"
                 )
             runs.append({**data, "launch_to_report_seconds": visible})
     sizes = defaultdict(int)

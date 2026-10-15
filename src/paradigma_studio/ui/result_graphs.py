@@ -1,12 +1,8 @@
 """Results graph rendering, epoch caches and linked row inspection."""
 
 import numpy as np
-from matplotlib import dates
-from matplotlib.lines import Line2D
 
 from ..daily import DAY_SECONDS, daily_availability_summary, daily_summary, gait_daily_summaries
-from ..day_axis import RecordingDayFormatter, RecordingDayLocator
-from ..epoch_axis import MidnightBridges, MidnightSeparators, style_epoch_axis
 from ..epoch_profile import format_profile_time, mean_epoch_profile
 from ..epochs import (
     EPOCH_SECONDS,
@@ -17,18 +13,8 @@ from ..epochs import (
 )
 from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
-from ..plotting import (
-    autoscale_bars,
-    binary_indicator,
-    plot_bars,
-    plot_states,
-    time_coordinates,
-    time_selection_line,
-)
-from ..profile_axis import style_profile_axis
 from ..results_view import MODULE_NAMES, clock_origin, clock_times
 from ..theme import module_color, style_axes, style_result_heading
-from ..time_axis import RecordingTimeFormatter
 
 PROFILE_VIEW = 3
 
@@ -198,6 +184,11 @@ class ResultGraphs:
 
     def plot(self, *_):
         chosen = self.selected_result_series()
+        if not chosen and not self.graph_view.initialized:
+            return
+
+        from ..plotting import binary_indicator
+
         mode = self.result_graph_view.currentIndex()
         epochs = mode != 0
         signature = mode, tuple(chosen)
@@ -328,6 +319,8 @@ class ResultGraphs:
             )
 
     def _render_result_series(self, ax, name, metric, binary, epochs):
+        from ..plotting import plot_bars
+
         ax._paradigma_dataset = name
         ax._paradigma_metric = metric
         selected, positions = self._detail_selections.get(
@@ -386,6 +379,8 @@ class ResultGraphs:
         return values
 
     def _render_epoch_series(self, ax, name, metric, positions, binary):
+        from ..plotting import plot_bars
+
         summary = self.epoch_plot_data(name, metric, positions, binary)
         ax._paradigma_epoch_data = summary
         color = module_color(
@@ -428,6 +423,8 @@ class ResultGraphs:
             )
 
     def _render_binary_series(self, ax, name, metric, positions, xs, ys, color):
+        from ..plotting import plot_states, time_coordinates
+
         if (
             name == "classifications/gait/arm_activity"
             and metric == "pred_no_other_arm_activity_window"
@@ -453,6 +450,8 @@ class ResultGraphs:
             plot_states(ax, xs, ys, color, ends=stops)
 
     def _style_result_series(self, ax, name, metric, binary, epochs, percentage):
+        from matplotlib import dates
+
         if epochs or not binary:
             ylabel = (
                 ("Availability (%)" if name.startswith("preparation/") else "Presence (%)")
@@ -516,6 +515,8 @@ class ResultGraphs:
         ax.xaxis.offsetText.set_visible(False)
 
     def _style_profile_axis(self, ax):
+        from ..profile_axis import style_profile_axis
+
         style_profile_axis(ax)
         ax.format_xdata = format_profile_time
         ax.set_xlabel(
@@ -527,6 +528,9 @@ class ResultGraphs:
         ax.update_datalim([[0, 0], [DAY_SECONDS, 0]])
 
     def _style_grouped_time_axis(self, ax):
+        from ..epoch_axis import MidnightSeparators, style_epoch_axis
+        from ..time_axis import RecordingTimeFormatter
+
         calendar = self.display_clock is not None
         timezone = clock_origin(self.display_clock).tz if calendar else None
         style_epoch_axis(
@@ -545,6 +549,8 @@ class ResultGraphs:
         MidnightSeparators(ax, timezone, calendar=calendar)
 
     def _style_daily_axis(self, ax):
+        from ..day_axis import RecordingDayFormatter, RecordingDayLocator
+
         calendar = self.display_clock is not None
         timezone = clock_origin(self.display_clock).tz if calendar else None
         ax.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar))
@@ -558,6 +564,9 @@ class ResultGraphs:
     def _finish_result_plot(self, first_axes, shared, viewport, previous_y):
         # Recompute the shared full extent even if the retained master was
         # zoomed. The current zoom is restored below, while Home sees all data.
+        from ..epoch_axis import MidnightBridges
+        from ..plotting import autoscale_bars
+
         self._result_shared_axes = shared or first_axes
         if first_axes is not None:
             first_axes.set_autoscalex_on(True)
@@ -642,12 +651,18 @@ class ResultGraphs:
             )
 
     def highlight_result_row(self):
+        if not self.graph_view.initialized:
+            return
         with self.result_overlay.edit():
             self.update_result_marker()
         self.result_overlay.paint()
 
     def update_result_marker(self):
         """Link a table row to all plots without changing their data or limits."""
+        from matplotlib import dates
+
+        from ..plotting import time_selection_line
+
         for artist in self._result_selection_artists:
             artist.remove()
         self._result_selection_artists = []
@@ -710,6 +725,8 @@ class ResultGraphs:
         self._mark_result_value(ax, name, x, float(value))
 
     def _mark_result_value(self, ax, name, x, value):
+        from matplotlib.lines import Line2D
+
         point = Line2D(
             [x],
             [float(value)],
@@ -727,6 +744,8 @@ class ResultGraphs:
         self._result_selection_artists.append(point)
 
     def _update_profile_marker(self):
+        from ..plotting import time_selection_line
+
         if self._profile_selection is None:
             return
         name, metric, x = self._profile_selection
@@ -803,6 +822,7 @@ class ResultGraphs:
 
     def _graph_click_anchor(self, name, xdata):
         import pandas as pd
+        from matplotlib import dates
 
         anchor = float(xdata)
         if self.display_clock is not None:

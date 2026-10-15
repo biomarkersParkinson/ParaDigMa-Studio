@@ -2,7 +2,6 @@
 
 from html import escape
 
-from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -32,14 +31,8 @@ from PySide6.QtWidgets import (
 from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
 from ..assets import DATA_DIRECTORY
 from ..branding import APP_NAME
-from ..plot_controls import add_graph_controls
-from ..plotting import ScrollableFigureCanvas, SelectionOverlay
-from ..result_canvas import ResultFigureCanvas
-from ..result_layout import ResultLayoutEngine
-from ..result_navigation import ResultsToolbar, ResultTimeScroll
 from ..results_view import MODULE_NAMES
 from ..theme import LINK_COLOR, light_palette, tooltip_text
-from ..time_axis import PinnedTimeAxis
 from ..time_controls import TimeField
 from ..widgets import (
     AdaptiveFormColumns,
@@ -58,6 +51,7 @@ from ..widgets import (
     readout,
     table,
 )
+from .deferred import DeferredWidget
 
 
 class WorkspaceLayout:
@@ -232,8 +226,8 @@ class WorkspaceLayout:
         details.setSizes([660, 400])
         overview_layout.addWidget(details, 1)
         self.data_tabs.addTab(overview, "Overview")
-        preview, self.data_channels, self.data_figure, self.data_canvas, self.data_toolbar = (
-            self.channel_graph(self.set_input_channels, "Sensor channels to plot")
+        preview, self.data_channels, self._data_graph = self.channel_graph(
+            self.set_input_channels, "Sensor channels to plot", "data"
         )
         self._channel_colors = {}
         self.data_tabs.addTab(preview, "Graphs")
@@ -244,7 +238,7 @@ class WorkspaceLayout:
         self.continue_button.setEnabled(False)
         self.status_layout.addWidget(self.continue_button)
 
-    def channel_graph(self, select_channels, accessible_name):
+    def channel_graph(self, select_channels, accessible_name, prefix):
         """Shared raw-sensor workspace: a channel list beside a fitted graph."""
         preview = QWidget()
         preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
@@ -275,7 +269,16 @@ class WorkspaceLayout:
         channel_list.setAccessibleName(accessible_name)
         channel_layout.addWidget(channel_list, 1)
         preview_layout.addWidget(channels)
-        graph = QWidget()
+        graph = DeferredWidget(lambda: self._build_channel_canvas(graph, prefix))
+        preview_layout.addWidget(graph, 1)
+        return preview, channel_list, graph
+
+    def _build_channel_canvas(self, graph, prefix):
+        from matplotlib.figure import Figure
+
+        from ..plot_controls import add_graph_controls
+        from ..plotting import ScrollableFigureCanvas
+
         graph_layout = QVBoxLayout(graph)
         figure = Figure(layout="constrained")
         canvas = ScrollableFigureCanvas(figure)
@@ -285,8 +288,11 @@ class WorkspaceLayout:
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
         toolbar = add_graph_controls(graph_layout, canvas, self)
         graph_layout.addWidget(canvas, 1)
-        preview_layout.addWidget(graph, 1)
-        return preview, channel_list, figure, canvas, toolbar
+        if prefix == "sensor":
+            toolbar.home_callback = self.reset_sensor_context
+        setattr(self, f"{prefix}_figure", figure)
+        setattr(self, f"{prefix}_canvas", canvas)
+        setattr(self, f"{prefix}_toolbar", toolbar)
 
     def _build_analyze(self):
         layout = self.page()
@@ -620,7 +626,7 @@ class WorkspaceLayout:
         body_layout.setSizeConstraint(QLayout.SetMinimumSize)
         scroll.setWidget(body)
         if pinned:
-            self.graph_view = QWidget()
+            self.graph_view = DeferredWidget(self._initialize_result_graph)
             self.graph_view_layout = QVBoxLayout(self.graph_view)
             self.graph_view_layout.setContentsMargins(0, 0, 0, 0)
             self.graph_view_layout.setSpacing(0)
@@ -702,8 +708,8 @@ class WorkspaceLayout:
         overview_body.addWidget(self.overview_content, 1)
 
     def _build_result_graph_view(self):
-        _, graph_body = self._result_view("Graphs", pinned=True)
-        self.graph_view_controls = QWidget()
+        self._result_view("Graphs", pinned=True)
+        self.graph_view_controls = QWidget(self.graph_view)
         view_row = QHBoxLayout(self.graph_view_controls)
         view_row.setContentsMargins(0, 0, 0, 0)
         view_row.addWidget(label("View", "muted"))
@@ -724,18 +730,7 @@ class WorkspaceLayout:
             )
         )
         view_row.addWidget(self.result_graph_view)
-        self._build_result_canvas(graph_body)
-        self._build_pinned_graph_workspace(graph_body)
-
-    def _build_result_canvas(self, graph_body):
-        graphs = QWidget()
-        # The wrapped source label makes the enclosing layout height-for-width.
-        # Let the plot viewport shrink below the canvas's preferred size; its
-        # own scroll area handles tall figures without spilling over the ruler.
-        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        graph_layout = QHBoxLayout(graphs)
-        graph_layout.setContentsMargins(0, 0, 0, 0)
-        self.result_series = SeriesTree()
+        self.result_series = SeriesTree(self.graph_view)
         self.result_series.setIndentation(6)
         self.result_series.setStyleSheet("QTreeWidget::item { padding: 5px 0px; }")
         self.result_series.setHeaderLabel("Plot series")
@@ -745,6 +740,31 @@ class WorkspaceLayout:
         self.result_series.setWordWrap(True)
         self.result_series.setTextElideMode(Qt.ElideNone)
         self.result_series.setAccessibleName("Results to plot simultaneously")
+        self.graph_footer = QWidget(self.graph_view)
+        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
+        self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)
+
+    def _initialize_result_graph(self):
+        graph_body = self._result_view_layouts[1]
+        self._build_result_canvas(graph_body)
+        self._build_pinned_graph_workspace(graph_body)
+        self.canvas.mpl_connect("button_press_event", self.graph_clicked)
+        if not self.selected_result_series():
+            self.plot()
+
+    def _build_result_canvas(self, graph_body):
+        from matplotlib.figure import Figure
+
+        from ..plotting import SelectionOverlay
+        from ..result_canvas import ResultFigureCanvas
+        from ..result_layout import ResultLayoutEngine
+        from ..result_navigation import ResultsToolbar
+
+        graphs = QWidget()
+        # The plot scroll area handles tall figures without spilling over the ruler.
+        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        graph_layout = QHBoxLayout(graphs)
+        graph_layout.setContentsMargins(0, 0, 0, 0)
         graph = QWidget()
         plots = QVBoxLayout(graph)
         plots.setContentsMargins(0, 0, 0, 0)
@@ -755,6 +775,9 @@ class WorkspaceLayout:
         self.canvas.pinned_time_axis = True
         self.plot_toolbar = ResultsToolbar(self.canvas, self)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
+        # A newly shown graph already has its final width. Arrange the toolbar
+        # at that width before adding controls, avoiding a stale wrapped height.
+        self.figure_actions.resize(self.graph_view.width(), self.figure_actions.sizeHint().height())
         self.figure_actions.set_context(self.graph_view_controls)
         self.figure_actions_layout = self.figure_actions.primary
         graph_body.addWidget(self.figure_actions)
@@ -773,6 +796,9 @@ class WorkspaceLayout:
         graph_body.addWidget(graphs, 1)
 
     def _build_pinned_graph_workspace(self, graph_body):
+        from ..result_navigation import ResultTimeScroll
+        from ..time_axis import PinnedTimeAxis
+
         self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
         # The selector spans the plot viewport and its pinned time ruler.
         # It must not end above a blank rectangle the height of the ruler.
@@ -793,14 +819,11 @@ class WorkspaceLayout:
         self.result_time_scroll = ResultTimeScroll(self.plot_toolbar)
         self.result_time_scroll.watch(self.canvas, self.graph_scroll.viewport(), self.time_axis)
         plot_view_layout.addWidget(self.result_time_scroll)
-        self.graph_footer = QWidget()
-        self.graph_footer_layout = QHBoxLayout(self.graph_footer)
-        self.graph_footer_layout.setContentsMargins(0, 0, 12, 0)
         self.recording_time_label = label("", "muted")
         self.recording_time_label.setWordWrap(True)
         self.recording_time_label.setAlignment(Qt.AlignCenter)
         self.recording_time_label.setAccessibleName("Recording time axis label")
-        self.graph_footer_layout.addWidget(self.recording_time_label, 1)
+        self.graph_footer_layout.insertWidget(0, self.recording_time_label, 1)
         self.time_axis.label_changed.connect(self.recording_time_label.setText)
         plot_view_layout.addWidget(self.graph_footer)
         workspace = QWidget()
@@ -835,10 +858,10 @@ class WorkspaceLayout:
         (
             sensor_graph,
             self.sensor_channels,
-            self.sensor_figure,
-            self.sensor_canvas,
-            self.sensor_toolbar,
-        ) = self.channel_graph(self.set_sensor_channels, "Original sensor channels to plot")
+            self._sensor_graph,
+        ) = self.channel_graph(
+            self.set_sensor_channels, "Original sensor channels to plot", "sensor"
+        )
         self._sensor_channel_colors = {}
         sensor_graph.layout().setContentsMargins(6, 6, 6, 6)
         self.sensor_tabs.addTab(sensor_graph, "Graphs")

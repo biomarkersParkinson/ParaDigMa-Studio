@@ -3,8 +3,10 @@
 ## Current runtime behavior
 
 - Startup defers pandas, Arrow and scientific pipeline imports until data is
-  needed. The packaged app reuses a per-user Matplotlib font cache. First use
-  of data still pays the deferred import cost.
+  needed. Matplotlib and the three graph workspaces initialize on first use;
+  opening Analyze, Runs or the empty Results overview does not load plotting.
+  Later graph visits reuse their canvases and controls. The packaged app reuses
+  a per-user Matplotlib font cache. First use still pays the deferred import cost.
 - Data statistics and clock previews use bounded background caches. Recording
   switches reuse previews; obsolete requests cannot replace the latest selection.
   Analyze module changes derive only the recording clocks, without constructing
@@ -57,6 +59,15 @@ redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
 ## Reproduce measurements
+
+A Linux source-launch check on 15 October 2026 compared commit `b1ae33a` with
+first-use graph construction. After one warmup per version, five fresh processes
+per version ran in alternating order, with empty history, warm OS/font caches and
+no concurrent tests or builds. Median first paint decreased from 1.17 s to 0.60 s;
+launch-to-report decreased from 1.21 s to 0.64 s. Startup loaded no Matplotlib,
+pandas, Arrow or scientific pipeline modules. First graph use pays the deferred
+initialization cost once. These source measurements do not predict Windows cold
+launch or antivirus overhead; the packaged benchmark checks the same import boundary.
 
 A Linux clock-preview check on 15 October 2026 compared commit `311500a` with
 the clock-only preview on two recordings of 500,000 samples each (six IMU channels,

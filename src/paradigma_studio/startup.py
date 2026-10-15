@@ -44,6 +44,18 @@ def startup_test(report_path, started, *, history_dir=None):
                     data_modules_loaded=[
                         name for name in ("pandas", "pyarrow") if name in sys.modules
                     ],
+                    plotting_modules_loaded=[
+                        name for name in ("matplotlib",) if name in sys.modules
+                    ],
+                    graph_workspaces_created=[
+                        name
+                        for name, widget in (
+                            ("data", window._data_graph),
+                            ("results", window.graph_view),
+                            ("sensor", window._sensor_graph),
+                        )
+                        if widget.initialized
+                    ],
                     persistent_font_cache=getattr(workspace, "PLOT_CACHE_DIRECTORY", None)
                     is not None,
                     analysis_modules_loaded=[

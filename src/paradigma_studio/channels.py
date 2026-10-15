@@ -3,27 +3,18 @@
 import re
 
 import numpy as np
-from matplotlib import colormaps, dates
-from matplotlib.lines import Line2D
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
 
 from .inspection import TIME_NAMES
-from .plotting import (
-    GRAPH_COLORS,
-    binary_indicator,
-    plot_signal,
-    plot_states,
-    time_selection_line,
-    time_selection_triangle,
-)
 from .results_view import clock_times
 from .theme import style_axes
-from .time_axis import RecordingDateLocator, RecordingTimeFormatter
 
 
 def mark_sensor_time(figure, seconds, clock):
     """Mark the selected result time while leaving original sensor values intact."""
+    from matplotlib import dates
+
     if not np.isfinite(seconds) or not figure.axes:
         return
     if clock is None:
@@ -37,6 +28,10 @@ def mark_sensor_time(figure, seconds, clock):
 
 def mark_graph_time(figure, x, text):
     """Use the shared selection overlay without affecting data or axis limits."""
+    from matplotlib.lines import Line2D
+
+    from .plotting import time_selection_line, time_selection_triangle
+
     for ax in figure.axes:
         for artist in [*ax.lines, *ax.texts]:
             if artist.get_gid() in (
@@ -91,6 +86,9 @@ def check_channels(channel_list, channels):
 
 def populate_channels(channel_list, frame, *, excluded=(), selection=None):
     import pandas as pd
+    from matplotlib import colormaps
+
+    from .plotting import GRAPH_COLORS
 
     numeric = [
         column
@@ -205,6 +203,8 @@ def plot_channel_signals(
 
 
 def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
+    from .plotting import binary_indicator
+
     mapping = column_mapping or {}
     families = {channel: channel_modality(mapping.get(channel, channel)) for channel in channels}
     # Named physical sensor streams remain continuous even when a short
@@ -230,6 +230,8 @@ def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
 
 
 def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs, unit):
+    from .plotting import plot_signal, plot_states
+
     if channel in flags:
         plot_states(
             ax,
@@ -270,6 +272,8 @@ def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs,
 
 
 def _style_sensor_group(ax, group, time_label, calendar, timezone, last):
+    from .time_axis import RecordingDateLocator, RecordingTimeFormatter
+
     if len(group) > 1:
         ax.legend(
             loc="upper right",

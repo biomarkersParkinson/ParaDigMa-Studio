@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reduce startup work by loading Matplotlib and constructing Data, Results and
+  sensor-context graph workspaces on first use. Later visits reuse the same
+  canvases and controls. Startup checks also guard this plotting boundary.
+
 ## 0.6.0a2 — 2026-10-15
 
 Second preview of **ParaDigMa Studio**, including the latest processing,

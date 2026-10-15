@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from .plotting import time_coordinates
 from .results_view import clock_times
 
 
@@ -51,6 +50,8 @@ class SensorNavigator:
         self.home_limits = None
 
     def coordinates_at(self, times):
+        from .plotting import time_coordinates
+
         return time_coordinates(clock_times(times, self.clock))
 
     def bounded_limits(self, limits):
