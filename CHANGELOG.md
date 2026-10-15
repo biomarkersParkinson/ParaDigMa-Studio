@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Open every Results graph view at its full time range, with the horizontal
+  scrollbar hidden until zooming in; keep zoom when toggling series in that view.
 - Speed up Results horizontal scrolling with peak-preserving previews and reused
   axis geometry; restore full graph detail when scrolling stops.
 - Make Results interval shading follow the pointer without redrawing graph data.

@@ -54,6 +54,40 @@ def test_scrollbar_preserves_duration_shared_axes_tables_and_manual_y_limits(
     pd.testing.assert_frame_equal(window.tables["quantifications/pulse_rate"], original)
 
 
+@pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])
+@pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
+def test_each_results_view_opens_at_full_range_after_zooming_another_view(window, view, calendar):
+    result_graphs(window, view=view, calendar=calendar)
+    full = window.figure.axes[0].get_xlim()
+    bar = window.result_time_scroll
+    for previous_view in range(4):
+        if previous_view == view:
+            continue
+        window.result_graph_view.setCurrentIndex(previous_view)
+        bar.zoom(0.5)
+        assert bar.isEnabled() and not bar.isHidden()
+        window.result_graph_view.setCurrentIndex(view)
+        QApplication.instance().processEvents()
+        window.canvas.draw()
+        for axes in window.figure.axes:
+            assert axes.get_xlim() == pytest.approx(full)
+        assert window.time_axis.axes.get_xlim() == pytest.approx(full)
+        assert not bar.isEnabled() and bar.maximum() == 0 and bar.isHidden()
+        assert not window.plot_toolbar._actions["zoom_out"].isEnabled()
+
+
+@pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])
+def test_replacing_results_starts_at_full_range_in_the_current_view(window, view):
+    result_graphs(window, view=view, calendar=True)
+    full = window.figure.axes[0].get_xlim()
+    window.result_time_scroll.zoom(0.5)
+    assert window.result_time_scroll.isEnabled()
+    result_graphs(window, view=view, calendar=True)
+    for axes in window.figure.axes:
+        assert axes.get_xlim() == pytest.approx(full)
+    assert window.result_time_scroll.isHidden() and window.result_time_scroll.maximum() == 0
+
+
 @pytest.mark.parametrize("manual_y", [False, True])
 @pytest.mark.parametrize("horizontal", [False, True], ids=["rectangle", "horizontal-drag"])
 def test_result_zoom_selects_only_time_even_for_a_horizontal_drag(window, manual_y, horizontal):

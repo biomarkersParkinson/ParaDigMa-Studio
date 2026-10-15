@@ -244,9 +244,9 @@ class ResultGraphs:
 
     def _result_plot_viewport(self, chosen, mode):
         previous_mode, previous_chosen = self._plot_signature or (None, ())
-        if mode != previous_mode and PROFILE_VIEW in (mode, previous_mode):
-            # A clock-slot axis and an absolute recording timeline use different
-            # coordinates; carrying their limits over would hide the new view.
+        if mode != previous_mode:
+            # Each view starts at its own full extent. Aggregation changes the
+            # time bounds, and the clock-slot profile uses different coordinates.
             return previous_mode, None, {}
         changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (

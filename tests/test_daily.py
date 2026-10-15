@@ -268,11 +268,12 @@ def test_day_graph_calendar_boundaries_and_zoom_use_saved_display_clock(window):
     custom = limits[0] + (limits[1] - limits[0]) * 0.2, limits[1] - (limits[1] - limits[0]) * 0.2
     axes.set_xlim(*custom)
     window.result_graph_view.setCurrentIndex(1)
-    # A daily bar covers a full calendar day; switching to shorter epochs
-    # caps a wider selection to that view's full X range.
+    # Each view opens at its full extent, including when returning from a
+    # shorter epoch range. Cached daily values remain unchanged.
     epoch_range = window.figure.axes[0].get_xlim()
     assert epoch_range == pytest.approx(window.result_time_scroll._full_limits)
     assert custom[0] < epoch_range[0] < epoch_range[1] < custom[1]
     window.result_graph_view.setCurrentIndex(2)
-    assert window.figure.axes[0].get_xlim() == pytest.approx(epoch_range)
+    assert window.figure.axes[0].get_xlim() == pytest.approx(limits)
+    assert window.result_time_scroll.isHidden()
     assert window.figure.axes[0]._paradigma_epoch_data is daily
