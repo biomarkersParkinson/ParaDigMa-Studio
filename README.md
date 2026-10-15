@@ -6,8 +6,8 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-1. Open the [first preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a1).
-2. Under **Assets**, download **ParaDigMaStudio-0.6.0a1-Windows-x64.zip**.
+1. Open the [latest preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a2).
+2. Under **Assets**, download **ParaDigMaStudio-0.6.0a2-Windows-x64.zip**.
 3. Extract the **entire ZIP** into a new folder.
 4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
 
@@ -36,8 +36,9 @@ A verified signing identity must be configured before the signed workflow can pr
    selected metrics from multiple modules across recording time; Tables includes each module's
    classification, quantification and aggregation tables.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
-   Switch **View** between Detailed, 30-minute epochs and Day (binary percentages
-   and continuous medians). The 30-minute view requires 90 seconds of presence
+   Switch **View** between Detailed, 30-minute epochs, Day and a 24-hour profile
+   averaging valid 30-minute summaries across days. Epoch and Day views show binary
+   percentages and continuous medians. The 30-minute view requires 90 seconds of presence
    for arm swing and tremor power; Day requires 14 minutes 24 seconds of valid
    data per metric, grouped by calendar day in recording time.
    Tables and exports retain the original outputs.
@@ -95,5 +96,5 @@ are also included beside the Windows executable.
 
 OpenAI Codex was used to support the development, testing and documentation of ParaDigMa Studio.
 
-Version **0.6.0a1 (preview)**. Scientific processing uses the pinned official toolbox; the app's
+Version **0.6.0a2 (preview)**. Scientific processing uses the pinned official toolbox; the app's
 regression tests check equivalent outputs for representative workflows.

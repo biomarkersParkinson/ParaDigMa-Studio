@@ -1,7 +1,7 @@
 # Releases
 
 Public versions use Python-compatible version numbers and matching Git tags:
-`0.6.0a1` / `v0.6.0a1`. Alpha (`a`), beta (`b`) and release-candidate (`rc`)
+`0.6.0a2` / `v0.6.0a2`. Alpha (`a`), beta (`b`) and release-candidate (`rc`)
 versions are published as GitHub prereleases; ordinary versions are stable releases.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
@@ -26,7 +26,7 @@ through Git when GitHub API access is unavailable:
 
 ```bash
 git fetch origin refs/notes/paradigma-releases:refs/notes/paradigma-releases
-git notes --ref=paradigma-releases show 'v0.6.0a1^{}'
+git notes --ref=paradigma-releases show 'v0.6.0a2^{}'
 ```
 
 These notes are CI receipts, not signatures. The portable folder's

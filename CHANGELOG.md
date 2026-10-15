@@ -2,56 +2,73 @@
 
 ## Unreleased
 
-- Keep Analyze's Time origin editable during clock refreshes. Derive clock-only
-  previews without result alignment, reuse equivalent module selections and avoid
-  copying full sensor matrices to check missing samples.
-- Keep Results Y axes in a fixed column when changing the selected graphs.
-- Open every Results graph view at its full time range, with the horizontal
-  scrollbar hidden until zooming in; keep zoom when toggling series in that view.
-- Speed up Results horizontal scrolling with peak-preserving previews and reused
-  axis geometry; restore full graph detail when scrolling stops.
-- Make Results interval shading follow the pointer without redrawing graph data.
-  Allow selection to start between graphs and use a time-interval icon and label.
-- Bound Results zoom to the full time range, hide the time scrollbar at full range,
-  support horizontal trackpad gestures, shade drag selections continuously across
-  graphs and their gaps, and add Zoom in/out buttons. Fit the first date without
-  relocating later labels.
-- Replace Results panning with a shared horizontal time scrollbar and restrict
-  Results zoom selections to time; retain raw-data pan and zoom controls.
-- Share the grouped date/time axis between Detailed and 30-minute graphs, retaining
-  spaced midnight labels on multi-day ranges and precise times when zoomed in.
-- Explain worker selection in the processing log, including detected CPU count,
-  available RAM, recording-memory estimates and single-worker fallback reasons.
-- Keep pandas and pyarrow deferred while opening the empty workspace, Runs and
-  empty graph views; inspect sensor-context row values only when a row exists.
-- Add a 24-hour profile averaging valid 30-minute summaries at each time of day
-  across recordings' days. Give each day equal weight, retain existing presence
-  thresholds, exclude missing epochs and preserve the recording timezone.
-- Make days recognizable in 30-minute graphs with continuous midnight separators
-  across plots and their gaps, and clock times above centered dates. Preserve
-  the recording's timezone and existing bars.
-  Keep ISO date/time limits working with the grouped date axes in every view.
-- Center date labels beneath each day in Day graphs, adapting their spacing to
-  the available width and zoom; retain the existing bars and background.
-- Reduce raw-input loading overhead by reusing missing-value counts and avoiding
-  redundant statistics/scaling arrays. Preserve exact samples and statistics;
-  initial loading still completes every statistic before displaying recordings.
-- Process multiple recordings in up to two reusable, CPU/RAM-limited workers.
-  Preserve the official pipelines and pooled aggregates; single recordings,
-  including their gap sections, still use one worker. Stop cleans up all workers.
-- Automatically scale percentage graphs in 30-minute and Day views to the
-  visible bars, with manual limits and Reset limits available as before.
-- Order run-detail tabs as Recordings, Parameters, Warnings, Errors,
-  Processing log, Saved run and Exports.
-- Add Day graphs: calendar-day percentages and medians, requiring 864 seconds
-  of valid data for each metric; preserve the existing 30-minute presence rules.
-- Move the Runs filename list into a dedicated Recordings detail tab.
-- Reconstruct elapsed seconds in Data graphs when `difference_s` or
-  `difference_ms` is selected, and refresh the plot when its time format changes.
-- Apply TSDF metadata `scale_factors` once during import, consistently for Data
-  plots, sensor context and analysis. ParaDigMa 1.1.2's loader and preparation do
-  not apply this decoding. Re-run analyses of TSDF inputs with non-unit factors
-  created using earlier builds; existing saved results are not recalculated.
+## 0.6.0a2 — 2026-10-15
+
+Second preview of **ParaDigMa Studio**, including the latest processing,
+loading and graph improvements since 0.6.0a1. Scientific processing continues
+to use the official ParaDigMa 1.1.2 toolbox.
+
+### Results and navigation
+
+- Add **Day** graphs with calendar-day percentages and medians, requiring at
+  least 1% valid data per metric (14 minutes 24 seconds). Add a **24-hour profile**
+  averaging valid 30-minute summaries at each time of day, with equal daily
+  weighting and the recording's original timezone.
+- Make days recognizable with grouped time/date labels and continuous midnight
+  separators. Detailed and 30-minute graphs share this time-axis layout; date
+  labels adapt to the available width and zoom.
+- Replace Results panning with a horizontal time scrollbar and trackpad scrolling.
+  Select a time interval using a continuous shaded band across graphs and gaps;
+  Zoom in/out buttons change the visible duration. Zoom stays inside the full
+  range, and the scrollbar disappears when all time is visible. Data and
+  sensor-context graphs retain their existing pan and zoom controls.
+- Open each Results view fully zoomed out and keep Y axes in a fixed column.
+  Adding or removing series preserves the current zoom. Percentage graphs use
+  automatic Y scaling, with manual limits and Reset limits still available.
+- Make interval selection and horizontal scrolling more responsive. Dense plots
+  use temporary previews that preserve peaks and gaps; full detail returns when
+  movement stops. Tables and exports retain the original values.
+- Put filenames in a **Recordings** tab in Runs, followed by Parameters, Warnings,
+  Errors, Processing log, Saved run and Exports.
+
+### Processing and loading
+
+- Process multiple recordings with up to two workers, within detected CPU and
+  available-RAM limits. Single recordings still use one worker. Official pipeline
+  steps and pooled aggregation remain unchanged; the log explains worker selection.
+- Reduce raw-input loading overhead while preserving exact samples and statistics.
+  Keep pandas, Arrow and the scientific stack deferred during startup and empty views.
+- Keep Analyze's **Time origin** editable during clock refreshes. Module changes
+  use lighter clock-only previews and reuse equivalent selections; pending previews
+  cannot overwrite a user edit. Missing-sample checks avoid copying the full sensor matrix.
+- Interpret `difference_s` and `difference_ms` correctly in Data graphs without
+  changing the stored input values.
+
+### Important TSDF correction
+
+TSDF metadata `scale_factors` now apply once during import, consistently for
+Data plots, sensor context and analysis. ParaDigMa 1.1.2's loader and preparation
+do not apply this decoding. **If an earlier build analyzed TSDF recordings with
+non-unit scale factors, rerun those analyses.** Existing saved results are not recalculated.
+
+### Download and run
+
+Download **ParaDigMaStudio-0.6.0a2-Windows-x64.zip**, extract the entire ZIP into
+a new folder, and open `ParaDigMaStudio/ParaDigMaStudio.exe`. Keep `_internal`
+and all accompanying files beside the executable. **Python does not need to be installed.**
+
+The separate **ParaDigMaStudio-0.6.0a2-SHA256SUMS.txt** verifies the ZIP checksum.
+The bundle contains per-file checksums, its source commit, package versions and
+the dependency-audit report. Performance reports remain separate from the app download.
+
+This Windows x64 preview is **unsigned**, like the first preview. Publisher
+signing requires a verified signing identity; keep Windows protections enabled.
+This release is for evaluation and feedback. Tests cover representative recordings;
+consult the official methodology before research use.
+
+[User guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v0.6.0a2/docs/USER_GUIDE.md)
+· [Scientific checks](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v0.6.0a2/docs/SCIENTIFIC_TESTS.md)
+· [Report an issue](https://github.com/biomarkersParkinson/ParaDigMa-Studio/issues)
 
 ## 0.6.0a1 — 2026-10-13
 
