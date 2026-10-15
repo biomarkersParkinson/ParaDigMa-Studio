@@ -12,6 +12,7 @@ import numpy as np
 from .contracts import (
     AnalysisResults,
     AnalysisSettings,
+    ClockMetadata,
     FloatArray,
     PathInput,
     RecordingAlignment,
@@ -69,8 +70,6 @@ def align_recordings(
     frames: dict[str, pd.DataFrame], settings: AnalysisSettings, results: AnalysisResults
 ) -> RecordingAlignment:
     """Display offsets only: never shift scientific timestamps or sensor values."""
-    import pandas as pd
-
     module_times: dict[str, dict[str, FloatArray]]
     common, module_times, local_offsets, clocks = {}, {}, {}, {}
     for key, frame in frames.items():
@@ -81,27 +80,8 @@ def align_recordings(
         for module, times in modules.items():
             module_times.setdefault(module, {})[key] = times
         clocks[key] = recording_clock(frame, settings, timeline)
-    clock, bases = None, {}
-    available = [pd.Timestamp(value["origin"]) for value in clocks.values() if value is not None]
-    if len(available) == len(frames) and len({stamp.tz is None for stamp in available}) == 1:
-        origin = min(available)
-        earliest = min(clocks, key=lambda key: pd.Timestamp(clocks[key]["origin"]))
-        try:
-            clock = normalise_clock({**clocks[earliest], "source": "Multiple recording clocks"})
-        except (ValueError, KeyError, TypeError):
-            # Parquet can restore a fixed-offset tz with a non-IANA type name.
-            clock = normalise_clock(
-                {
-                    "origin": origin.isoformat(),
-                    "timezone": str(origin.tz) if origin.tz else None,
-                    "source": "Multiple recording clocks",
-                }
-            )
-        bases = {
-            key: (pd.Timestamp(value["origin"]) - origin).total_seconds()
-            for key, value in clocks.items()
-        }
-    else:
+    clock, bases = _clock_alignment(clocks)
+    if clock is None:
         # Without comparable clocks, use an explicitly labelled file-order
         # display. No absolute dates or between-recording gaps are inferred.
         cursor = 0.0
@@ -120,3 +100,40 @@ def align_recordings(
                 key, {}
             ).get(module, 0.0)
     return common, module_times, offsets, clock, bases
+
+
+def preview_recording_clock(
+    frames: dict[str, pd.DataFrame], settings: AnalysisSettings
+) -> ClockMetadata | None:
+    """Derive the batch clock without aligning result groups or file-order timelines."""
+    clocks = {key: recording_clock(frame, settings) for key, frame in frames.items()}
+    return _clock_alignment(clocks)[0]
+
+
+def _clock_alignment(
+    clocks: dict[str, ClockMetadata | None],
+) -> tuple[ClockMetadata | None, dict[str, float]]:
+    import pandas as pd
+
+    known = {key: clock for key, clock in clocks.items() if clock is not None}
+    available = [pd.Timestamp(clock["origin"]) for clock in known.values()]
+    if len(known) != len(clocks) or len({stamp.tz is None for stamp in available}) != 1:
+        return None, {}
+    origin = min(available)
+    earliest = min(known, key=lambda key: pd.Timestamp(known[key]["origin"]))
+    try:
+        clock = normalise_clock({**known[earliest], "source": "Multiple recording clocks"})
+    except (ValueError, KeyError, TypeError):
+        # Parquet can restore a fixed-offset tz with a non-IANA type name.
+        clock = normalise_clock(
+            {
+                "origin": origin.isoformat(),
+                "timezone": str(origin.tz) if origin.tz else None,
+                "source": "Multiple recording clocks",
+            }
+        )
+    bases = {
+        key: (pd.Timestamp(value["origin"]) - origin).total_seconds()
+        for key, value in known.items()
+    }
+    return clock, bases

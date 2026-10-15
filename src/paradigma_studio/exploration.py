@@ -165,7 +165,10 @@ def _timeline_valid_samples(mapped, settings):
     excluded = False
     valid = np.ones(len(mapped), dtype=bool)
     if settings.get("drop_missing_samples", False) and required <= set(mapped.columns):
-        values = mapped[sorted(required)].apply(pd.to_numeric, errors="raise").astype(float)
-        valid = np.isfinite(values.to_numpy()).all(axis=1)
+        # Work one channel at a time: a clock preview needs one validity mask,
+        # not several full copies of a day-long sensor matrix.
+        for column in sorted(required):
+            values = pd.to_numeric(mapped[column], errors="raise").astype(float, copy=False)
+            valid &= np.isfinite(values.to_numpy())
         excluded = not valid.all()
     return valid, excluded

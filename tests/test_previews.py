@@ -11,9 +11,9 @@ from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from paradigma_studio import app as desktop
+from paradigma_studio import app as desktop, recordings
 from paradigma_studio.app import MainWindow
-from paradigma_studio.inspection import sensor_descriptives, time_descriptives
+from paradigma_studio.inspection import inspect_recording, sensor_descriptives, time_descriptives
 from paradigma_studio.previews import CachedPreview
 from paradigma_studio.results_view import analysis_alignment, recording_clock
 
@@ -186,13 +186,13 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
     original = frame.copy(deep=True)
     calls = []
     gui_thread = get_ident()
-    alignment = desktop.analysis_alignment
+    clock_preview = desktop.recording_clock
 
-    def observed_alignment(*args, **kwargs):
+    def observed_clock_preview(*args, **kwargs):
         calls.append(get_ident())
-        return alignment(*args, **kwargs)
+        return clock_preview(*args, **kwargs)
 
-    monkeypatch.setattr(desktop, "analysis_alignment", observed_alignment)
+    monkeypatch.setattr(desktop, "recording_clock", observed_clock_preview)
     window.set_modules(["tremor"])
     window.loaded(("sensor.csv", frame))
     wait_for_previews(window)
@@ -219,6 +219,109 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
     window.reset_origin()
     assert window.clock_input.text() == expected["origin"]  # Cached reset is immediate.
     pd.testing.assert_frame_equal(frame, original, check_exact=True)
+
+
+def test_module_clock_refresh_remains_editable_and_cannot_overwrite_a_user_origin(
+    window, monkeypatch
+):
+    frame = pd.DataFrame(
+        {
+            "time": [1000.0, 1001.0, 1002.0],
+            "time_dt": pd.date_range("2026-10-07T12:00:00Z", periods=3, freq="s"),
+            **{f"gyroscope_{axis}": [1.0, 2.0, 3.0] for axis in "xyz"},
+            **{f"accelerometer_{axis}": [np.nan, 2.0, 3.0] for axis in "xyz"},
+        }
+    )
+    window.time.setCurrentText("absolute_s")
+    window.set_modules(["tremor"])
+    window.loaded(("sensor.csv", frame))
+    wait_for_previews(window)
+    entered, release = Event(), Event()
+    original = desktop.recording_clock
+
+    def slow_clock(*args, **kwargs):
+        entered.set()
+        assert release.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(desktop, "recording_clock", slow_clock)
+    try:
+        window.module_buttons["Gait"].click()
+        assert window.clock_input.isEnabled()
+        wait_until(entered.is_set)
+        assert window.clock_input.isEnabled()
+        custom = "2020-01-01T08:00:00+02:00"
+        window.clock_input.setText(custom)
+        window.origin_edited()
+        release.set()
+        wait_for_previews(window)
+        assert window.clock_input.text() == custom
+        assert window.origin_setting()["mode"] == "custom"
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("batch", [False, True], ids=["single", "multiple-recordings"])
+def test_module_clock_preview_reuses_equivalent_requirements_and_skips_full_alignment(
+    window, monkeypatch, batch
+):
+    calls, alignment_calls = [], []
+    original = desktop.recording_clock
+
+    def observed_clock(*args, **kwargs):
+        calls.append(get_ident())
+        return original(*args, **kwargs)
+
+    def unexpected_alignment(*args, **kwargs):
+        alignment_calls.append(True)
+        raise AssertionError("A module toggle must not align result timelines")
+
+    monkeypatch.setattr(desktop, "recording_clock", observed_clock)
+    monkeypatch.setattr(recordings, "recording_clock", observed_clock)
+    monkeypatch.setattr(desktop, "analysis_alignment", unexpected_alignment)
+    monkeypatch.setattr(desktop, "align_recordings", unexpected_alignment)
+    frame = pd.DataFrame(
+        {
+            "time": [0.0, 1.0, 2.0],
+            "time_dt": pd.date_range("2026-10-07T12:00:00Z", periods=3, freq="s"),
+            **{
+                f"{sensor}_{axis}": 1.0
+                for sensor in ("accelerometer", "gyroscope")
+                for axis in "xyz"
+            },
+        }
+    )
+    if batch:
+        frames = {"first": frame, "second": frame.copy(deep=True)}
+        descriptions = {
+            key: inspect_recording(value, "relative_s") for key, value in frames.items()
+        }
+        window.loaded_recordings(({key: f"{key}.csv" for key in frames}, frames, descriptions))
+    else:
+        window.loaded(("sensor.csv", frame))
+    wait_for_previews(window)
+    assert not alignment_calls
+    count, origin = len(calls), window.clock_input.text()
+    for modules in (["gait", "tremor"], ["gait"], ["tremor", "gait"]):
+        window.set_modules(modules)
+        assert window.clock_input.isEnabled() and not window._origin_preview.pending
+        assert len(calls) == count and window.clock_input.text() == origin
+    window.drop_missing.setChecked(False)
+    wait_for_previews(window)
+    count = len(calls)
+    for modules in (["tremor"], ["pulse_rate"], [], ["gait"]):
+        window.set_modules(modules)
+        assert window.clock_input.isEnabled() and not window._origin_preview.pending
+        assert len(calls) == count and window.clock_input.text() == origin
+    window.drop_missing.setChecked(True)
+    window.prepared.setChecked(True)
+    wait_for_previews(window)
+    count = len(calls)
+    for modules in (["pulse_rate"], [], ["tremor"]):
+        window.set_modules(modules)
+        assert window.clock_input.isEnabled() and not window._origin_preview.pending
+        assert len(calls) == count and window.clock_input.text() == origin
+    assert calls and all(thread != get_ident() for thread in calls)
 
 
 def test_time_and_sensor_descriptives_update_in_background_and_keep_source_values(

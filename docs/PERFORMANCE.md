@@ -7,6 +7,11 @@
   of data still pays the deferred import cost.
 - Data statistics and clock previews use bounded background caches. Recording
   switches reuse previews; obsolete requests cannot replace the latest selection.
+  Analyze module changes derive only the recording clocks, without constructing
+  result alignments. Equivalent sensor requirements reuse the same clock preview;
+  Time origin stays editable and user edits take precedence over pending previews.
+  Missing-sample checks combine one channel's validity at a time, avoiding copies
+  of the complete sensor matrix.
   Initial inspection counts missing values once per column and reuses those
   counts in the channel summaries. Finite channels avoid a filtered sample copy;
   quantiles retain their own workspace so source values stay unchanged. TSDF
@@ -52,6 +57,13 @@ redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
 ## Reproduce measurements
+
+A Linux clock-preview check on 15 October 2026 compared commit `311500a` with
+the clock-only preview on two recordings of 500,000 samples each (six IMU channels,
+green PPG and nanosecond-precision timestamps). With warm imports, missing-sample
+exclusion and three repeats, deriving clocks for Tremor, Gait and all three modules
+took a median 1.72 s before and 0.15 s after. Every clock matched exactly. This
+measures uncached calculations; equivalent module selections reuse the UI cache.
 
 An isolated Linux check on 15 October 2026 compared time-interval selection with
 commit `4092a6e` on six graphs of 30,000 points each (Fusion, 1450×920, eight drag

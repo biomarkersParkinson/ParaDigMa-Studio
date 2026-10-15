@@ -42,7 +42,7 @@ from .history import RunHistory, new_run, now, run_is_saved
 from .inspection import input_plot_time, inspect_recording, sensor_descriptives, time_descriptives
 from .jobs import SignalHandler as SignalHandler, Worker
 from .previews import CachedPreview
-from .recordings import align_recordings, load_recordings
+from .recordings import align_recordings, load_recordings, preview_recording_clock
 from .result_controller import ResultCallbacks, ResultController, ResultView
 from .result_data import detail_table_view
 from .results_view import (
@@ -839,6 +839,12 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self._origin_preview.cancel_pending()
             self.apply_origin_preview(None)
             return
+        if settings["skip_preparation"] or not settings["drop_missing_samples"]:
+            settings["pipelines"] = []
+        elif "gait" in settings["pipelines"]:
+            # Gait already requires every channel needed by tremor. Adding
+            # tremor cannot change which samples establish the clock.
+            settings["pipelines"] = [name for name in settings["pipelines"] if name != "tremor"]
         frame, recordings = self.frame, self.recordings
         key = json.dumps(settings, sort_keys=True)
         if self._origin_preview.is_requested(key):
@@ -846,11 +852,11 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
 
         def preview():
             if recordings:
-                return align_recordings(recordings, settings, {})[3]
-            timeline = analysis_alignment(frame, settings, {})[0]
-            return recording_clock(frame, settings, timeline)
+                return preview_recording_clock(recordings, settings)
+            return recording_clock(frame, settings)
 
-        self.clock_input.setEnabled(False)
+        # Keep the current value editable. A user edit cancels the automatic
+        # preview, so its eventual result cannot overwrite that choice.
         self._origin_preview.request(key, preview)
 
     def apply_origin_preview(self, clock):

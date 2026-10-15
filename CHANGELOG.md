@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep Analyze's Time origin editable during clock refreshes. Derive clock-only
+  previews without result alignment, reuse equivalent module selections and avoid
+  copying full sensor matrices to check missing samples.
 - Keep Results Y axes in a fixed column when changing the selected graphs.
 - Open every Results graph view at its full time range, with the horizontal
   scrollbar hidden until zooming in; keep zoom when toggling series in that view.
