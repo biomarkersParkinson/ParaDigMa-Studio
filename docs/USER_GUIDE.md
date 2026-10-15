@@ -280,6 +280,7 @@ or in the gaps between graphs to zoom into the same time interval across all
 linked graphs without selecting a Y range.
 New results and switching between graph views start at the full time range with
 the horizontal scrollbar hidden. Adding or removing graphs keeps the current zoom.
+Results graphs use a fixed Y-axis column, so graph selections do not shift them sideways.
 After zooming in, the horizontal scrollbar below the time axis moves through the
 full time range while keeping the window duration. Its handle indicates how much
 time is visible; it disappears when the full range is shown. Two-finger horizontal

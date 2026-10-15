@@ -35,6 +35,7 @@ from ..branding import APP_NAME
 from ..plot_controls import add_graph_controls
 from ..plotting import ScrollableFigureCanvas, SelectionOverlay
 from ..result_canvas import ResultFigureCanvas
+from ..result_layout import ResultLayoutEngine
 from ..result_navigation import ResultsToolbar, ResultTimeScroll
 from ..results_view import MODULE_NAMES
 from ..theme import LINK_COLOR, light_palette, tooltip_text
@@ -747,7 +748,7 @@ class WorkspaceLayout:
         graph = QWidget()
         plots = QVBoxLayout(graph)
         plots.setContentsMargins(0, 0, 0, 0)
-        self.figure = Figure(layout="constrained")
+        self.figure = Figure(layout=ResultLayoutEngine())
         self.canvas = ResultFigureCanvas(self.figure)
         self.canvas.defer_when_hidden = True
         self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep Results Y axes in a fixed column when changing the selected graphs.
 - Open every Results graph view at its full time range, with the horizontal
   scrollbar hidden until zooming in; keep zoom when toggling series in that view.
 - Speed up Results horizontal scrolling with peak-preserving previews and reused
