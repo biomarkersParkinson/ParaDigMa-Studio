@@ -208,9 +208,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     )
 
 
-def test_view_switch_preserves_manual_time_zoom_and_estimated_gait_bins_and_resets_cache_for_new_results(
-    window,
-):
+def test_view_switch_resets_zoom_preserves_estimated_gait_bins_and_invalidates_cache(window):
     gait = pd.DataFrame(
         {"gait_segment_nr": [1, 1, 1, 1], "range_of_motion": [10.0, 30.0, 50.0, 90.0]}
     )
@@ -227,15 +225,22 @@ def test_view_switch_preserves_manual_time_zoom_and_estimated_gait_bins_and_rese
         }
     )
     window.result_tabs.setCurrentIndex(1)
+    detailed_full = window.figure.axes[0].get_xlim()
     window.figure.axes[0].set_xlim(600.0, 2400.0)
+    assert not window.result_time_scroll.isHidden()
     window.result_graph_view.setCurrentIndex(1)
     axes = window.figure.axes[0]
-    assert axes.get_xlim() == (600.0, 2400.0)
+    assert axes.get_xlim()[0] <= 0.0 and axes.get_xlim()[1] >= 3600.0
+    assert window.result_time_scroll.isHidden() and window.result_time_scroll.maximum() == 0
     np.testing.assert_array_equal(axes._paradigma_epoch_data.value, [20, 70])
+    cached = axes._paradigma_epoch_data
     window.result_graph_view.setCurrentIndex(0)
-    assert window.figure.axes[0].get_xlim() == (600.0, 2400.0)
+    assert window.figure.axes[0].get_xlim() == pytest.approx(detailed_full)
+    assert window.result_time_scroll.isHidden()
     np.testing.assert_array_equal(window.figure.axes[0]._paradigma_bar_data[2], [10, 30, 50, 90])
     window.result_graph_view.setCurrentIndex(1)
+    assert window.figure.axes[0]._paradigma_epoch_data is cached
+    window.figure.axes[0].set_xlim(600.0, 2400.0)
     window.analyzed(
         {
             "quantifications": {
@@ -247,3 +252,5 @@ def test_view_switch_preserves_manual_time_zoom_and_estimated_gait_bins_and_rese
     )
     # Timestamped values alone cannot establish 90 seconds of gait presence.
     np.testing.assert_array_equal(window.figure.axes[0]._paradigma_epoch_data.value, [np.nan])
+    assert window.figure.axes[0]._paradigma_epoch_data is not cached
+    assert window.result_time_scroll.isHidden() and window.result_time_scroll.maximum() == 0
