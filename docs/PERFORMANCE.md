@@ -32,7 +32,10 @@
   graphs retain panning. Dense full-recording plots still cost more than zoomed views.
 - Raw plots display at most 20,000 samples per channel. Sensor context indexes
   source timestamps and loads the visible window while preserving the initial
-  context, selected time and navigation history. Original tables and exports
+  context, selected time and navigation history. Sensor tables build and size
+  columns only when Tables is selected; panning in Graphs skips that work.
+  Switching to Tables shows the latest window immediately and reuses its model
+  on subsequent visits until the samples change. Original tables and exports
   retain all samples; Results retain every output value.
 - Analysis uses one owned process for a single recording. Multiple recordings
   can use two workers, reused within the batch, with one native computation thread
@@ -57,6 +60,18 @@ These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## Hidden sensor-table check — 16 October 2026
+
+A focused Linux/Fusion/offscreen check used 250,000 samples, seven channels and
+three sensor-context graphs at 1450×920. Two alternating before/after pairs
+compared the former unconditional table refresh with the deferred refresh, using
+five drags of eight updates per run and queued Qt painting. Median drag updates
+fell from 130–150 ms to 94–106 ms; hidden model replacements fell from 44 to zero
+per run, including resets between drags. The comparison reinstated the former
+refresh behavior in the same source app. These synthetic timings do not predict
+Windows performance. Regression tests check exact table samples on opening,
+navigation, Home, new inspection and clearing results.
 
 ## Component extraction review — 16 October 2026
 

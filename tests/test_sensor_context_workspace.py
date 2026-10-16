@@ -70,6 +70,7 @@ def test_context_groups_modalities_with_data_colors_and_original_values(window):
         np.testing.assert_array_equal(line.get_ydata(), context[line.get_label()])
         assert line.get_color() == window._channel_colors[line.get_label()]
     assert window.selected_input_channels() == ["accelerometer_x"]
+    window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, context)
     pd.testing.assert_frame_equal(window.frame, source)
 
@@ -209,6 +210,74 @@ def view_sensor(window, start, end):
     QApplication.instance().processEvents()
 
 
+@pytest.mark.parametrize("gait", [False, True])
+def test_hidden_sensor_table_defers_pans_and_home_until_opened(window, monkeypatch, gait):
+    frame = open_long_context(window, gait=gait)
+    initial = window.sensor_frame.copy(deep=True)
+    assert window.sensor_table.model() is None
+    updates = []
+    set_model = window.sensor_table.setModel
+
+    def record_model(model):
+        updates.append(model)
+        set_model(model)
+
+    monkeypatch.setattr(window.sensor_table, "setModel", record_model)
+    for start in (40, 60, 0):
+        view_sensor(window, start, start + 20)
+        expected = frame.loc[frame.time.between(start, start + 20)]
+        pd.testing.assert_frame_equal(window.sensor_frame, expected)
+        for line in signal_lines(window.sensor_figure.axes[0]):
+            np.testing.assert_array_equal(line.get_ydata(), expected[line.get_label()])
+    assert not updates
+    window.sensor_tabs.setCurrentIndex(1)
+    assert len(updates) == 1
+    pd.testing.assert_frame_equal(window.sensor_table.model().frame, expected)
+
+    # Revisiting an unchanged table preserves both its model and row selection.
+    window.sensor_table.setCurrentIndex(window.sensor_table.model().index(2, 0))
+    window.sensor_tabs.setCurrentIndex(0)
+    window.sensor_tabs.setCurrentIndex(1)
+    assert len(updates) == 1
+    assert window.sensor_table.currentIndex().row() == 2
+
+    window.sensor_tabs.setCurrentIndex(0)
+    window.sensor_toolbar.home()
+    pd.testing.assert_frame_equal(window.sensor_frame, initial)
+    assert len(updates) == 1
+    window.sensor_tabs.setCurrentIndex(1)
+    assert len(updates) == 2
+    pd.testing.assert_frame_equal(window.sensor_table.model().frame, initial)
+
+
+def test_selected_sensor_table_updates_for_new_inspection_and_after_clear(window):
+    frame = open_long_context(window, gap=True)
+    window.sensor_tabs.setCurrentIndex(1)
+    initial_model = window.sensor_table.model()
+    window.hide_sensor_context()
+    window.active_frame.loc[0, "time"] = 70.0
+    window.inspect_sensor_context()
+    assert window.sensor_tabs.currentWidget() is window.sensor_table
+    assert window.sensor_table.model() is not initial_model
+    pd.testing.assert_frame_equal(
+        window.sensor_table.model().frame, frame.loc[frame.time.between(60, 80)]
+    )
+
+    # An empty window must replace the previous samples, including while visible.
+    view_sensor(window, 40, 60)
+    pd.testing.assert_frame_equal(
+        window.sensor_table.model().frame, frame.loc[frame.time.between(40, 60)]
+    )
+    window.clear_results()
+    window.sensor_tabs.setCurrentIndex(0)
+    window.sensor_tabs.setCurrentIndex(1)
+    assert window.sensor_table.model() is None
+    frame = open_long_context(window)
+    pd.testing.assert_frame_equal(
+        window.sensor_table.model().frame, frame.loc[frame.time.between(20, 40)]
+    )
+
+
 def test_context_navigation_keeps_channels_original_samples_and_recording_boundaries(window):
     frame = open_long_context(window)
     original = frame.copy(deep=True)
@@ -304,6 +373,9 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
     toolbar.forward()
     QApplication.instance().processEvents()
     assert window.sensor_frame.time.min() > 30
+    assert window.sensor_table.model() is None
+    window.sensor_tabs.setCurrentIndex(1)
+    pd.testing.assert_frame_equal(window.sensor_table.model().frame, window.sensor_frame)
     pd.testing.assert_frame_equal(window.frame, frame)
 
 

@@ -474,6 +474,7 @@ def _verify_gait_workspace(window, app, cwa_source, cwa_frame, cwa_results):
     if not window.context_button.isEnabled():
         raise RuntimeError("Explicit gait segment metadata did not enable sensor inspection")
     window.inspect_sensor_context()
+    window.sensor_tabs.setCurrentIndex(1)
     if window.sensor_table.model() is None or not window.sensor_table.model().rowCount():
         raise RuntimeError("Gait segment did not reveal its original sensor samples")
 

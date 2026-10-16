@@ -288,6 +288,7 @@ class MainWindow(QMainWindow):
             result_tabs=self.result_tabs,
             sensor_tab_index=self.sensor_tab_index,
             status=self.status,
+            sensor_tabs=self.sensor_tabs,
             sensor_table=self.sensor_table,
             sensor_channels=self.sensor_channels,
             sensor_figure=self.sensor_figure,

@@ -679,6 +679,7 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     assert window.result_tabs.currentIndex() == window.sensor_tab_index
     assert window.result_tabs.isTabVisible(window.sensor_tab_index)
     mask = np.abs(np.arange(3001) / 100 - 15.0) <= 10.0
+    window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(
         window.sensor_table.model().frame, frame.iloc[np.flatnonzero(mask)]
     )
@@ -729,6 +730,7 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     assert window.context_button.text() == "Inspect gait segment"
     assert window.time_axis.selection_label.get_text() == "1.25 s"
     window.inspect_sensor_context()
+    window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, raw.iloc[10:20])
     assert not window._sensor_context.include_end
     window.analyzed({"quantifications": {"gait": {"unfiltered": quantified}}, "errors": []})

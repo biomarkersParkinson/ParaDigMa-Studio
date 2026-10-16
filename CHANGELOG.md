@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Defer sensor-context table construction and column sizing while Graphs is
+  selected. Opening Tables shows the latest window with every original sample;
+  revisiting an unchanged table preserves its model and selection.
 - Record a baseline/current performance review of the component extraction,
   including frozen startup, graph interactions, processing and saved runs.
   Add reproducible first-use and processing benchmarks with data checks.

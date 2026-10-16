@@ -35,6 +35,7 @@ class SensorView:
     result_tabs: QTabWidget
     sensor_tab_index: int
     status: QLabel
+    sensor_tabs: QTabWidget
     sensor_table: ReadableTable
     sensor_channels: QListWidget
     sensor_figure: Figure
@@ -55,6 +56,7 @@ class SensorController:
         self, state: SensorState, results: ResultState, view: SensorView, channels: ChannelServices
     ):
         self.state, self.results, self.view, self.channels = state, results, view, channels
+        self.view.sensor_tabs.currentChanged.connect(self.refresh_sensor_table)
 
     def inspect_sensor_context(self):
         import pandas as pd
@@ -128,9 +130,18 @@ class SensorController:
         positions = context.positions()
         self.state.sensor_frame = context.frame.iloc[positions]
         self.state.sensor_times = context.display_times[positions]
-        self.view.sensor_table.setModel(FrameModel(self.state.sensor_frame))
+        self.refresh_sensor_table()
         self.populate_sensor_channels()
         self.plot_sensor()
+
+    def refresh_sensor_table(self) -> None:
+        """Size the latest samples only when Tables is selected, once per frame."""
+        if self.view.sensor_tabs.currentWidget() is not self.view.sensor_table:
+            return
+        frame = self.state.sensor_frame
+        model = self.view.sensor_table.model()
+        if frame is not None and (model is None or model.frame is not frame):
+            self.view.sensor_table.setModel(FrameModel(frame))
 
     def sensor_time_index(self, times, offset=0.0):
         key = id(times), offset
@@ -162,7 +173,7 @@ class SensorController:
         navigator = self.state._sensor_navigator
         self.state.sensor_frame = navigator.context.frame.iloc[positions]
         self.state.sensor_times = navigator.context.display_times[positions]
-        self.view.sensor_table.setModel(FrameModel(self.state.sensor_frame))
+        self.refresh_sensor_table()
         xs = navigator.coordinates_at(self.state.sensor_times)
         step = max(1, int(np.ceil(len(xs) / 20000)))
         channels = self.selected_sensor_channels()
