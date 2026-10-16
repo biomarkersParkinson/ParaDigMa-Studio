@@ -195,7 +195,7 @@ def test_one_original_recording_with_multiple_sections_uses_one_process(
     ],
 )
 def test_worker_limit_reserves_cpu_and_ram(monkeypatch, cpus, available, expected):
-    monkeypatch.setattr(analysis_limits.os, "cpu_count", lambda: cpus)
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: cpus)
     monkeypatch.setattr(
         analysis_limits,
         "available_memory",
@@ -207,8 +207,22 @@ def test_worker_limit_reserves_cpu_and_ram(monkeypatch, cpus, available, expecte
     assert analysis_limits.parallel_worker_count(frames["first"], {}) == 1
 
 
+@pytest.mark.parametrize(
+    "cpus,affinity,expected",
+    [(8, {0}, 1), (8, {0, 1, 2}, 3), (2, {0, 1, 2}, 2)],
+)
+def test_available_cpu_count_respects_affinity(monkeypatch, tmp_path, cpus, affinity, expected):
+    monkeypatch.setattr(analysis_limits.os, "cpu_count", lambda: cpus)
+    monkeypatch.setattr(analysis_limits.os, "sched_getaffinity", lambda _: affinity, raising=False)
+    # Isolate affinity from the host's Linux container quota as well as its CPUs.
+    quota = tmp_path / "cpu.max"
+    quota.write_text("max 100000", encoding="utf-8")
+    monkeypatch.setattr(analysis_limits, "Path", lambda _: quota)
+    assert analysis_limits._available_cpu_count() == expected
+
+
 def test_large_recordings_and_mutable_scientific_configs_keep_sequential_path(monkeypatch):
-    monkeypatch.setattr(analysis_limits.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: 8)
     monkeypatch.setattr(analysis_limits, "available_memory", lambda: 16 * analysis_limits.GIB)
     frame = pd.DataFrame({"time": [0, 1]})
     monkeypatch.setattr(frame, "memory_usage", lambda **_: pd.Series([analysis_limits.GIB]))
@@ -336,7 +350,7 @@ def test_linux_available_memory_respects_container_headroom(monkeypatch, tmp_pat
 
 
 def test_ambiguous_or_invalid_recording_identifiers_keep_original_validation(monkeypatch):
-    monkeypatch.setattr(analysis_limits.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: 8)
     monkeypatch.setattr(analysis_limits, "available_memory", lambda: 32 * analysis_limits.GIB)
     frame = pd.DataFrame({"time": [0, 1]})
     assert analysis_limits.parallel_worker_count({"a": frame, "a__segment_1": frame}, {}) == 1
