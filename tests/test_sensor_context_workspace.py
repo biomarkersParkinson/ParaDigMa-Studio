@@ -68,7 +68,7 @@ def test_context_groups_modalities_with_data_colors_and_original_values(window):
     for line in lines:
         np.testing.assert_array_equal(line.get_xdata(), window.sensor_times)
         np.testing.assert_array_equal(line.get_ydata(), context[line.get_label()])
-        assert line.get_color() == window._channel_colors[line.get_label()]
+        assert line.get_color() == window._data_state._channel_colors[line.get_label()]
     assert window.selected_input_channels() == ["accelerometer_x"]
     window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, context)
@@ -518,7 +518,7 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
     assert max(calls) < 3000
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(170, 190)])
     window.clear_results()
-    assert not window._sensor_time_indices
+    assert not window._sensor_state._sensor_time_indices
 
 
 @pytest.mark.parametrize("origin", ["2026-10-25T00:00:00Z", "1965-01-01T01:02:03.123456Z"])

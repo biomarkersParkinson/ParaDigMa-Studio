@@ -27,7 +27,8 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Responsibility | Modules |
 | --- | --- |
 | Component creation, Qt lifecycle adapters and ordered signal wiring | `app.py` |
-| Explicit integration aliases for existing window attributes and methods | `ui/compatibility.py` |
+| Remaining legacy window aliases during incremental retirement | `ui/compatibility.py` |
+| Explicit attribute forwarding between composed UI components | `ui/component_ports.py` |
 | Input, result, run, sensor, job and presentation state | `workspace_state.py` |
 | Recording loading, inspection previews and raw Data graphs | `data_controller.py` |
 | Analysis controls, field guidance, origin previews and run configuration | `analysis_controller.py`, `analysis_help.py` |
@@ -81,8 +82,14 @@ The existing window entry points delegate to these components:
 | `delete_runs` | `run_controller.RunController.delete_runs` |
 
 `workspace_state.py` owns shared state. The explicit alias table in
-`ui/compatibility.py` preserves existing window attributes and methods for
-integrations; components do not use that facade. It has no generic host fallback.
+`ui/compatibility.py` retains a shrinking subset of legacy window attributes and
+methods; components do not use that facade. New integrations should use the
+owning state/controller or the service APIs, rather than add window aliases.
+This retirement pass removes unused aliases and low-use state proxies; widely
+used UI/callback ports remain. The [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
+requires its name and line budgets to shrink alongside removals. The reusable
+`component_attribute` descriptor belongs to `ui/component_ports.py`; it supports
+explicit component composition without a generic host fallback.
 Graphics stay deferred through frozen callable ports and reuse their canvases.
 Preview receivers and lazy sensor slots remain thin Qt adapters on the window.
 The window connects worker signals in their original order; `JobController`

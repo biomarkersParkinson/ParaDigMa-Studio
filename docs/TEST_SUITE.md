@@ -10,6 +10,7 @@ trigger and expected behavior still apply.
 | Responsibility | Test modules |
 | --- | --- |
 | Source-module 900-line limit and boundary cases | `test_module_size.py`; CI entry point `scripts/check_module_size.py` |
+| Shrinking workspace aliases, line budget and retired-name protection | `test_workspace_facade.py`; CI entry point `scripts/check_workspace_facade.py` |
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
 | Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py`, `test_tsdf_input.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
@@ -68,6 +69,11 @@ selector. Dataset-row resets call the current `activate_dataset_rows` method;
 scientific processing and comparisons do not depend on the old `apply_filters`
 compatibility alias. Test names distinguish plot zoom, row selection and sensor
 context from scientific filtered-gait processing.
+
+Use the owning state for state assertions and the owning controller for isolated
+behavior tests. UI integration tests should continue driving widgets/signals and
+checking ordering. Legacy window aliases are being retired incrementally; avoid
+introducing new dependencies on that facade.
 
 Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
 views. Workflow benchmarks select series in each view and switch tables through

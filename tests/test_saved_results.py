@@ -21,7 +21,7 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
     record = new_run(str(source), {"pipelines": ["tremor"]})
     record["paradigma_version"] = "1.1.2"
     window.runs.insert(0, record)
-    window.active_run = window.current_run = window.selected_run = record
+    window._run_state.active_run = window.current_run = window.selected_run = record
     window.provenance = {
         "source": str(source),
         "settings": record["settings"],

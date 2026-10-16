@@ -165,7 +165,7 @@ def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_an
     plots = []
     plot = window.plot_input
     monkeypatch.setattr(
-        window, "plot_input", lambda *args: (plots.append(window.source), plot(*args))
+        window, "plot_input", lambda *args: (plots.append(window._input_state.source), plot(*args))
     )
 
     def unexpected(*args, **kwargs):

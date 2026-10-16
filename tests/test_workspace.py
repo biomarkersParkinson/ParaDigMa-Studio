@@ -436,7 +436,7 @@ def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_
     window.data_channels.item(0).setCheckState(Qt.Unchecked)
     assert window.selected_input_channels() == ["gyroscope_z"]
     assert window.data_figure.axes[0].lines[0].get_color() == previous_color
-    window.set_input_channels(window._channel_colors)
+    window.set_input_channels(window._data_state._channel_colors)
     assert len(window.data_figure.axes[0].lines) == 3
     window.set_input_channels([])
     assert not window.data_figure.axes[0].lines
@@ -798,7 +798,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     window.open_run()
     assert window.current_run is first
     assert window.provenance["source"] == "first.csv"
-    assert window.source == "second.csv"  # Exploring history does not replace input.
+    assert window._input_state.source == "second.csv"  # Exploring history does not replace input.
     assert window.result_source_frame is frame
     assert window.result_table.model().rowCount() == 6
 
@@ -1036,7 +1036,7 @@ def test_legacy_history_moves_known_failures_to_errors_and_preserves_quality_war
 def test_running_problem_counts_update_immediately(window):
     record = new_run("sensor.csv", {"pipelines": ["tremor"]})
     window.runs.insert(0, record)
-    window.active_run = record
+    window._run_state.active_run = record
     window.refresh_runs()
     window.capture_warning("Quality warning")
     window.capture_error("Pipeline error")

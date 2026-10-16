@@ -372,12 +372,12 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.inspect_sensor_context()
     assert window.sensor_frame is not None
-    assert window._bar_bounds and window._result_shared_axes is not None
+    assert window._result_state._bar_bounds and window._result_shared_axes is not None
     window.clear_results()
     assert window.sensor_frame is None and window.display_frame is None
     assert window.sensor_table.model() is None
     assert not window.sensor_figure.axes and not window.figure.axes
-    assert not window._bar_bounds and not window._result_selection_artists
+    assert not window._result_state._bar_bounds and not window._result_selection_artists
     assert window._result_shared_axes is None
     # Clearing outputs preserves the loaded source for subsequent analyses.
     assert window.frame is frame

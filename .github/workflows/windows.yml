@@ -19,6 +19,8 @@ jobs:
           python-version: '3.12'
       - name: Check source module size
         run: python scripts/check_module_size.py
+      - name: Check shrinking workspace facade
+        run: python scripts/check_workspace_facade.py
       - name: Check release tag against the application version
         if: startsWith(github.ref, 'refs/tags/v')
         env:

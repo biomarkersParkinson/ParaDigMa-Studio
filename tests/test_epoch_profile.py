@@ -244,7 +244,7 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
     replacement = profile_results()
     replacement["quantifications"]["pulse_rate"]["pulse_rate"] *= 2
     window.analyzed(replacement)
-    assert window._profile_selection is None
+    assert window._result_state._profile_selection is None
     assert window.time_axis._selected_x is None
     refreshed = select_profile_graphs(window)
     assert (

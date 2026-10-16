@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Retire 79 unused or low-use legacy window aliases, moving state callers to their
+  owning state APIs. Keep widely used UI/callback adapters for later migration;
+  integrations using retired aliases need the state/controller or service APIs.
+  Add a CI guard for the remaining alias names and compatibility-file line budget.
 - Align development/release guidance with the current lint, typing and coverage
   gates; complete the module map and consolidate repeated workspace instructions.
 - Enforce Ruff limits of 60 statements and 12 branches per function alongside

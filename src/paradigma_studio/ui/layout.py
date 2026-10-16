@@ -49,7 +49,7 @@ from ..widgets import (
 )
 from ..workspace_state import GraphState, ResultState, ShellState
 from .analysis_page import AnalysisFooterView, AnalysisPage
-from .compatibility import component_attribute
+from .component_ports import component_attribute
 from .deferred import DeferredWidget, deferred_attribute
 from .graph_views import ChannelCanvasView, ResultCanvasView
 from .result_graphs import ResultGraphView

@@ -44,7 +44,7 @@ def test_timing_table_cache_reuses_views_without_modifying_native_outputs(window
         if enabled in views:
             assert window.display_frame is views[enabled]
         views[enabled] = window.display_frame
-    assert set(window._table_views) == {
+    assert set(window._result_state._table_views) == {
         ("quantifications/tremor", False),
         ("quantifications/tremor", True),
     }

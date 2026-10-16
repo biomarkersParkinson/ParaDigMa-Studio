@@ -93,7 +93,7 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     window.analyzed(saved)
     window.dataset.setCurrentText(f"quantifications/{early}")
     assert window.display_frame["Recording date/time"].iloc[0] == start
-    assert window._display_offsets == offsets
+    assert window._result_state._display_offsets == offsets
 
 
 @pytest.fixture

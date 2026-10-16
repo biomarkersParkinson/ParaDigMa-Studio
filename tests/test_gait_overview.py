@@ -77,7 +77,7 @@ def test_overview_three_cards_with_all_statistics_and_ordered_exact_values(tmp_p
             for module, group, path in window.overview_values
         )
         assert source == original  # No derived statistics or edits to aggregate dictionaries.
-        assert window.aggregation_tables
+        assert window._result_state.aggregation_tables
         scroll = window._result_view_scrolls[0].verticalScrollBar()
         scroll.setValue(0)
         canvas = window.overview_gait_charts["duration_s"]["canvas"]

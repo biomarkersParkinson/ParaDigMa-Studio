@@ -101,12 +101,12 @@ class MainWindow(QMainWindow):
         self.setPalette(light_palette())
         self.setStyleSheet(STYLESHEET)
         self.worker = None
-        self._input_descriptions = {}
-        self._table_choices, self._series_items = {}, {}
+        self._data_state._input_descriptions = {}
+        self._result_state._table_choices, self._series_items = {}, {}
         self._result_selection_artists = []
         self._result_shared_axes = None
-        self._result_layout_index = None
-        self._origin_override = False
+        self._result_state._result_layout_index = None
+        self._analysis_state._origin_override = False
         self._origin_preview = CachedPreview(self)
         self._origin_preview.value_ready.connect(self.apply_origin_preview)
         self._origin_preview.failed.connect(self.append_log)

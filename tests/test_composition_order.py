@@ -94,7 +94,7 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
         terminal = "cancelled"
     worker.finished.emit()
     assert events == [terminal, "modules", "preparation", "delete worker", "run actions"]
-    assert window.worker is None and window._analysis_stop is None
+    assert window.worker is None and window._job_state._analysis_stop is None
     assert not window.stop_button.isEnabled() and window.progress.isHidden()
 
 
@@ -102,10 +102,10 @@ def test_save_close_is_queued_after_job_cleanup(window, monkeypatch):
     events = []
     worker = SimpleNamespace(deleteLater=lambda: events.append("delete worker"))
     window.worker = worker
-    window._close_after_save = True
+    window._run_state._close_after_save = True
     monkeypatch.setattr(window, "close", lambda: events.append(("close", window.worker)))
     window.job_finished()
-    assert events == ["delete worker"] and not window._close_after_save
+    assert events == ["delete worker"] and not window._run_state._close_after_save
     QApplication.processEvents()
     assert events == ["delete worker", ("close", None)]
 

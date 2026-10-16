@@ -309,7 +309,7 @@ def _verify_continuous_outputs(window, quantified):
     pd.testing.assert_frame_equal(
         window.tables["quantifications/tremor"], quantified, check_exact=True
     )
-    if not any(name.startswith("preparation/") for name in window._plot_tables):
+    if not any(name.startswith("preparation/") for name in window._result_state._plot_tables):
         raise RuntimeError("Prepared-input availability is missing")
     if hasattr(window, "filters_toggle"):
         raise RuntimeError("Removed Results time filters are still present")

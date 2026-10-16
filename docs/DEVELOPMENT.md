@@ -32,6 +32,7 @@ Build on Windows; a Linux build does not generate a Windows executable.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/check_module_size.py
+.\.venv\Scripts\python.exe scripts/check_workspace_facade.py
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m mypy
@@ -94,6 +95,16 @@ dependencies. The script reports every oversized module and exits with failure;
 there are no exemptions. Extract cohesive components or helpers before reaching
 the limit, preserving explicit dependencies and deferred imports.
 
+The remaining legacy window aliases have a separate shrinking guard:
+`python scripts/check_workspace_facade.py`. Both Windows workflows run it before
+installing dependencies. `scripts/workspace_facade_budget.json` lists the exact
+remaining aliases and physical-line budget for `ui/compatibility.py`. Retiring an
+alias requires removing its budget entry and lowering the line budget to match;
+new aliases, retired names returning, and file growth fail the check. Do not raise
+the budget. Migrate callers to their owning state/component while preserving Qt
+signal ordering and job lifecycles. The reusable component descriptor lives in
+`ui/component_ports.py`, outside the legacy window adapter.
+
 ## CI artifacts
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
@@ -112,6 +123,7 @@ python -m venv .venv
 .venv/bin/python -m pip install --upgrade 'pip>=26.2,<27'
 .venv/bin/python -m pip install -e '.[dev]'
 .venv/bin/python scripts/check_module_size.py
+.venv/bin/python scripts/check_workspace_facade.py
 .venv/bin/python -m ruff check src scripts tests desktop.py
 .venv/bin/python -m ruff format --check src scripts tests desktop.py
 .venv/bin/python -m mypy

@@ -515,7 +515,7 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     window.populate_sensor_channels()
     window.plot_sensor()
     assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(
-        window._sensor_channel_colors["gyroscope_x"]
+        window._sensor_state._sensor_channel_colors["gyroscope_x"]
     )
 
 
