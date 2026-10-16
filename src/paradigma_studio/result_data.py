@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 from .availability import availability_views
+from .contracts import AnalysisResults, ClockMetadata, TimeOffsets
 from .recordings import timeline_offsets
 from .results_view import (
     aggregation_tables,
@@ -35,7 +36,7 @@ class ResultData:
     coverage_labels: dict[tuple[str, str], str]
 
 
-def prepare_result_data(results: dict[str, Any], offsets: dict[str, Any]) -> ResultData:
+def prepare_result_data(results: AnalysisResults, offsets: TimeOffsets) -> ResultData:
     """Prepare presentation timing and coverage without changing scientific outputs."""
     import pandas as pd
 
@@ -94,7 +95,13 @@ def prepare_result_data(results: dict[str, Any], offsets: dict[str, Any]) -> Res
     )
 
 
-def detail_table_view(frame, name, timing, offsets, clock):
+def detail_table_view(
+    frame: pd.DataFrame,
+    name: str,
+    timing: pd.DataFrame | None,
+    offsets: TimeOffsets,
+    clock: ClockMetadata | None,
+) -> pd.DataFrame:
     """Optional presentation columns, preserving every original value and heading."""
     view = frame.copy(deep=False)
     if timing is None:

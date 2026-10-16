@@ -104,13 +104,39 @@ files = [
     "src/paradigma_studio/recording_results.py",
     "src/paradigma_studio/serialization.py",
     "src/paradigma_studio/epoch_profile.py",
+    "src/paradigma_studio/job_controller.py",
+    "src/paradigma_studio/result_controller.py",
+    "src/paradigma_studio/export_controller.py",
+    "src/paradigma_studio/shell_controller.py",
+    "src/paradigma_studio/workspace_state.py",
+    "src/paradigma_studio/result_data.py",
+    "src/paradigma_studio/previews.py",
+    "src/paradigma_studio/storage.py",
+    "src/paradigma_studio/exports.py",
 ]
-# Start with service APIs. Unannotated private helpers and the Qt UI can be
-# typed incrementally; imported modules still supply their available contracts.
+# Check service APIs and the composed job/result/export/shell controllers.
+# Remaining untyped UI code can be migrated incrementally; imported modules
+# still supply their available contracts.
 follow_imports = "silent"
 disallow_incomplete_defs = true
 warn_unused_ignores = true
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "paradigma_studio.job_controller",
+    "paradigma_studio.result_controller",
+    "paradigma_studio.export_controller",
+    "paradigma_studio.shell_controller",
+    "paradigma_studio.workspace_state",
+    "paradigma_studio.result_data",
+    "paradigma_studio.previews",
+    "paradigma_studio.storage",
+    "paradigma_studio.exports",
+]
+# Require complete annotations and check nested helpers in this expanded scope.
+disallow_untyped_defs = true
+check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = ["paradigma.*", "openmovement.*"]

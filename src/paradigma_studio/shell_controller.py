@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QLabel, QPushButton, QStackedWidget, QTabWidget, QWidget
@@ -27,7 +26,7 @@ class ShellView:
 
 @dataclass(frozen=True)
 class ShellCallbacks:
-    data_tab_changed: Callable[..., Any]
+    data_tab_changed: Callable[[int], None]
 
 
 class ShellController(QObject):
@@ -46,7 +45,7 @@ class ShellController(QObject):
         self.callbacks = callbacks
         self.sections = sections
 
-    def navigate(self, index):
+    def navigate(self, index: int) -> None:
         self.view.pages.setCurrentIndex(index)
         self.view.continue_button.setVisible(index == 0)
         self.view.stop_button.setVisible(index == 1)
@@ -57,8 +56,8 @@ class ShellController(QObject):
         if index == 0:
             self.callbacks.data_tab_changed(self.view.data_tabs.currentIndex())
 
-    def show_acknowledgements(self):
-        if getattr(self.shell, "_acknowledgements_dialog", None) is None:
+    def show_acknowledgements(self) -> None:
+        if self.shell._acknowledgements_dialog is None:
             from .acknowledgements import AcknowledgementsDialog
 
             self.shell._acknowledgements_dialog = AcknowledgementsDialog(self.view.parent)
@@ -66,7 +65,7 @@ class ShellController(QObject):
         self.shell._acknowledgements_dialog.raise_()
         self.shell._acknowledgements_dialog.activateWindow()
 
-    def show_notice(self, message, severity="warning"):
+    def show_notice(self, message: str, severity: str = "warning") -> None:
         self.view.notice.setProperty("severity", severity)
         self.view.notice.style().unpolish(self.view.notice)
         self.view.notice.style().polish(self.view.notice)

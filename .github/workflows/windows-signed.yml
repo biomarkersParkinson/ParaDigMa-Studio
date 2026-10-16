@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m ruff check src scripts tests desktop.py
           python -m ruff format --check src scripts tests desktop.py
-      - name: Check service API types
+      - name: Check service and controller API types
         run: python -m mypy
       - name: Run app and scientific equivalence tests
         run: >-

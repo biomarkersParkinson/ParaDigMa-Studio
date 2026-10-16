@@ -8,6 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .contracts import (
+    AnalysisResults,
+    AnalysisSettings,
+    ClockMetadata,
+    FinishRunCallback,
+    FloatArray,
+    NoticeCallback,
+    RecordingAlignment,
+    TimeOffsets,
+)
 from .history import merge_errors
 from .overview import recording_extent
 from .result_data import prepare_result_data
@@ -15,6 +25,7 @@ from .results_view import normalise_clock, recording_clock
 from .workspace_state import InputState, ResultState, RunState, SensorState
 
 if TYPE_CHECKING:
+    import pandas as pd
     from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QTabWidget
 
     from .result_data import ResultData
@@ -33,18 +44,25 @@ class ResultView:
 @dataclass(frozen=True)
 class ResultCallbacks:
     append_log: Callable[[str], None]
-    build_result_overview: Callable[..., None]
+    build_result_overview: Callable[
+        [tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]]], None
+    ]
     populate_result_series: Callable[[], None]
     selected_result_series: Callable[[], list[tuple[str, str]]]
     select_dataset: Callable[[str], None]
     sync_table_outputs: Callable[[], None]
-    show_notice: Callable[..., None]
-    finish_run: Callable[..., None]
+    show_notice: NoticeCallback
+    finish_run: FinishRunCallback
     capture_warning: Callable[[str], None]
     navigate: Callable[[int], None]
     is_busy: Callable[[], bool]
-    align_recordings: Callable[..., tuple]
-    analysis_alignment: Callable[..., tuple]
+    align_recordings: Callable[
+        [dict[str, pd.DataFrame], AnalysisSettings, AnalysisResults], RecordingAlignment
+    ]
+    analysis_alignment: Callable[
+        [pd.DataFrame | None, AnalysisSettings, AnalysisResults, TimeOffsets | None],
+        tuple[FloatArray | None, dict[str, FloatArray], dict[str, float]],
+    ]
 
 
 class ResultController:
@@ -56,11 +74,11 @@ class ResultController:
         sensors: SensorState,
         view: ResultView,
         callbacks: ResultCallbacks,
-    ):
+    ) -> None:
         self.state, self.inputs, self.runs, self.sensors = state, inputs, runs, sensors
         self.view, self.callbacks = view, callbacks
 
-    def analyzed(self, results):
+    def analyzed(self, results: AnalysisResults) -> None:
         """Install one result snapshot, then update the view and run lifecycle."""
         self._invalidate_views()
         self.state.results = results
@@ -83,7 +101,7 @@ class ResultController:
         self.view.result_tabs.setCurrentIndex(0)
         self.callbacks.navigate(2)
 
-    def _invalidate_views(self):
+    def _invalidate_views(self) -> None:
         self.sensors._sensor_time_indices.clear()
         self.state._plot_signature = None
         self.state._profile_selection = None
@@ -93,7 +111,9 @@ class ResultController:
         self.state._table_views.clear()
         self.state._table_output_names = None
 
-    def _align_sources(self, settings, results):
+    def _align_sources(
+        self, settings: AnalysisSettings, results: AnalysisResults
+    ) -> ClockMetadata | None:
         batch_clock = None
         self.state._recording_bases = {}
         if isinstance(self.state.result_source_frame, dict):
@@ -122,7 +142,7 @@ class ResultController:
             self.state.provenance["recording_extent"] = extent
         return batch_clock
 
-    def _resolve_clock(self, settings, batch_clock):
+    def _resolve_clock(self, settings: AnalysisSettings, batch_clock: ClockMetadata | None) -> None:
         self.state.display_clock = None
         if self.state.provenance.get("display_clock"):
             try:
@@ -148,13 +168,13 @@ class ResultController:
         if self.state.display_clock is not None:
             self.state.provenance["display_clock"] = dict(self.state.display_clock)
 
-    def _install_data(self, data: ResultData):
+    def _install_data(self, data: ResultData) -> None:
         self.state.tables, self.state.aggregation_tables = data.tables, data.aggregates
         self.state._plot_tables, self.state._plot_labels = data.plot_frames, data.plot_labels
         self.state._timings, self.state._interval_ends = data.timings, data.interval_ends
         self.state._bar_bounds = data.bar_bounds
 
-    def _show_outputs(self, data: ResultData):
+    def _show_outputs(self, data: ResultData) -> None:
         sources = self.state.provenance.get("sources", {})
         self.view.results_source.setText(
             f"{len(sources)} recordings · One subject"
@@ -166,7 +186,7 @@ class ResultController:
         self.callbacks.populate_result_series()
         self.view.dataset.blockSignals(True)
         self.view.dataset.clear()
-        self.view.dataset.addItems(self.state.tables)
+        self.view.dataset.addItems(list(self.state.tables))
         selected = [
             name for name, _ in self.callbacks.selected_result_series() if name in self.state.tables
         ]
@@ -193,7 +213,7 @@ class ResultController:
             not self.callbacks.is_busy() and self.runs.current_run is not None
         )
 
-    def _finish_analysis(self, results):
+    def _finish_analysis(self, results: AnalysisResults) -> None:
         errors = results.get("errors", [])
         if errors:
             self.callbacks.append_log(json.dumps(errors, indent=2, default=str))

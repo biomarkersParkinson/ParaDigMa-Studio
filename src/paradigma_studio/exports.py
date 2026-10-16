@@ -1,8 +1,12 @@
 """Selective native-result exports and a single export chooser."""
 
+from __future__ import annotations
+
 import csv
 import json
 import re
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from PySide6.QtCore import Qt
@@ -15,8 +19,10 @@ from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
+from .contracts import AnalysisResults, PathInput, Provenance
 from .results_view import aggregation_tables, detail_tables, output_label, readable_key
 from .serialization import (
     _spreadsheet_text,
@@ -27,8 +33,11 @@ from .serialization import (
 )
 from .widgets import ReadableComboBox
 
+if TYPE_CHECKING:
+    import pandas as pd
 
-def export_items(results):
+
+def export_items(results: AnalysisResults) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     tables = {**detail_tables(results), **aggregation_tables(results)}
     metadata = {f"metadata/{key}": value for key, value in results.get("metadata", {}).items()}
     if results.get("errors"):
@@ -36,8 +45,10 @@ def export_items(results):
     return tables, metadata
 
 
-def selected_results(results, selected):
-    output = {key: {} for key in ("classifications", "quantifications", "aggregations", "metadata")}
+def selected_results(results: AnalysisResults, selected: Iterable[str]) -> AnalysisResults:
+    output: AnalysisResults = {
+        key: {} for key in ("classifications", "quantifications", "aggregations", "metadata")
+    }
     output["errors"] = []
     for name in selected:
         parts = name.split("/")
@@ -51,7 +62,15 @@ def selected_results(results, selected):
     return output
 
 
-def export_selection(path, results, provenance, selected, format, *, protected_sources=()):
+def export_selection(
+    path: PathInput,
+    results: AnalysisResults,
+    provenance: Provenance,
+    selected: Iterable[str],
+    format: str,
+    *,
+    protected_sources: Iterable[PathInput] = (),
+) -> None:
     tables, metadata = export_items(results)
     selected = list(dict.fromkeys(selected))
     if not selected or any(name not in tables and name not in metadata for name in selected):
@@ -72,7 +91,7 @@ def export_selection(path, results, provenance, selected, format, *, protected_s
         )
     elif format == "CSV":
 
-        def write(stream):
+        def write(stream: BinaryIO) -> None:
             with ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
                 for index, name in enumerate(selected):
                     if name not in tables:
@@ -106,7 +125,7 @@ def export_selection(path, results, provenance, selected, format, *, protected_s
 
 
 class ExportDialog(QDialog):
-    def __init__(self, results, parent=None):
+    def __init__(self, results: AnalysisResults, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Export results")
         self.resize(580, 570)
@@ -121,14 +140,16 @@ class ExportDialog(QDialog):
         layout.addLayout(row)
         self.items = QTreeWidget()
         self.items.setHeaderLabel("Tables and metadata")
-        self.leaves = {}
+        self.leaves: dict[str, QTreeWidgetItem] = {}
         roots = {}
         tables, metadata = export_items(results)
         for name in [*tables, *metadata]:
             stage = name.split("/")[0]
             if stage not in roots:
                 root = QTreeWidgetItem(self.items, [readable_key(stage)])
-                root.setFlags(root.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
+                root.setFlags(
+                    root.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsAutoTristate
+                )
                 root.setExpanded(True)
                 roots[stage] = root
             metadata_titles = {
@@ -144,12 +165,15 @@ class ExportDialog(QDialog):
                 else metadata_titles.get(key, readable_key(key))
             )
             item = QTreeWidgetItem(roots[stage], [title])
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(0, Qt.Checked)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Checked)
             self.leaves[name] = item
         layout.addWidget(self.items, 1)
         selection = QHBoxLayout()
-        for text, state in (("Select all", Qt.Checked), ("Clear selection", Qt.Unchecked)):
+        for text, state in (
+            ("Select all", Qt.CheckState.Checked),
+            ("Clear selection", Qt.CheckState.Unchecked),
+        ):
             control = QPushButton(text)
             control.clicked.connect(lambda checked=False, value=state: self.set_selection(value))
             selection.addWidget(control)
@@ -158,8 +182,10 @@ class ExportDialog(QDialog):
         self.note = QLabel()
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
-        self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        self.buttons.button(QDialogButtonBox.Save).setText("Export…")
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.buttons.button(QDialogButtonBox.StandardButton.Save).setText("Export…")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
@@ -168,14 +194,18 @@ class ExportDialog(QDialog):
         self._tables = tables
         self.update_choice()
 
-    def selected(self):
-        return [name for name, item in self.leaves.items() if item.checkState(0) == Qt.Checked]
+    def selected(self) -> list[str]:
+        return [
+            name
+            for name, item in self.leaves.items()
+            if item.checkState(0) == Qt.CheckState.Checked
+        ]
 
-    def set_selection(self, state):
+    def set_selection(self, state: Qt.CheckState) -> None:
         for item in self.leaves.values():
             item.setCheckState(0, state)
 
-    def extension(self):
+    def extension(self) -> Literal["json", "csv", "zip"]:
         selected = self.selected()
         return (
             "json"
@@ -185,8 +215,8 @@ class ExportDialog(QDialog):
             else "zip"
         )
 
-    def update_choice(self, *_):
-        self.buttons.button(QDialogButtonBox.Save).setEnabled(bool(self.selected()))
+    def update_choice(self, *_: object) -> None:
+        self.buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(bool(self.selected()))
         self.note.setText(
             "Selected outputs and analysis parameters in one JSON file."
             if self.extension() == "json"

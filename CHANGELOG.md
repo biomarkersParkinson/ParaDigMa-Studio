@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Extend mypy checks to job, result, export and shell controllers, shared workspace
+  state, result preparation, previews and export/file-writing services. Require
+  complete function annotations in these nine additional modules.
 - Add branch-coverage reports and an 80% floor for controllers and error
   boundaries in both Windows workflows. Add direct worker-boundary tests for
   terminal signals, traceback forwarding and logger cleanup.

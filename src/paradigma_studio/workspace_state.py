@@ -11,7 +11,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .contracts import RunRecord as RunRecord
+from .contracts import ClockMetadata, RunRecord as RunRecord
 
 if TYPE_CHECKING:
     from threading import Event
@@ -65,7 +65,7 @@ class ResultState:
     results: dict[str, Any] | None = None
     result_timeline: Any = None
     result_source_frame: pd.DataFrame | dict[str, pd.DataFrame] | None = None
-    display_clock: dict | None = None
+    display_clock: ClockMetadata | None = None
     _gait_presence_cache: Any = None
     _gait_epoch_cache: Any = None
     _plot_signature: Any = None
@@ -132,7 +132,7 @@ class ShellState:
     _acknowledgements_dialog: QDialog | None = None
 
 
-def state_property(container, name):
+def state_property(container: str, name: str) -> property:
     """Keep existing window attributes as explicit views of controller state."""
     return property(
         lambda owner: getattr(getattr(owner, container), name),

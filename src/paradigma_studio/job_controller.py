@@ -4,13 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QTimer
 from PySide6.QtWidgets import QComboBox, QLabel, QProgressBar, QPushButton, QWidget
 
+from .contracts import (
+    ConnectWorkerCallback,
+    FinishRunCallback,
+    JobCompletion,
+    JobOperation,
+    NoticeCallback,
+)
 from .widgets import WrappedForm
 from .workspace_state import JobState, ResultState, RunState
+
+if TYPE_CHECKING:
+    from .jobs import Worker
 
 
 @dataclass(frozen=True)
@@ -36,19 +46,19 @@ class JobView:
 
 @dataclass(frozen=True)
 class JobCallbacks:
-    connect_worker: Callable[..., Any]
-    append_log: Callable[..., Any]
-    close: Callable[..., Any]
-    finish_run: Callable[..., Any]
-    modules_changed: Callable[..., Any]
-    preparation_changed: Callable[..., Any]
-    show_notice: Callable[..., Any]
-    update_run_actions: Callable[..., Any]
+    connect_worker: ConnectWorkerCallback
+    append_log: Callable[[str], None]
+    close: Callable[[], object]
+    finish_run: FinishRunCallback
+    modules_changed: Callable[[], None]
+    preparation_changed: Callable[[], None]
+    show_notice: NoticeCallback
+    update_run_actions: Callable[[], None]
 
 
 @dataclass(frozen=True)
 class JobServices:
-    worker_factory: Callable[..., Any]
+    worker_factory: Callable[[JobOperation], Worker]
 
 
 class JobController(QObject):
@@ -71,7 +81,7 @@ class JobController(QObject):
         self.callbacks = callbacks
         self.services = services
 
-    def start_job(self, operation, completed):
+    def start_job(self, operation: JobOperation, completed: JobCompletion) -> None:
         if self.jobs.worker is not None:
             return
         for widget in (
@@ -96,7 +106,7 @@ class JobController(QObject):
         self.callbacks.connect_worker(self.jobs.worker, completed)
         self.jobs.worker.start()
 
-    def job_finished(self):
+    def job_finished(self) -> None:
         worker = self.jobs.worker
         self.jobs.worker = None
         self.view.open_button.setEnabled(True)
@@ -121,21 +131,21 @@ class JobController(QObject):
             self.runs._close_after_save = False
             QTimer.singleShot(0, self.callbacks.close)
 
-    def failure(self, message):
+    def failure(self, message: str) -> None:
         self.runs._close_after_save = False
         self.view.status.setText("Operation failed. See the processing log.")
         self.callbacks.append_log(message)
         self.callbacks.show_notice(message, "error")
         self.callbacks.finish_run("Failed", [message])
 
-    def stop_analysis(self):
+    def stop_analysis(self) -> None:
         cancel = getattr(self.jobs, "_analysis_stop", None)
         if self.jobs.worker is not None and cancel is not None:
             cancel.set()
             self.view.stop_button.setEnabled(False)
             self.view.status.setText("Stopping analysis…")
 
-    def analysis_cancelled(self):
+    def analysis_cancelled(self) -> None:
         self.callbacks.append_log("Analysis stopped by the user.")
         self.callbacks.finish_run("Cancelled")
         self.view.status.setText("Analysis cancelled.")

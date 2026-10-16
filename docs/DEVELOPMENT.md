@@ -123,16 +123,29 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/Par
 
 These commands verify a Linux executable; the Windows workflows verify the EXE.
 
+## Type checking
+
 `python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
 `analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
-`serialization` and `epoch_profile`. This is a lenient starting point:
-annotated functions are checked, while unannotated helpers and UI code can be
-typed incrementally. Extend the file list in `pyproject.toml` as coverage grows.
+`serialization` and `epoch_profile`, plus these controller and service modules:
+
+- `job_controller`, `result_controller`, `export_controller` and `shell_controller`;
+- `workspace_state`, `result_data`, `previews`, `storage` and `exports`.
+
+The nine modules in this expanded scope require complete function annotations
+(`disallow_untyped_defs`) and check helper bodies (`check_untyped_defs`), including
+job operations, preview completion and export writers. Callback protocols describe
+optional arguments and service dependencies; atomic writes distinguish text and
+binary streams. Existing service checks remain lenient, and the remaining UI and
+controller modules can be typed incrementally. Extend both the `files` list and
+the stricter module override in `pyproject.toml` when migrating another module.
+
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
-messages; extensible ParaDigMa payloads and upstream forwarding arguments retain
-`Any`. pandas stubs are development dependencies. Keep scientific type imports
-under `TYPE_CHECKING`; the packaged `py.typed` marker exposes available annotations
-to callers without adding startup imports.
+messages. Extensible ParaDigMa payloads, the heterogeneous Qt job-completion
+payload and upstream forwarding arguments retain `Any`. pandas stubs are
+development dependencies. Keep scientific type imports under `TYPE_CHECKING`;
+the packaged `py.typed` marker exposes available annotations to callers without
+adding startup imports.
 
 ## Python service APIs
 

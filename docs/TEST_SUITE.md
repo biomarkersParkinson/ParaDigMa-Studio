@@ -74,9 +74,12 @@ views. Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 
 Run the suite and style checks using the [development commands](DEVELOPMENT.md).
-Both Windows workflows also check the typed service APIs with mypy and enforce
-Ruff's expanded rules and complexity limit. These static checks complement the
-runtime and scientific tests; they do not replace them.
+Both Windows workflows also check typed service and controller APIs with mypy
+and enforce Ruff's expanded rules and complexity limit. These static checks
+complement the runtime and scientific tests; they do not replace them.
+The [type-checking scope](DEVELOPMENT.md#type-checking) includes the job,
+result, export and shell controllers and their supporting services; those added
+modules require complete function annotations.
 CI also measures branch coverage of controllers and worker/error boundaries with
 an 80% floor. The [coverage commands and scope](DEVELOPMENT.md#branch-coverage)
 describe reports, partial local measurements and subprocess collection.
