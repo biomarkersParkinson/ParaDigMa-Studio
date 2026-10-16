@@ -58,9 +58,12 @@ and unexpected files at the top of the app folder.
 
 Both Windows workflows enforce the pinned Ruff formatter, error and import
 checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
-modernization (`UP`) rules, and a McCabe complexity limit of 10 (`C901`). They
-also run mypy API checks. Split complex functions into cohesive helpers; keep
-any rule-specific suppression narrow and explain its reason in a nearby comment.
+modernization (`UP`) rules. Functions are limited to McCabe complexity 10
+(`C901`), 60 statements (`PLR0915`) and 12 branches (`PLR0912`) across source,
+scripts and tests. Statement counts catch long, straight-line builders that a
+complexity limit alone allows. Both workflows also run mypy API checks. Split
+large or complex functions into cohesive helpers; keep any rule-specific
+suppression narrow and explain its reason in a nearby comment.
 Ruff rejects unused suppressions (`RUF100`). The documented immutable Qt
 `QModelIndex()` default is allowed for native model method signatures.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep

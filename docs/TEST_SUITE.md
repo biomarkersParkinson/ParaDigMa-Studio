@@ -75,8 +75,9 @@ the visible module tabs and output selector, with the Tables page open.
 
 Run the suite and style checks using the [development commands](DEVELOPMENT.md).
 Both Windows workflows also check typed service and controller APIs with mypy
-and enforce Ruff's expanded rules and complexity limit. These static checks
-complement the runtime and scientific tests; they do not replace them.
+and enforce Ruff's expanded rules and function complexity, statement and branch
+limits. These checks complement the runtime and scientific tests; they do not
+replace them.
 The [type-checking scope](DEVELOPMENT.md#type-checking) includes the job,
 result, export and shell controllers and their supporting services; those added
 modules require complete function annotations.

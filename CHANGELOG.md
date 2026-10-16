@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Enforce Ruff limits of 60 statements and 12 branches per function alongside
+  the existing complexity limit of 10. Extract sidebar and Data recording-header
+  construction into named helpers, preserving widget creation and signal order.
 - Extend mypy checks to job, result, export and shell controllers, shared workspace
   state, result preparation, previews and export/file-writing services. Require
   complete function annotations in these nine additional modules.
