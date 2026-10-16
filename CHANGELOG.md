@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refresh the security review for current worker, diagnostic and release boundaries,
+  with new dependency/static scans and security regression evidence.
 - Narrow expected file/timezone error handling and preserve full tracebacks at
   job, preview, export and pipeline boundaries, including recording workers.
 - Reduce startup work by loading Matplotlib and constructing Data, Results and

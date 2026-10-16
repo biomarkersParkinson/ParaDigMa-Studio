@@ -16,7 +16,7 @@ app. [Security](../SECURITY.md), [signing](../SIGNING.md) and the
 [Apache 2.0 licence](../LICENSE) are maintained at the repository root.
 The [recorded security review evidence](security-review.json) identifies its
 reviewed commit, checked versions, source findings and validation outcomes;
-those results are not a new audit of later refactoring.
+it distinguishes source checks from packaged-artifact and Windows checks.
 
 The [archive](archive/README.md) preserves earlier audits, measurements and
 screenshots. Historical test counts and screenshots describe their original
