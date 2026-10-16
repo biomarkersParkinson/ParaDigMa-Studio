@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Record a baseline/current performance review of the component extraction,
+  including frozen startup, graph interactions, processing and saved runs.
+  Add reproducible first-use and processing benchmarks with data checks.
 - Replace window layout/graph mixins with composed components and frozen views.
   Move data, analysis, jobs, result workspace, exports and shell behavior into
   explicit controllers; preserve ordered Qt wiring and deferred graph creation.

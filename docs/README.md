@@ -17,6 +17,8 @@ app. [Security](../SECURITY.md), [signing](../SIGNING.md) and the
 The [recorded security review evidence](security-review.json) identifies its
 reviewed commit, checked versions, source findings and validation outcomes;
 it distinguishes source checks from packaged-artifact and Windows checks.
+The [performance review evidence](performance-review.json) records baseline/current
+measurements, workloads, unchanged output checks and platform limitations.
 
 The [archive](archive/README.md) preserves earlier audits, measurements and
 screenshots. Historical test counts and screenshots describe their original
