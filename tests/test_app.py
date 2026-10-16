@@ -9,7 +9,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio import app as desktop_app
@@ -131,7 +130,8 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     assert not window.run_button.isEnabled()
     deadline = time.monotonic() + 10
     while window.worker is not None and time.monotonic() < deadline:
-        QTest.qWait(20)
+        _app.processEvents()
+        time.sleep(0.01)  # Let Python worker code acquire the GIL while tracing.
     assert window.worker is None
     assert window.results["errors"]
     assert warnings == []  # Processing errors are reported inline, without a modal.
@@ -155,7 +155,8 @@ def test_empatica_opens_in_background_without_gyro(monkeypatch):
     window.open_file()
     deadline = time.monotonic() + 10
     while window.worker is not None and time.monotonic() < deadline:
-        QTest.qWait(20)
+        _app.processEvents()
+        time.sleep(0.01)
     assert window.worker is None
     assert errors == []
     assert window.input_table.model().rowCount() == 115904

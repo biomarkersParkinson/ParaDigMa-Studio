@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add branch-coverage reports and an 80% floor for controllers and error
+  boundaries in both Windows workflows. Add direct worker-boundary tests for
+  terminal signals, traceback forwarding and logger cleanup.
 - Enforce a 900-line limit for every Python module under `src/` in both Windows
   workflows. Extract Analyze page construction and result-summary preparation
   from the existing oversized modules, preserving their public view interfaces.

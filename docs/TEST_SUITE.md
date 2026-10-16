@@ -77,6 +77,9 @@ Run the suite and style checks using the [development commands](DEVELOPMENT.md).
 Both Windows workflows also check the typed service APIs with mypy and enforce
 Ruff's expanded rules and complexity limit. These static checks complement the
 runtime and scientific tests; they do not replace them.
+CI also measures branch coverage of controllers and worker/error boundaries with
+an 80% floor. The [coverage commands and scope](DEVELOPMENT.md#branch-coverage)
+describe reports, partial local measurements and subprocess collection.
 The [scientific methodology](SCIENTIFIC_TESTS.md) explains the independent
 references, tolerances and limits. Native Windows execution and signature checks
 remain responsibilities of the Windows build workflows.

@@ -1,6 +1,7 @@
 """Tracebacks survive error boundaries without changing notices or error counts."""
 
 import logging
+import pickle
 from queue import SimpleQueue
 from threading import Event
 from types import SimpleNamespace
@@ -9,7 +10,14 @@ import pandas as pd
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from paradigma_studio import analysis_process, app as desktop, core, recording_results, recordings
+from paradigma_studio import (
+    analysis_process,
+    app as desktop,
+    core,
+    parallel_analysis,
+    recording_results,
+    recordings,
+)
 from paradigma_studio.analysis_process import QueueLogHandler, forward_analysis_log
 from paradigma_studio.history import new_run
 from paradigma_studio.jobs import SignalHandler, Worker
@@ -26,6 +34,55 @@ def captured_logger():
         )
     )
     return logger, messages, errors
+
+
+@pytest.mark.parametrize("outcome", ["completed", "cancelled", "failed"])
+def test_worker_terminal_signal_preserves_traceback_and_restores_logging(outcome, request):
+    # Exercise the boundary synchronously so coverage can trace this Qt thread
+    # entry point. Integration tests separately start real QThreads and jobs.
+    package_logger = logging.getLogger("paradigma")
+    original_level = package_logger.level
+    request.addfinalizer(lambda: package_logger.setLevel(original_level))
+    package_logger.setLevel(logging.WARNING)
+    existing_handler = logging.NullHandler()
+    package_logger.addHandler(existing_handler)
+    request.addfinalizer(lambda: package_logger.removeHandler(existing_handler))
+    handlers, level = list(package_logger.handlers), package_logger.level
+    result, terminal, messages, warnings = object(), [], [], []
+
+    def operation(logger):
+        assert package_logger.level == logging.INFO
+        package_logger.info("Toolbox diagnostic")
+        logger.warning("Some windows were excluded")
+        if outcome == "cancelled":
+            raise analysis_process.AnalysisCancelled()
+        if outcome == "failed":
+            raise ValueError("Unexpected pipeline failure")
+        return result
+
+    worker = Worker(operation)
+    worker.completed.connect(lambda value: terminal.append(("completed", value)))
+    worker.cancelled.connect(lambda: terminal.append(("cancelled", None)))
+    worker.failed.connect(lambda message: terminal.append(("failed", message)))
+    worker.message.connect(messages.append)
+    worker.warning.connect(warnings.append)
+    worker.run()
+
+    expected = {
+        "completed": result,
+        "cancelled": None,
+        "failed": "ValueError: Unexpected pipeline failure",
+    }
+    assert terminal == [(outcome, expected[outcome])]
+    assert warnings == ["Some windows were excluded"]
+    assert "Toolbox diagnostic" in messages
+    assert package_logger.handlers == handlers and package_logger.level == level
+    if outcome == "failed":
+        assert "Traceback" in messages[-1] and "in operation" in messages[-1]
+        assert "ValueError: Unexpected pipeline failure" in messages[-1]
+        assert "Traceback" not in terminal[0][1]
+    else:
+        assert all("Traceback" not in message for message in messages)
 
 
 @pytest.mark.parametrize("recording", ["", "recording_002"])
@@ -51,6 +108,34 @@ def test_remote_exception_log_keeps_stack_and_counts_one_original_error(recordin
     assert len(messages) == 1 and messages[0].startswith(message)
     assert "Traceback" in messages[0] and "in aggregate" in messages[0]
     assert "ValueError: No valid windows" in messages[0]
+
+
+@pytest.mark.parametrize("boundary", ["single", "parallel"])
+def test_process_failure_emits_one_traceback_and_one_concise_failure(
+    boundary, monkeypatch, tmp_path
+):
+    events = SimpleQueue()
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Unexpected child failure")
+
+    if boundary == "single":
+        source = tmp_path / "input.pkl"
+        source.write_bytes(pickle.dumps(pd.DataFrame({"time": [0.0]})))
+        monkeypatch.setattr(core, "analyze", fail)
+        output = tmp_path / "output.pkl"
+        analysis_process._analyze_child(source, output, {}, events)
+        assert not output.exists()
+    else:
+        monkeypatch.setattr(parallel_analysis, "_run_worker_loop", fail)
+        parallel_analysis._recording_worker(None, events, {})
+
+    diagnostic = events.get_nowait()
+    assert diagnostic[:2] == ("log", logging.INFO)
+    assert "Traceback" in diagnostic[2] and "in fail" in diagnostic[2]
+    assert "RuntimeError: Unexpected child failure" in diagnostic[2]
+    assert events.get_nowait() == ("failed", "RuntimeError: Unexpected child failure")
+    assert events.empty()
 
 
 @pytest.mark.parametrize("workers", [1, 2])

@@ -2,6 +2,8 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+.coverage
+.coverage.*
 build/
 build-reports/
 release-assets/
@@ -9,5 +11,6 @@ dist/
 *.spec
 dependency-audit.json
 test-results.xml
+test-reports/
 
 .ruff_cache/

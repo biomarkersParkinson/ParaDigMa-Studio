@@ -89,7 +89,7 @@ the limit, preserving explicit dependencies and deferred imports.
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
 and records startup measurements, package versions, source commit and checksums.
-Artifacts include the app folder, a separate JUnit test report, and
+Artifacts include the app folder, JUnit and branch-coverage test reports, and
 `ParaDigMaStudio-build-reports` for performance measurements. Benchmarks write
 to `build-reports/`, outside the distributable app. Security provenance,
 dependency audit results and checksums remain with the app. These checks
@@ -176,6 +176,43 @@ fixtures, tolerances and limits. App tests cover imports, preparation settings,
 background error handling, navigation, selection, graph/table values, presentation
 controls, history and exports. The frozen-app check loads bundled classifiers,
 runs real pipelines, renders graphs and reopens exported results.
+
+## Branch coverage
+
+Both Windows workflows run the full suite with pinned `pytest-cov` and coverage.py.
+The initial floor is **80%**, using coverage.py's combined percentage of executed
+statements and branch outcomes. The report includes all `*_controller.py` modules
+and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analysis`,
+`previews`, `recording_results` and `storage`. New controllers automatically join
+the gate, including modules with no tests. Other Studio modules and the upstream
+toolbox are outside this initial reporting scope; this is not whole-app coverage.
+The source scope, branch mode and floor live in `pyproject.toml`.
+The initial Linux full-suite baseline is 90.2% of statements and 76.5% of branch
+outcomes, or 87.0% combined across 16 modules (893 tests passed, one skipped).
+
+Run the same coverage check locally after installing `.[dev]`:
+
+```bash
+python -m pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
+```
+
+On a headless machine, set `QT_QPA_PLATFORM=offscreen` as in the Linux commands
+above. XML is written to `test-reports/coverage.xml`; open
+`test-reports/coverage-html/index.html` to inspect missing lines and branch exits.
+Both reports are retained with JUnit in the CI test-results artifact, outside the
+application bundle. Raw `.coverage*` data and generated reports are ignored by Git.
+
+Coverage combines completed Python subprocesses and multiprocessing workers.
+Forcibly terminated workers can exit before saving their measurements; direct
+boundary tests complement real process/thread integration tests. Qt thread entry
+points are also tested synchronously so their failure and cleanup paths are traced.
+In particular, the low `recording_results` measurement undercounts merging inside
+terminated workers; the real-process scientific comparisons still run.
+Normal `pytest` runs keep coverage off for fast focused work. For a local partial
+measurement, use `--cov --cov-fail-under=0`; the full CI run always enforces the
+configured floor. Add behavior tests for missing error/recovery branches rather
+than excluding them or lowering the floor. Coverage timings are not performance
+benchmarks.
 
 Public fixture provenance and licenses are under `src/paradigma_studio/data/`
 and `tests/data/paradigma/`. No patient data or external fixture download is needed.

@@ -21,6 +21,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "coverage==7.16.2",
     "pyinstaller==6.22.3",
     "ruff==0.16.10",
     "mypy==2.4.0",
@@ -39,6 +41,36 @@ paradigma_studio = ["py.typed", "data/*", "data/notices/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["scientific: numerical equivalence with independent official ParaDigMa workflows"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/paradigma_studio"]
+relative_files = true
+concurrency = ["thread", "multiprocessing"]
+patch = ["subprocess", "_exit"]
+
+[tool.coverage.report]
+# Begin with orchestration and failure boundaries; measure new controllers too.
+include = [
+    "src/paradigma_studio/**/*_controller.py",
+    "src/paradigma_studio/analysis_process.py",
+    "src/paradigma_studio/core.py",
+    "src/paradigma_studio/jobs.py",
+    "src/paradigma_studio/parallel_analysis.py",
+    "src/paradigma_studio/previews.py",
+    "src/paradigma_studio/recording_results.py",
+    "src/paradigma_studio/storage.py",
+]
+fail_under = 80
+precision = 1
+show_missing = true
+include_namespace_packages = true
+
+[tool.coverage.xml]
+output = "test-reports/coverage.xml"
+
+[tool.coverage.html]
+directory = "test-reports/coverage-html"
 
 [tool.ruff]
 line-length = 100
