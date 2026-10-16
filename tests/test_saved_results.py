@@ -259,13 +259,16 @@ def test_close_saves_all_unsaved_runs_even_when_another_run_is_displayed(
     assert second["outputs"][0]["local"]
 
 
+@pytest.mark.parametrize(
+    "failure", [OSError("Storage is full"), TypeError("Unsupported result value")]
+)
 def test_failed_history_save_keeps_window_open_and_results_unsaved(
-    window, tremor_outputs, tmp_path, monkeypatch
+    window, tremor_outputs, tmp_path, monkeypatch, failure
 ):
     record = analyzed_run(window, tremor_outputs, tmp_path)
 
     def fail(record):
-        raise OSError("Storage is full")
+        raise failure
 
     monkeypatch.setattr(window.history, "save", fail)
     monkeypatch.setattr(QMessageBox, "exec", lambda dialog: QMessageBox.Save)
@@ -274,7 +277,9 @@ def test_failed_history_save_keeps_window_open_and_results_unsaved(
     assert window.isVisible() and window.unsaved_result_runs() == [record]
     assert record["outputs"] == []
     assert record["status"] == "Completed"
-    assert "Storage is full" in window.notice.text()
+    assert str(failure) in window.notice.text()
+    assert "Traceback" in window.log.toPlainText()
+    assert "in fail" in window.log.toPlainText()
     assert not list((window.history.directory / "results").glob("*.json"))
     monkeypatch.setattr(QMessageBox, "exec", lambda dialog: QMessageBox.Discard)
 

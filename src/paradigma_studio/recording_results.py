@@ -176,7 +176,8 @@ def _aggregate_pipelines(combined, pipelines, settings, logger):
         try:
             _aggregate_pipeline(combined, pipeline, settings)
         except Exception as exc:
-            logger.error("Failed to aggregate %s results: %s", pipeline, exc)
+            # One toolbox aggregation failure must not discard other modules.
+            logger.exception("Failed to aggregate %s results: %s", pipeline, exc)
             combined["errors"].append(
                 {"pipeline": pipeline, "stage": "aggregation", "error": str(exc)}
             )

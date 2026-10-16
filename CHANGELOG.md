@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Narrow expected file/timezone error handling and preserve full tracebacks at
+  job, preview, export and pipeline boundaries, including recording workers.
 - Reduce startup work by loading Matplotlib and constructing Data, Results and
   sensor-context graph workspaces on first use. Later visits reuse the same
   canvases and controls. Startup checks also guard this plotting boundary.

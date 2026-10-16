@@ -6,12 +6,20 @@ import logging
 import multiprocessing
 import pickle
 import tempfile
+import traceback
 from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING
 
 from .analysis_limits import parallel_worker_count
-from .contracts import AnalysisEvent, AnalysisResults, AnalysisSettings, PathInput, SensorInput
+from .contracts import (
+    AnalysisEvent,
+    AnalysisLogEvent,
+    AnalysisResults,
+    AnalysisSettings,
+    PathInput,
+    SensorInput,
+)
 
 if TYPE_CHECKING:
     from multiprocessing.process import BaseProcess
@@ -37,7 +45,24 @@ class QueueLogHandler(logging.Handler):
             # Keep the original prefix for warning/failure recognition while
             # making interleaved pipeline steps attributable to their recording.
             message += f" [{self.recording}]"
-        self.queue.put(("log", record.levelno, message))
+        details = record.exc_text
+        if not details and record.exc_info:
+            details = logging.Formatter().formatException(record.exc_info)
+        if details:
+            # Traceback objects cannot cross processes. Preserve their formatted
+            # text separately so error counting still uses the original message.
+            self.queue.put(("log", record.levelno, message, details))
+        else:
+            self.queue.put(("log", record.levelno, message))
+
+
+def forward_analysis_log(logger: logging.Logger, event: AnalysisLogEvent) -> None:
+    """Restore remote diagnostic text without adding a second error record."""
+    if logger.isEnabledFor(event[1]):
+        record = logger.makeRecord(logger.name, event[1], "", 0, event[2], (), None)
+        if len(event) == 4:
+            record.exc_text = event[3]
+        logger.handle(record)
 
 
 def _analyze_child(
@@ -59,6 +84,8 @@ def _analyze_child(
             pickle.dump(results, stream, protocol=pickle.HIGHEST_PROTOCOL)
         queue.put(("completed",))
     except Exception as exc:
+        # This process boundary also covers toolbox imports and result serialization.
+        queue.put(("log", logging.INFO, traceback.format_exc()))
         queue.put(("failed", f"{type(exc).__name__}: {exc}"))
 
 
@@ -135,7 +162,7 @@ def _wait_for_analysis(
                 ) from None
             continue
         if event[0] == "log":
-            logger.log(event[1], event[2])
+            forward_analysis_log(logger, event)
         elif event[0] == "failed":
             raise RuntimeError(event[1])
         elif event[0] == "completed":

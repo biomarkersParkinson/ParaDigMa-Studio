@@ -19,11 +19,12 @@ class DeferredWidget(QWidget):
         # Builders may access an attribute they have already installed. Mark
         # initialization before calling them so that access cannot reenter it.
         self.initialized = True
+        initialized = False
         try:
             self._initialize()
-        except Exception:
-            self.initialized = False
-            raise
+            initialized = True
+        finally:
+            self.initialized = initialized
 
     def showEvent(self, event):
         self.initialize()

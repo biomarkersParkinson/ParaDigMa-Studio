@@ -42,16 +42,22 @@ def test_window_results_and_plot(tmp_path):
 def test_worker_failure_is_delivered():
     app = QApplication.instance() or QApplication([])
     errors = []
+    messages, counted_errors = [], []
 
     def fail(logger):
         raise ValueError("bad recording")
 
     worker = Worker(fail)
     worker.failed.connect(errors.append)
+    worker.message.connect(messages.append)
+    worker.error.connect(counted_errors.append)
     worker.start()
     assert worker.wait(5000)
     app.processEvents()
     assert errors == ["ValueError: bad recording"]
+    assert not counted_errors  # failed already records the operation failure once.
+    assert len(messages) == 1 and "Traceback (most recent call last)" in messages[0]
+    assert "in fail" in messages[0] and "ValueError: bad recording" in messages[0]
 
 
 def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):

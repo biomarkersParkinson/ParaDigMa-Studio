@@ -2,6 +2,7 @@
 
 import json
 import sys
+import traceback
 from functools import cached_property
 from importlib.metadata import version
 from pathlib import Path
@@ -172,6 +173,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._sensor_preview = CachedPreview(self)
         self._sensor_preview.value_ready.connect(self.apply_sensor_preview)
         self._sensor_preview.failed.connect(self.append_log)
+        for preview in (self._origin_preview, self._time_preview, self._sensor_preview):
+            preview.diagnostic.connect(self.append_log)
         self._data_plot_dirty = True
         self.active_positions = np.array([], dtype=int)
         self.sidebar_collapsed = True
@@ -1404,6 +1407,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 self.record_output(path, "JSON")
                 self.status.setText(f"Results exported to {path}")
             except Exception as exc:
+                # Final UI boundary for file writers and run-history callbacks.
+                self.append_log(traceback.format_exc())
                 self.failure(str(exc))
 
     def choose_export(self):
@@ -1476,6 +1481,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
                 self.record_output(path, "CSV")
                 self.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
             except Exception as exc:
+                # Final UI boundary for file writers and run-history callbacks.
+                self.append_log(traceback.format_exc())
                 self.failure(str(exc))
 
     def unsaved_result_runs(self):

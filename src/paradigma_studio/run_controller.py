@@ -84,7 +84,11 @@ class RunController:
             self.state.active_run["log"] += message + "\n"
             if self.state.selected_run is self.state.active_run:
                 self.view.log.appendPlainText(message)
-        elif self.state.selected_run is None:
+        else:
+            # Export/save/preview failures can occur with a historical run selected.
+            # Retain diagnostics across refreshes without changing its run status.
+            if self.state.selected_run is not None:
+                self.state.selected_run["log"] += message + "\n"
             self.view.log.appendPlainText(message)
 
     def capture_warning(self, message):
@@ -498,6 +502,8 @@ class RunController:
                     outputs = self.history.save_results(record, results, provenance, protected)
                     saved.append((record["id"], outputs))
                 except Exception as exc:
+                    # Continue saving independent runs, including serialization failures.
+                    logger.exception("Could not save results for %s", Path(record["source"]).name)
                     failures.append(f"{Path(record['source']).name}: {exc}")
             return saved, failures
 

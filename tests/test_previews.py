@@ -116,7 +116,9 @@ def test_closing_a_window_does_not_wait_for_or_deliver_a_running_preview(window)
 def test_preview_failure_leaves_controls_usable_and_can_recover(window):
     preview = CachedPreview(window, delay=5)
     failures, values = [], []
+    diagnostics = []
     preview.failed.connect(failures.append)
+    preview.diagnostic.connect(diagnostics.append)
     preview.value_ready.connect(values.append)
 
     def invalid():
@@ -126,6 +128,8 @@ def test_preview_failure_leaves_controls_usable_and_can_recover(window):
         preview.request("invalid", invalid)
         wait_until(lambda: not preview.pending)
         assert failures == ["ValueError: Invalid recording"] and values == [None]
+        assert len(diagnostics) == 1 and "Traceback" in diagnostics[0]
+        assert "in invalid" in diagnostics[0] and "ValueError: Invalid recording" in diagnostics[0]
         preview.request("valid", lambda: "Recovered")
         wait_until(lambda: not preview.pending)
         assert values[-1] == "Recovered"

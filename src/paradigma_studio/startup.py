@@ -81,6 +81,7 @@ def startup_test(report_path, started, *, history_dir=None):
             report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         return 0 if report["status"] == "passed" else 1
     except Exception:
+        # The standalone probe reports any startup failure with its original stack.
         report_path.write_text(
             json.dumps({"status": "failed", "error": traceback.format_exc()}, indent=2),
             encoding="utf-8",

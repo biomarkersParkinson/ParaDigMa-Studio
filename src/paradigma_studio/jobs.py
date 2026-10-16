@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from collections.abc import Callable
 
 from PySide6.QtCore import QThread, Signal
@@ -57,6 +58,9 @@ class Worker(QThread):
         except AnalysisCancelled:
             self.cancelled.emit()
         except Exception as exc:
+            # The Qt worker is the final boundary for arbitrary job operations.
+            # Log diagnostics separately so failed emits/counts one concise error.
+            self.message.emit(traceback.format_exc())
             self.failed.emit(f"{type(exc).__name__}: {exc}")
         finally:
             package_logger.removeHandler(handler)

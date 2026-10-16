@@ -216,6 +216,7 @@ def _analyze_pipeline_groups(
                 **settings,
             )
         except Exception as exc:
+            # Independent toolbox groups must retain successful partial results.
             combined["errors"].append(
                 {
                     "pipelines": group,
@@ -225,7 +226,7 @@ def _analyze_pipeline_groups(
             )
             for pipeline in group:
                 combined["aggregations"][pipeline] = {}
-            (logger or logging.getLogger("paradigma")).error(
+            (logger or logging.getLogger("paradigma")).exception(
                 "Modules %s failed: %s", ", ".join(group), exc
             )
             continue

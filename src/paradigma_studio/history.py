@@ -270,12 +270,13 @@ class RunHistory:
             "complete": True,
         }
         outputs = [item for item in record["outputs"] if not item.get("local")] + [output]
+        history_saved = False
         try:
             self.save({**record, "outputs": outputs})
-        except Exception:
-            if not existed:
+            history_saved = True
+        finally:
+            if not history_saved and not existed:
                 path.unlink(missing_ok=True)
-            raise
         return outputs
 
     def validate_export_destination(self, path: PathInput, records: Iterable[RunRecord]) -> None:

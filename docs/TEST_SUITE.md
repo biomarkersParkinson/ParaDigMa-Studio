@@ -33,6 +33,7 @@ trigger and expected behavior still apply.
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
 | Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
+| Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export

@@ -495,6 +495,7 @@ def time_bound(text, clock):
 
 def _date_time_bound(text, clock):
     import pandas as pd
+    from pytz.exceptions import AmbiguousTimeError, NonExistentTimeError
 
     origin, bound = clock_origin(clock), pd.Timestamp(text)
     if pd.isna(bound):
@@ -502,7 +503,7 @@ def _date_time_bound(text, clock):
     if origin.tz is not None and bound.tz is None:
         try:
             bound = bound.tz_localize(origin.tz)
-        except Exception as exc:
+        except (AmbiguousTimeError, NonExistentTimeError) as exc:
             raise ValueError("Ambiguous or invalid local time; include a timezone offset.") from exc
     if origin.tz is None and bound.tz is not None:
         raise ValueError("Use a time without a timezone for this recording's unspecified clock.")

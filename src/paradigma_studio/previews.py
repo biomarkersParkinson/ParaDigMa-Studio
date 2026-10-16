@@ -1,5 +1,6 @@
 """Cached, replaceable UI previews; scientific analysis has its own worker."""
 
+import traceback
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -12,6 +13,7 @@ class CachedPreview(QObject):
 
     value_ready = Signal(object)
     failed = Signal(str)
+    diagnostic = Signal(str)
     _completed = Signal(object)
 
     def __init__(self, parent=None, *, delay=120, capacity=16):
@@ -81,14 +83,17 @@ class CachedPreview(QObject):
         self._future = self._executor.submit(operation)
 
         def completed(future):
+            details = None
             try:
                 value, error = future.result(), None
             except Exception as exc:
+                # Preview operations are arbitrary; retain the stack across threads.
                 value, error = None, f"{type(exc).__name__}: {exc}"
+                details = traceback.format_exc()
             if not self._closed:
                 # The parent window may have been deleted before delivery.
                 with suppress(RuntimeError):
-                    self._completed.emit((key, value, error))
+                    self._completed.emit((key, value, error, details))
 
         self._future.add_done_callback(completed)
 
@@ -97,7 +102,9 @@ class CachedPreview(QObject):
         self._future = None
         if self._closed:
             return
-        key, value, error = payload
+        key, value, error, details = payload
+        if details:
+            self.diagnostic.emit(details)
         if key[0] == self._generation and error is None:
             self._cache[key] = value
             self._cache.move_to_end(key)

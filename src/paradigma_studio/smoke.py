@@ -32,6 +32,7 @@ def smoke_test(report_path):
             window.close()
             app.processEvents()
     except Exception:
+        # The packaged probe must report failures from any bundled dependency.
         report["traceback"] = traceback.format_exc()
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return 0 if report["status"] == "passed" else 1

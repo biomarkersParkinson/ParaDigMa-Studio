@@ -38,7 +38,7 @@ def load_recordings(
             logger.info("Loading %s: %s", key, path)
         try:
             frames[key] = load_sensor_file(path, allow_pickle=allow_pickle)
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             raise ValueError(f"{Path(path).name}: {exc}") from exc
         sources[key] = path
     if not frames:

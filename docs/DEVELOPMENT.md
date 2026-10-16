@@ -67,6 +67,11 @@ Qt platform initialization and Matplotlib cache configuration ahead of the
 imports that depend on them. The justified `isort: split` boundary in `app.py`
 keeps cache initialization ahead of plotting imports during automatic sorting.
 Keep pandas/Arrow and scientific-stack imports deferred until data is needed.
+Catch specific exceptions for expected input or filesystem failures. Broad catches
+belong at job/UI boundaries or around independent toolbox operations that retain
+partial results; preserve full tracebacks in the processing log or probe report.
+Keep diagnostic stacks separate from concise notices and structured error counts,
+including when forwarding log records between recording workers and the GUI.
 Keep Matplotlib imports and graph construction behind first use, and reuse the
 created canvases. Fresh-process startup tests check the empty workspace, saved
 run history and independent graph initialization; `benchmark_desktop.py` enforces

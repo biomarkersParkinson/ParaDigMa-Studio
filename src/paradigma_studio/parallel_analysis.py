@@ -6,6 +6,7 @@ import logging
 import multiprocessing
 import pickle
 import tempfile
+import traceback
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,6 +79,8 @@ def _recording_worker(tasks, events, settings):
     try:
         _run_worker_loop(tasks, events, settings)
     except Exception as exc:
+        # Report any toolbox/serialization failure before this worker exits.
+        events.put(("log", logging.INFO, traceback.format_exc()))
         events.put(("failed", f"{type(exc).__name__}: {exc}"))
 
 
@@ -163,7 +166,7 @@ def _submit_next(
 
 
 def _receive_event(events, processes, logger, cancel):
-    from .analysis_process import AnalysisCancelled
+    from .analysis_process import AnalysisCancelled, forward_analysis_log
 
     while True:
         if cancel.is_set():
@@ -178,7 +181,7 @@ def _receive_event(events, processes, logger, cancel):
                 ) from None
             continue
         if event[0] == "log":
-            logger.log(event[1], event[2])
+            forward_analysis_log(logger, event)
         elif event[0] == "failed":
             raise RuntimeError(event[1])
         else:
