@@ -31,6 +31,7 @@ still check or block native dependencies. See [signing](../SIGNING.md) and
 Build on Windows; a Linux build does not generate a Windows executable.
 
 ```powershell
+.\.venv\Scripts\python.exe scripts/check_module_size.py
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m mypy
@@ -77,6 +78,14 @@ created canvases. Fresh-process startup tests check the empty workspace, saved
 run history and independent graph initialization; `benchmark_desktop.py` enforces
 the same startup import boundary in packaged builds.
 
+Every Python module (`*.py`, including `__init__.py`) under `src/` must contain
+**at most 900 physical lines**, including comments, docstrings and blank lines.
+Exactly 900 lines is allowed; a final line without a newline still counts.
+Both Windows workflows run `python scripts/check_module_size.py` before installing
+dependencies. The script reports every oversized module and exits with failure;
+there are no exemptions. Extract cohesive components or helpers before reaching
+the limit, preserving explicit dependencies and deferred imports.
+
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
 and records startup measurements, package versions, source commit and checksums.
@@ -92,6 +101,7 @@ do not replace a publisher signature.
 python -m venv .venv
 .venv/bin/python -m pip install --upgrade 'pip>=26.2,<27'
 .venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python scripts/check_module_size.py
 .venv/bin/python -m ruff check src scripts tests desktop.py
 .venv/bin/python -m ruff format --check src scripts tests desktop.py
 .venv/bin/python -m mypy

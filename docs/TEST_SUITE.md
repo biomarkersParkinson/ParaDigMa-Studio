@@ -9,6 +9,7 @@ trigger and expected behavior still apply.
 
 | Responsibility | Test modules |
 | --- | --- |
+| Source-module 900-line limit and boundary cases | `test_module_size.py`; CI entry point `scripts/check_module_size.py` |
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
 | Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py`, `test_tsdf_input.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |

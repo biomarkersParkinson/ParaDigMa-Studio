@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QListView,
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
@@ -617,6 +618,20 @@ def button(text, callback=None, primary=False):
     if callback:
         widget.clicked.connect(callback)
     return widget
+
+
+def combo(items=(), *, combo_type=ReadableComboBox):
+    combo = combo_type()
+    # A Qt list view and explicit palette avoid native dark-theme popups
+    # combining dark selection backgrounds with inherited dark text.
+    view = QListView()
+    view.setUniformItemSizes(True)
+    view.setPalette(light_palette())
+    combo.setView(view)
+    combo.setPalette(light_palette())
+    combo.setMaxVisibleItems(12)
+    combo.addItems(items)
+    return combo
 
 
 def card():

@@ -227,7 +227,7 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
     power = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
     assert power._paradigma_epoch_data is cached and window.time_axis._selected_x == 900
     reads = []
-    original_values = window._result_plot_values
+    original_values = window._graph_controller.data._result_plot_values
 
     def read_values(*args):
         reads.append(args)
@@ -235,7 +235,7 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
 
     with monkeypatch.context() as patch:
         patch.setattr(
-            window,
+            window._graph_controller.data,
             "_result_plot_values",
             read_values,
         )

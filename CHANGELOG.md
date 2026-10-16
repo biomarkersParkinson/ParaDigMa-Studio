@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Enforce a 900-line limit for every Python module under `src/` in both Windows
+  workflows. Extract Analyze page construction and result-summary preparation
+  from the existing oversized modules, preserving their public view interfaces.
 - Defer sensor-context table construction and column sizing while Graphs is
   selected. Opening Tables shows the latest window with every original sample;
   revisiting an unchanged table preserves its model and selection.

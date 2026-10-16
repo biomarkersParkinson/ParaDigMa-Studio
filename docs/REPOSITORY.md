@@ -39,10 +39,10 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 | Result installation, source alignment, clock selection and completion status | `result_controller.py` |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
-| Construction of the four existing pages and their controls | `ui/layout.py` |
+| Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Analyze widgets in `ui/analysis_page.py` |
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
-| Results rendering, epoch caches and linked graph selection | `ui/result_graphs.py` |
+| Results rendering and linked graph selection | `ui/result_graphs.py`; cached summaries and display transforms in `ui/result_plot_data.py` |
 | Shared channel selection and original sensor plotting | `channels.py` |
 | Original output tables, presentation timing and optional table columns | `result_data.py`, `results_view.py` |
 | Official ParaDigMa loading, preparation and orchestration | `core.py`, `empatica.py`, `recordings.py` |
