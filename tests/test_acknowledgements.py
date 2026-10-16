@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtCore import QStandardPaths
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QPushButton
 
 from paradigma_studio.acknowledgements import NOTICE_FILES, NOTICES
 from paradigma_studio.app import MainWindow
@@ -55,7 +55,9 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     assert "endorse" not in (NOTICES / "ACKNOWLEDGEMENTS.md").read_text().lower()
     assert window.windowTitle() == "ParaDigMa Studio"
     assert window.brand.text() == "ParaDigMa Studio"
-    assert not hasattr(window, "brand_caption")
+    assert [label.text() for label in window.sidebar.findChildren(QLabel) if label.text()] == [
+        "ParaDigMa Studio"
+    ]
     assert any(
         f"Studio {version('paradigma-studio')}" in widget.text()
         for widget in dialog.findChildren(QLabel)
@@ -75,7 +77,7 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     ):
         assert citations.count(doi) == 1
     assert citations.count("doi:") == 6
-    assert not hasattr(dialog, "licence_choice")
+    assert not dialog.tabs.widget(2).findChildren(QComboBox)
     dialog.tabs.setCurrentIndex(2)
     for name in ("LICENSE-studio.txt", "LICENSE-paradigma.txt"):
         assert (NOTICES / name).read_text(encoding="utf-8") in dialog.licence.toPlainText()

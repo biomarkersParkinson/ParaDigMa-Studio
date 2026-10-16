@@ -11,7 +11,17 @@ from conftest import bar_starts, bar_values, select_plot_metric, wait_for_previe
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLabel, QPushButton
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QTextEdit,
+)
 
 from paradigma_studio import app as desktop
 from paradigma_studio.app import MainWindow
@@ -57,9 +67,20 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
     assert not window.module_buttons["Pulse rate"].isChecked()
     assert set(window.module_buttons) == {"Gait", "Tremor", "Pulse rate"}
     assert window.pages.widget(1).isAncestorOf(window.settings_panel)
-    assert not hasattr(window, "inspector")
-    assert not hasattr(window, "pipeline")
+    assert set(window.pages.widget(1).findChildren(QComboBox)) == {
+        window.side,
+        window.acc,
+        window.gyro,
+        window.time,
+    }
     window.gyro.setCurrentText("rad/s")
+    inspect_input = next(
+        button
+        for button in window.pages.widget(1).findChildren(QPushButton)
+        if button.text() == "Inspect input"
+    )
+    inspect_input.click()
+    assert window.pages.currentIndex() == 0
     for index in range(4):
         window.nav_buttons[index].click()
         assert window.pages.currentIndex() == index
@@ -320,7 +341,8 @@ def test_data_overview_graphs_and_tables_use_original_recording(window):
     assert [window.data_tabs.tabText(i) for i in range(3)] == ["Overview", "Graphs", "Tables"]
     assert [item.text() for item in window.data_values] == ["3", "3", "1"]
     assert window.data_tabs.widget(0).isAncestorOf(window.data_values[0])
-    assert not hasattr(window, "data_metadata")
+    assert not window.data_tabs.widget(0).findChildren(QPlainTextEdit)
+    assert not window.data_tabs.widget(0).findChildren(QTextEdit)
     assert window.data_tabs.widget(0).isAncestorOf(window.time_table)
     assert window.data_tabs.widget(1).isAncestorOf(window.data_channels)
     assert window.data_tabs.widget(2) is window.input_table
@@ -504,7 +526,7 @@ def test_metric_selection_and_zoom_leave_official_overview_aggregates_unchanged(
     )
     aggregate = window.overview_values[("test", "Aggregates", ("median_metric",))]
     assert aggregate.text() == "12.5"
-    assert not hasattr(window, "summary_table")
+    assert not window.overview_content.findChildren(desktop.ReadableTable)
     select_plot_metric(window, "quantifications/test", "other_metric")
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.other_metric)
     window.figure.axes[0].set_xlim(2.0, 4.0)
@@ -626,7 +648,6 @@ def test_graph_zoom_preserves_full_official_table_and_csv(window, tmp_path, monk
     window.timing_toggle.setChecked(True)
     frame = output()
     window.analyzed({"quantifications": {"test": frame}})
-    assert not hasattr(window, "time_from") and not hasattr(window, "filters_toggle")
     for limits in ((4.0, 5.0), (9.0, 10.0)):
         window.figure.axes[0].set_xlim(*limits)
         np.testing.assert_array_equal(window.active_positions, np.arange(len(frame)))
@@ -677,7 +698,9 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     )
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()
-    assert not hasattr(window, "context_radius")
+    assert window.context_controls.findChildren(QPushButton) == [window.context_button]
+    assert not window.context_controls.findChildren(QAbstractSpinBox)
+    assert not window.context_controls.findChildren(QLineEdit)
     window.inspect_sensor_context()
     assert window.result_tabs.currentIndex() == window.sensor_tab_index
     assert window.result_tabs.isTabVisible(window.sensor_tab_index)
@@ -703,8 +726,6 @@ def test_missing_original_recording_disables_sensor_context(window):
             "errors": [],
         }
     )
-    assert not hasattr(window, "participant")
-    assert not hasattr(window, "filter_column")
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert not window.context_button.isEnabled()
     assert window.context_button.toolTip() == "Original sensor data unavailable"

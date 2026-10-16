@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Strengthen UI regression checks after component extraction, isolate worker RAM
+  and configuration fallbacks, and verify complete daily calendar boundaries.
 - Retire the remaining run-state window aliases (`runs`, `current_run` and
   `selected_run`). Startup, smoke checks, benchmarks and tests now access their
   owning `window._run_state` fields directly; lower the compatibility budget.

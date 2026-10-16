@@ -29,10 +29,7 @@ def test_new_storage_uses_studio_and_existing_legacy_paths_remain_accessible(
     assert before == {path: path.read_bytes() for path in tmp_path.rglob("*.json")}
 
 
-def test_installed_launcher_and_package_use_studio_names():
-    import paradigma_studio
-
-    assert paradigma_studio.__name__ == "paradigma_studio"
+def test_installed_launcher_uses_studio_name_and_entrypoint():
     launchers = {
         entry.name: entry.value
         for entry in distribution("paradigma-studio").entry_points

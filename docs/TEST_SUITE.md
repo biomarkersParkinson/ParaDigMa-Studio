@@ -75,6 +75,13 @@ behavior tests. UI integration tests should continue driving widgets/signals and
 checking ordering. Legacy window aliases are being retired incrementally; avoid
 introducing new dependencies on that facade.
 
+Checks for removed UI controls inspect the actual widget tree, including hidden
+children; an absent window alias does not prove that a widget is absent. Resource
+policy cases establish that two workers are otherwise possible before checking a
+configuration fallback. Calendar boundary cases compare the complete expected
+range. Temporary mutation probes verify that these checks reject restored controls,
+ignored configurations and truncated calendar boundaries.
+
 Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
 views. Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.

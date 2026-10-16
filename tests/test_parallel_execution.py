@@ -221,15 +221,38 @@ def test_available_cpu_count_respects_affinity(monkeypatch, tmp_path, cpus, affi
     assert analysis_limits._available_cpu_count() == expected
 
 
-def test_large_recordings_and_mutable_scientific_configs_keep_sequential_path(monkeypatch):
+def test_large_recordings_keep_sequential_path_when_ram_cannot_fit_two_workers(monkeypatch):
     monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: 8)
     monkeypatch.setattr(analysis_limits, "available_memory", lambda: 16 * analysis_limits.GIB)
     frame = pd.DataFrame({"time": [0, 1]})
     monkeypatch.setattr(frame, "memory_usage", lambda **_: pd.Series([analysis_limits.GIB]))
     frames = {"first": frame, "second": frame}
     assert analysis_limits.parallel_worker_count(frames, {}) == 1
-    for configuration in ("imu_config", "pulse_rate_config", "gait_config"):
-        assert analysis_limits.parallel_worker_count(frames, {configuration: object()}) == 1
+    monkeypatch.setattr(analysis_limits, "available_memory", lambda: 32 * analysis_limits.GIB)
+    assert analysis_limits.parallel_worker_count(frames, {}) == 2
+
+
+@pytest.mark.parametrize(
+    "configuration",
+    [
+        "imu_config",
+        "ppg_config",
+        "gait_config",
+        "arm_activity_config",
+        "tremor_config",
+        "pulse_rate_config",
+    ],
+)
+def test_mutable_scientific_configs_require_one_worker_even_with_resources_for_two(
+    monkeypatch, configuration
+):
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: 8)
+    monkeypatch.setattr(analysis_limits, "available_memory", lambda: 32 * analysis_limits.GIB)
+    frame = pd.DataFrame({"time": [0, 1]})
+    frames = {"first": frame, "second": frame.copy()}
+    assert analysis_limits.parallel_worker_count(frames, {}) == 2
+    assert analysis_limits.parallel_worker_count(frames, {configuration: object()}) == 1
+    assert analysis_limits.parallel_worker_count(frames, {configuration: None}) == 2
 
 
 @pytest.mark.parametrize(

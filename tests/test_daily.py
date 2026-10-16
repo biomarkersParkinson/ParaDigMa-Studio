@@ -81,13 +81,25 @@ def test_midnight_splits_available_intervals_and_partial_days_keep_the_full_thre
     )
 
 
-@pytest.mark.parametrize("timezone", ["Europe/Amsterdam", "Asia/Kathmandu", None])
-def test_day_edges_use_recording_timezone_midnight(timezone):
+@pytest.mark.parametrize(
+    "timezone,expected_edges",
+    [
+        ("Europe/Amsterdam", [-43_635, 42_765, 129_165, 215_565]),
+        ("Asia/Kathmandu", [-57_135, 29_265, 115_665, 202_065]),
+        (None, [-36_435, 49_965, 136_365, 222_765]),
+    ],
+)
+def test_day_edges_cover_the_full_recording_at_each_local_midnight(timezone, expected_edges):
     clock = {"origin": "2026-10-13T10:07:15Z", "timezone": timezone}
     edges = day_edges(clock, [0], [2 * DAY_SECONDS])
+    np.testing.assert_array_equal(edges, expected_edges)
     stamps = clock_times(edges, clock)
-    assert stamps.strftime("%H:%M:%S").tolist() == ["00:00:00"] * len(edges)
-    np.testing.assert_array_equal(np.diff(edges), np.full(len(edges) - 1, DAY_SECONDS))
+    assert stamps.strftime("%Y-%m-%d %H:%M:%S").tolist() == [
+        "2026-10-13 00:00:00",
+        "2026-10-14 00:00:00",
+        "2026-10-15 00:00:00",
+        "2026-10-16 00:00:00",
+    ]
 
 
 @pytest.mark.parametrize(

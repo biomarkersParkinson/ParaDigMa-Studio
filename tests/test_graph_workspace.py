@@ -13,7 +13,16 @@ import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionButton, QWidget
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QPushButton,
+    QStyle,
+    QStyleOptionButton,
+    QWidget,
+)
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.day_axis import RecordingDayFormatter
@@ -102,7 +111,22 @@ def test_plot_tree_is_graph_selector_and_table_dataset_selection_remains(window)
     assert len(window.selected_result_series()) == 1
     window.result_tabs.setCurrentIndex(2)
     assert not window.dataset_field.isHidden() and window.y_column.isHidden()
-    assert not hasattr(window, "filter_column") and not hasattr(window, "participant")
+    # Inspect actual controls, including hidden ones, rather than window aliases.
+    assert set(window.result_tabs.findChildren(QComboBox)) == {
+        window.dataset,
+        window.table_dataset,
+        window.y_column,
+        window.result_graph_view,
+    }
+    assert window.detail_controls.findChildren(QCheckBox) == [window.timing_toggle]
+    assert window.detail_controls.findChildren(QPushButton) == [window.context_button]
+    assert not window.result_tabs.findChildren(TimeField)
+    assert not window.result_tabs.findChildren(QAbstractSpinBox)
+    assert window.results_header.findChildren(QPushButton) == [window.sensor_close]
+    assert window.result_tabs.cornerWidget(Qt.TopRightCorner).findChildren(QPushButton) == [
+        window.save_results_button,
+        window.export_button,
+    ]
 
 
 def test_binary_raster_shows_only_presence_without_losing_time_range_or_rare_events(window):
@@ -274,7 +298,6 @@ def test_results_tabs_stay_anchored_across_views_and_scrolling(window):
         QTest.qWait(20)
         assert positions() == original
         assert window.export_button.isVisible()
-    assert not hasattr(window, "filters_toggle") and not hasattr(window, "csv_button")
 
 
 def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(window):
@@ -307,7 +330,7 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
         contents, Qt.AlignLeft | Qt.AlignVCenter, "About"
     )
     assert window.about_button.visibleRegion().contains(text)
-    assert not hasattr(window, "local_label") and not hasattr(window, "collapse_button")
+    assert window.sidebar.findChildren(QPushButton) == [*window.nav_buttons, window.about_button]
     window.about_button.click()
     assert window._acknowledgements_dialog.isVisible()
     window._acknowledgements_dialog.close()

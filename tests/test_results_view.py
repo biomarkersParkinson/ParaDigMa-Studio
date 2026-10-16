@@ -358,7 +358,6 @@ def test_module_tabs_support_aggregation_only_modules(window):
     assert window.table_dataset.currentData() == "aggregations/pulse_rate"
     assert window.aggregation_table.model().frame.value.tolist() == [72.0]
     assert window.selected_export_table()[0] == "aggregations/pulse_rate"
-    assert not hasattr(window, "filters_toggle")
     window.table_module_tabs.setCurrentIndex(0)
     pd.testing.assert_frame_equal(window.result_table.model().frame, classification)
 

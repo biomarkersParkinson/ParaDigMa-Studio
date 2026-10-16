@@ -289,6 +289,9 @@ def _verify_result_navigation(window, app, results, quantified):
 def _verify_continuous_outputs(window, quantified):
     import numpy as np
     import pandas as pd
+    from PySide6.QtWidgets import QComboBox
+
+    from .time_controls import TimeField
 
     window.canvas.draw()
     axes = next(
@@ -311,7 +314,10 @@ def _verify_continuous_outputs(window, quantified):
     )
     if not any(name.startswith("preparation/") for name in window._result_state._plot_tables):
         raise RuntimeError("Prepared-input availability is missing")
-    if hasattr(window, "filters_toggle"):
+    selectors = {window.dataset, window.table_dataset, window.y_column, window.result_graph_view}
+    if set(
+        window.result_tabs.findChildren(QComboBox)
+    ) != selectors or window.result_tabs.findChildren(TimeField):
         raise RuntimeError("Removed Results time filters are still present")
 
 

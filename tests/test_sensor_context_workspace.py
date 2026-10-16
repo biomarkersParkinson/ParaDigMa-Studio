@@ -9,7 +9,14 @@ from conftest import wait_for_previews
 from matplotlib import dates
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QWidget,
+)
 
 from paradigma_studio.app import MainWindow
 
@@ -283,8 +290,19 @@ def test_context_navigation_keeps_channels_original_samples_and_recording_bounda
     original = frame.copy(deep=True)
     axes = tuple(window.sensor_figure.axes)
     pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
-    assert not hasattr(window, "sensor_earlier") and not hasattr(window, "sensor_later")
-    assert not hasattr(window, "sensor_note")
+    graph = window.sensor_tabs.widget(0)
+    # Navigation and axis-limit controls are checked in test_plot_controls.py.
+    navigation = set(window.sensor_toolbar.findChildren(QWidget)) | set(
+        window.sensor_toolbar.settings.findChildren(QWidget)
+    )
+    assert [
+        button.text() for button in graph.findChildren(QPushButton) if button not in navigation
+    ] == ["Select all", "Clear"]
+    assert [label.text() for label in graph.findChildren(QLabel) if label not in navigation] == [
+        "Channels"
+    ]
+    assert not graph.findChildren(QAbstractSpinBox)
+    assert not [edit for edit in graph.findChildren(QLineEdit) if edit not in navigation]
     assert window.results_header.findChildren(QPushButton) == [window.sensor_close]
     for start in (40, 60, 40, 20, 0):
         view_sensor(window, start, start + 20)
@@ -598,7 +616,6 @@ def test_context_close_shares_recording_summary_row_and_nested_tabs_have_compact
     )
     body = window._result_view_layouts[window.sensor_tab_index]
     assert body.spacing() == 6
-    assert not hasattr(window, "sensor_panel")
     assert [
         body.itemAt(i).widget() for i in range(body.count()) if body.itemAt(i).widget().isVisible()
     ] == [window.results_header, window.sensor_tabs]
