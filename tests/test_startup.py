@@ -144,6 +144,8 @@ try:
     assert not window.graph_view.initialized
     assert not window._sensor_graph.initialized
     data_canvas = window.data_canvas
+    assert len(window.data_figure.axes) == 1
+    assert window.data_figure.axes[0].texts[0].get_text() == 'Open a recording with numeric sensor channels'
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
     app.processEvents()

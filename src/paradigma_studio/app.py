@@ -172,7 +172,7 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         self._sensor_preview = CachedPreview(self)
         self._sensor_preview.value_ready.connect(self.apply_sensor_preview)
         self._sensor_preview.failed.connect(self.append_log)
-        self._data_plot_dirty = False
+        self._data_plot_dirty = True
         self.active_positions = np.array([], dtype=int)
         self.sidebar_collapsed = True
         directory = history_dir or user_storage_path(
@@ -802,8 +802,6 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
             self.data_tab_changed(self.data_tabs.currentIndex())
 
     def plot_input(self, *_):
-        import pandas as pd
-
         self._data_plot_dirty = False
         try:
             mapping = validate_column_mapping(json.loads(self.mapping.toPlainText()))
@@ -813,6 +811,8 @@ class MainWindow(WorkspaceLayout, ResultGraphs, QMainWindow):
         channels = self.selected_input_channels()
         times, time_label, timezone = None, "Time (file units)", None
         if self.frame is not None:
+            import pandas as pd
+
             column = self.data_time_channel.currentData()
             if column in self.frame:
                 times, time_label, timezone = input_plot_time(
