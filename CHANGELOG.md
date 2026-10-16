@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Retire the remaining run-state window aliases (`runs`, `current_run` and
+  `selected_run`). Startup, smoke checks, benchmarks and tests now access their
+  owning `window._run_state` fields directly; lower the compatibility budget.
 - Retire 79 unused or low-use legacy window aliases, moving state callers to their
   owning state APIs. Keep widely used UI/callback adapters for later migration;
   integrations using retired aliases need the state/controller or service APIs.

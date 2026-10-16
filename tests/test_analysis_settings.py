@@ -63,7 +63,7 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
     window.run_analysis()
     assert len(captured) == 1 and "plot_time_origin" not in captured[0][1]
     pd.testing.assert_frame_equal(captured[0][0], original)
-    clock = window.current_run["settings"]["plot_time_origin"]["clock"]
+    clock = window._run_state.current_run["settings"]["plot_time_origin"]["clock"]
     assert pd.Timestamp(clock["origin"]) == pd.Timestamp("2020-01-01T08:00:00+02:00")
     assert (
         clock["timezone"] == "UTC"

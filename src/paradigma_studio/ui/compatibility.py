@@ -6,9 +6,6 @@ from .component_ports import component_attribute
 _PORTS = {
     "frame": state_property("_input_state", "frame"),
     "recordings": state_property("_input_state", "recordings"),
-    "runs": state_property("_run_state", "runs"),
-    "current_run": state_property("_run_state", "current_run"),
-    "selected_run": state_property("_run_state", "selected_run"),
     "provenance": state_property("_result_state", "provenance"),
     "tables": state_property("_result_state", "tables"),
     "_timings": state_property("_result_state", "_timings"),

@@ -305,11 +305,11 @@ def _benchmark_exports(window, directory, results, measure, export_bytes):
 
 
 def _benchmark_run_history(window, app, measure):
-    window.runs = [new_run("sensor.csv", {"pipelines": ["tremor"]}) for _ in range(200)]
+    window._run_state.runs = [new_run("sensor.csv", {"pipelines": ["tremor"]}) for _ in range(200)]
     window.navigate(3)
     window.refresh_runs()
     app.processEvents()
-    for record in window.runs:
+    for record in window._run_state.runs:
         window.history.save(record)
     measure("HISTORY LOAD 200", window.history.load)
     measure("RUNS REFRESH", window.refresh_runs)

@@ -211,8 +211,8 @@ def test_export_failure_logs_stack_with_a_completed_run_selected(
 ):
     frame = pd.DataFrame({"time": [0.0], "tremor_power": [1.0]})
     window.results = {"quantifications": {"tremor": frame}}
-    window.selected_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
-    window.selected_run["status"] = "Completed"
+    window._run_state.selected_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    window._run_state.selected_run["status"] = "Completed"
     monkeypatch.setattr(window, "selected_export_table", lambda: ("quantifications/tremor", frame))
     monkeypatch.setattr(
         desktop.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / "export.json"), "")
@@ -227,7 +227,9 @@ def test_export_failure_logs_stack_with_a_completed_run_selected(
     log = window.log.toPlainText()
     assert "Traceback" in log and "in fail" in log
     assert "RuntimeError: Unexpected writer failure" in log
-    assert window.selected_run["status"] == "Completed"  # Diagnostics did not change history.
+    assert (
+        window._run_state.selected_run["status"] == "Completed"
+    )  # Diagnostics did not change history.
 
 
 def test_unexpected_loader_error_propagates_without_becoming_a_validation_error(monkeypatch):

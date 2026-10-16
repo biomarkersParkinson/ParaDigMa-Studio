@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
             QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation), "runs"
         )
         self.history = RunHistory(directory)
-        self.runs, history_issues = self.history.load()
+        self._run_state.runs, history_issues = self.history.load()
         callbacks = WorkspaceCallbacks(
             update_context_action=lambda *args, **kwargs: self.update_context_action(
                 *args, **kwargs

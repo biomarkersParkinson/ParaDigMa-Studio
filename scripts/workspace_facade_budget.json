@@ -1,5 +1,5 @@
 {
-  "max_lines": 231,
+  "max_lines": 228,
   "aliases": [
     "_acknowledgements_dialog",
     "_data_graph",
@@ -40,7 +40,6 @@
     "context_button",
     "context_controls",
     "continue_button",
-    "current_run",
     "data_canvas",
     "data_channels",
     "data_figure",
@@ -152,7 +151,6 @@
     "run_summary",
     "run_table",
     "run_warnings",
-    "runs",
     "save_results",
     "save_results_button",
     "save_run_results",
@@ -166,7 +164,6 @@
     "selected_input_channels",
     "selected_modules",
     "selected_result_series",
-    "selected_run",
     "selected_run_records",
     "selected_sensor_channels",
     "sensor_canvas",

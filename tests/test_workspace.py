@@ -352,7 +352,7 @@ def test_module_cards_allow_every_combination(window):
     assert window.selected_modules() == []
     assert not window.run_button.isEnabled()
     window.run_analysis()
-    assert window.worker is None and window.runs == []
+    assert window.worker is None and window._run_state.runs == []
     assert "Select an analysis module" in window.notice.text()
     window.module_buttons["Gait"].click()
     window.module_buttons["Tremor"].click()
@@ -560,7 +560,10 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
         "min_segment_seconds": 4.0,
     }
     assert captured == [expected]
-    assert window.runs[0]["settings"] == {**expected, "plot_time_origin": {"mode": "automatic"}}
+    assert window._run_state.runs[0]["settings"] == {
+        **expected,
+        "plot_time_origin": {"mode": "automatic"},
+    }
     window.set_modules(["pulse_rate"])
     window.gyro.setCurrentText("deg/s")
     window.use_run_parameters()
@@ -766,7 +769,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     window.run_analysis()
     window.navigate(3)  # Navigation stays available while analysis runs.
     wait_for_job(window)
-    first = window.runs[0]
+    first = window._run_state.runs[0]
     assert first["status"] == "Completed"
     assert "Example quality warning" in first["warnings"]
     saved = json.loads((window.history.directory / f"{first['id']}.json").read_text())
@@ -786,9 +789,9 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     window.loaded(("second.csv", frame.copy()))
     window.run_analysis()
     wait_for_job(window)
-    assert window.runs[0]["status"] == "Failed"
-    assert window.runs[0]["warnings"] == []
-    assert window.runs[0]["errors"] == ["ValueError: Sensor validation failed"]
+    assert window._run_state.runs[0]["status"] == "Failed"
+    assert window._run_state.runs[0]["warnings"] == []
+    assert window._run_state.runs[0]["errors"] == ["ValueError: Sensor validation failed"]
     assert window.run_errors.toPlainText() == "ValueError: Sensor validation failed"
     assert window.run_warnings.toPlainText() == "No recorded warnings."
     assert "0 warning(s), 1 error(s)" in window.run_summary.text()
@@ -796,7 +799,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     assert window.settings_panel.isEnabled() and window.analysis_controls.isEnabled()
     window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
     window.open_run()
-    assert window.current_run is first
+    assert window._run_state.current_run is first
     assert window.provenance["source"] == "first.csv"
     assert window._input_state.source == "second.csv"  # Exploring history does not replace input.
     assert window.result_source_frame is frame
@@ -823,7 +826,7 @@ def test_exported_json_can_reopen_after_restart_without_loading_pickle(
     target = tmp_path / "results.json"
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(target), ""))
     window.export()
-    assert window.current_run["outputs"][-1]["path"] == str(target)
+    assert window._run_state.current_run["outputs"][-1]["path"] == str(target)
     reopened = MainWindow(history_dir=window.history.directory)
     try:
         monkeypatch.setattr(
@@ -884,7 +887,7 @@ def test_history_write_failure_keeps_result_available(window, monkeypatch):
     wait_for_job(window)
     assert window.result_table.model().rowCount() == 6
     assert window.export_button.isEnabled()
-    assert window.runs[0]["status"] == "Completed"
+    assert window._run_state.runs[0]["status"] == "Completed"
     assert "history could not be saved" in window.notice.text()
 
 
@@ -965,7 +968,7 @@ def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_f
     )
     window.run_analysis()
     wait_for_job(window)
-    record = window.runs[0]
+    record = window._run_state.runs[0]
     assert record["status"] == "Partial"
     assert record["warnings"] == ["Some windows excluded"]
     assert len(record["errors"]) == 2
@@ -995,7 +998,7 @@ def test_no_quantified_windows_is_a_warning_without_processing_errors(window, mo
     )
     window.run_analysis()
     wait_for_job(window)
-    record = window.runs[0]
+    record = window._run_state.runs[0]
     assert record["status"] == "Completed"
     assert len(record["warnings"]) == 1 and record["errors"] == []
     assert window.run_table.model().frame.loc[0, "Status"] == "Completed with warnings"
@@ -1035,7 +1038,7 @@ def test_legacy_history_moves_known_failures_to_errors_and_preserves_quality_war
 
 def test_running_problem_counts_update_immediately(window):
     record = new_run("sensor.csv", {"pipelines": ["tremor"]})
-    window.runs.insert(0, record)
+    window._run_state.runs.insert(0, record)
     window._run_state.active_run = record
     window.refresh_runs()
     window.capture_warning("Quality warning")

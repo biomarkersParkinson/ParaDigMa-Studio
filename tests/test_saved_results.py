@@ -20,8 +20,10 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
     source.write_text("original recording", encoding="utf-8")
     record = new_run(str(source), {"pipelines": ["tremor"]})
     record["paradigma_version"] = "1.1.2"
-    window.runs.insert(0, record)
-    window._run_state.active_run = window.current_run = window.selected_run = record
+    window._run_state.runs.insert(0, record)
+    window._run_state.active_run = window._run_state.current_run = (
+        window._run_state.selected_run
+    ) = record
     window.provenance = {
         "source": str(source),
         "settings": record["settings"],
@@ -71,7 +73,7 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
     reopened.show()
     try:
         assert not reopened.save_results_button.isEnabled()
-        assert reopened.runs[0]["id"] == record["id"]
+        assert reopened._run_state.runs[0]["id"] == record["id"]
         reopened.open_run()
         finish_job(reopened)
         assert reopened.pages.currentIndex() == 2
@@ -115,7 +117,7 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
             reopened.results["quantifications"]["tremor"],
             tremor_outputs["quantifications"]["tremor"],
         )
-        assert reopened.current_run["id"] == record["id"]
+        assert reopened._run_state.current_run["id"] == record["id"]
     finally:
         reopened.close()
 

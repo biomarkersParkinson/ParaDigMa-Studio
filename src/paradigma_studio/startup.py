@@ -39,8 +39,8 @@ def startup_test(report_path, started, *, history_dir=None):
                     import_seconds=imported - started,
                     first_paint_seconds=time.perf_counter() - started,
                     qt_platform=app.platformName(),
-                    empty_history=not window.runs,
-                    run_history_count=len(window.runs),
+                    empty_history=not window._run_state.runs,
+                    run_history_count=len(window._run_state.runs),
                     data_modules_loaded=[
                         name for name in ("pandas", "pyarrow") if name in sys.modules
                     ],

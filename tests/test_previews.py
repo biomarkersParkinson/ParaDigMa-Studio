@@ -355,7 +355,7 @@ def test_restoring_custom_origin_remains_editable_and_is_not_overwritten(window)
         "timezone": "Europe/Amsterdam",
         "source": "User supplied",
     }
-    window.selected_run = {
+    window._run_state.selected_run = {
         "settings": {
             "pipelines": ["tremor"],
             "plot_time_origin": {"mode": "custom", "clock": clock},

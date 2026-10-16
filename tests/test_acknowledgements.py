@@ -130,7 +130,7 @@ def test_renamed_app_reopens_existing_default_run_history(tmp_path, monkeypatch,
     window = MainWindow()
     try:
         assert window.history.directory == directory
-        assert [run["id"] for run in window.runs] == [record["id"]]
+        assert [run["id"] for run in window._run_state.runs] == [record["id"]]
     finally:
         window.close()
         application.processEvents()

@@ -79,7 +79,7 @@ def test_stop_button_cancels_run_without_error_and_controls_recover(monkeypatch,
     assert not window.delete_run_button.isEnabled()
     window.stop_button.click()
     wait_for(lambda: window.worker is None)
-    record = window.runs[0]
+    record = window._run_state.runs[0]
     assert record["status"] == "Cancelled" and record["finished"]
     assert record["errors"] == [] and not record["outputs"]
     assert window.run_button.isEnabled() and not window.stop_button.isEnabled()
@@ -125,7 +125,7 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
     record["status"] = "Completed"
     record["outputs"] = [{"kind": "JSON", "path": str(output)}]
     window.history.save(record)
-    window.runs = [record]
+    window._run_state.runs = [record]
     window.refresh_runs()
     prompts = []
 
@@ -147,7 +147,7 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
     assert len(prompts) == 1
     assert source.read_text() == "original"
     assert output.exists() != confirm
-    assert bool(window.runs) != confirm
+    assert bool(window._run_state.runs) != confirm
     assert (window.history.directory / f"{record['id']}.json").exists() != confirm
     window.close()
 

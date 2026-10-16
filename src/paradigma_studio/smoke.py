@@ -604,10 +604,10 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
         outputs=[{"kind": "JSON", "path": str(export)}],
     )
     window.history.save(record)
-    window.runs, issues = window.history.load()
-    if issues or len(window.runs) != 1:
+    window._run_state.runs, issues = window.history.load()
+    if issues or len(window._run_state.runs) != 1:
         raise RuntimeError("Run history did not round-trip")
-    window.selected_run = None
+    window._run_state.selected_run = None
     window.refresh_runs()
     window.navigate(3)
     window.open_run()
@@ -639,11 +639,11 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     timer.stop()
     if window.worker is not None:
         raise RuntimeError("Local results save did not finish")
-    window.runs, issues = window.history.load()
-    saved_output = window.runs[0]["outputs"][-1]
+    window._run_state.runs, issues = window.history.load()
+    saved_output = window._run_state.runs[0]["outputs"][-1]
     if issues or not saved_output.get("local") or not Path(saved_output["path"]).is_file():
         raise RuntimeError("Local results were not linked to the saved run")
-    window.selected_run = None
+    window._run_state.selected_run = None
     window.refresh_runs()
     window.navigate(3)
     window.open_run()

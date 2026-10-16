@@ -136,8 +136,8 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     assert window.results["errors"]
     assert warnings == []  # Processing errors are reported inline, without a modal.
     assert "processing error" in window.notice.text()
-    assert window.runs[0]["status"] == "Partial"
-    assert window.runs[0]["errors"]
+    assert window._run_state.runs[0]["status"] == "Partial"
+    assert window._run_state.runs[0]["errors"]
     assert window.run_button.isEnabled()
     assert not window.progress.isVisible()
     assert "processing error" in window.status.text()

@@ -135,7 +135,7 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
     assert captured[0][0].keys() == frames.keys()
     for key in frames:
         pd.testing.assert_frame_equal(captured[0][0][key], frames[key])
-    assert window.runs[0]["sources"] == sources
+    assert window._run_state.runs[0]["sources"] == sources
     assert window.run_table.model().frame.Input.iloc[0] == "2 recordings"
     assert [
         window.run_detail_tabs.tabText(index) for index in range(window.run_detail_tabs.count())
@@ -235,7 +235,7 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
         restored["quantifications"]["tremor"], original["quantifications"]["tremor"]
     )
     record = new_run(next(iter(sources.values())), provenance["settings"])
-    window.runs = [record]
+    window._run_state.runs = [record]
     window.restore_run((record["id"], provenance, restored))
     assert window.result_source_frame is None
     np.testing.assert_array_equal(
