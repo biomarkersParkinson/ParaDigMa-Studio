@@ -1,7 +1,8 @@
 """Explicit mutable workspace state shared by composed controllers.
 
-Qt widgets and workers remain owned by MainWindow. DataFrames are references to
-existing input/results; controllers never copy or alter scientific tables here.
+Controllers receive these state objects directly. Qt ownership stays with the
+top-level window; job state retains worker lifetimes. DataFrames reference the
+existing input/results without copying or altering scientific tables here.
 """
 
 from __future__ import annotations
@@ -13,11 +14,17 @@ from typing import TYPE_CHECKING, Any
 from .contracts import RunRecord as RunRecord
 
 if TYPE_CHECKING:
+    from threading import Event
+
     import numpy as np
     import pandas as pd
+    from matplotlib.artist import Artist
     from matplotlib.axes import Axes
+    from PySide6.QtWidgets import QDialog
 
     from .exploration import SensorContext
+    from .jobs import Worker
+    from .previews import CachedPreview
     from .sensor_navigation import SensorNavigator, SensorTimeIndex
 
 
@@ -70,6 +77,14 @@ class ResultState:
     active_selection: dict = field(default_factory=dict)
     _table_views: OrderedDict = field(default_factory=OrderedDict)
 
+    _table_choices: dict = field(default_factory=dict)
+    _series_items: dict = field(default_factory=dict)
+    _result_layout_index: Any = None
+    results_scroll: Any = None
+    overview_values: dict = field(default_factory=dict)
+    overview_module_cards: dict = field(default_factory=dict)
+    overview_gait_charts: dict = field(default_factory=dict)
+
 
 @dataclass
 class SensorState:
@@ -86,9 +101,47 @@ class SensorState:
     )
 
 
+@dataclass
+class DataState:
+    _input_descriptions: dict = field(default_factory=dict)
+    _data_plot_dirty: bool = True
+    _channel_colors: dict = field(default_factory=dict)
+
+
+@dataclass
+class AnalysisState:
+    _origin_override: bool = False
+    _updating_analysis_help: bool = False
+
+
+@dataclass
+class JobState:
+    worker: Worker | None = None
+    _analysis_stop: Event | None = None
+
+
+@dataclass
+class GraphState:
+    _result_selection_artists: list[Artist] = field(default_factory=list)
+    _result_shared_axes: Axes | None = None
+
+
+@dataclass
+class ShellState:
+    sidebar_collapsed: bool = True
+    _acknowledgements_dialog: QDialog | None = None
+
+
 def state_property(container, name):
     """Keep existing window attributes as explicit views of controller state."""
     return property(
         lambda owner: getattr(getattr(owner, container), name),
         lambda owner, value: setattr(getattr(owner, container), name, value),
     )
+
+
+@dataclass(frozen=True)
+class PreviewServices:
+    _origin_preview: CachedPreview
+    _time_preview: CachedPreview
+    _sensor_preview: CachedPreview

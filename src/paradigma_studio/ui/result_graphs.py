@@ -1,6 +1,19 @@
 """Results graph rendering, epoch caches and linked row inspection."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
+from PySide6.QtCore import QObject
+from PySide6.QtWidgets import (
+    QComboBox,
+    QPushButton,
+    QTabWidget,
+    QWidget,
+)
 
 from ..daily import DAY_SECONDS, daily_availability_summary, daily_summary, gait_daily_summaries
 from ..epoch_profile import format_profile_time, mean_epoch_profile
@@ -15,6 +28,15 @@ from ..exploration import PARTICIPANT_COLUMNS, gait_context
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
 from ..results_view import MODULE_NAMES, clock_origin, clock_times
 from ..theme import module_color, style_axes, style_result_heading
+from ..widgets import (
+    ReadableTable,
+)
+from ..workspace_state import (
+    GraphState,
+    ResultState,
+)
+from .deferred import DeferredWidget
+from .graph_views import ResultCanvasView
 
 PROFILE_VIEW = 3
 
@@ -23,23 +45,83 @@ def _is_tremor_power(name, metric):
     return name.split("/")[1] == "tremor" and metric == "tremor_power"
 
 
-class ResultGraphs:
-    """Results rendering using the host MainWindow selection and cache state."""
+@dataclass(frozen=True)
+class ResultGraphView:
+    parent: QWidget
+    context_button: QPushButton
+    dataset: QComboBox
+    graph_view: DeferredWidget
+    result_graph_view: QComboBox
+    result_table: ReadableTable
+    result_tabs: QTabWidget
+    y_column: QComboBox
+    result_graphics: Callable[[], ResultCanvasView]
+
+    @property
+    def canvas(self):
+        return self.result_graphics().canvas
+
+    @property
+    def figure(self):
+        return self.result_graphics().figure
+
+    @property
+    def graphs_workspace(self):
+        return self.result_graphics().graphs_workspace
+
+    @property
+    def plot_toolbar(self):
+        return self.result_graphics().plot_toolbar
+
+    @property
+    def result_overlay(self):
+        return self.result_graphics().result_overlay
+
+    @property
+    def result_time_scroll(self):
+        return self.result_graphics().result_time_scroll
+
+    @property
+    def time_axis(self):
+        return self.result_graphics().time_axis
+
+
+@dataclass(frozen=True)
+class ResultGraphCallbacks:
+    selected_result_series: Callable[..., Any]
+    sync_table_outputs: Callable[..., Any]
+
+
+class ResultGraphs(QObject):
+    """Own graph behavior through explicit state, frozen views and callbacks."""
+
+    def __init__(
+        self,
+        graphs: GraphState,
+        results: ResultState,
+        view: ResultGraphView,
+        callbacks: ResultGraphCallbacks,
+    ) -> None:
+        super().__init__(view.parent)
+        self.graphs = graphs
+        self.results = results
+        self.view = view
+        self.callbacks = callbacks
 
     def gait_plot_presence(self):
         import pandas as pd
 
-        if self._gait_presence_cache is None:
+        if self.results._gait_presence_cache is None:
 
             def frame(stage, metric):
                 name = "classifications/gait/" + stage
-                source = self._plot_tables.get(name)
+                source = self.results._plot_tables.get(name)
                 if source is None or metric not in source:
                     return None
                 data = pd.DataFrame(
                     {
-                        "start": self._timings[name]["Timeline time (s)"].to_numpy(),
-                        "end": self._interval_ends[name],
+                        "start": self.results._timings[name]["Timeline time (s)"].to_numpy(),
+                        "end": self.results._interval_ends[name],
                         "state": source[metric].to_numpy(dtype=float, na_value=np.nan),
                     }
                 )
@@ -49,38 +131,40 @@ class ResultGraphs:
                 return data
 
             detection = frame("detection", "pred_gait_window")
-            self._gait_presence_cache = gait_presence_intervals(
+            self.results._gait_presence_cache = gait_presence_intervals(
                 detection
                 if detection is not None
                 else pd.DataFrame(columns=["start", "end", "state"]),
                 frame("arm_activity", "pred_no_other_arm_activity_window"),
             )
-        return self._gait_presence_cache
+        return self.results._gait_presence_cache
 
     def epoch_plot_data(self, name, metric, positions, binary):
-        if self.result_graph_view.currentIndex() == 2:
+        if self.view.result_graph_view.currentIndex() == 2:
             return self.daily_plot_data(name, metric, positions, binary)
         key = name, metric, id(positions)
-        if key not in self._epoch_views:
-            times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
-            phase = epoch_phase(self.display_clock)
+        if key not in self.results._epoch_views:
+            times = self.results._timings[name]["Timeline time (s)"].to_numpy()[positions]
+            phase = epoch_phase(self.results.display_clock)
             if name.startswith("classifications/gait/") and metric in (
                 "pred_gait_window",
                 "pred_no_other_arm_activity_window",
             ):
-                if self._gait_epoch_cache is None:
-                    self._gait_epoch_cache = gait_epoch_summaries(self.gait_plot_presence(), phase)
-                frame = self._gait_epoch_cache[
+                if self.results._gait_epoch_cache is None:
+                    self.results._gait_epoch_cache = gait_epoch_summaries(
+                        self.gait_plot_presence(), phase
+                    )
+                frame = self.results._gait_epoch_cache[
                     "gait" if metric == "pred_gait_window" else "filtered"
                 ]
             elif name.startswith("preparation/"):
-                extent = self.provenance.get("recording_extent", {})
+                extent = self.results.provenance.get("recording_extent", {})
                 try:
                     bounds = float(extent["start_s"]), float(extent["end_s"])
                 except (KeyError, TypeError, ValueError, OverflowError):
                     bounds = None
                 frame = availability_epoch_summary(
-                    times, self._interval_ends[name][positions], phase=phase, bounds=bounds
+                    times, self.results._interval_ends[name][positions], phase=phase, bounds=bounds
                 )
             else:
                 values = self._result_plot_values(name, metric, positions)
@@ -92,126 +176,135 @@ class ResultGraphs:
                     and "tremor_power" in str(metric)
                 ):
                     frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
-            self._epoch_views[key] = frame
-        summary = self._epoch_views[key]
-        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+            self.results._epoch_views[key] = frame
+        summary = self.results._epoch_views[key]
+        if self.view.result_graph_view.currentIndex() == PROFILE_VIEW:
             profile_key = "profile", *key
-            if profile_key not in self._epoch_views:
-                self._epoch_views[profile_key] = mean_epoch_profile(summary, self.display_clock)
-            return self._epoch_views[profile_key]
+            if profile_key not in self.results._epoch_views:
+                self.results._epoch_views[profile_key] = mean_epoch_profile(
+                    summary, self.results.display_clock
+                )
+            return self.results._epoch_views[profile_key]
         return summary
 
     def daily_plot_data(self, name, metric, positions, binary):
         key = "day", name, metric, id(positions)
-        if key not in self._epoch_views:
+        if key not in self.results._epoch_views:
             if name.startswith("classifications/gait/") and metric in (
                 "pred_gait_window",
                 "pred_no_other_arm_activity_window",
             ):
                 gait_key = "day", "gait_presence"
-                if gait_key not in self._epoch_views:
-                    self._epoch_views[gait_key] = gait_daily_summaries(
-                        self.gait_plot_presence(), self.display_clock
+                if gait_key not in self.results._epoch_views:
+                    self.results._epoch_views[gait_key] = gait_daily_summaries(
+                        self.gait_plot_presence(), self.results.display_clock
                     )
-                frame = self._epoch_views[gait_key][
+                frame = self.results._epoch_views[gait_key][
                     "gait" if metric == "pred_gait_window" else "filtered"
                 ]
             elif name.startswith("preparation/"):
                 frame = daily_availability_summary(
-                    self._timings[name]["Timeline time (s)"].to_numpy()[positions],
-                    self._interval_ends[name][positions],
-                    self.display_clock,
+                    self.results._timings[name]["Timeline time (s)"].to_numpy()[positions],
+                    self.results._interval_ends[name][positions],
+                    self.results.display_clock,
                 )
             else:
-                starts, ends = self._bar_bounds[name]
+                starts, ends = self.results._bar_bounds[name]
                 frame = daily_summary(
-                    self._timings[name]["Timeline time (s)"].to_numpy()[positions],
+                    self.results._timings[name]["Timeline time (s)"].to_numpy()[positions],
                     self._result_plot_values(name, metric, positions),
                     starts[positions],
                     ends[positions],
-                    self.display_clock,
+                    self.results.display_clock,
                     binary=binary,
                 )
-            self._epoch_views[key] = frame
-        return self._epoch_views[key]
+            self.results._epoch_views[key] = frame
+        return self.results._epoch_views[key]
 
     def epoch_metric_presence(self, name):
-        if name not in self._epoch_presence_views:
+        if name not in self.results._epoch_presence_views:
             pairs = np.empty((0, 2))
             if name.startswith("quantifications/gait/"):
                 filtered = name.endswith("/filtered")
                 stage = "classifications/gait/" + ("arm_activity" if filtered else "detection")
                 indicator = "pred_no_other_arm_activity_window" if filtered else "pred_gait_window"
-                if stage in self._plot_tables and indicator in self._plot_tables[stage]:
+                if (
+                    stage in self.results._plot_tables
+                    and indicator in self.results._plot_tables[stage]
+                ):
                     if filtered:
                         pairs = self.gait_plot_presence()["filtered"]
                     else:
                         # Unfiltered gait does not require an arm-filter label.
-                        source = self._plot_tables[stage]
+                        source = self.results._plot_tables[stage]
                         positive = source.pred_gait_window.eq(1).fillna(False).to_numpy(dtype=bool)
                         pairs = np.column_stack(
                             (
-                                self._timings[stage]["Timeline time (s)"].to_numpy()[positive],
-                                self._interval_ends[stage][positive],
+                                self.results._timings[stage]["Timeline time (s)"].to_numpy()[
+                                    positive
+                                ],
+                                self.results._interval_ends[stage][positive],
                             )
                         )
-                elif "gait_segment_nr" in self._plot_tables[name]:
+                elif "gait_segment_nr" in self.results._plot_tables[name]:
                     # Older saved runs may only contain quantified segments.
                     # Their known full bounds, not swing counts, establish time.
-                    timing = self._timings[name]
+                    timing = self.results._timings[name]
                     offset = timing["Timeline time (s)"] - timing["Analysis time (s)"]
                     pairs = np.column_stack(
                         (timing["Segment start (s)"] + offset, timing["Segment end (s)"] + offset)
                     )
             else:
                 for candidate in ("classifications/tremor", name):
-                    source = self._plot_tables.get(candidate)
+                    source = self.results._plot_tables.get(candidate)
                     if source is not None and "pred_tremor_checked" in source:
                         positive = (
                             source.pred_tremor_checked.eq(1).fillna(False).to_numpy(dtype=bool)
                         )
                         pairs = np.column_stack(
                             (
-                                self._timings[candidate]["Timeline time (s)"].to_numpy()[positive],
-                                self._interval_ends[candidate][positive],
+                                self.results._timings[candidate]["Timeline time (s)"].to_numpy()[
+                                    positive
+                                ],
+                                self.results._interval_ends[candidate][positive],
                             )
                         )
                         break
-            self._epoch_presence_views[name] = availability_epoch_summary(
-                pairs[:, 0], pairs[:, 1], phase=epoch_phase(self.display_clock)
+            self.results._epoch_presence_views[name] = availability_epoch_summary(
+                pairs[:, 0], pairs[:, 1], phase=epoch_phase(self.results.display_clock)
             )
-        return self._epoch_presence_views[name]
+        return self.results._epoch_presence_views[name]
 
     def plot(self, *_):
-        chosen = self.selected_result_series()
-        if not chosen and not self.graph_view.initialized:
+        chosen = self.callbacks.selected_result_series()
+        if not chosen and not self.view.graph_view.initialized:
             return
 
         from ..plotting import binary_indicator
 
-        mode = self.result_graph_view.currentIndex()
+        mode = self.view.result_graph_view.currentIndex()
         epochs = mode != 0
         signature = mode, tuple(chosen)
-        if self._plot_signature == signature and self.figure.axes:
+        if self.results._plot_signature == signature and self.view.figure.axes:
             self.highlight_result_row()
             return
-        self.plot_toolbar.stop_navigation()
+        self.view.plot_toolbar.stop_navigation()
         previous_mode, viewport, previous_y = self._result_plot_viewport(chosen, mode)
-        self._plot_signature = signature
+        self.results._plot_signature = signature
         existing, shared = self._retain_result_axes(chosen, mode, previous_mode)
         actual_binaries = [
             (
                 name.startswith("classifications/gait/")
                 and metric in ("pred_gait_window", "pred_no_other_arm_activity_window")
             )
-            or binary_indicator(self._plot_tables[name][metric], metric)
+            or binary_indicator(self.results._plot_tables[name][metric], metric)
             for name, metric in chosen
         ]
         binaries = [False] * len(chosen) if epochs else actual_binaries
         self._size_result_canvas(chosen, binaries)
         first_axes = None
         grid = (
-            self.figure.add_gridspec(
+            self.view.figure.add_gridspec(
                 len(chosen), 1, height_ratios=[0.34 if binary else 1 for binary in binaries]
             )
             if chosen
@@ -221,11 +314,13 @@ class ResultGraphs:
             ax = existing.get((name, metric))
             if ax is not None:
                 ax.set_subplotspec(grid[index])
-                self.figure.add_axes(ax)
+                self.view.figure.add_axes(ax)
                 if ax is not shared:
                     ax.sharex(shared)
             else:
-                ax = style_axes(self.figure, position=(grid[index],), sharex=shared or first_axes)
+                ax = style_axes(
+                    self.view.figure, position=(grid[index],), sharex=shared or first_axes
+                )
             if first_axes is None:
                 first_axes = ax
             if (name, metric) in existing:
@@ -234,14 +329,14 @@ class ResultGraphs:
         self._finish_result_plot(first_axes, shared, viewport, previous_y)
 
     def _result_plot_viewport(self, chosen, mode):
-        previous_mode, previous_chosen = self._plot_signature or (None, ())
+        previous_mode, previous_chosen = self.results._plot_signature or (None, ())
         if mode != previous_mode:
             # Each view starts at its own full extent. Aggregation changes the
             # time bounds, and the clock-slot profile uses different coordinates.
             return previous_mode, None, {}
         changed = set(chosen).symmetric_difference(previous_chosen)
         coverage_only = (
-            self._plot_signature is not None
+            self.results._plot_signature is not None
             and bool(changed)
             and mode == previous_mode
             and bool(set(chosen).intersection(previous_chosen))
@@ -249,8 +344,8 @@ class ResultGraphs:
         )
         viewport = None
         previous_y = {}
-        if self._plot_signature is not None and self.figure.axes:
-            source = self.figure.axes[0]
+        if self.results._plot_signature is not None and self.view.figure.axes:
+            source = self.view.figure.axes[0]
             if coverage_only or not source.get_autoscalex_on():
                 viewport = source.get_xlim(), source.get_autoscalex_on()
             if coverage_only:
@@ -259,27 +354,27 @@ class ResultGraphs:
                         ax.get_ylim(),
                         ax.get_autoscaley_on(),
                     )
-                    for ax in self.figure.axes
+                    for ax in self.view.figure.axes
                     if hasattr(ax, "_paradigma_dataset")
                 }
         return previous_mode, viewport, previous_y
 
     def _retain_result_axes(self, chosen, mode, previous_mode):
-        self.result_overlay.invalidate()
-        for artist in self._result_selection_artists:
+        self.view.result_overlay.invalidate()
+        for artist in self.graphs._result_selection_artists:
             artist.remove()
-        self._result_selection_artists = []
+        self.graphs._result_selection_artists = []
         existing = {
             (ax._paradigma_dataset, ax._paradigma_metric): ax
-            for ax in self.figure.axes
+            for ax in self.view.figure.axes
             if hasattr(ax, "_paradigma_dataset")
         }
         # Keep already plotted arrays, paths and axes settings when adding a
         # series. A changed result or view still needs fresh scientific data.
-        shared = self._result_shared_axes
+        shared = self.graphs._result_shared_axes
         reuse = (
             previous_mode == mode
-            and shared in self.figure.axes
+            and shared in self.view.figure.axes
             and shared is not None
             and (
                 getattr(shared, "_paradigma_dataset", None),
@@ -290,11 +385,11 @@ class ResultGraphs:
         if reuse:
             # Remove/re-add in tree order using the public Figure API. Rejoin
             # the existing X master after delaxes disconnects sharing groups.
-            for ax in tuple(self.figure.axes):
-                self.figure.delaxes(ax)
+            for ax in tuple(self.view.figure.axes):
+                self.view.figure.delaxes(ax)
             existing = {key: ax for key, ax in existing.items() if key in chosen}
         else:
-            self.figure.clear()
+            self.view.figure.clear()
             existing = {}
             shared = None
         return existing, shared
@@ -304,11 +399,11 @@ class ResultGraphs:
         height = max(
             88 if compact_states else 190, sum(62 if binary else 155 for binary in binaries)
         )
-        self.canvas.setMinimumHeight(height)
-        self.canvas.setMaximumHeight(height if compact_states else 16777215)
-        self.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
+        self.view.canvas.setMinimumHeight(height)
+        self.view.canvas.setMaximumHeight(height if compact_states else 16777215)
+        self.view.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
         if not chosen:
-            ax = style_axes(self.figure)
+            ax = style_axes(self.view.figure)
             ax.text(
                 0.5,
                 0.5,
@@ -323,31 +418,31 @@ class ResultGraphs:
 
         ax._paradigma_dataset = name
         ax._paradigma_metric = metric
-        selected, positions = self._detail_selections.get(
-            name, (self._plot_tables[name].iloc[:0], np.array([], dtype=int))
+        selected, positions = self.results._detail_selections.get(
+            name, (self.results._plot_tables[name].iloc[:0], np.array([], dtype=int))
         )
-        times = self._timings[name]["Timeline time (s)"].to_numpy()[positions]
+        times = self.results._timings[name]["Timeline time (s)"].to_numpy()[positions]
         percentage = binary or name.startswith("preparation/")
         ax._paradigma_epoch = epochs
-        ax._paradigma_profile = self.result_graph_view.currentIndex() == PROFILE_VIEW
+        ax._paradigma_profile = self.view.result_graph_view.currentIndex() == PROFILE_VIEW
         if epochs:
             self._render_epoch_series(ax, name, metric, positions, binary)
         elif len(selected) and np.isfinite(times).any():
             # Aggregated views reuse their summaries; only Detailed needs
             # per-sample plotting arrays and recording-clock conversion here.
             ys = self._result_plot_values(name, metric, positions)
-            xs = clock_times(times, self.display_clock)
+            xs = clock_times(times, self.results.display_clock)
             color = module_color(
                 "preparation" if name.startswith("preparation/") else name.split("/")[1]
             )
             if binary:
                 self._render_binary_series(ax, name, metric, positions, xs, ys, color)
             else:
-                starts, ends = self._bar_bounds[name]
+                starts, ends = self.results._bar_bounds[name]
                 bars = plot_bars(
                     ax,
-                    clock_times(starts[positions], self.display_clock),
-                    clock_times(ends[positions], self.display_clock),
+                    clock_times(starts[positions], self.results.display_clock),
+                    clock_times(ends[positions], self.results.display_clock),
                     ys,
                     color,
                 )
@@ -369,7 +464,9 @@ class ResultGraphs:
 
     def _result_plot_values(self, name, metric, positions):
         values = (
-            self._plot_tables[name][metric].iloc[positions].to_numpy(dtype=float, na_value=np.nan)
+            self.results._plot_tables[name][metric]
+            .iloc[positions]
+            .to_numpy(dtype=float, na_value=np.nan)
         )
         if _is_tremor_power(name, metric):
             # Match ParaDigMa's aggregation transform, before epoch medians.
@@ -391,10 +488,10 @@ class ResultGraphs:
                 ax,
                 summary.start_s
                 if ax._paradigma_profile
-                else clock_times(summary.start_s, self.display_clock),
+                else clock_times(summary.start_s, self.results.display_clock),
                 summary.end_s
                 if ax._paradigma_profile
-                else clock_times(summary.end_s, self.display_clock),
+                else clock_times(summary.end_s, self.results.display_clock),
                 summary.value,
                 color,
             )
@@ -433,20 +530,24 @@ class ResultGraphs:
             pairs = presence["filtered"]
             plot_states(
                 ax,
-                clock_times(pairs[:, 0], self.display_clock),
+                clock_times(pairs[:, 0], self.results.display_clock),
                 np.ones(len(pairs)),
                 color,
-                ends=clock_times(pairs[:, 1], self.display_clock),
+                ends=clock_times(pairs[:, 1], self.results.display_clock),
             )
             domain = presence["domain"]
             if len(domain):
                 extent = time_coordinates(
-                    clock_times([domain[:, 0].min(), domain[:, 1].max()], self.display_clock)
+                    clock_times(
+                        [domain[:, 0].min(), domain[:, 1].max()], self.results.display_clock
+                    )
                 )
                 ax.update_datalim(np.column_stack((extent, [1, 1])))
                 ax.autoscale_view(scaley=False)
         else:
-            stops = clock_times(self._interval_ends[name][positions], self.display_clock)
+            stops = clock_times(
+                self.results._interval_ends[name][positions], self.results.display_clock
+            )
             plot_states(ax, xs, ys, color, ends=stops)
 
     def _style_result_series(self, ax, name, metric, binary, epochs, percentage):
@@ -475,11 +576,11 @@ class ResultGraphs:
                     else "Mean epoch median"
                 )
             ax.set_ylabel(ylabel, fontsize=9)
-        item = self._series_items.get((name, metric))
+        item = self.results._series_items.get((name, metric))
         metric_title = (
             item.text(0)
             if item is not None
-            else self._plot_labels.get((name, metric), str(metric).replace("_", " "))
+            else self.results._plot_labels.get((name, metric), str(metric).replace("_", " "))
         )
         module = "preparation" if name.startswith("preparation/") else name.split("/")[1]
         style_result_heading(
@@ -490,10 +591,10 @@ class ResultGraphs:
                 module, "Data coverage" if module == "preparation" else module.title()
             ),
         )
-        if self.display_clock is not None:
-            timezone = clock_origin(self.display_clock).tz
+        if self.results.display_clock is not None:
+            timezone = clock_origin(self.results.display_clock).tz
             ax.set_xlabel(
-                f"Recording time ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+                f"Recording time ({self.results.display_clock.get('timezone') or 'timezone unspecified'})"
             )
             ax.format_xdata = lambda value, tz=timezone: dates.num2date(value, tz=tz).strftime(
                 "%d %b %Y %H:%M:%S"
@@ -501,12 +602,12 @@ class ResultGraphs:
         else:
             ax.set_xlabel(
                 "File-order timeline (s)"
-                if len(self.provenance.get("sources", {})) > 1
+                if len(self.results.provenance.get("sources", {})) > 1
                 else "Elapsed analysis time (s)"
             )
         if ax._paradigma_profile:
             self._style_profile_axis(ax)
-        elif self.result_graph_view.currentIndex() == 2:
+        elif self.view.result_graph_view.currentIndex() == 2:
             self._style_daily_axis(ax)
         else:
             self._style_grouped_time_axis(ax)
@@ -520,8 +621,8 @@ class ResultGraphs:
         style_profile_axis(ax)
         ax.format_xdata = format_profile_time
         ax.set_xlabel(
-            f"Time of day ({self.display_clock.get('timezone') or 'timezone unspecified'}) · average across days"
-            if self.display_clock
+            f"Time of day ({self.results.display_clock.get('timezone') or 'timezone unspecified'}) · average across days"
+            if self.results.display_clock
             else "Time in elapsed 24-hour period · average across days"
         )
         ax.margins(x=0)
@@ -531,8 +632,8 @@ class ResultGraphs:
         from ..epoch_axis import MidnightSeparators, style_epoch_axis
         from ..time_axis import RecordingTimeFormatter
 
-        calendar = self.display_clock is not None
-        timezone = clock_origin(self.display_clock).tz if calendar else None
+        calendar = self.results.display_clock is not None
+        timezone = clock_origin(self.results.display_clock).tz if calendar else None
         style_epoch_axis(
             ax,
             timezone,
@@ -543,7 +644,7 @@ class ResultGraphs:
         if not calendar:
             ax.set_xlabel(
                 "File-order timeline (days / hours)"
-                if len(self.provenance.get("sources", {})) > 1
+                if len(self.results.provenance.get("sources", {})) > 1
                 else "Elapsed analysis time (days / hours)"
             )
         MidnightSeparators(ax, timezone, calendar=calendar)
@@ -551,12 +652,12 @@ class ResultGraphs:
     def _style_daily_axis(self, ax):
         from ..day_axis import RecordingDayFormatter, RecordingDayLocator
 
-        calendar = self.display_clock is not None
-        timezone = clock_origin(self.display_clock).tz if calendar else None
+        calendar = self.results.display_clock is not None
+        timezone = clock_origin(self.results.display_clock).tz if calendar else None
         ax.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar))
         ax.xaxis.set_major_formatter(RecordingDayFormatter(timezone, calendar=calendar))
         ax.set_xlabel(
-            f"Recording date ({self.display_clock.get('timezone') or 'timezone unspecified'})"
+            f"Recording date ({self.results.display_clock.get('timezone') or 'timezone unspecified'})"
             if calendar
             else "Day (elapsed 24-hour periods)"
         )
@@ -567,45 +668,45 @@ class ResultGraphs:
         from ..epoch_axis import MidnightBridges
         from ..plotting import autoscale_bars
 
-        self._result_shared_axes = shared or first_axes
+        self.graphs._result_shared_axes = shared or first_axes
         if first_axes is not None:
             first_axes.set_autoscalex_on(True)
             first_axes.autoscale_view(scaley=False)
         # Shared X limits settle only after every series has been added.
         # Fit each automatic Y range against that final shared view.
-        for ax in self.figure.axes:
+        for ax in self.view.figure.axes:
             autoscale_bars(ax)
         if (
             first_axes is not None
             and getattr(first_axes, "_paradigma_day_groups", False)
-            and not any(isinstance(artist, MidnightBridges) for artist in self.figure.artists)
+            and not any(isinstance(artist, MidnightBridges) for artist in self.view.figure.artists)
         ):
             locator = first_axes.xaxis.get_major_locator()
-            MidnightBridges(self.figure, locator.timezone, calendar=locator.calendar)
-        self.plot_toolbar.refresh()
-        self.result_time_scroll.bind(first_axes)
-        self.time_axis.bind(first_axes)
+            MidnightBridges(self.view.figure, locator.timezone, calendar=locator.calendar)
+        self.view.plot_toolbar.refresh()
+        self.view.result_time_scroll.bind(first_axes)
+        self.view.time_axis.bind(first_axes)
         if viewport is not None and first_axes is not None:
             # Keep Home as the full extent, while coverage toggles retain the
             # user's current view instead of making outcomes appear to change.
-            self.plot_toolbar.push_current()
+            self.view.plot_toolbar.push_current()
             limits, automatic_x = viewport
             first_axes.set_xlim(*limits, auto=automatic_x)
-            for ax in self.figure.axes:
+            for ax in self.view.figure.axes:
                 previous = previous_y.get((ax._paradigma_dataset, ax._paradigma_metric))
                 if previous is not None and not previous[1]:
                     ax.set_ylim(*previous[0], auto=False)
                 autoscale_bars(ax)
-            self.plot_toolbar.push_current()
-        self.result_row_changed(self.result_table.currentIndex(), None)
-        self.canvas.draw_idle()
+            self.view.plot_toolbar.push_current()
+        self.result_row_changed(self.view.result_table.currentIndex(), None)
+        self.view.canvas.draw_idle()
 
     def result_row_changed(self, current, previous):
         self.update_context_action(current)
         self.highlight_result_row()
 
     def update_context_action(self, current):
-        frame = self.active_frame
+        frame = self.results.active_frame
         valid_row = current.isValid() and frame is not None
         timestamp = False
         if valid_row:
@@ -620,42 +721,44 @@ class ResultGraphs:
                 and np.isfinite(frame["time"].iloc[current.row()])
             )
         segment = (
-            gait_context(self.results, self.dataset.currentText(), frame.iloc[current.row()])
+            gait_context(
+                self.results.results, self.view.dataset.currentText(), frame.iloc[current.row()]
+            )
             if valid_row
             else None
         )
         profile = (
-            self.result_graph_view.currentIndex() == PROFILE_VIEW
-            and self.result_tabs.currentIndex() == 1
+            self.view.result_graph_view.currentIndex() == PROFILE_VIEW
+            and self.view.result_tabs.currentIndex() == 1
         )
         usable = (
             not profile
-            and self.result_source_frame is not None
+            and self.results.result_source_frame is not None
             and (timestamp or segment is not None)
         )
-        self.context_button.setEnabled(bool(usable))
-        self.context_button.setText(
+        self.view.context_button.setEnabled(bool(usable))
+        self.view.context_button.setText(
             "Inspect gait segment"
             if segment is not None and not timestamp
             else "Inspect sensor context"
         )
         if valid_row:
-            self.context_button.setToolTip("")
+            self.view.context_button.setToolTip("")
         if valid_row and not timestamp and segment is None:
-            self.context_button.setToolTip("No sensor timing available")
-        if self.result_source_frame is None:
-            self.context_button.setToolTip("Original sensor data unavailable")
+            self.view.context_button.setToolTip("No sensor timing available")
+        if self.results.result_source_frame is None:
+            self.view.context_button.setToolTip("Original sensor data unavailable")
         if profile:
-            self.context_button.setToolTip(
+            self.view.context_button.setToolTip(
                 "A 24-hour profile combines multiple days. Select another view to inspect an actual timepoint."
             )
 
     def highlight_result_row(self):
-        if not self.graph_view.initialized:
+        if not self.view.graph_view.initialized:
             return
-        with self.result_overlay.edit():
+        with self.view.result_overlay.edit():
             self.update_result_marker()
-        self.result_overlay.paint()
+        self.view.result_overlay.paint()
 
     def update_result_marker(self):
         """Link a table row to all plots without changing their data or limits."""
@@ -663,35 +766,35 @@ class ResultGraphs:
 
         from ..plotting import time_selection_line
 
-        for artist in self._result_selection_artists:
+        for artist in self.graphs._result_selection_artists:
             artist.remove()
-        self._result_selection_artists = []
-        self.time_axis.set_selection(None)
-        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+        self.graphs._result_selection_artists = []
+        self.view.time_axis.set_selection(None)
+        if self.view.result_graph_view.currentIndex() == PROFILE_VIEW:
             self._update_profile_marker()
             return
-        name, frame = self.dataset.currentText(), self.active_frame
-        current = self.result_table.currentIndex()
-        if frame is None or not current.isValid() or name not in self._timings:
+        name, frame = self.view.dataset.currentText(), self.results.active_frame
+        current = self.view.result_table.currentIndex()
+        if frame is None or not current.isValid() or name not in self.results._timings:
             return
         row = current.row()
-        position = self.active_positions[row]
-        timing = self._timings[name].iloc[position]
+        position = self.results.active_positions[row]
+        timing = self.results._timings[name].iloc[position]
         seconds = float(timing["Timeline time (s)"])
         if not np.isfinite(seconds):
             return
-        if self.display_clock is not None:
-            timestamp = clock_times([seconds], self.display_clock)[0]
+        if self.results.display_clock is not None:
+            timestamp = clock_times([seconds], self.results.display_clock)[0]
             x = float(dates.date2num(timestamp.to_pydatetime(warn=False)))
             label = timestamp.strftime("%d %b %Y %H:%M:%S.%f").rstrip("0").rstrip(".")
         else:
             x, label = seconds, f"{seconds:.6g} s"
-        self.time_axis.set_selection(x, label)
-        for ax in self.figure.axes:
+        self.view.time_axis.set_selection(x, label)
+        for ax in self.view.figure.axes:
             if not hasattr(ax, "_paradigma_dataset"):
                 continue
-            line = time_selection_line(ax, x, animated=self.canvas.supports_blit)
-            self._result_selection_artists.append(line)
+            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit)
+            self.graphs._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
             self._mark_selected_result(ax, name, row, seconds, x)
@@ -706,7 +809,7 @@ class ResultGraphs:
             value = selected.value.iloc[0] if len(selected) else np.nan
         else:
             value = self._result_plot_values(
-                name, ax._paradigma_metric, [self.active_positions[row]]
+                name, ax._paradigma_metric, [self.results.active_positions[row]]
             )[0]
             if (
                 name == "classifications/gait/arm_activity"
@@ -739,23 +842,23 @@ class ResultGraphs:
             zorder=8,
         )
         point.set_gid("selected-result-point")
-        point.set_animated(self.canvas.supports_blit)
+        point.set_animated(self.view.canvas.supports_blit)
         ax.add_artist(point)
-        self._result_selection_artists.append(point)
+        self.graphs._result_selection_artists.append(point)
 
     def _update_profile_marker(self):
         from ..plotting import time_selection_line
 
-        if self._profile_selection is None:
+        if self.results._profile_selection is None:
             return
-        name, metric, x = self._profile_selection
+        name, metric, x = self.results._profile_selection
         label = f"{format_profile_time(x - EPOCH_SECONDS / 2)}–{format_profile_time(x + EPOCH_SECONDS / 2)}"
-        self.time_axis.set_selection(x, label)
-        for ax in self.figure.axes:
+        self.view.time_axis.set_selection(x, label)
+        for ax in self.view.figure.axes:
             if not getattr(ax, "_paradigma_profile", False):
                 continue
-            line = time_selection_line(ax, x, animated=self.canvas.supports_blit)
-            self._result_selection_artists.append(line)
+            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit)
+            self.graphs._result_selection_artists.append(line)
             if (ax._paradigma_dataset, ax._paradigma_metric) != (name, metric):
                 continue
             summary = ax._paradigma_epoch_data
@@ -763,7 +866,7 @@ class ResultGraphs:
             if len(selected) and np.isfinite(selected.value.iloc[0]):
                 self._mark_result_value(ax, name, x, selected.value.iloc[0])
                 days = int(selected.n_days.iloc[0])
-                self.time_axis.set_selection(
+                self.view.time_axis.set_selection(
                     x, f"{label} · {days} {'day' if days == 1 else 'days'}"
                 )
 
@@ -775,7 +878,7 @@ class ResultGraphs:
         epoch = summary.loc[(summary.start_s <= event.xdata) & (event.xdata < summary.end_s)]
         if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
             return
-        self._profile_selection = (
+        self.results._profile_selection = (
             ax._paradigma_dataset,
             ax._paradigma_metric,
             float((epoch.start_s.iloc[0] + epoch.end_s.iloc[0]) / 2),
@@ -783,53 +886,55 @@ class ResultGraphs:
         self.highlight_result_row()
 
     def graph_clicked(self, event):
-        if event.inaxes is None or event.xdata is None or self.plot_toolbar.mode:
+        if event.inaxes is None or event.xdata is None or self.view.plot_toolbar.mode:
             return
-        if self.result_graph_view.currentIndex() == PROFILE_VIEW:
+        if self.view.result_graph_view.currentIndex() == PROFILE_VIEW:
             self._profile_clicked(event)
             return
-        name = getattr(event.inaxes, "_paradigma_dataset", self.dataset.currentText())
-        if name not in self.tables:
+        name = getattr(event.inaxes, "_paradigma_dataset", self.view.dataset.currentText())
+        if name not in self.results.tables:
             return
         anchor = self._graph_click_anchor(name, event.xdata)
-        self.dataset.setCurrentText(name)
-        self.sync_table_outputs(force_detail=True)
+        self.view.dataset.setCurrentText(name)
+        self.callbacks.sync_table_outputs(force_detail=True)
         metric = getattr(event.inaxes, "_paradigma_metric", None)
         if metric is not None:
-            self.y_column.blockSignals(True)
-            self.y_column.setCurrentIndex(self.y_column.findData(metric))
-            self.y_column.blockSignals(False)
-        frame = self.active_frame
+            self.view.y_column.blockSignals(True)
+            self.view.y_column.setCurrentIndex(self.view.y_column.findData(metric))
+            self.view.y_column.blockSignals(False)
+        frame = self.results.active_frame
         if frame is None or frame.empty:
             return
         row = self._graph_click_row(event.inaxes, name, metric, anchor)
         if row is None:
             return
-        self.result_table.setCurrentIndex(self.result_table.model().index(row, 0))
-        self.result_table.selectRow(row)
-        self.result_table.scrollTo(self.result_table.currentIndex())
-        self.plot_toolbar.active_axes = next(
+        self.view.result_table.setCurrentIndex(self.view.result_table.model().index(row, 0))
+        self.view.result_table.selectRow(row)
+        self.view.result_table.scrollTo(self.view.result_table.currentIndex())
+        self.view.plot_toolbar.active_axes = next(
             (
                 ax
-                for ax in self.figure.axes
+                for ax in self.view.figure.axes
                 if getattr(ax, "_paradigma_dataset", None) == name
                 and getattr(ax, "_paradigma_metric", None) == metric
             ),
             None,
         )
-        if self.plot_toolbar.settings_action.isChecked():
-            self.plot_toolbar.settings.read_axes()
+        if self.view.plot_toolbar.settings_action.isChecked():
+            self.view.plot_toolbar.settings.read_axes()
 
     def _graph_click_anchor(self, name, xdata):
         import pandas as pd
         from matplotlib import dates
 
         anchor = float(xdata)
-        if self.display_clock is not None:
-            anchor = (anchor - dates.date2num(pd.Timestamp(self.display_clock["origin"]))) * 86400
+        if self.results.display_clock is not None:
+            anchor = (
+                anchor - dates.date2num(pd.Timestamp(self.results.display_clock["origin"]))
+            ) * 86400
             # Matplotlib stores dates as floats in days; recover exact nearby
             # output anchors before choosing the interval that contains a click.
-            all_times = self._timings[name]["Timeline time (s)"].to_numpy()
+            all_times = self.results._timings[name]["Timeline time (s)"].to_numpy()
             close = np.flatnonzero(np.isfinite(all_times) & (np.abs(all_times - anchor) < 1e-5))
             if len(close):
                 anchor = float(all_times[close[0]])
@@ -837,7 +942,9 @@ class ResultGraphs:
 
     def _graph_click_row(self, ax, name, metric, anchor):
         """Resolve clicks against unchanged source positions and interval bounds."""
-        times = self._timings[name]["Timeline time (s)"].to_numpy()[self.active_positions]
+        times = self.results._timings[name]["Timeline time (s)"].to_numpy()[
+            self.results.active_positions
+        ]
         distances = np.abs(times - anchor)
         finite = np.isfinite(distances)
         if not finite.any():
@@ -849,8 +956,8 @@ class ResultGraphs:
             if epoch.empty or not np.isfinite(epoch.value.iloc[0]):
                 return
             observed = (
-                self._plot_tables[name][metric]
-                .iloc[self.active_positions]
+                self.results._plot_tables[name][metric]
+                .iloc[self.results.active_positions]
                 .to_numpy(dtype=float, na_value=np.nan)
             )
             matching = (
@@ -864,20 +971,26 @@ class ResultGraphs:
             row = int(np.argmin(np.where(matching, distances, np.inf)))
         elif (
             getattr(ax, "_paradigma_binary", False) or getattr(ax, "_paradigma_bars", False)
-        ) and metric in self._plot_tables[name]:
-            ends = self._interval_ends[name][self.active_positions]
+        ) and metric in self.results._plot_tables[name]:
+            ends = self.results._interval_ends[name][self.results.active_positions]
             present = (
-                self._plot_tables[name][metric]
-                .iloc[self.active_positions]
+                self.results._plot_tables[name][metric]
+                .iloc[self.results.active_positions]
                 .eq(1)
                 .fillna(False)
                 .to_numpy(dtype=bool)
             )
             if getattr(ax, "_paradigma_bars", False):
-                starts, all_ends = self._bar_bounds[name]
-                times, ends = starts[self.active_positions], all_ends[self.active_positions]
+                starts, all_ends = self.results._bar_bounds[name]
+                times, ends = (
+                    starts[self.results.active_positions],
+                    all_ends[self.results.active_positions],
+                )
                 present = (
-                    self._plot_tables[name][metric].iloc[self.active_positions].notna().to_numpy()
+                    self.results._plot_tables[name][metric]
+                    .iloc[self.results.active_positions]
+                    .notna()
+                    .to_numpy()
                 )
             covering = np.flatnonzero(present & (times <= anchor) & (anchor < ends))
             if len(covering):

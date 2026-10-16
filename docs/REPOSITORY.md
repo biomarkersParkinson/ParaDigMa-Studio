@@ -26,14 +26,21 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 
 | Responsibility | Modules |
 | --- | --- |
-| Window lifecycle, component composition, navigation and Qt signal wiring | `app.py` |
-| Input, result, run and sensor state shared through explicit dependencies | `workspace_state.py` |
+| Component creation, Qt lifecycle adapters and ordered signal wiring | `app.py` |
+| Explicit integration aliases for existing window attributes and methods | `ui/compatibility.py` |
+| Input, result, run, sensor, job and presentation state | `workspace_state.py` |
+| Recording loading, inspection previews and raw Data graphs | `data_controller.py` |
+| Analysis controls, origin previews and run configuration | `analysis_controller.py` |
+| Worker creation, control restoration, failure and cancellation actions | `job_controller.py` |
+| Result tables, detail selection, series and shared view controls | `result_workspace_controller.py` |
+| Exports, save actions and unsaved-close handling | `export_controller.py` |
+| Navigation, notices and About dialog | `shell_controller.py` |
 | Public service contracts and shared payload types; no startup scientific imports | `contracts.py`, `py.typed` |
 | Result installation, source alignment, clock selection and completion status | `result_controller.py` |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
 | Construction of the four existing pages and their controls | `ui/layout.py` |
-| First-use graph construction behind the existing window attributes | `ui/deferred.py` |
+| First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
 | Results rendering, epoch caches and linked graph selection | `ui/result_graphs.py` |
 | Shared channel selection and original sensor plotting | `channels.py` |
@@ -54,12 +61,13 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 
 ## Conventions for changes
 
-`MainWindow` owns Qt widgets and workers and composes the result, run and sensor
-controllers after constructing the pages. Controllers receive specific state
-objects, typed widget bundles and named callbacks; they do not receive a window
-or access an implicit host API. `RunController` also receives the existing
-`RunHistory` and a Qt parent used only for confirmation dialogs. Overview and
-series renderers receive their layout/tree and result inputs directly.
+`MainWindow` inherits only `QMainWindow` and creates the builder and controllers.
+`WorkspaceLayout` constructs the pages from explicit callbacks and state, then
+returns frozen page views. `ResultGraphs` receives result/graph state, a frozen
+`ResultGraphView` and named callbacks. Controllers use their declared state,
+view and service ports. A Qt parent provides ownership/dialog APIs, never access
+to application attributes. New UI controllers retain GUI-thread QObject affinity.
+Overview and series renderers receive their layout/tree and result inputs directly.
 
 The existing window entry points delegate to these components:
 
@@ -70,19 +78,22 @@ The existing window entry points delegate to these components:
 | `populate_result_series` | `ui.result_series.ResultSeries.populate` |
 | `delete_runs` | `run_controller.RunController.delete_runs` |
 
-`workspace_state.py` is the single owner of shared input, result, run and sensor
-state. Window properties preserve the existing attribute API, including the
-plot caches, for integrations and the remaining `WorkspaceLayout` and
-`ResultGraphs` implementation mixins. These mixins retain page construction and
-graph interactions; they have no separate constructor or lifecycle. Keep the
-window's signal entry points and widget attributes stable. Import aliases for
+`workspace_state.py` owns shared state. The explicit alias table in
+`ui/compatibility.py` preserves existing window attributes and methods for
+integrations; components do not use that facade. It has no generic host fallback.
+Graphics stay deferred through frozen callable ports and reuse their canvases.
+Preview receivers and lazy sensor slots remain thin Qt adapters on the window.
+The window connects worker signals in their original order; `JobController`
+starts the worker only after those connections exist. Import aliases for
 existing `app` job/channel helpers and `core` export functions remain available.
 
 Keep controller callbacks limited to cross-component actions. Put local logic in
 the owning component and presentation/scientific calculations in the existing
 Qt-independent helpers. Component tests exercise result installation and partial
-deletion without constructing a complete window; the full UI regressions cover
-composition, signals and saved-run compatibility.
+deletion without constructing a complete window. Layout/graph component tests
+use a plain `QMainWindow`, while ordering tests pin signal delivery, GUI-thread
+completion, control restoration and queued close after saving. The full UI
+regressions cover composition and saved-run compatibility.
 
 Keep functions around 100 lines or fewer. Extract named helpers for validation,
 preparation, execution and rendering, with explicit inputs and return values.

@@ -1,6 +1,12 @@
 """Page construction and shared layout helpers for the existing main-window controls."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
 from html import escape
+from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -17,6 +23,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListView,
     QListWidget,
+    QMainWindow,
     QPlainTextEdit,
     QProgressBar,
     QScrollArea,
@@ -28,10 +35,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..analysis_controller import AnalysisView
 from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
 from ..assets import DATA_DIRECTORY
 from ..branding import APP_NAME
+from ..data_controller import DataView
+from ..export_controller import ExportView
+from ..job_controller import JobView
+from ..result_workspace_controller import ResultWorkspaceView, set_results_tab
 from ..results_view import MODULE_NAMES
+from ..shell_controller import ShellView
 from ..theme import LINK_COLOR, light_palette, tooltip_text
 from ..time_controls import TimeField
 from ..widgets import (
@@ -51,11 +64,82 @@ from ..widgets import (
     readout,
     table,
 )
-from .deferred import DeferredWidget
+from ..workspace_state import GraphState, ResultState, ShellState
+from .deferred import DeferredWidget, deferred_attribute
+from .graph_views import ChannelCanvasView, ResultCanvasView
+from .result_graphs import ResultGraphView
+
+
+@dataclass(frozen=True)
+class WorkspaceCallbacks:
+    update_context_action: Callable[..., Any]
+    choose_export: Callable[..., Any]
+    clear_runs: Callable[..., Any]
+    delete_run: Callable[..., Any]
+    graph_clicked: Callable[..., Any]
+    hide_sensor_context: Callable[..., Any]
+    inspect_input_recording: Callable[..., Any]
+    inspect_sensor_context: Callable[..., Any]
+    navigate: Callable[..., Any]
+    open_file: Callable[..., Any]
+    open_run: Callable[..., Any]
+    plot: Callable[..., Any]
+    reset_origin: Callable[..., Any]
+    reset_sensor_context: Callable[..., Any]
+    results_tab_changed: Callable[..., Any]
+    run_analysis: Callable[..., Any]
+    save_results: Callable[..., Any]
+    selected_result_series: Callable[..., Any]
+    set_input_channels: Callable[..., Any]
+    set_sensor_channels: Callable[..., Any]
+    show_acknowledgements: Callable[..., Any]
+    stop_analysis: Callable[..., Any]
+    toggle_analysis_help: Callable[..., Any]
+    use_run_parameters: Callable[..., Any]
 
 
 class WorkspaceLayout:
-    """Page construction using the host MainWindow widgets and callbacks."""
+    """Own widget construction; expose frozen page views and explicit callbacks."""
+
+    data_figure = deferred_attribute("_data_graph")
+    data_canvas = deferred_attribute("_data_graph")
+    data_toolbar = deferred_attribute("_data_graph")
+    sensor_figure = deferred_attribute("_sensor_graph")
+    sensor_canvas = deferred_attribute("_sensor_graph")
+    sensor_toolbar = deferred_attribute("_sensor_graph")
+    figure = deferred_attribute("graph_view")
+    canvas = deferred_attribute("graph_view")
+    plot_toolbar = deferred_attribute("graph_view")
+    result_overlay = deferred_attribute("graph_view")
+    figure_actions = deferred_attribute("graph_view")
+    figure_actions_layout = deferred_attribute("graph_view")
+    graphs_workspace = deferred_attribute("graph_view")
+    graph_scroll = deferred_attribute("graph_view")
+    time_axis = deferred_attribute("graph_view")
+    result_time_scroll = deferred_attribute("graph_view")
+    recording_time_label = deferred_attribute("graph_view")
+
+    def __init__(
+        self,
+        parent: QMainWindow,
+        callbacks: WorkspaceCallbacks,
+        graphs: GraphState,
+        shell: ShellState,
+        results: ResultState,
+        history_directory: Path,
+        sections: tuple[str, ...],
+        modules: dict[str, str],
+    ) -> None:
+        self.parent, self.callbacks = parent, callbacks
+        self.graphs, self.shell, self.results = graphs, shell, results
+        self.history_directory = history_directory
+        self.sections, self.modules = sections, modules
+        self._data_canvas_view = self._sensor_canvas_view = self._result_canvas_view = None
+        self._build_shell()
+        self._build_data()
+        self._build_analyze()
+        self._build_results()
+        self._build_runs()
 
     @staticmethod
     def combo(items=(), *, combo_type=ReadableComboBox):
@@ -74,7 +158,7 @@ class WorkspaceLayout:
     def _build_shell(self):
         root = QWidget()
         root.setObjectName("workspace")
-        self.setCentralWidget(root)
+        self.parent.setCentralWidget(root)
         shell = QHBoxLayout(root)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
@@ -85,7 +169,7 @@ class WorkspaceLayout:
         navigation.setSpacing(8)
         brand_row = QHBoxLayout()
         self.brand_icon = label()
-        self.brand_icon.setPixmap(self.windowIcon().pixmap(28, 28))
+        self.brand_icon.setPixmap(self.parent.windowIcon().pixmap(28, 28))
         self.brand_icon.setFixedSize(28, 28)
         brand_row.addWidget(self.brand_icon)
         self.brand = label(APP_NAME, "brand")
@@ -97,9 +181,10 @@ class WorkspaceLayout:
         self.brand.setSizePolicy(policy)
         navigation.addSpacing(24)
         self.nav_buttons = []
-        for index, section in enumerate(self.SECTIONS):
+        for index, section in enumerate(self.sections):
             item = button(
-                f"{index + 1}    {section}", lambda checked=False, i=index: self.navigate(i)
+                f"{index + 1}    {section}",
+                lambda checked=False, i=index: self.callbacks.navigate(i),
             )
             item.setCheckable(True)
             item.setAccessibleName(section)
@@ -107,7 +192,7 @@ class WorkspaceLayout:
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
-        self.about_button = button("About", self.show_acknowledgements)
+        self.about_button = button("About", self.callbacks.show_acknowledgements)
         self.about_button.setObjectName("about")
         self.about_button.setShortcut("F1")
         navigation.addWidget(self.about_button)
@@ -161,14 +246,14 @@ class WorkspaceLayout:
         self.input_recording = self.combo()
         self.input_recording.setAccessibleName("Recording to inspect")
         self.input_recording.hide()
-        self.input_recording.currentIndexChanged.connect(self.inspect_input_recording)
+        self.input_recording.currentIndexChanged.connect(self.callbacks.inspect_input_recording)
         row.addWidget(self.input_recording, 1)
-        self.open_button = button("Open sensor files…", self.open_file, primary=True)
+        self.open_button = button("Open sensor files…", self.callbacks.open_file, primary=True)
         self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
-        self.open_action = QAction("Open recording", self)
+        self.open_action = QAction("Open recording", self.parent)
         self.open_action.setShortcut("Ctrl+O")
-        self.open_action.triggered.connect(self.open_file)
-        self.addAction(self.open_action)
+        self.open_action.triggered.connect(self.callbacks.open_file)
+        self.parent.addAction(self.open_action)
         row.addWidget(self.open_button)
         content.addLayout(row)
         layout.addWidget(panel)
@@ -227,14 +312,13 @@ class WorkspaceLayout:
         overview_layout.addWidget(details, 1)
         self.data_tabs.addTab(overview, "Overview")
         preview, self.data_channels, self._data_graph = self.channel_graph(
-            self.set_input_channels, "Sensor channels to plot", "data"
+            self.callbacks.set_input_channels, "Sensor channels to plot", "data"
         )
-        self._channel_colors = {}
         self.data_tabs.addTab(preview, "Graphs")
         self.input_table = table()
         self.data_tabs.addTab(self.input_table, "Tables")
         layout.addWidget(self.data_tabs, 1)
-        self.continue_button = button("Configure analysis  →", lambda: self.navigate(1))
+        self.continue_button = button("Configure analysis  →", lambda: self.callbacks.navigate(1))
         self.continue_button.setEnabled(False)
         self.status_layout.addWidget(self.continue_button)
 
@@ -286,10 +370,10 @@ class WorkspaceLayout:
         # Use the available height instead of imposing the canvas's preferred
         # 480-pixel height on the enclosing page or clipping its time axis.
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
-        toolbar = add_graph_controls(graph_layout, canvas, self)
+        toolbar = add_graph_controls(graph_layout, canvas, self.parent)
         graph_layout.addWidget(canvas, 1)
         if prefix == "sensor":
-            toolbar.home_callback = self.reset_sensor_context
+            toolbar.home_callback = self.callbacks.reset_sensor_context
         setattr(self, f"{prefix}_figure", figure)
         setattr(self, f"{prefix}_canvas", canvas)
         setattr(self, f"{prefix}_toolbar", toolbar)
@@ -319,7 +403,6 @@ class WorkspaceLayout:
         # compressing spacing when help is taller at the current width.
         self.analysis_help = {}
         self.analysis_help_sections = {}
-        self._updating_analysis_help = False
         self._build_analysis_modules(controls)
         self._build_analysis_parameters()
         self._build_analysis_help()
@@ -348,7 +431,7 @@ class WorkspaceLayout:
         input_row.addWidget(self.analysis_input, 1)
         self.analysis_input_detail = label("", "muted")
         input_row.addWidget(self.analysis_input_detail)
-        input_row.addWidget(button("Inspect input", lambda: self.navigate(0)))
+        input_row.addWidget(button("Inspect input", lambda: self.callbacks.navigate(0)))
         input_layout.addLayout(input_row)
         content.addWidget(panel)
 
@@ -364,7 +447,7 @@ class WorkspaceLayout:
         for name in ("Gait", "Tremor", "Pulse rate"):
             item = button(name)
             item.setObjectName("module")
-            item.setProperty("analysisModule", self.MODULES[name])
+            item.setProperty("analysisModule", self.modules[name])
             item.setCheckable(True)
             self.module_buttons[name] = item
             modules.addWidget(item, 1)
@@ -481,7 +564,7 @@ class WorkspaceLayout:
     def _build_analysis_origin(self, parameters):
         self.clock_input = TimeField("Time origin", origin=True)
         self.clock_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.origin_reset = button("Default", self.reset_origin)
+        self.origin_reset = button("Default", self.callbacks.reset_origin)
         origin_row = WrappedForm()
         clock_group, reset_group = QHBoxLayout(), QHBoxLayout()
         clock_group.addWidget(self.clock_input)
@@ -513,17 +596,17 @@ class WorkspaceLayout:
             section.hide()
             self.analysis_help_sections[title] = section
             info.toggled.connect(
-                lambda checked, title=title: self.toggle_analysis_help(title, checked)
+                lambda checked, title=title: self.callbacks.toggle_analysis_help(title, checked)
             )
             help_layout.addWidget(section)
         self.analysis_help_panel.hide()
 
     def _build_analysis_actions(self):
-        self.run_button = button("Run Analysis", self.run_analysis, primary=True)
+        self.run_button = button("Run Analysis", self.callbacks.run_analysis, primary=True)
         self.run_button.setShortcut("Ctrl+Return")
         self.run_button.setEnabled(False)
         self.run_button.setMinimumWidth(170)
-        self.stop_button = button("Stop Analysis", self.stop_analysis)
+        self.stop_button = button("Stop Analysis", self.callbacks.stop_analysis)
         self.stop_button.setEnabled(False)
         self.status_layout.addWidget(self.stop_button)
         self.status_layout.addWidget(self.run_button)
@@ -644,19 +727,19 @@ class WorkspaceLayout:
         header.setContentsMargins(0, 0, 0, 0)
         self.results_source = label("No analysis results", "muted")
         header.addWidget(self.results_source, 1)
-        self.sensor_close = button("Close", self.hide_sensor_context)
+        self.sensor_close = button("Close", self.callbacks.hide_sensor_context)
         self.sensor_close.setAccessibleName("Close sensor context")
         header.addWidget(self.sensor_close)
         actions = QWidget()
         action_layout = QHBoxLayout(actions)
         action_layout.setContentsMargins(12, 0, 0, 0)
-        self.save_results_button = button("Save results", self.save_results)
+        self.save_results_button = button("Save results", self.callbacks.save_results)
         self.save_results_button.setAccessibleName("Save complete run results locally")
         self.save_results_button.setToolTip("Save all results locally for reopening from Runs.")
         self.save_results_button.setShortcut("Ctrl+S")
         self.save_results_button.setEnabled(False)
         action_layout.addWidget(self.save_results_button)
-        self.export_button = button("Export…", self.choose_export)
+        self.export_button = button("Export…", self.callbacks.choose_export)
         self.export_button.setAccessibleName("Export results")
         self.export_button.setEnabled(False)
         action_layout.addWidget(self.export_button)
@@ -748,9 +831,9 @@ class WorkspaceLayout:
         graph_body = self._result_view_layouts[1]
         self._build_result_canvas(graph_body)
         self._build_pinned_graph_workspace(graph_body)
-        self.canvas.mpl_connect("button_press_event", self.graph_clicked)
-        if not self.selected_result_series():
-            self.plot()
+        self.canvas.mpl_connect("button_press_event", self.callbacks.graph_clicked)
+        if not self.callbacks.selected_result_series():
+            self.callbacks.plot()
 
     def _build_result_canvas(self, graph_body):
         from matplotlib.figure import Figure
@@ -771,9 +854,11 @@ class WorkspaceLayout:
         self.figure = Figure(layout=ResultLayoutEngine())
         self.canvas = ResultFigureCanvas(self.figure)
         self.canvas.defer_when_hidden = True
-        self.result_overlay = SelectionOverlay(self.canvas, lambda: self._result_selection_artists)
+        self.result_overlay = SelectionOverlay(
+            self.canvas, lambda: self.graphs._result_selection_artists
+        )
         self.canvas.pinned_time_axis = True
-        self.plot_toolbar = ResultsToolbar(self.canvas, self)
+        self.plot_toolbar = ResultsToolbar(self.canvas, self.parent)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
         # A newly shown graph already has its final width. Arrange the toolbar
         # at that width before adding controls, avoiding a stale wrapped height.
@@ -860,9 +945,8 @@ class WorkspaceLayout:
             self.sensor_channels,
             self._sensor_graph,
         ) = self.channel_graph(
-            self.set_sensor_channels, "Original sensor channels to plot", "sensor"
+            self.callbacks.set_sensor_channels, "Original sensor channels to plot", "sensor"
         )
-        self._sensor_channel_colors = {}
         sensor_graph.layout().setContentsMargins(6, 6, 6, 6)
         self.sensor_tabs.addTab(sensor_graph, "Graphs")
         self.sensor_table = table()
@@ -876,14 +960,18 @@ class WorkspaceLayout:
     def _build_context_action(self):
         context = QHBoxLayout()
         context.setContentsMargins(0, 0, 0, 0)
-        self.context_button = button("Inspect sensor context", self.inspect_sensor_context)
+        self.context_button = button(
+            "Inspect sensor context", self.callbacks.inspect_sensor_context
+        )
         self.context_button.setEnabled(False)
         self.context_button.setToolTip("Select a result row or click a graph point")
         context.addWidget(self.context_button)
         self.context_controls = QWidget()
         self.context_controls.setLayout(context)
-        self.result_tabs.currentChanged.connect(self.results_tab_changed)
-        self.results_tab_changed(0)
+        self.result_tabs.currentChanged.connect(self.callbacks.results_tab_changed)
+        set_results_tab(
+            self.results, self.workspace_view(), self.callbacks.update_context_action, 0
+        )
 
     def _build_runs(self):
         layout = self.page()
@@ -894,18 +982,20 @@ class WorkspaceLayout:
         self.run_table.setAccessibleName("Runs; use Ctrl or Shift to select multiple runs")
         content.addWidget(self.run_table, 1)
         actions = QHBoxLayout()
-        self.open_run_button = button("Open results", self.open_run)
-        self.use_parameters_button = button("Use these parameters", self.use_run_parameters)
+        self.open_run_button = button("Open results", self.callbacks.open_run)
+        self.use_parameters_button = button(
+            "Use these parameters", self.callbacks.use_run_parameters
+        )
         actions.addWidget(self.open_run_button)
         actions.addWidget(self.use_parameters_button)
-        self.delete_run_button = button("Delete Run…", self.delete_run)
+        self.delete_run_button = button("Delete Run…", self.callbacks.delete_run)
         actions.addWidget(self.delete_run_button)
-        self.clear_runs_button = button("Clear all…", self.clear_runs)
+        self.clear_runs_button = button("Clear all…", self.callbacks.clear_runs)
         actions.addWidget(self.clear_runs_button)
         actions.addStretch()
         self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
         self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-        self.delete_run_shortcut.activated.connect(self.delete_run)
+        self.delete_run_shortcut.activated.connect(self.callbacks.delete_run)
         content.addLayout(actions)
         split.addWidget(panel)
         panel, content = card()
@@ -940,7 +1030,193 @@ class WorkspaceLayout:
         split.setStretchFactor(0, 1)
         split.setStretchFactor(1, 1)
         layout.addWidget(split, 1)
-        self.history_location = label(str(self.history.directory), "muted")
+        self.history_location = label(str(self.history_directory), "muted")
         self.history_location.setToolTip("Local run history")
         self.history_location.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.history_location)
+
+    def toggle_sidebar(self):
+        self.sidebar.setExpanded(self.shell.sidebar_collapsed, animated=False)
+
+    def sidebar_expanded(self, expanded):
+        self.shell.sidebar_collapsed = not expanded
+        self.brand.setVisible(expanded)
+        for i, item in enumerate(self.nav_buttons):
+            item.setText(f"{i + 1}    {self.sections[i]}" if expanded else str(i + 1))
+            item.setToolTip("" if expanded else self.sections[i])
+
+    def resize_data(self, width: int) -> None:
+        orientation = Qt.Horizontal if width >= 1280 else Qt.Vertical
+        if self.data_details.orientation() != orientation:
+            self.data_details.setOrientation(orientation)
+            self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
+
+    def data_graphics(self) -> ChannelCanvasView:
+        self._data_graph.initialize()
+        if self._data_canvas_view is None:
+            self._data_canvas_view = ChannelCanvasView(
+                self.data_figure, self.data_canvas, self.data_toolbar
+            )
+        return self._data_canvas_view
+
+    def sensor_graphics(self) -> ChannelCanvasView:
+        self._sensor_graph.initialize()
+        if self._sensor_canvas_view is None:
+            self._sensor_canvas_view = ChannelCanvasView(
+                self.sensor_figure, self.sensor_canvas, self.sensor_toolbar
+            )
+        return self._sensor_canvas_view
+
+    def result_graphics(self) -> ResultCanvasView:
+        self.graph_view.initialize()
+        if self._result_canvas_view is None:
+            self._result_canvas_view = ResultCanvasView(
+                canvas=self.canvas,
+                figure=self.figure,
+                figure_actions=self.figure_actions,
+                figure_actions_layout=self.figure_actions_layout,
+                graph_scroll=self.graph_scroll,
+                graphs_workspace=self.graphs_workspace,
+                plot_toolbar=self.plot_toolbar,
+                recording_time_label=self.recording_time_label,
+                result_overlay=self.result_overlay,
+                result_time_scroll=self.result_time_scroll,
+                time_axis=self.time_axis,
+            )
+        return self._result_canvas_view
+
+    def data_view(self) -> DataView:
+        return DataView(
+            parent=self.parent,
+            analysis_input=self.analysis_input,
+            analysis_input_detail=self.analysis_input_detail,
+            channel_table=self.channel_table,
+            continue_button=self.continue_button,
+            data_channels=self.data_channels,
+            data_tabs=self.data_tabs,
+            data_time_channel=self.data_time_channel,
+            data_time_unit=self.data_time_unit,
+            data_values=self.data_values,
+            file_label=self.file_label,
+            input_recording=self.input_recording,
+            input_table=self.input_table,
+            mapping=self.mapping,
+            pages=self.pages,
+            status=self.status,
+            time=self.time,
+            time_table=self.time_table,
+            data_graphics=self.data_graphics,
+        )
+
+    def analysis_view(self) -> AnalysisView:
+        return AnalysisView(
+            parent=self.parent,
+            acc=self.acc,
+            analysis_controls=self.analysis_controls,
+            analysis_help=self.analysis_help,
+            analysis_help_panel=self.analysis_help_panel,
+            analysis_help_sections=self.analysis_help_sections,
+            analysis_scroll=self.analysis_scroll,
+            clock_input=self.clock_input,
+            drop_missing=self.drop_missing,
+            gaps=self.gaps,
+            gyro=self.gyro,
+            log=self.log,
+            mapping=self.mapping,
+            max_gap=self.max_gap,
+            min_segment=self.min_segment,
+            module_buttons=self.module_buttons,
+            module_requirements=self.module_requirements,
+            orientation=self.orientation,
+            prepared=self.prepared,
+            run_button=self.run_button,
+            side=self.side,
+            status=self.status,
+            stop_button=self.stop_button,
+            time=self.time,
+        )
+
+    def job_view(self) -> JobView:
+        return JobView(
+            parent=self.parent,
+            analysis_controls=self.analysis_controls,
+            clear_runs_button=self.clear_runs_button,
+            data_time_channel=self.data_time_channel,
+            data_time_unit=self.data_time_unit,
+            delete_run_button=self.delete_run_button,
+            export_button=self.export_button,
+            input_recording=self.input_recording,
+            open_button=self.open_button,
+            open_run_button=self.open_run_button,
+            progress=self.progress,
+            run_button=self.run_button,
+            save_results_button=self.save_results_button,
+            settings_panel=self.settings_panel,
+            status=self.status,
+            stop_button=self.stop_button,
+            use_parameters_button=self.use_parameters_button,
+        )
+
+    def workspace_view(self) -> ResultWorkspaceView:
+        return ResultWorkspaceView(
+            parent=self.parent,
+            _result_view_layouts=self._result_view_layouts,
+            _result_view_scrolls=self._result_view_scrolls,
+            aggregation_table=self.aggregation_table,
+            context_button=self.context_button,
+            context_controls=self.context_controls,
+            dataset=self.dataset,
+            dataset_field=self.dataset_field,
+            detail_controls=self.detail_controls,
+            export_button=self.export_button,
+            graph_footer_layout=self.graph_footer_layout,
+            result_series=self.result_series,
+            result_table=self.result_table,
+            result_tabs=self.result_tabs,
+            results_header=self.results_header,
+            save_results_button=self.save_results_button,
+            selection_note=self.selection_note,
+            sensor_close=self.sensor_close,
+            sensor_tab_index=self.sensor_tab_index,
+            sensor_table=self.sensor_table,
+            table_actions_layout=self.table_actions_layout,
+            table_dataset=self.table_dataset,
+            table_module_tabs=self.table_module_tabs,
+            table_stack=self.table_stack,
+            timing_toggle=self.timing_toggle,
+            y_column=self.y_column,
+            result_graphics=self.result_graphics,
+            sensor_graphics=self.sensor_graphics,
+        )
+
+    def export_view(self) -> ExportView:
+        return ExportView(
+            parent=self.parent,
+            status=self.status,
+        )
+
+    def shell_view(self) -> ShellView:
+        return ShellView(
+            parent=self.parent,
+            continue_button=self.continue_button,
+            data_tabs=self.data_tabs,
+            nav_buttons=self.nav_buttons,
+            notice=self.notice,
+            page_title=self.page_title,
+            pages=self.pages,
+            run_button=self.run_button,
+            stop_button=self.stop_button,
+        )
+
+    def graph_view_model(self) -> ResultGraphView:
+        return ResultGraphView(
+            parent=self.parent,
+            context_button=self.context_button,
+            dataset=self.dataset,
+            graph_view=self.graph_view,
+            result_graph_view=self.result_graph_view,
+            result_table=self.result_table,
+            result_tabs=self.result_tabs,
+            y_column=self.y_column,
+            result_graphics=self.result_graphics,
+        )

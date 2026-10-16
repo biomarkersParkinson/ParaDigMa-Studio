@@ -329,6 +329,12 @@ class RunController:
             bool(self.state.runs) and not self.callbacks.is_busy()
         )
 
+    def delete_run(self):
+        return self.delete_runs(self.selected_run_records())
+
+    def clear_runs(self):
+        return self.delete_runs(list(self.state.runs), clear_all=True)
+
     def delete_runs(self, records, *, clear_all=False):
         """Confirm once, delete safely, and retain state after partial failures."""
         if not records or self.callbacks.is_busy():

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Replace window layout/graph mixins with composed components and frozen views.
+  Move data, analysis, jobs, result workspace, exports and shell behavior into
+  explicit controllers; preserve ordered Qt wiring and deferred graph creation.
 - Refresh the security review for current worker, diagnostic and release boundaries,
   with new dependency/static scans and security regression evidence.
 - Narrow expected file/timezone error handling and preserve full tracebacks at

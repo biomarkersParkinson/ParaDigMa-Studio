@@ -35,6 +35,7 @@ trigger and expected behavior still apply.
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
+| Frozen layout/graph ports without application-window dependencies, Qt/job ordering and coordinator size | `test_composition_order.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export
 unit test exercises special numeric values, a scientific test checks real outputs,
