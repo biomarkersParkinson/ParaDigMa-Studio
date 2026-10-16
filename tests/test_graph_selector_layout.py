@@ -149,7 +149,8 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
         ].text(0)
 
 
-def test_selected_graphs_follow_module_groups_in_both_views_and_long_labels_wrap(window):
+@pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])
+def test_selected_graphs_follow_module_groups_in_all_views_and_long_labels_wrap(window, view):
     frame = pd.DataFrame(
         {"time": [0.0, 1.0], "range_of_motion": [10.0, 20.0], "peak_velocity": [30.0, 40.0]}
     )
@@ -189,15 +190,14 @@ def test_selected_graphs_follow_module_groups_in_both_views_and_long_labels_wrap
                 window.result_series.visualItemRect(item).height()
                 >= window.result_series.fontMetrics().height() + 10
             )
-        for mode in (0, 1):
-            window.result_graph_view.setCurrentIndex(mode)
-            window.plot()
-            modules = [ax._paradigma_module for ax in window.figure.axes]
-            assert modules == sorted(modules, key=["gait", "tremor", "pulse_rate"].index)
-            assert [
-                (ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes
-            ] == window.selected_result_series()
-            assert window.recording_time_label.text() == window.figure.axes[0].get_xlabel()
+        window.result_graph_view.setCurrentIndex(view)
+        window.plot()
+        modules = [ax._paradigma_module for ax in window.figure.axes]
+        assert modules == sorted(modules, key=["gait", "tremor", "pulse_rate"].index)
+        assert [
+            (ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes
+        ] == window.selected_result_series()
+        assert window.recording_time_label.text() == window.figure.axes[0].get_xlabel()
 
 
 @pytest.mark.parametrize("dated", [False, True])

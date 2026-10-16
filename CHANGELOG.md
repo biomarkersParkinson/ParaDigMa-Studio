@@ -7,6 +7,9 @@
   canvases and controls. Startup checks also guard this plotting boundary.
 - Show the empty Data graph and recording prompt immediately on opening Graphs,
   matching the empty Results graph without loading data or analysis libraries.
+- Update workflow benchmarks and selector-layout tests for all four graph views
+  and visible table controls. Share duplicate test window fixtures and refresh
+  the test coverage guide.
 
 ## 0.6.0a2 — 2026-10-15
 

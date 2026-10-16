@@ -141,6 +141,7 @@ def window(tmp_path):
     application = QApplication.instance() or QApplication([])
     widget = MainWindow(history_dir=tmp_path / "runs")
     widget.show()
+    application.processEvents()
     try:
         yield widget
     finally:

@@ -109,8 +109,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/Par
 These commands verify a Linux executable; the Windows workflows verify the EXE.
 
 `python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
-`analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`
-and `serialization`. This is a lenient starting point:
+`analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
+`serialization` and `epoch_profile`. This is a lenient starting point:
 annotated functions are checked, while unannotated helpers and UI code can be
 typed incrementally. Extend the file list in `pyproject.toml` as coverage grows.
 Shared contracts type frames, paths, pipeline names, worker callbacks and process

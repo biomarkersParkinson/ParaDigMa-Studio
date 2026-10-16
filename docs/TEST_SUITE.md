@@ -14,6 +14,7 @@ trigger and expected behavior still apply.
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
 | Spawned recording workers, limits, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
+| Raw-graph time encodings, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |
@@ -21,6 +22,7 @@ trigger and expected behavior still apply.
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | `test_epoch_profile.py` |
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
 | Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py` |
+| Automatic percentage scaling and fixed Y-axis alignment across all four graph views | `test_percentage_scaling.py`, `test_result_layout.py` |
 | Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, serialization and background completion | `test_result_exports.py` |
@@ -28,6 +30,7 @@ trigger and expected behavior still apply.
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
+| Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
 | Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
@@ -49,7 +52,9 @@ TSDF comparisons continue to exercise the real official pipeline stages.
 
 `conftest.py` contains fresh, function-scoped synthetic IMU and tremor-output
 fixtures, a visible window fixture, and helpers for preview completion and bar
-measurements. Modules retain their own window fixtures when they require special
+measurements. The shared window processes its initial Qt events before a test
+starts; graph-performance and background-preview tests use this same fixture.
+Modules retain their own window fixtures when they require special
 sizes, dark palettes, Qt styles or background-job handling. The shared data
 fixtures must remain function-scoped because several tests deliberately modify
 samples to exercise validation and missing-data behavior.
@@ -60,6 +65,10 @@ selector. Dataset-row resets call the current `activate_dataset_rows` method;
 scientific processing and comparisons do not depend on the old `apply_filters`
 compatibility alias. Test names distinguish plot zoom, row selection and sensor
 context from scientific filtered-gait processing.
+
+Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
+views. Workflow benchmarks select series in each view and switch tables through
+the visible module tabs and output selector, with the Tables page open.
 
 Run the suite and style checks using the [development commands](DEVELOPMENT.md).
 Both Windows workflows also check the typed service APIs with mypy and enforce

@@ -12,7 +12,6 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio import app as desktop, recordings
-from paradigma_studio.app import MainWindow
 from paradigma_studio.inspection import inspect_recording, sensor_descriptives, time_descriptives
 from paradigma_studio.previews import CachedPreview
 from paradigma_studio.results_view import analysis_alignment, recording_clock
@@ -24,17 +23,6 @@ def wait_until(predicate):
         QApplication.instance().processEvents()
         time.sleep(0.01)
     assert predicate(), "Background preview did not finish"
-
-
-@pytest.fixture
-def window(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    widget = MainWindow(history_dir=tmp_path)
-    widget.show()
-    app.processEvents()
-    yield widget
-    widget.close()
-    app.processEvents()
 
 
 def test_busy_preview_keeps_event_loop_running_and_only_delivers_latest_request(window):

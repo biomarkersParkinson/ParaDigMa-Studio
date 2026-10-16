@@ -128,7 +128,7 @@ New-Item -ItemType Directory -Force build-reports | Out-Null
 | Report | Measures |
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
-| `ui-performance.json` | Synthetic input switching, settings, Results interactions, exports and history |
+| `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
 | `pan-performance.json` | Results time scrolling and interval selection, raw toolbar drags and queued painting |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 

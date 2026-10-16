@@ -56,7 +56,7 @@ def benchmark(report_path):
             name: version(name)
             for name in ("paradigma", "PySide6", "matplotlib", "pandas", "numpy")
         },
-        "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; synthetic inputs and temporary history/exports only.",
+        "conditions": "Source app; Qt Fusion, 1450x920, warm scientific imports and OS caches. Three repeats per workflow, including queued Qt painting; series selection in all four graph views and table switching through visible module/output controls. Synthetic inputs and temporary history/exports only.",
         "sensor_rows": sensor_rows,
         "output_rows_per_table": output_rows,
         "history_records": 200,
@@ -181,33 +181,37 @@ def _benchmark_result_workflows(window, app, measure, frame, output_rows):
         lambda: window.result_tabs.setCurrentIndex(0),
     )
 
+    _benchmark_graph_series(window, app, measure)
+    return results
+
+
+def _benchmark_graph_series(window, app, measure):
     def series(checked):
         for item in list(window._series_items.values())[:3]:
             item.setCheckState(0, checked)
             app.processEvents()
 
-    measure("SELECT SERIES 3", lambda: series(Qt.Checked), lambda: series(Qt.Unchecked))
-    window.result_graph_view.setCurrentIndex(1)
+    views = (
+        ("Detailed", "SELECT SERIES 3"),
+        ("30-minute epochs", "SELECT EPOCH SERIES 3"),
+        ("Day", "SELECT DAY SERIES 3"),
+        ("24-hour profile", "SELECT PROFILE SERIES 3"),
+    )
+    for title, name in views:
+        index = window.result_graph_view.findText(title)
+        if index < 0:
+            raise RuntimeError(f"Graph view is unavailable: {title}")
+        window.result_graph_view.setCurrentIndex(index)
+        app.processEvents()
+        measure(name, lambda: series(Qt.Checked), lambda: series(Qt.Unchecked))
+    window.result_graph_view.setCurrentText("Detailed")
     app.processEvents()
-    measure("SELECT EPOCH SERIES 3", lambda: series(Qt.Checked), lambda: series(Qt.Unchecked))
-    window.result_graph_view.setCurrentIndex(0)
-    app.processEvents()
-    return results
 
 
 def _benchmark_result_interactions(window, app, measure):
-    measure(
-        "SELECT ROWS 10",
-        lambda: [
-            (
-                window.result_table.setCurrentIndex(
-                    window.result_table.model().index(index * 10, 0)
-                ),
-                app.processEvents(),
-            )
-            for index in range(10)
-        ],
-    )
+    _benchmark_table_interactions(window, app, measure)
+    window.result_tabs.setCurrentIndex(1)
+    app.processEvents()
     origin = dates.date2num(pd.Timestamp(window.display_clock["origin"]))
     measure(
         "GRAPH CLICKS 10",
@@ -217,6 +221,42 @@ def _benchmark_result_interactions(window, app, measure):
                     SimpleNamespace(
                         inaxes=window.figure.axes[0], xdata=origin + (index * 8 + 1) / 86400
                     )
+                ),
+                app.processEvents(),
+            )
+            for index in range(10)
+        ],
+    )
+
+
+def _select_result_table(window, name):
+    """Use the same module tabs and output selector as an interactive user."""
+    if not window.table_module_tabs.isVisible() or not window.table_dataset.isVisible():
+        raise RuntimeError("Table controls must be visible during the workflow benchmark.")
+    module = name.split("/")[1]
+    modules = [
+        window.table_module_tabs.tabData(index) for index in range(window.table_module_tabs.count())
+    ]
+    if module not in modules:
+        raise RuntimeError(f"Table module is unavailable: {module}")
+    window.table_module_tabs.setCurrentIndex(modules.index(module))
+    index = window.table_dataset.findData(name)
+    if index < 0:
+        raise RuntimeError(f"Output table is unavailable: {name}")
+    window.table_dataset.setCurrentIndex(index)
+
+
+def _benchmark_table_interactions(window, app, measure):
+    window.result_tabs.setCurrentIndex(2)
+    app.processEvents()
+    _select_result_table(window, "quantifications/tremor")
+    app.processEvents()
+    measure(
+        "SELECT ROWS 10",
+        lambda: [
+            (
+                window.result_table.setCurrentIndex(
+                    window.result_table.model().index(index * 10, 0)
                 ),
                 app.processEvents(),
             )
@@ -237,13 +277,14 @@ def _benchmark_result_interactions(window, app, measure):
         "TABLE SWITCH 10",
         lambda: [
             (
-                window.dataset.setCurrentText(
-                    "classifications/tremor" if index % 2 else "quantifications/tremor"
+                _select_result_table(
+                    window, "classifications/tremor" if index % 2 else "quantifications/tremor"
                 ),
                 app.processEvents(),
             )
             for index in range(10)
         ],
+        lambda: _select_result_table(window, "classifications/tremor"),
     )
 
 
