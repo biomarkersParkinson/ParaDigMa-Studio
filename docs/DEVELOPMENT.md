@@ -35,10 +35,11 @@ Build on Windows; a Linux build does not generate a Windows executable.
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
 .\.venv\Scripts\python.exe -m mypy
-.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
 .\.venv\Scripts\python.exe scripts/build_desktop.py
 .\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
-.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report performance.json
+New-Item -ItemType Directory -Force build-reports | Out-Null
+.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
 ```
 
 Distribute the entire `dist\ParaDigMaStudio` folder. The portable executable
@@ -56,6 +57,8 @@ files for ParaDigMa or Open Movement. Model assets, package metadata and native
 dependencies are retained. The packaged check rejects leftover app versions
 and unexpected files at the top of the app folder.
 
+## Quality gates and implementation conventions
+
 Both Windows workflows enforce the pinned Ruff formatter, error and import
 checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
 modernization (`UP`) rules. Functions are limited to McCabe complexity 10
@@ -64,6 +67,8 @@ scripts and tests. Statement counts catch long, straight-line builders that a
 complexity limit alone allows. Both workflows also run mypy API checks. Split
 large or complex functions into cohesive helpers; keep any rule-specific
 suppression narrow and explain its reason in a nearby comment.
+Keep functions around 100 lines or fewer; statement and branch counts apply
+independently of physical length.
 Ruff rejects unused suppressions (`RUF100`). The documented immutable Qt
 `QModelIndex()` default is allowed for native model method signatures.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
@@ -89,6 +94,8 @@ dependencies. The script reports every oversized module and exits with failure;
 there are no exemptions. Extract cohesive components or helpers before reaching
 the limit, preserving explicit dependencies and deferred imports.
 
+## CI artifacts
+
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
 builds the application, launches the packaged executable away from the checkout,
 and records startup measurements, package versions, source commit and checksums.
@@ -108,7 +115,7 @@ python -m venv .venv
 .venv/bin/python -m ruff check src scripts tests desktop.py
 .venv/bin/python -m ruff format --check src scripts tests desktop.py
 .venv/bin/python -m mypy
-QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest -q
+QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
 .venv/bin/python desktop.py
 ```
 
@@ -135,9 +142,10 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 - `job_controller`, `result_controller`, `export_controller` and `shell_controller`;
 - `workspace_state`, `result_data`, `previews`, `storage` and `exports`.
 
-The nine modules in this expanded scope require complete function annotations
-(`disallow_untyped_defs`) and check helper bodies (`check_untyped_defs`), including
-job operations, preview completion and export writers. Callback protocols describe
+The controller and supporting-service modules listed above require complete
+function annotations (`disallow_untyped_defs`) and check helper bodies
+(`check_untyped_defs`), including job operations, preview completion and export
+writers. Callback protocols describe
 optional arguments and service dependencies; atomic writes distinguish text and
 binary streams. Existing service checks remain lenient, and the remaining UI and
 controller modules can be typed incrementally. Extend both the `files` list and
@@ -203,17 +211,12 @@ and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analys
 the gate, including modules with no tests. Other Studio modules and the upstream
 toolbox are outside this initial reporting scope; this is not whole-app coverage.
 The source scope, branch mode and floor live in `pyproject.toml`.
-The initial Linux full-suite baseline is 90.2% of statements and 76.5% of branch
-outcomes, or 87.0% combined across 16 modules (893 tests passed, one skipped).
+The initial Linux measurement at [commit `e8bd902`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/e8bd902)
+recorded 90.2% of statements and 76.5% of branch outcomes, or 87.0% combined across
+16 modules (893 tests passed, one skipped). This is a dated baseline.
 
-Run the same coverage check locally after installing `.[dev]`:
-
-```bash
-python -m pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
-```
-
-On a headless machine, set `QT_QPA_PLATFORM=offscreen` as in the Linux commands
-above. XML is written to `test-reports/coverage.xml`; open
+The Windows and Linux commands above include the same coverage flags as CI.
+XML is written to `test-reports/coverage.xml`; open
 `test-reports/coverage-html/index.html` to inspect missing lines and branch exits.
 Both reports are retained with JUnit in the CI test-results artifact, outside the
 application bundle. Raw `.coverage*` data and generated reports are ignored by Git.

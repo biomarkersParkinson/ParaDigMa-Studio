@@ -3,7 +3,7 @@
 These captures span earlier development revisions and do not show the current
 interface. Some show controls or labels that have since been removed, including
 the context-duration editor and broader graph settings. The accompanying text is
-also historical. Use the [current workspace guide](../WORKSPACE.md) and
+also historical. Use the [current workflow](../../README.md#your-first-analysis) and
 [user guide](../USER_GUIDE.md) for present behavior.
 
 These screenshots show the native Qt development build using public sensor examples bundled with ParaDigMa. Windows executables are built and checked by the repository's GitHub Actions workflow.

@@ -1,6 +1,7 @@
 # Using ParaDigMa Studio
 
 See the [README](../README.md) for downloading the Windows app and the basic workflow.
+The sidebar has Data, Analyze, Results and Runs pages and expands on hover.
 
 **About** at the bottom of the sidebar (or **F1**) has **Overview**, **Citations**
 and **Licences** tabs. **Copy BibTeX**, in Citations, copies the 2026 JOSS paper
@@ -96,6 +97,8 @@ remain those of the official package. See [scientific tests](SCIENTIFIC_TESTS.md
 
 ## Inspecting data and results
 
+### Data
+
 Data **Overview** separates sensor and time statistics:
 
 - Sensor range is minimum–maximum; median and IQR (75th minus 25th percentile)
@@ -110,6 +113,8 @@ Data **Graphs** overlays checked channels of the same modality with stable color
 and a legend. Each modality has its own value axis and shares the time axis.
 Values retain their file units. Data **Tables** shows original samples.
 
+### Results overview
+
 Results **Overview** shows official aggregates and relevant pipeline metadata in
 module cards. Recording summaries show the timespan, data coverage in days and
 hours plus its percentage of the timespan, and gaps, without duplicating
@@ -120,11 +125,13 @@ unfiltered segment durations, with 20 seconds in the ≥20-second bin. Other bar
 labels use one decimal, except CV ratios, which use two. Individual segment records
 remain in the metadata export; display rounding does not change official values.
 
+### Results graphs
+
 Results **Graphs** compares classifications and quantifications across modules.
 Check metrics in **Plot series**. Aligned plots share one time axis, with time and
 date on separate lines. Compact plot rows fit more graphs on screen. The axis
-stays visible while scrolling and follows pan
-and zoom. Dates come from the original recording when available. **Time origin**
+stays visible while scrolling through graphs and follows the visible time range.
+Dates come from the original recording when available. **Time origin**
 in Analyze provides a calendar and clock for overriding analysis time zero;
 **Default** restores the derived value. Uncheck it to show elapsed seconds.
 This setting affects presentation only and is saved with run parameters. Known
@@ -167,6 +174,11 @@ Filtered-positive intervals are restricted to detected gait. These describe indi
 windows; ParaDigMa's final sample segmentation additionally averages overlapping
 probabilities. Raw tables retain the official probability columns.
 
+#### Graph views
+
+Graph summaries affect presentation only; tables, data exports and official
+aggregates retain their original values.
+
 **View**, at the right of the figure toolbar, switches all graphs between Detailed,
 30-minute epochs, Day and 24-hour profile. Continuous epoch values show the median; binary predictions show
 percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
@@ -174,7 +186,8 @@ aggregate transformation; epoch medians are calculated after this transformation
 The y-axis labels identify the log scale. Tables and data exports retain raw power.
 Bar graphs use automatic y-axis limits based on the visible values, including
 prediction and data-coverage percentages; they are not fixed to 0–100%.
-Manual limits override this scaling until automatic scaling or Reset limits is selected.
+Manual Y limits stay fixed while scrolling or zooming, until Automatic or Reset
+limits is selected.
 Detailed and 30-minute views share a time-axis layout: thin vertical separators
 mark midnight continuously across the graphs and their gaps, with clock times
 above dates. Dates stay centered beneath their days. The first date aligns left
@@ -184,7 +197,7 @@ unspecified when the original data has none). Labels adapt to width and zoom,
 keeping midnight times visible across multiple days and spacing them out on longer ranges. Zooming
 in reveals hours, minutes, seconds and fractions of a second as needed. Without a
 calendar clock, elapsed Day 1, Day 2 and clock-style times are shown instead.
-Saved figures retain both rows. Bars and aggregation rules remain the same.
+Saved figures retain both rows.
 Epochs align to calendar half-hours when a recording clock is known,
 or elapsed half-hours otherwise. Gait range of motion and peak velocity require
 at least 90 seconds of the corresponding filtered or unfiltered gait presence
@@ -193,8 +206,7 @@ Overlapping presence intervals count once. The same threshold applies to partial
 epochs, and unknown presence leaves the median blank. For older saved results
 without gait classifications, known gait-segment boundaries provide the fallback.
 Data coverage instead shows covered time as a percentage of the recording span
-within each epoch, including partial edge epochs. These summaries affect graphs
-only; tables, exports and official aggregates remain unchanged.
+within each epoch, including partial edge epochs.
 
 **Day** groups outputs by calendar day, from midnight to midnight in the recording's
 display timezone, including daylight-saving changes. Without an absolute clock,
@@ -228,7 +240,7 @@ recording clock, slots use elapsed 24-hour periods starting at analysis zero.
 Clicking a bar selects its half-hour slot and displays the contributing-day count;
 it does not select one dated sample. Use Tables or another graph view for sensor
 context. Profile X limits accept HH:MM or seconds since midnight; Reset limits and
-Home restore the full 24-hour range. Original tables and exports remain unchanged.
+Home restore the full 24-hour range.
 
 Plots are grouped by module, following Plot series order, and long
 series names wrap in full. The default selection is gait presence (prediction),
@@ -239,13 +251,15 @@ is excluded from both denominators. Other binary outcomes use finite observation
 Missing outputs stay blank. Click module titles to expand or collapse Plot series;
 tremor offers checked presence, arm-at-rest predictions and tremor power.
 
+### Results tables
+
 Results **Tables** uses module-colored Gait, Tremor and Pulse rate tabs. Select the
 classification, quantification or aggregation table using **Output table**. Original
 columns and values are the default. **Timing details** adds display-only clock and
 gait annotations. Aggregation dictionaries are ordered measure/value tables.
 Zooming never filters table rows or recalculates aggregates.
-Automatic vertical limits follow the visible result bars, including any extreme
-values in that time interval. Manual limits remain fixed when panning or zooming.
+
+### Sensor context
 
 **Inspect sensor context**, alongside the recording-time label at the bottom right of Graphs, links a selected row or
 clicked bar to original samples. A vertical marker and the pinned axis identify the
@@ -272,6 +286,8 @@ the original ±10-second context or complete gait segment, including after
 channel changes; Back can return to the view before Home.
 The selected result time is marked whenever it is in view.
 Clicking either a checkbox or its label toggles a channel or plot series.
+
+### Graph controls
 
 Results graphs have **Select timepoint** (default), **Select time interval**, **Zoom in** and
 **Zoom out**. Click a plotted timepoint to mark it; its date and time appear above
@@ -311,6 +327,8 @@ per channel; result bars and binary indicators retain every output.
 
 ## Exports and run history
 
+### Exports
+
 **Export…** appears on every Results tab. Choose a format and check which original
 tables or metadata groups to include:
 
@@ -321,21 +339,25 @@ tables or metadata groups to include:
 - **CSV:** one table exports as CSV. Multiple tables or metadata selections export as
   a ZIP containing separate CSV files, selected metadata JSON and analysis provenance.
   Scientific tables retain their original columns; formula-like text is neutralized.
-- **Save results:** stores all outputs, metadata and analysis provenance in
-  `%LOCALAPPDATA%\ParaDigMaStudio\runs\results` on new Windows installations. Use **Open results** in
-  Runs to restore them after restarting. Saving runs in the background; original
-  recordings are not copied. The button appears on every Results tab.
-- **Runs:** stores status, parameters, separate warnings and errors, logs and saved
-  result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
-  The **Recordings** tab lists the selected run's input filenames and paths.
-  Detail tabs are ordered Recordings, Parameters, Warnings, Errors,
-  Processing log, Saved run and Exports.
-  **Saved** reports whether a local result snapshot is available; **Exports** counts
-  separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
-  Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
-  stores all unsaved runs before closing. Exporting, including complete JSON,
-  does not mark a run as saved locally or clear that warning. Complete legacy
-  exports can still reopen through **Open exported results**; local saves take precedence.
+
+### Saved runs
+
+**Save results** stores all outputs, metadata and analysis provenance in
+`%LOCALAPPDATA%\ParaDigMaStudio\runs\results` on new Windows installations. Use
+**Open results** in Runs to restore them after restarting. Saving runs in the
+background; original recordings are not copied. The button appears on every Results tab.
+
+**Runs** stores status, parameters, separate warnings and errors, logs and saved
+result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
+The **Recordings** tab lists the selected run's input filenames and paths.
+Detail tabs are ordered Recordings, Parameters, Warnings, Errors,
+Processing log, Saved run and Exports.
+**Saved** reports whether a local result snapshot is available; **Exports** counts
+separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
+Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
+stores all unsaved runs before closing. Exporting, including complete JSON,
+does not mark a run as saved locally or clear that warning. Complete legacy
+exports can still reopen through **Open exported results**; local saves take precedence.
 
 Existing installations continue using their earlier `ParaDigMaDesktop` history
 folder when a Studio history folder does not yet exist. Saved result files stay

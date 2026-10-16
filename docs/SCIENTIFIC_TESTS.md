@@ -1,9 +1,10 @@
 # Scientific equivalence tests
 
-`tests/test_scientific_equivalence.py` checks whether the desktop wrapper computes
-the same results as an independent official ParaDigMa 1.1.2 workflow for identical
-inputs and settings. These are regression and integration tests of the wrapper;
-they do not establish clinical accuracy or validate new scientific algorithms.
+`tests/test_scientific_equivalence.py` and `tests/test_parallel_scientific.py`
+compare the wrapper with an independent official ParaDigMa 1.1.2 workflow using
+identical inputs and settings. These regression and integration tests check
+wrapper equivalence; they do not establish clinical accuracy or validate new
+scientific algorithms.
 
 ## Basis in the official automated tests
 
@@ -155,11 +156,11 @@ QT_QPA_PLATFORM=offscreen python -m pytest -m scientific -q
 ```
 
 The normal `python -m pytest` command also includes these tests. Both Windows
-build workflows run them before packaging and publish their JUnit report as the
-`ParaDigMaStudio-test-results` artifact, including reports from failed tests.
-The committed fixtures make the suite
-self-contained: no upstream checkout, network download, extra pytest plugin or
-patient recording is required.
+build workflows run them before packaging and publish JUnit and coverage reports
+in `ParaDigMaStudio-test-results`, including reports from failed tests.
+The committed fixtures make the suite self-contained: no upstream checkout,
+fixture download or patient recording is required. Install `.[dev]` for the
+[CI coverage check](DEVELOPMENT.md#branch-coverage).
 
 The [test suite guide](TEST_SUITE.md) describes the feature-based organization
 and shared UI helpers. The scientific cases, their independent references and
@@ -191,10 +192,6 @@ percentage denominator, conditional filtering, unequal cadences, gaps and missin
 filter predictions, overlapping recordings, and recording/participant isolation.
 Filtered gait cannot exceed gait presence in any epoch; unknown time is excluded
 from both denominators. Prepared-input availability comes from the exact pipeline inputs.
-Other tests exercise real Qt wheel/touchpad events, the pinned time axis, source-clock
-precision and Analyze's calendar defaults, including wider Windows-sized editors.
-Selective JSON/CSV/ZIP tests retain native columns, metadata and integer precision,
-neutralize spreadsheet formulas and protect every original input from overwriting.
 `test_parallel_scientific.py` compares real spawned recording workers with the
 independent official batch workflow, including unequal recorded IMU inputs, both
 watch sides, all module groups, missing-sample and difference-time preparation,
@@ -202,17 +199,9 @@ gap sections, custom duration categories/statistics, empty gait outcomes and
 partial failures. Gait segment IDs and metadata are reconciled in input order;
 official aggregation functions consume pooled quantifications. Original samples,
 classifications, quantifications, aggregates and metadata must remain equivalent.
-Protocol tests verify overlapping execution, worker reuse and input ordering,
-single-recording routing, CPU/RAM limits and cleanup after processing or aggregation
-cancellation and worker failure. The frozen smoke probe forces a small two-worker
-batch to verify spawned imports and private transfers in the executable.
-Cancellation tests stop actual owned child processes and verify cleanup. Run-deletion
-tests require confirmation and protect original inputs, TSDF companions and shared exports.
-Analyze is checked with larger native controls, labels, checkboxes and buttons.
-At 1200 × 900 every parameter must fit without scrolling and rows must retain
-comfortable separation. At 960 × 650 every control must be fully reachable by
-scrolling while Run Analysis stays visible. Uniform help buttons expand guidance;
-closing help and enlarging the window must restore the original layout.
+The frozen smoke probe forces a small two-worker batch to verify spawned imports
+and private transfers in the executable. See the [test suite map](TEST_SUITE.md#regression-coverage-map)
+for separate worker-policy, cancellation, security and UI/layout regressions.
 
 Upstream's historical IMU preprocessing reference test is currently skipped
 because its stored output needs regeneration. This suite does not copy that

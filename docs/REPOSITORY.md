@@ -13,14 +13,14 @@ Actions artifacts, rather than in the source repository.
 | `src/paradigma_studio/data/notices/` | Packaged Studio licence and ParaDigMa acknowledgement, licence and citation files |
 | `tests/` | UI, processing, security, startup, performance and scientific-equivalence tests |
 | `tests/data/paradigma/` | Independent official reference fixtures and checksums, excluded from the executable |
-| `scripts/` | Build, frozen-app verification, benchmarks, dependency auditing and signing |
+| `scripts/` | Build/CI checks, frozen-app verification, benchmarks, dependency auditing, releases and signing |
 | `docs/` | Current user, developer, validation and performance guides; start with `docs/README.md` |
 | `docs/archive/` | Version-specific audits, measurements and historical screenshots |
 | `.github/workflows/` | Ordinary and signed Windows build pipelines |
 
 `desktop.py` is the launcher. `pyproject.toml` defines dependencies, packaging,
-pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md` and
-`SIGNING.md` describe the distribution and publisher workflows.
+pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
+`SECURITY.md` and `SIGNING.md` describe the distribution and publisher workflows.
 
 ## Application boundaries
 
@@ -30,7 +30,7 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 | Explicit integration aliases for existing window attributes and methods | `ui/compatibility.py` |
 | Input, result, run, sensor, job and presentation state | `workspace_state.py` |
 | Recording loading, inspection previews and raw Data graphs | `data_controller.py` |
-| Analysis controls, origin previews and run configuration | `analysis_controller.py` |
+| Analysis controls, field guidance, origin previews and run configuration | `analysis_controller.py`, `analysis_help.py` |
 | Worker creation, control restoration, failure and cancellation actions | `job_controller.py` |
 | Result tables, detail selection, series and shared view controls | `result_workspace_controller.py` |
 | Exports, save actions and unsaved-close handling | `export_controller.py` |
@@ -45,14 +45,16 @@ pytest, Ruff and mypy checks. `README.md` is the user entry point; `SECURITY.md`
 | Results rendering and linked graph selection | `ui/result_graphs.py`; cached summaries and display transforms in `ui/result_plot_data.py` |
 | Shared channel selection and original sensor plotting | `channels.py` |
 | Original output tables, presentation timing and optional table columns | `result_data.py`, `results_view.py` |
-| Official ParaDigMa loading, preparation and orchestration | `core.py`, `empatica.py`, `recordings.py` |
+| Recording loading, TSDF scaling, preparation and official ParaDigMa orchestration | `core.py`, `empatica.py`, `tsdf_input.py`, `recordings.py` |
 | Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py` |
 | Ordered recording-output merging and official pooled aggregation | `recording_results.py` |
 | Read-only, replaceable recording previews | `previews.py`, `inspection.py` |
-| Coverage, epoch summaries, gait presence and overview charts | `availability.py`, `epochs.py`, `gait_presence.py`, `gait_overview.py`, `overview.py` |
+| Prepared coverage, gait presence and overview charts | `availability.py`, `gait_presence.py`, `gait_overview.py`, `overview.py` |
+| Half-hour, day and 24-hour-profile summaries | `epochs.py`, `daily.py`, `epoch_profile.py` |
 | Export selection, encoding and safe file writes | `exports.py`, `serialization.py`, `storage.py` |
 | Reusable Qt controls, lazy run-record tables and forms | `widgets.py`, `time_controls.py` |
 | Graph controls, rendering, selection overlay and pinned time axis | `plot_controls.py`, `plotting.py`, `time_axis.py` |
+| Results date/time labels and fixed Y-axis layout | `day_axis.py`, `epoch_axis.py`, `profile_axis.py`, `result_layout.py` |
 | Results time navigation, interval painting and history | `result_navigation.py`, `result_canvas.py` |
 | Application identity, compatible user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |
 | Matplotlib font-cache initialization | `bootstrap.py`, `plot_cache.py` |
@@ -95,10 +97,10 @@ use a plain `QMainWindow`, while ordering tests pin signal delivery, GUI-thread
 completion, control restoration and queued close after saving. The full UI
 regressions cover composition and saved-run compatibility.
 
-Keep functions around 100 lines or fewer. Extract named helpers for validation,
-preparation, execution and rendering, with explicit inputs and return values.
-Ruff enforces a McCabe complexity limit of 10 across application code, scripts
-and tests. Explain any narrow lint suppression beside the affected code.
+Extract named helpers for validation, preparation, execution and rendering, with
+explicit inputs and return values.
+Follow the [quality gates and implementation conventions](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
+for function/module size, branching, complexity, typing and justified suppressions.
 Preserve calculation order, Qt construction order, lazy imports and assertions;
 this also applies to smoke checks, benchmarks and tests.
 

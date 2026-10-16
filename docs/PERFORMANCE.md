@@ -115,7 +115,7 @@ Windows packaged measurements on representative recordings are still needed
 before a platform-wide performance guarantee; these are warm-cache Linux tests,
 not clinical throughput estimates or a long-session memory-leak proof.
 
-## Reproduce measurements
+## Earlier optimization measurements
 
 A Linux source-launch check on 15 October 2026 compared commit `b1ae33a` with
 first-use graph construction. After one warmup per version, five fresh processes
@@ -170,6 +170,8 @@ repetition of the bundled recorded IMU fixture (583,576 rows; about 97 minutes).
 Complete runtime, including process startup, private transfers and pooled
 aggregation, decreased from 8.72 s to 7.09 s with two workers. All result values
 matched. This one measurement is not a timing guarantee for Windows or other data.
+
+## Reproduce measurements
 
 Install the development dependencies and build on Windows as described in
 [Development](DEVELOPMENT.md). Run from the repository root in PowerShell:

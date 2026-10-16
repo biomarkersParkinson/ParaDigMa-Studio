@@ -5,7 +5,7 @@ scientific values, supported file formats, user workflows, responsiveness and
 packaging. A fixed historical bug remains a useful regression test when its
 trigger and expected behavior still apply.
 
-## Coverage map
+## Regression coverage map
 
 | Responsibility | Test modules |
 | --- | --- |
@@ -13,7 +13,7 @@ trigger and expected behavior still apply.
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
 | Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py`, `test_tsdf_input.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
-| Spawned recording workers, limits, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
+| Spawned recording workers, CPU/RAM policy, CPU affinity, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
 | Raw-graph time encodings, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
@@ -73,17 +73,11 @@ Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
 views. Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 
-Run the suite and style checks using the [development commands](DEVELOPMENT.md).
-Both Windows workflows also check typed service and controller APIs with mypy
-and enforce Ruff's expanded rules and function complexity, statement and branch
-limits. These checks complement the runtime and scientific tests; they do not
-replace them.
-The [type-checking scope](DEVELOPMENT.md#type-checking) includes the job,
-result, export and shell controllers and their supporting services; those added
-modules require complete function annotations.
-CI also measures branch coverage of controllers and worker/error boundaries with
-an 80% floor. The [coverage commands and scope](DEVELOPMENT.md#branch-coverage)
-describe reports, partial local measurements and subprocess collection.
+Use the [development commands](DEVELOPMENT.md) for local and CI checks.
+That guide maintains the [lint and size limits](DEVELOPMENT.md#quality-gates-and-implementation-conventions),
+[mypy scope](DEVELOPMENT.md#type-checking), and
+[branch-coverage scope, floor and reports](DEVELOPMENT.md#branch-coverage).
+Static checks complement the runtime and scientific tests; they do not replace them.
 The [scientific methodology](SCIENTIFIC_TESTS.md) explains the independent
 references, tolerances and limits. Native Windows execution and signature checks
 remain responsibilities of the Windows build workflows.

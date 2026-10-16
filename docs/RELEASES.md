@@ -5,7 +5,9 @@ Public versions use Python-compatible version numbers and matching Git tags:
 versions are published as GitHub prereleases; ordinary versions are stable releases.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
-2. Run Ruff, formatting, mypy and the complete test suite, including the smoke check.
+2. Run the [development checks](DEVELOPMENT.md):
+   module-size, Ruff/format, mypy and the full suite with branch coverage and its
+   configured floor. The tagged workflow also verifies the packaged executable.
 3. Merge the preparation into `main`; create an annotated `v<version>` tag on that
    exact commit and push the tag. Never move a published release tag.
 4. The tagged **Windows desktop** workflow audits dependencies, runs tests, builds
