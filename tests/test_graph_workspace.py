@@ -693,7 +693,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
         line.get_gid() == "selected-result-point" for ax in window.figure.axes for line in ax.lines
     )
     window.activate_dataset_rows()
-    assert not window._result_selection_artists
+    assert not window._graph_state._result_selection_artists
     assert not window.time_axis.selection_marker.get_visible()
     assert not window.context_button.isEnabled()
     np.testing.assert_array_equal(states.pred_tremor, [0.0, 1.0, np.nan, 0.0])

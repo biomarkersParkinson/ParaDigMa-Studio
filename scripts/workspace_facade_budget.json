@@ -1,12 +1,10 @@
 {
-  "max_lines": 228,
+  "max_lines": 226,
   "aliases": [
     "_acknowledgements_dialog",
     "_data_graph",
     "_data_plot_dirty",
     "_detail_selections",
-    "_result_selection_artists",
-    "_result_shared_axes",
     "_result_view_layouts",
     "_result_view_scrolls",
     "_sensor_context",

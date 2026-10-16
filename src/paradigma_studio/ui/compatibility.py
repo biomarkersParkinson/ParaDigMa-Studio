@@ -22,8 +22,6 @@ _PORTS = {
     "_sensor_navigator": state_property("_sensor_state", "_sensor_navigator"),
     "_data_plot_dirty": state_property("_data_state", "_data_plot_dirty"),
     "worker": state_property("_job_state", "worker"),
-    "_result_selection_artists": state_property("_graph_state", "_result_selection_artists"),
-    "_result_shared_axes": state_property("_graph_state", "_result_shared_axes"),
     "sidebar_collapsed": state_property("_shell_state", "sidebar_collapsed"),
     "_acknowledgements_dialog": state_property("_shell_state", "_acknowledgements_dialog"),
     "_series_items": state_property("_result_state", "_series_items"),

@@ -345,7 +345,7 @@ def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch)
         window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
         app.processEvents()
     assert not draws
-    assert window._result_selection_artists
+    assert window._graph_state._result_selection_artists
     optimized = np.asarray(window.canvas.buffer_rgba()).copy()
     window.canvas.draw()
     np.testing.assert_array_equal(np.asarray(window.canvas.buffer_rgba()), optimized)
@@ -357,7 +357,7 @@ def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch)
     stream = BytesIO()
     window.figure.savefig(stream, format="png")
     assert stream.getvalue().startswith(b"\x89PNG")
-    assert window._result_selection_artists  # Export does not discard selection.
+    assert window._graph_state._result_selection_artists  # Export does not discard selection.
 
 
 def test_discarded_results_release_render_and_sensor_context_views(window):
@@ -372,12 +372,14 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.inspect_sensor_context()
     assert window.sensor_frame is not None
-    assert window._result_state._bar_bounds and window._result_shared_axes is not None
+    assert window._result_state._bar_bounds and window._graph_state._result_shared_axes is not None
     window.clear_results()
     assert window.sensor_frame is None and window.display_frame is None
     assert window.sensor_table.model() is None
     assert not window.sensor_figure.axes and not window.figure.axes
-    assert not window._result_state._bar_bounds and not window._result_selection_artists
-    assert window._result_shared_axes is None
+    assert (
+        not window._result_state._bar_bounds and not window._graph_state._result_selection_artists
+    )
+    assert window._graph_state._result_shared_axes is None
     # Clearing outputs preserves the loaded source for subsequent analyses.
     assert window.frame is frame

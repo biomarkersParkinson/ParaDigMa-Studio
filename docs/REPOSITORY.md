@@ -85,8 +85,9 @@ The existing window entry points delegate to these components:
 `ui/compatibility.py` retains a shrinking subset of legacy window attributes and
 methods; components do not use that facade. New integrations should use the
 owning state/controller or the service APIs, rather than add window aliases.
-Run history and selection use `window._run_state` directly; no RunState aliases
-remain on the window. Widely used UI/callback ports remain. The
+Run history and graph rendering use `window._run_state` and `window._graph_state`
+directly; no RunState or GraphState aliases remain on the window. Widely used
+UI/callback ports remain. The
 [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
 requires its name and line budgets to shrink alongside removals. The reusable
 `component_attribute` descriptor belongs to `ui/component_ports.py`; it supports

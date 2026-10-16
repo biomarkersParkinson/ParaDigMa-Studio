@@ -215,7 +215,7 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
     assert window.time_axis.selection_label.get_text() == "00:00–00:30 · 2 days"
     point = next(
         artist
-        for artist in window._result_selection_artists
+        for artist in window._graph_state._result_selection_artists
         if artist.get_gid() == "selected-result-point"
     )
     assert point.get_xdata()[0] == 900 and point.get_ydata()[0] == 2.5

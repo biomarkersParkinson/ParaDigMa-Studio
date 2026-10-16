@@ -174,7 +174,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     assert window.result_table.currentIndex().row() == 1
     marker = next(
         artist
-        for artist in window._result_selection_artists
+        for artist in window._graph_state._result_selection_artists
         if artist.get_gid() == "selected-result-point"
     )
     assert marker.get_ydata()[0] == pytest.approx(np.log10(6))

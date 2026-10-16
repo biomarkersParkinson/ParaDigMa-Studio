@@ -85,7 +85,7 @@ def test_detailed_power_keeps_narrow_peaks_visible_and_marks_transformed_selecte
     window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=100002.0))
     marker = next(
         artist
-        for artist in window._result_selection_artists
+        for artist in window._graph_state._result_selection_artists
         if artist.get_gid() == "selected-result-point"
     )
     assert marker.get_ydata()[0] == pytest.approx(peak)
