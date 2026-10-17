@@ -76,7 +76,6 @@ _PORTS = {
     "results_source": component_attribute("_layout"),
     "run_button": component_attribute("_layout"),
     "run_detail_tabs": component_attribute("_layout"),
-    "run_details": component_attribute("_layout"),
     "run_errors": component_attribute("_layout"),
     "run_heading": component_attribute("_layout"),
     "run_outputs": component_attribute("_layout"),

@@ -1,5 +1,5 @@
 {
-  "max_lines": 196,
+  "max_lines": 195,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
@@ -116,7 +116,6 @@
     "run_analysis",
     "run_button",
     "run_detail_tabs",
-    "run_details",
     "run_errors",
     "run_heading",
     "run_outputs",

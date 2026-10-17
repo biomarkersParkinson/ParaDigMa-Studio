@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
         self._overview = ResultOverview(
             self._layout.overview_layout, self._layout._result_view_scrolls[0]
         )
-        self._series = ResultSeries(self.result_series)
+        self._series = ResultSeries(self._layout.result_series)
         self._compose_run_controller()
         self._compose_result_controller()
 
@@ -204,21 +204,21 @@ class MainWindow(QMainWindow):
 
     def _compose_run_controller(self):
         run_view = RunView(
-            status=self.status,
-            log=self.log,
-            run_table=self.run_table,
-            run_heading=self.run_heading,
-            run_summary=self.run_summary,
-            run_details=self.run_details,
-            run_recordings=self.run_recordings,
-            run_warnings=self.run_warnings,
-            run_errors=self.run_errors,
-            run_saved=self.run_saved,
-            run_outputs=self.run_outputs,
-            open_run_button=self.open_run_button,
-            use_parameters_button=self.use_parameters_button,
-            delete_run_button=self.delete_run_button,
-            clear_runs_button=self.clear_runs_button,
+            status=self._layout.status,
+            log=self._layout.log,
+            run_table=self._layout.run_table,
+            run_heading=self._layout.run_heading,
+            run_summary=self._layout.run_summary,
+            run_details=self._layout.run_details,
+            run_recordings=self._layout.run_recordings,
+            run_warnings=self._layout.run_warnings,
+            run_errors=self._layout.run_errors,
+            run_saved=self._layout.run_saved,
+            run_outputs=self._layout.run_outputs,
+            open_run_button=self._layout.open_run_button,
+            use_parameters_button=self._layout.use_parameters_button,
+            delete_run_button=self._layout.delete_run_button,
+            clear_runs_button=self._layout.clear_runs_button,
         )
         run_callbacks = RunCallbacks(
             show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
@@ -244,12 +244,12 @@ class MainWindow(QMainWindow):
 
     def _compose_result_controller(self):
         result_view = ResultView(
-            results_source=self.results_source,
-            dataset=self.dataset,
-            export_button=self.export_button,
-            save_results_button=self.save_results_button,
-            status=self.status,
-            result_tabs=self.result_tabs,
+            results_source=self._layout.results_source,
+            dataset=self._layout.dataset,
+            export_button=self._layout.export_button,
+            save_results_button=self._layout.save_results_button,
+            status=self._layout.status,
+            result_tabs=self._layout.result_tabs,
         )
         result_callbacks = ResultCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
@@ -284,18 +284,18 @@ class MainWindow(QMainWindow):
     @cached_property
     def _sensor_controller(self):
         sensor_view = SensorView(
-            result_table=self.result_table,
-            context_button=self.context_button,
-            dataset=self.dataset,
-            result_tabs=self.result_tabs,
-            sensor_tab_index=self.sensor_tab_index,
-            status=self.status,
-            sensor_tabs=self.sensor_tabs,
-            sensor_table=self.sensor_table,
-            sensor_channels=self.sensor_channels,
-            sensor_figure=self.sensor_figure,
-            sensor_toolbar=self.sensor_toolbar,
-            sensor_canvas=self.sensor_canvas,
+            result_table=self._layout.result_table,
+            context_button=self._layout.context_button,
+            dataset=self._layout.dataset,
+            result_tabs=self._layout.result_tabs,
+            sensor_tab_index=self._layout.sensor_tab_index,
+            status=self._layout.status,
+            sensor_tabs=self._layout.sensor_tabs,
+            sensor_table=self._layout.sensor_table,
+            sensor_channels=self._layout.sensor_channels,
+            sensor_figure=self._layout.sensor_figure,
+            sensor_toolbar=self._layout.sensor_toolbar,
+            sensor_canvas=self._layout.sensor_canvas,
         )
         channel_services = ChannelServices(
             selected_channels=lambda *args, **kwargs: self.selected_channels(*args, **kwargs),
@@ -476,35 +476,35 @@ class MainWindow(QMainWindow):
         )
 
     def _connect(self):
-        self.result_graph_view.currentIndexChanged.connect(self.plot)
-        self.data_tabs.currentChanged.connect(self.data_tab_changed)
-        self.prepared.toggled.connect(self.preparation_changed)
-        self.gaps.toggled.connect(self.preparation_changed)
-        self.drop_missing.toggled.connect(self.preparation_changed)
-        for name, item in self.module_buttons.items():
+        self._layout.result_graph_view.currentIndexChanged.connect(self.plot)
+        self._layout.data_tabs.currentChanged.connect(self.data_tab_changed)
+        self._layout.prepared.toggled.connect(self.preparation_changed)
+        self._layout.gaps.toggled.connect(self.preparation_changed)
+        self._layout.drop_missing.toggled.connect(self.preparation_changed)
+        for name, item in self._layout.module_buttons.items():
             item.toggled.connect(lambda checked, n=name: self.modules_changed(n, checked))
-        for combo in (self.acc, self.gyro, self.time):
+        for combo in (self._layout.acc, self._layout.gyro, self._layout.time):
             combo.currentTextChanged.connect(self.preparation_changed)
-        self.data_channels.itemChanged.connect(self.plot_input)
-        self.data_time_channel.currentIndexChanged.connect(self.refresh_data_descriptives)
-        self.time.currentTextChanged.connect(self.data_time_unit.setCurrentText)
-        self.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
-        self.data_time_unit.currentTextChanged.connect(self.input_plot_changed)
-        self.dataset.currentTextChanged.connect(self.select_dataset)
-        self.table_dataset.currentIndexChanged.connect(self.select_output_table)
-        self.table_module_tabs.currentChanged.connect(self.table_module_changed)
-        self.timing_toggle.toggled.connect(self.table_timing_changed)
-        self.y_column.currentIndexChanged.connect(self.update_metric)
-        self.result_series.itemChanged.connect(self.plot)
-        self.result_series.currentItemChanged.connect(self.select_plot_series)
-        self.clock_input.valueEdited.connect(self.origin_edited)
-        self.mapping.textChanged.connect(self.update_origin_default)
-        self.mapping.textChanged.connect(self.input_plot_changed)
-        for control in (self.time,):
+        self._layout.data_channels.itemChanged.connect(self.plot_input)
+        self._layout.data_time_channel.currentIndexChanged.connect(self.refresh_data_descriptives)
+        self._layout.time.currentTextChanged.connect(self._layout.data_time_unit.setCurrentText)
+        self._layout.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
+        self._layout.data_time_unit.currentTextChanged.connect(self.input_plot_changed)
+        self._layout.dataset.currentTextChanged.connect(self.select_dataset)
+        self._layout.table_dataset.currentIndexChanged.connect(self.select_output_table)
+        self._layout.table_module_tabs.currentChanged.connect(self.table_module_changed)
+        self._layout.timing_toggle.toggled.connect(self.table_timing_changed)
+        self._layout.y_column.currentIndexChanged.connect(self.update_metric)
+        self._layout.result_series.itemChanged.connect(self.plot)
+        self._layout.result_series.currentItemChanged.connect(self.select_plot_series)
+        self._layout.clock_input.valueEdited.connect(self.origin_edited)
+        self._layout.mapping.textChanged.connect(self.update_origin_default)
+        self._layout.mapping.textChanged.connect(self.input_plot_changed)
+        for control in (self._layout.time,):
             control.currentTextChanged.connect(self.update_origin_default)
-        for control in (self.prepared, self.drop_missing):
+        for control in (self._layout.prepared, self._layout.drop_missing):
             control.toggled.connect(self.update_origin_default)
-        self.sensor_channels.itemChanged.connect(self.plot_sensor)
+        self._layout.sensor_channels.itemChanged.connect(self.plot_sensor)
         self.modules_changed()
         self.preparation_changed()
 
