@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from importlib.metadata import version
 from threading import Event
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QLabel,
+    QLayout,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
@@ -32,6 +34,7 @@ from .results_view import (
 )
 from .time_controls import TimeField
 from .widgets import (
+    ContextComboBox,
     WrappedForm,
 )
 from .workspace_state import (
@@ -44,7 +47,19 @@ from .workspace_state import (
 )
 
 if TYPE_CHECKING:
-    from .contracts import AnalysisSettings, SensorInput
+    import logging
+
+    import pandas as pd
+
+    from .contracts import (
+        AnalysisResults,
+        AnalysisSettings,
+        ClockMetadata,
+        NoticeCallback,
+        RunRecord,
+        SensorInput,
+        StartJobCallback,
+    )
 
 
 @dataclass(frozen=True)
@@ -53,7 +68,7 @@ class AnalysisView:
     acc: QComboBox
     analysis_controls: WrappedForm
     analysis_help: dict[str, tuple[QPushButton, QLabel]]
-    analysis_help_panel: Any
+    analysis_help_panel: QWidget
     analysis_help_sections: dict[str, QWidget]
     analysis_scroll: QScrollArea
     clock_input: TimeField
@@ -62,14 +77,14 @@ class AnalysisView:
     gyro: QComboBox
     log: QPlainTextEdit
     mapping: QPlainTextEdit
-    max_gap: Any
-    min_segment: Any
+    max_gap: QDoubleSpinBox
+    min_segment: QDoubleSpinBox
     module_buttons: dict[str, QPushButton]
     module_requirements: QLabel
     orientation: QLineEdit
     prepared: QCheckBox
     run_button: QPushButton
-    side: QComboBox
+    side: ContextComboBox
     status: QLabel
     stop_button: QPushButton
     time: QComboBox
@@ -77,21 +92,25 @@ class AnalysisView:
 
 @dataclass(frozen=True)
 class AnalysisCallbacks:
-    analyzed: Callable[..., Any]
-    clear_results: Callable[..., Any]
-    failure: Callable[..., Any]
-    navigate: Callable[..., Any]
-    persist_run: Callable[..., Any]
-    refresh_runs: Callable[..., Any]
-    show_notice: Callable[..., Any]
-    start_job: Callable[..., Any]
+    analyzed: Callable[[AnalysisResults], None]
+    clear_results: Callable[[], None]
+    failure: Callable[[str], None]
+    navigate: Callable[[int], None]
+    persist_run: Callable[[RunRecord], bool]
+    refresh_runs: Callable[[], None]
+    show_notice: NoticeCallback
+    start_job: StartJobCallback
 
 
 @dataclass(frozen=True)
 class AnalysisServices:
-    recording_clock: Callable[..., Any]
-    preview_recording_clock: Callable[..., Any]
-    run_isolated_analysis: Callable[..., Any]
+    recording_clock: Callable[[pd.DataFrame, AnalysisSettings], ClockMetadata | None]
+    preview_recording_clock: Callable[
+        [dict[str, pd.DataFrame], AnalysisSettings], ClockMetadata | None
+    ]
+    run_isolated_analysis: Callable[
+        [SensorInput, AnalysisSettings, logging.Logger, Event], AnalysisResults
+    ]
 
 
 class AnalysisController(QObject):
@@ -122,11 +141,12 @@ class AnalysisController(QObject):
         self.previews = previews
         self.modules = modules
 
-    def toggle_analysis_help(self, title, checked):
+    def toggle_analysis_help(self, title: str, checked: bool) -> None:
         if self.analysis._updating_analysis_help:
             return
         self.analysis._updating_analysis_help = True
-        body = self.view.analysis_scroll.widget()
+        # The Analyze page installs its body and all three layouts before wiring help.
+        body = cast("QWidget", self.view.analysis_scroll.widget())
         updates = body.updatesEnabled()
         body.setUpdatesEnabled(False)
         try:
@@ -146,19 +166,19 @@ class AnalysisController(QObject):
             for widget in (self.view.analysis_help_panel, self.view.analysis_controls, body):
                 if isinstance(widget, WrappedForm):
                     widget._fit_height()
-                widget.layout().activate()
+                cast("QLayout", widget.layout()).activate()
         finally:
             body.setUpdatesEnabled(updates)
             self.analysis._updating_analysis_help = False
 
-    def selected_modules(self):
+    def selected_modules(self) -> list[str]:
         return [
             self.modules[name]
             for name, item in self.view.module_buttons.items()
             if item.isChecked()
         ]
 
-    def set_modules(self, pipelines):
+    def set_modules(self, pipelines: Iterable[str]) -> None:
         selected = set(pipelines)
         for name, item in self.view.module_buttons.items():
             blocked = item.blockSignals(True)
@@ -166,7 +186,7 @@ class AnalysisController(QObject):
             item.blockSignals(blocked)
         self.modules_changed()
 
-    def modules_changed(self, changed=None, checked=False):
+    def modules_changed(self, changed: str | None = None, checked: bool = False) -> None:
         selected = self.selected_modules()
         self.view.side.set_relevant("gait" in selected)
         requirements = []
@@ -185,8 +205,9 @@ class AnalysisController(QObject):
         )
         self.update_origin_default()
 
-    def preparation_changed(self, *_):
+    def preparation_changed(self, *_: object) -> None:
         prepared = self.view.prepared.isChecked()
+        widget: QWidget
         for widget in (
             self.view.acc,
             self.view.gyro,
@@ -199,20 +220,20 @@ class AnalysisController(QObject):
             widget.setEnabled(not prepared and self.view.gaps.isChecked())
         self.modules_changed()
 
-    def origin_edited(self):
+    def origin_edited(self) -> None:
         self.analysis._origin_override = True
         self.previews._origin_preview.cancel_pending()
         self.view.clock_input.setEnabled(True)
 
-    def reset_origin(self):
+    def reset_origin(self) -> None:
         self.analysis._origin_override = False
         self.update_origin_default()
 
-    def update_origin_default(self, *_):
+    def update_origin_default(self, *_: object) -> None:
         if self.analysis._origin_override or self.inputs.frame is None:
             return
         try:
-            settings = {
+            settings: AnalysisSettings = {
                 "time_input_unit": self.view.time.currentText(),
                 "skip_preparation": self.view.prepared.isChecked(),
                 "column_mapping": validate_column_mapping(
@@ -236,7 +257,7 @@ class AnalysisController(QObject):
         if self.previews._origin_preview.is_requested(key):
             return
 
-        def preview():
+        def preview() -> ClockMetadata | None:
             if recordings:
                 return self.services.preview_recording_clock(recordings, settings)
             return self.services.recording_clock(frame, settings)
@@ -245,14 +266,14 @@ class AnalysisController(QObject):
         # preview, so its eventual result cannot overwrite that choice.
         self.previews._origin_preview.request(key, preview)
 
-    def apply_origin_preview(self, clock):
+    def apply_origin_preview(self, clock: ClockMetadata | None) -> None:
         if self.analysis._origin_override:
             return
         self.view.clock_input.set_clock(clock)
         self.view.clock_input.setText(clock["origin"] if clock else "")
         self.view.clock_input.setEnabled(True)
 
-    def origin_setting(self):
+    def origin_setting(self) -> AnalysisSettings:
         if not self.analysis._origin_override:
             return {"mode": "automatic"}
         entered = self.view.clock_input.text().strip()
@@ -270,7 +291,7 @@ class AnalysisController(QObject):
             ),
         }
 
-    def run_analysis(self):
+    def run_analysis(self) -> None:
         if self.jobs.worker is not None:
             return
         if self.inputs.frame is None:
@@ -297,7 +318,7 @@ class AnalysisController(QObject):
             if self.view.prepared.isChecked()
             else validate_orientation([v.strip() for v in self.view.orientation.text().split(",")])
         )
-        settings = {
+        settings: AnalysisSettings = {
             "pipelines": pipelines,
             "watch_side": self.view.side.currentText(),
             "accelerometer_units": self.view.acc.currentText(),
@@ -364,7 +385,7 @@ class AnalysisController(QObject):
         )
         self.view.stop_button.setEnabled(self.jobs.worker is not None)
 
-    def use_run_parameters(self):
+    def use_run_parameters(self) -> None:
         if self.runs.selected_run is None or self.jobs.worker is not None:
             return
         settings = self.runs.selected_run["settings"]

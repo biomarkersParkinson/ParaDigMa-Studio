@@ -111,6 +111,8 @@ files = [
     "src/paradigma_studio/recording_results.py",
     "src/paradigma_studio/serialization.py",
     "src/paradigma_studio/epoch_profile.py",
+    "src/paradigma_studio/analysis_controller.py",
+    "src/paradigma_studio/data_controller.py",
     "src/paradigma_studio/job_controller.py",
     "src/paradigma_studio/result_controller.py",
     "src/paradigma_studio/export_controller.py",
@@ -131,6 +133,8 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
+    "paradigma_studio.analysis_controller",
+    "paradigma_studio.data_controller",
     "paradigma_studio.job_controller",
     "paradigma_studio.result_controller",
     "paradigma_studio.export_controller",

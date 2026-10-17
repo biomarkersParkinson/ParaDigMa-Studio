@@ -10,6 +10,8 @@ import numpy as np
 if TYPE_CHECKING:
     import pandas as pd
 
+    from .contracts import RecordingDescription
+
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
 
 
@@ -184,7 +186,7 @@ def time_descriptives(series, unit="relative_s"):
     )
 
 
-def inspect_recording(frame, time_unit):
+def inspect_recording(frame: pd.DataFrame, time_unit: str) -> RecordingDescription:
     column = default_time_column(frame)
     # Count each column once, including time/non-sensor columns in the total,
     # without constructing another full-table missingness mask.

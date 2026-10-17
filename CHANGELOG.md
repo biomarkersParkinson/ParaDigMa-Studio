@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Require complete mypy annotations for data and analysis controllers, with typed
+  single/batch loading payloads, inspection caches, callbacks and analysis inputs;
+  preserve deferred imports, source frames and job/cancellation behavior.
 - Split analysis launch, sensor plotting and run-history refresh into named
   workflow helpers, preserving state/signal order and queued cancellation inputs.
 - Add gradual mypy body checks for the entire UI package, with typed component

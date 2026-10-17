@@ -166,7 +166,8 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 `analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
 `serialization` and `epoch_profile`, plus these controller and service modules:
 
-- `job_controller`, `result_controller`, `export_controller` and `shell_controller`;
+- `analysis_controller`, `data_controller`, `job_controller`, `result_controller`,
+  `export_controller` and `shell_controller`;
 - `workspace_state`, `result_data`, `previews`, `storage` and `exports`.
 
 The entire `ui/` directory is checked recursively, including new modules. The
@@ -187,6 +188,13 @@ targets to the `files` list in `pyproject.toml`; apply the stricter override onl
 when a module has complete annotations. Additional UI modules need no new file
 entry. Clock-summary inputs use read-only `Mapping` annotations so the stored
 `ClockMetadata` contract can pass through without copying or conversion.
+
+Data and analysis controller contracts describe single/batch recording-load
+payloads, cached recording descriptives, clock previews and analysis launch inputs.
+Their frozen views use concrete widget/graphics types, and callbacks declare their
+arguments and results. The loader protocol retains keyword-only trust and logger
+options. Loading still accepts a single frame with or without cached descriptives;
+neither annotations nor type narrowing convert or copy source frames.
 
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
 messages. Extensible ParaDigMa payloads, the heterogeneous Qt job-completion

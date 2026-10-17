@@ -11,7 +11,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .contracts import ClockMetadata, RunRecord as RunRecord
+from .contracts import ClockMetadata, RecordingDescription, RunRecord as RunRecord
 
 if TYPE_CHECKING:
     from threading import Event
@@ -103,7 +103,7 @@ class SensorState:
 
 @dataclass
 class DataState:
-    _input_descriptions: dict = field(default_factory=dict)
+    _input_descriptions: dict[str, RecordingDescription] = field(default_factory=dict)
     _data_plot_dirty: bool = True
     _channel_colors: dict = field(default_factory=dict)
 

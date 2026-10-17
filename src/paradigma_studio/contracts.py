@@ -6,7 +6,7 @@ payloads. Keep their values permissive while typing frames and service inputs.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Hashable, Iterable
 from os import PathLike
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, TypedDict
 
@@ -45,6 +45,25 @@ class ClockMetadata(TypedDict):
     origin: str
     timezone: str | None
     source: str
+
+
+class RecordingDescription(TypedDict):
+    """Read-only inspection results accompanying an unchanged source frame."""
+
+    time_column: Hashable | None
+    time_unit: str
+    missing: int
+    sensors: pd.DataFrame
+    time: pd.DataFrame | None
+
+
+# Direct loads may omit cached descriptives; background loads always supply them.
+RecordingLoadPayload: TypeAlias = (
+    "tuple[str, pd.DataFrame] | tuple[str, pd.DataFrame, RecordingDescription]"
+)
+RecordingsLoadPayload: TypeAlias = (
+    "tuple[dict[str, str], dict[str, pd.DataFrame], dict[str, RecordingDescription]]"
+)
 
 
 RecordingAlignment: TypeAlias = tuple[
