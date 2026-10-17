@@ -25,13 +25,20 @@ def window(tmp_path):
     window = MainWindow(tmp_path)
     window.resize(1200, 750)
     window.show()
+    window._result_state.provenance = {
+        "display_clock": {"origin": "2026-10-10T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
+    }
+    yield window
+    window.close()
+    app.processEvents()
+
+
+@pytest.fixture
+def multi_graph_window(window):
     times = np.arange(2000) * 4.0
     frame = pd.DataFrame(
         {"time": times, **{f"metric_{i}": 2 + np.sin(times / (50 + i)) for i in range(8)}}
     )
-    window._result_state.provenance = {
-        "display_clock": {"origin": "2026-10-10T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
-    }
     window.analyzed({"quantifications": {"tremor": frame}})
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
@@ -40,11 +47,10 @@ def window(tmp_path):
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
-    app.processEvents()
-    window.canvas.draw()
-    yield window
-    window.close()
-    app.processEvents()
+    QApplication.instance().processEvents()
+    if window.figure.stale:
+        window.canvas.draw()
+    return window
 
 
 def start_scroll(window):
@@ -59,8 +65,9 @@ def start_scroll(window):
 @pytest.mark.parametrize("pixel_ratio", [1, 2])
 @pytest.mark.parametrize("scroll", [0, 450])
 def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_values(
-    window, monkeypatch, pixel_ratio, scroll
+    multi_graph_window, monkeypatch, pixel_ratio, scroll
 ):
+    window = multi_graph_window
     figure, canvas = window.figure, window.canvas
     window.graph_scroll.verticalScrollBar().setValue(scroll)
     canvas._set_device_pixel_ratio(pixel_ratio)
@@ -122,8 +129,9 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
 
 
 def test_export_during_scroll_includes_every_axes_and_render_errors_restore_state(
-    window, monkeypatch
+    multi_graph_window, monkeypatch
 ):
+    window = multi_graph_window
     canvas, figure = window.canvas, window.figure
     start_scroll(window)
     engine = figure.get_layout_engine()
@@ -156,7 +164,8 @@ def test_export_during_scroll_includes_every_axes_and_render_errors_restore_stat
 
 
 @pytest.mark.parametrize("end", ["release", "refresh", "clear_results", "hide"])
-def test_scroll_ends_cleanly_when_released_or_graphs_change(window, end):
+def test_scroll_ends_cleanly_when_released_or_graphs_change(multi_graph_window, end):
+    window = multi_graph_window
     start_scroll(window)
     if end == "release":
         window.result_time_scroll.setSliderDown(False)
@@ -175,14 +184,16 @@ def test_scroll_ends_cleanly_when_released_or_graphs_change(window, end):
 @pytest.mark.parametrize("pixel_ratio", [1, 2])
 @pytest.mark.parametrize("scroll", [0, 450])
 def test_interval_drag_never_redraws_graphs_even_without_an_overlay_background(
-    window, monkeypatch, pixel_ratio, scroll
+    multi_graph_window, monkeypatch, pixel_ratio, scroll
 ):
+    window = multi_graph_window
     canvas, toolbar, figure = window.canvas, window.plot_toolbar, window.figure
     canvas.setFixedHeight(3200)
     canvas._set_device_pixel_ratio(pixel_ratio)
     window.graph_scroll.verticalScrollBar().setValue(scroll)
     QApplication.instance().processEvents()
-    canvas.draw()
+    if figure.stale:
+        canvas.draw()
     QApplication.instance().processEvents()
     if pixel_ratio == 2:
         assert figure.bbox.width * figure.bbox.height * 4 > 32 * 1024**2
@@ -226,7 +237,8 @@ def test_dense_horizontal_navigation_bounds_render_work_and_restores_full_bars(
     toolbar, canvas, bar = window.plot_toolbar, window.canvas, window.result_time_scroll
     toolbar._actions["zoom_in"].trigger()
     QApplication.instance().processEvents()
-    canvas.draw()
+    if window.figure.stale:
+        canvas.draw()
     axes = window.figure.axes[0]
     collection = next(item for item in axes.collections if isinstance(item, ViewportPolyCollection))
     counts = []

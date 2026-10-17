@@ -48,6 +48,14 @@ Those layers are complementary. Performance regressions primarily check retained
 values, cache reuse, redraw counts and event-loop responsiveness; hardware timings
 belong in the benchmark scripts rather than strict CI time limits.
 
+Navigation tests build the eight-graph workspace only when they exercise shared
+or offscreen axes; dense single-graph cases start from an empty window. Setup
+processes queued Qt paints and forces a draw only if the figure is still stale.
+Draws and event delivery that form part of an assertion remain explicit. Keep the
+elapsed/calendar, graph-view, scroll-position and device-pixel-ratio matrices.
+The first-date transition test also covers a hidden first date and a partial-day
+zoom, including the next date's position, label bounds and non-overlap.
+
 Loading regressions check exact TSDF values/dtypes against the previous scaling
 operation, signed-zero and float bit patterns, metadata errors, and untouched
 source files/shared arrays. Inspection cases retain exact quantiles and complete
@@ -80,7 +88,9 @@ these implementation-coupled ports. Application code uses explicit component
 owners, and the driver API retains its shrink-only budget guard.
 
 Checks for removed UI controls inspect the actual widget tree, including hidden
-children; an absent window alias does not prove that a widget is absent. Resource
+children; an absent window alias does not prove that a widget is absent.
+Settings checks inventory their real editors, buttons and dropdowns, so renamed
+or hidden Apply/title controls cannot evade the absence assertions. Resource
 policy cases establish that two workers are otherwise possible before checking a
 configuration fallback. Calendar boundary cases compare the complete expected
 range. Temporary mutation probes verify that these checks reject restored controls,

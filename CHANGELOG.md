@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Strengthen graph-settings tests against restored or renamed controls, avoid
+  unrelated navigation fixtures and duplicate setup renders, and consolidate
+  first-date checks while retaining partial-day, bounds and timezone coverage.
 - Require complete mypy annotations for data and analysis controllers, with typed
   single/batch loading payloads, inspection caches, callbacks and analysis inputs;
   preserve deferred imports, source frames and job/cancellation behavior.

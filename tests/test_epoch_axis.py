@@ -62,33 +62,19 @@ def test_dates_stay_centered_when_their_full_days_fit(timezone):
     assert clocks_box.y0 > dates_box.y1
 
 
-def test_hidden_first_date_never_promotes_the_next_date_to_the_left_edge():
-    figure, axis, stamps = epoch_axis(start="2020-10-29", days=7, width=1800)
-    lower, upper = dates.date2num(stamps[[0, -1]])
-    axis.set_xlim(lower + 23.5 / 24, upper)
-    figure.canvas.draw()
-    labels = axis.get_xticklabels()
-    assert labels[0].get_text() == "30 Oct 2020"
-    boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in labels]
-    assert boxes[0].x0 > axis.bbox.x0
-    assert labels[0].get_ha() == "center"
-    assert axis.get_xticks()[0] == pytest.approx(dates.date2num(stamps[1]) + 0.5)
-    assert boxes[-1].x1 <= axis.bbox.x1
-    assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
-    axis.set_xlim(lower + 1.25, lower + 2.75)
-    figure.canvas.draw()
-    assert axis.get_xticklabels()[0].get_text() == "30 Oct 2020"
-    assert axis.get_xticklabels()[0].get_ha() == "center"
-
-
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam", "Asia/Kathmandu"])
 def test_first_date_centers_then_aligns_left_then_hides_without_moving_the_second_date(timezone):
     figure, axis, stamps = epoch_axis(start="2026-10-24", days=8, width=1800, timezone=timezone)
     boundaries = dates.date2num(stamps)
     second_center = (boundaries[1] + boundaries[2]) / 2
-    for fraction, alignment in ((0, "center"), (0.35, "left"), (0.95, None)):
+    for fraction, span, alignment in (
+        (0, 7, "center"),
+        (0.35, 7, "left"),
+        (0.95, 7, None),
+        (1.25, 1.5, None),  # A zoom with partial days at both ends.
+    ):
         low = boundaries[0] + fraction
-        axis.set_xlim(low, low + 7)
+        axis.set_xlim(low, low + span)
         figure.canvas.draw()
         labels = {
             label.get_text(): (value, label)
@@ -98,6 +84,11 @@ def test_first_date_centers_then_aligns_left_then_hides_without_moving_the_secon
         assert value == pytest.approx(second_center) and second.get_ha() == "center"
         if alignment is None:
             assert "24 Oct 2026" not in labels
+            first_visible = axis.get_xticklabels()[0]
+            assert first_visible.get_text() == "25 Oct 2026"
+            assert first_visible.get_ha() == "center"
+            assert axis.get_xticks()[0] == pytest.approx(second_center)
+            assert first_visible.get_window_extent(figure.canvas.get_renderer()).x0 > axis.bbox.x0
         else:
             value, first = labels["24 Oct 2026"]
             assert first.get_ha() == alignment
@@ -108,6 +99,7 @@ def test_first_date_centers_then_aligns_left_then_hides_without_moving_the_secon
         boxes = [
             label.get_window_extent(figure.canvas.get_renderer()) for _, label in labels.values()
         ]
+        assert boxes[-1].x1 <= axis.bbox.x1
         assert all(left.x1 < right.x0 for left, right in zip(boxes, boxes[1:], strict=False))
 
 

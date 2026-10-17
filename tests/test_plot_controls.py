@@ -12,7 +12,7 @@ from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QAbstractButton, QApplication, QComboBox, QLineEdit, QPushButton
 
 from paradigma_studio.app import MainWindow
 
@@ -62,6 +62,15 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
             hasattr(panel, name)
             for name in ("title", "x_label", "y_label", "grid", "legend", "limits_button")
         )
+        assert set(panel.findChildren(QLineEdit)) == {
+            edit for _, lower, upper in panel.bounds.values() for edit in (lower, upper)
+        }
+        assert set(panel.findChildren(QAbstractButton)) == {
+            panel.reset_button,
+            panel.close_button,
+            *(automatic for automatic, _, _ in panel.bounds.values()),
+        }
+        assert not panel.findChildren(QComboBox)
         assert panel.palette().color(QPalette.Text) == QColor("#22324a")
         for _, lower, upper in panel.bounds.values():
             for edit in (lower, upper):
@@ -338,6 +347,7 @@ def test_limit_edits_apply_on_enter_and_blur_with_reset_and_close_on_hint_row(wi
     QApplication.instance().processEvents()
     assert window.data_figure.axes[0].get_ylim() == pytest.approx((1.2, 2.8))
     assert not hasattr(panel, "apply_button")
+    assert set(panel.findChildren(QPushButton)) == {panel.reset_button, panel.close_button}
     row = panel.layout().itemAtPosition(3, 0).layout()
     assert all(
         row.indexOf(widget) >= 0

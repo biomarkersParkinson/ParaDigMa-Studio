@@ -29,7 +29,8 @@ def result_graphs(window, *, view=0, calendar=False):
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
-    window.canvas.draw()
+    if window.figure.stale:
+        window.canvas.draw()
     return frame
 
 
@@ -72,7 +73,8 @@ def test_each_results_view_opens_at_full_range_after_zooming_another_view(window
         assert bar.isEnabled() and not bar.isHidden()
         window.result_graph_view.setCurrentIndex(view)
         QApplication.instance().processEvents()
-        window.canvas.draw()
+        if window.figure.stale:
+            window.canvas.draw()
         for axes in window.figure.axes:
             assert axes.get_xlim() == pytest.approx(full)
         assert window.time_axis.axes.get_xlim() == pytest.approx(full)
