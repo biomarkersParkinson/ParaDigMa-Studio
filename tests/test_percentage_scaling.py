@@ -47,7 +47,7 @@ def test_percentage_and_coverage_bars_start_with_automatic_limits(window, view, 
         if peak < 100:
             assert ax.get_ylim()[1] < 100
     assert presence_axis(window)._paradigma_epoch_data.value.dropna().eq(percentage).all()
-    pd.testing.assert_frame_equal(window.tables["classifications/tremor"], original)
+    pd.testing.assert_frame_equal(window._result_state.tables["classifications/tremor"], original)
 
 
 @pytest.mark.parametrize("view", [1, 2], ids=["30-minute", "day"])

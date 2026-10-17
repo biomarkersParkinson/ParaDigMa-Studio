@@ -39,7 +39,7 @@ def test_prepared_coverage_retains_real_gaps_sections_offsets_and_distinct_pipel
         name for name, metric in window.selected_result_series() if name.startswith("preparation/")
     ]
     assert len(names) == 2
-    assert not any(name.startswith("preparation/") for name in window.tables)
+    assert not any(name.startswith("preparation/") for name in window._result_state.tables)
     axis = next(
         ax for ax in window.figure.axes if ax._paradigma_dataset == "preparation/gait_tremor"
     )

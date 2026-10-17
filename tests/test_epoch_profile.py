@@ -182,7 +182,7 @@ def test_live_profile_reuses_epoch_rules_and_preserves_all_original_values(windo
         for module, frame in output[stage].items():
             pd.testing.assert_frame_equal(frame, original[stage][module], check_exact=True)
             pd.testing.assert_frame_equal(
-                window.tables[f"{stage}/{module}"], frame, check_exact=True
+                window._result_state.tables[f"{stage}/{module}"], frame, check_exact=True
             )
     window.canvas.draw()
     window.time_axis.draw()
@@ -309,7 +309,9 @@ def test_gait_profile_gates_each_daily_epoch_before_averaging_filtered_and_unfil
 def test_sensor_inspection_is_restored_when_returning_to_a_dated_view(window):
     window.analyzed(profile_results())
     window.result_tabs.setCurrentIndex(1)
-    window.result_source_frame = pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})
+    window._result_state.result_source_frame = pd.DataFrame(
+        {"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]}
+    )
     window.dataset.setCurrentText("classifications/tremor")
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     assert window.context_button.isEnabled()

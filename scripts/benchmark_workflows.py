@@ -173,7 +173,7 @@ def _benchmark_result_workflows(window, app, measure, frame, output_rows):
         "source": "sensor.csv",
         "settings": {"pipelines": ["tremor"], "skip_preparation": True},
     }
-    window.result_source_frame = frame
+    window._result_state.result_source_frame = frame
     measure("RESULTS LOAD", lambda: window.analyzed(results))
     measure(
         "GRAPHS SHOW",

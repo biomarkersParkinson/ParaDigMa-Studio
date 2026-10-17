@@ -78,10 +78,10 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
         finish_job(reopened)
         assert reopened.pages.currentIndex() == 2
         assert not reopened.unsaved_result_runs()
-        assert reopened.result_source_frame is None
+        assert reopened._result_state.result_source_frame is None
         assert reopened.display_clock == window.display_clock
         pd.testing.assert_frame_equal(
-            reopened.results["quantifications"]["tremor"],
+            reopened._result_state.results["quantifications"]["tremor"],
             tremor_outputs["quantifications"]["tremor"],
         )
     finally:
@@ -114,7 +114,7 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
         reopened.open_run()
         finish_job(reopened)
         pd.testing.assert_frame_equal(
-            reopened.results["quantifications"]["tremor"],
+            reopened._result_state.results["quantifications"]["tremor"],
             tremor_outputs["quantifications"]["tremor"],
         )
         assert reopened._run_state.current_run["id"] == record["id"]
@@ -171,7 +171,7 @@ def test_repeated_local_save_reuses_file_and_run_deletion_removes_it(
     assert not saved.exists()
     assert not (window.history.directory / f"{record['id']}.json").exists()
     assert Path(record["source"]).read_text() == "original recording"
-    assert window.results is None and not window.save_results_button.isEnabled()
+    assert window._result_state.results is None and not window.save_results_button.isEnabled()
 
 
 def test_save_does_not_block_navigation_or_allow_competing_operations(

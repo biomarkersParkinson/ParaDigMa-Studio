@@ -84,7 +84,9 @@ def test_tremor_power_requires_presence_time_not_median_sample_count_and_keeps_r
     )
     for stage in output:
         pd.testing.assert_frame_equal(output[stage]["tremor"], original[stage]["tremor"])
-        pd.testing.assert_frame_equal(window.tables[stage + "/tremor"], original[stage]["tremor"])
+        pd.testing.assert_frame_equal(
+            window._result_state.tables[stage + "/tremor"], original[stage]["tremor"]
+        )
     window.result_graph_view.setCurrentIndex(1)
     # A new result with the same names must replace the old duration cache.
     window.analyzed(

@@ -262,7 +262,9 @@ def test_dense_horizontal_navigation_bounds_render_work_and_restores_full_bars(
     QApplication.instance().processEvents()
     assert not canvas.time_scrolling and counts and max(counts) > axes.bbox.width * 2
     assert not canvas._scroll_y_ticks
-    pd.testing.assert_frame_equal(window.tables["quantifications/pulse_rate"], original)
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/pulse_rate"], original
+    )
 
 
 @pytest.mark.parametrize("timezone", ["UTC", "Europe/Amsterdam"])

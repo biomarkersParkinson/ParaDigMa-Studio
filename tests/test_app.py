@@ -133,7 +133,7 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
         _app.processEvents()
         time.sleep(0.01)  # Let Python worker code acquire the GIL while tracing.
     assert window._job_state.worker is None
-    assert window.results["errors"]
+    assert window._result_state.results["errors"]
     assert warnings == []  # Processing errors are reported inline, without a modal.
     assert "processing error" in window.notice.text()
     assert window._run_state.runs[0]["status"] == "Partial"

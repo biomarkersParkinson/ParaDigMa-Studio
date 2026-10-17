@@ -210,7 +210,7 @@ def test_export_failure_logs_stack_with_a_completed_run_selected(
     window, monkeypatch, tmp_path, method, writer
 ):
     frame = pd.DataFrame({"time": [0.0], "tremor_power": [1.0]})
-    window.results = {"quantifications": {"tremor": frame}}
+    window._result_state.results = {"quantifications": {"tremor": frame}}
     window._run_state.selected_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
     window._run_state.selected_run["status"] = "Completed"
     monkeypatch.setattr(window, "selected_export_table", lambda: ("quantifications/tremor", frame))

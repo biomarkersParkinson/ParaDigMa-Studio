@@ -51,7 +51,9 @@ def test_scrollbar_preserves_duration_shared_axes_tables_and_manual_y_limits(
             assert ax.get_xlim() == pytest.approx((left, left + span))
         assert window.time_axis.axes.get_xlim() == pytest.approx((left, left + span))
         assert axes[1].get_ylim() == (40, 90)
-    pd.testing.assert_frame_equal(window.tables["quantifications/pulse_rate"], original)
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/pulse_rate"], original
+    )
 
 
 @pytest.mark.parametrize("view", [0, 1, 2, 3], ids=["detailed", "30-minute", "day", "profile"])

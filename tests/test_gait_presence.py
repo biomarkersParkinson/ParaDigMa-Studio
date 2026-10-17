@@ -132,7 +132,9 @@ def test_displayed_gait_predictions_share_epoch_denominator_and_preserve_raw_tab
                 output["classifications"]["gait"][stage], frame, check_exact=True
             )
             pd.testing.assert_frame_equal(
-                window.tables["classifications/gait/" + stage], frame, check_exact=True
+                window._result_state.tables["classifications/gait/" + stage],
+                frame,
+                check_exact=True,
             )
     finally:
         window.close()

@@ -112,8 +112,8 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
         "Arm at rest (prediction)",
         "Tremor power",
     }
-    assert "pred_tremor_proba" in window.tables["classifications/tremor"]
-    assert "pred_tremor_logreg" in window.tables["classifications/tremor"]
+    assert "pred_tremor_proba" in window._result_state.tables["classifications/tremor"]
+    assert "pred_tremor_logreg" in window._result_state.tables["classifications/tremor"]
     for expanded in (False, True, False):
         root.setExpanded(expanded)
         rect = tree.visualItemRect(root)
@@ -350,8 +350,12 @@ def test_requested_defaults_select_predictions_and_filtered_rom_without_extra_me
     }
     assert set(window.selected_result_series()) == wanted
     assert {(ax._paradigma_dataset, ax._paradigma_metric) for ax in window.figure.axes} == wanted
-    pd.testing.assert_frame_equal(window.tables["quantifications/gait/filtered"], filtered)
-    pd.testing.assert_frame_equal(window.tables["quantifications/gait/unfiltered"], gait)
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/gait/filtered"], filtered
+    )
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/gait/unfiltered"], gait
+    )
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
     for item in window._series_items.values():

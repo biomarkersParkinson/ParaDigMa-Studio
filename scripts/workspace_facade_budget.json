@@ -1,5 +1,5 @@
 {
-  "max_lines": 209,
+  "max_lines": 206,
   "aliases": [
     "_data_graph",
     "_result_view_layouts",
@@ -115,11 +115,9 @@
     "result_overlay",
     "result_row_changed",
     "result_series",
-    "result_source_frame",
     "result_table",
     "result_tabs",
     "result_time_scroll",
-    "results",
     "results_header",
     "results_scroll",
     "results_source",
@@ -178,7 +176,6 @@
     "table_module_tabs",
     "table_stack",
     "table_timing_changed",
-    "tables",
     "time",
     "time_axis",
     "time_table",

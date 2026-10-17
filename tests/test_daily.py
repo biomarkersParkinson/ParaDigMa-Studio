@@ -195,7 +195,7 @@ def test_day_switches_all_modules_uses_metric_data_and_keeps_caches_and_tables(w
         for module in output[stage]:
             pd.testing.assert_frame_equal(output[stage][module], original[stage][module])
             pd.testing.assert_frame_equal(
-                window.tables[f"{stage}/{module}"], original[stage][module]
+                window._result_state.tables[f"{stage}/{module}"], original[stage][module]
             )
     window.analyzed({"quantifications": {"tremor": power.assign(tremor_power=np.nan)}})
     select_plot_metric(window, "quantifications/tremor", "tremor_power")

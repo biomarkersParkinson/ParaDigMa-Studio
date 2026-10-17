@@ -828,7 +828,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     assert window._run_state.current_run is first
     assert window.provenance["source"] == "first.csv"
     assert window._input_state.source == "second.csv"  # Exploring history does not replace input.
-    assert window.result_source_frame is frame
+    assert window._result_state.result_source_frame is frame
     assert window.result_table.model().rowCount() == 6
 
 
@@ -864,7 +864,7 @@ def test_exported_json_can_reopen_after_restart_without_loading_pickle(
         reopened.open_run()
         wait_for_job(reopened)
         assert reopened._input_state.frame is None
-        assert reopened.result_source_frame is None
+        assert reopened._result_state.result_source_frame is None
         assert reopened.result_table.model().rowCount() == 6
         assert reopened.provenance["source"].endswith("trusted.pkl")
         assert not reopened.context_button.isEnabled()

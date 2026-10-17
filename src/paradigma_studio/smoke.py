@@ -310,7 +310,7 @@ def _verify_continuous_outputs(window, quantified):
     if axes.get_ylabel() != "log₁₀(power + 1)":
         raise RuntimeError("Tremor power axis does not identify the log transformation")
     pd.testing.assert_frame_equal(
-        window.tables["quantifications/tremor"], quantified, check_exact=True
+        window._result_state.tables["quantifications/tremor"], quantified, check_exact=True
     )
     if not any(name.startswith("preparation/") for name in window._result_state._plot_tables):
         raise RuntimeError("Prepared-input availability is missing")
@@ -629,10 +629,10 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     timer.stop()
     if (
         window._job_state.worker is not None
-        or window.results["quantifications"]["tremor"].shape != quantified.shape
+        or window._result_state.results["quantifications"]["tremor"].shape != quantified.shape
     ):
         raise RuntimeError("Exported run did not reopen correctly")
-    if window.pages.currentIndex() != 2 or window.result_source_frame is not None:
+    if window.pages.currentIndex() != 2 or window._result_state.result_source_frame is not None:
         raise RuntimeError(
             "Reopening a run changed its navigation or reloaded original sensor data"
         )
@@ -661,7 +661,7 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     timer.stop()
     if (
         window._job_state.worker is not None
-        or window.results["quantifications"]["tremor"].shape != quantified.shape
+        or window._result_state.results["quantifications"]["tremor"].shape != quantified.shape
     ):
         raise RuntimeError("Local saved results did not reopen correctly")
 

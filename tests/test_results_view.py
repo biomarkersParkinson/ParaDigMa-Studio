@@ -189,8 +189,11 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
         "gait segments" in group.lower()
         for module, group, path in window._result_state.overview_values
     )
-    assert all(key.startswith(("classifications/", "quantifications/")) for key in window.tables)
-    assert set(window.tables) == set(detail_tables(results))
+    assert all(
+        key.startswith(("classifications/", "quantifications/"))
+        for key in window._result_state.tables
+    )
+    assert set(window._result_state.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
     assert window.detail_controls.isHidden()
     window.figure.axes[0].set_xlim(10.0, 14.0)
@@ -516,7 +519,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     path = tmp_path / "results.json"
     export_results(path, results, window.provenance)
     provenance, restored = load_result_export(path)
-    window.result_source_frame = window._input_state.frame = None
+    window._result_state.result_source_frame = window._input_state.frame = None
     window.provenance = provenance
     window.analyzed(restored)
     assert window.display_clock["origin"] == "2026-10-07T12:00:00+02:00"

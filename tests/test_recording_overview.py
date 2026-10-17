@@ -289,7 +289,7 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     assert fields.objectName() != "card"
     assert fields.layout().contentsMargins().left() == 0
     assert fields.layout().count() == len(
-        recording_summary(window.results, window.provenance, window.display_clock)
+        recording_summary(window._result_state.results, window.provenance, window.display_clock)
     )
     assert all(
         fields.layout().itemAt(i).widget().objectName() == "card"

@@ -237,7 +237,7 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     record = new_run(next(iter(sources.values())), provenance["settings"])
     window._run_state.runs = [record]
     window.restore_run((record["id"], provenance, restored))
-    assert window.result_source_frame is None
+    assert window._result_state.result_source_frame is None
     np.testing.assert_array_equal(
         window._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
     )

@@ -169,7 +169,8 @@ def test_reset_from_another_result_graph_restores_shared_time_and_selected_y_lim
     assert selected.get_ylim()[0] <= 60 and selected.get_ylim()[1] > 80
     assert first.get_ylim() == (1000, 2000)
     pd.testing.assert_frame_equal(
-        window.tables["quantifications/pulse_rate"], results["quantifications"]["pulse_rate"]
+        window._result_state.tables["quantifications/pulse_rate"],
+        results["quantifications"]["pulse_rate"],
     )
 
 

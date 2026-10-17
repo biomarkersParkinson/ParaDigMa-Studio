@@ -197,7 +197,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
         for module, frame in output[stage].items():
             pd.testing.assert_frame_equal(frame, original[stage][module], check_exact=True)
             pd.testing.assert_frame_equal(
-                window.tables[f"{stage}/{module}"], frame, check_exact=True
+                window._result_state.tables[f"{stage}/{module}"], frame, check_exact=True
             )
     window.result_graph_view.setCurrentIndex(1)
     assert (

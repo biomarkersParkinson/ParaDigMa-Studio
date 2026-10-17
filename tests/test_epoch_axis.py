@@ -380,7 +380,7 @@ def test_axis_limits_keep_dates_or_seconds_for_all_views(window, view, calendar)
     toolbar.settings.reset_button.click()
     np.testing.assert_allclose(axis.get_xlim(), initial)
     pd.testing.assert_frame_equal(
-        window.tables["classifications/tremor"],
+        window._result_state.tables["classifications/tremor"],
         output["classifications"]["tremor"],
         check_exact=True,
     )

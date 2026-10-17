@@ -63,7 +63,7 @@ def test_automatic_bar_scaling_follows_visible_values_without_hiding_extremes_or
     axes.set_xlim(12.0, 14.0)
     assert axes.get_ylim() == (0.0, 1.0)  # A missing bar never retains the preceding extreme.
     np.testing.assert_allclose(bar_values(axes), np.log10([3.0, 4.0, 201.0]), rtol=1e-12)
-    pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame)
+    pd.testing.assert_frame_equal(window._result_state.tables["quantifications/tremor"], frame)
 
 
 def test_detailed_power_keeps_narrow_peaks_visible_and_marks_transformed_selected_value(window):
@@ -90,7 +90,9 @@ def test_detailed_power_keeps_narrow_peaks_visible_and_marks_transformed_selecte
     )
     assert marker.get_ydata()[0] == pytest.approx(peak)
     assert axes.get_ylim() == limits
-    pd.testing.assert_frame_equal(window.tables["quantifications/tremor"], frame, check_exact=True)
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/tremor"], frame, check_exact=True
+    )
 
 
 @pytest.mark.parametrize("automatic", [True, False])

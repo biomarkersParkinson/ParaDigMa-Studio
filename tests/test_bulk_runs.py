@@ -115,7 +115,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(
         record["outputs"] = [{"kind": "JSON", "path": str(output)}]
         window.history.save(record)
     window._run_state.current_run = window._run_state.runs[0]
-    window.results = {}
+    window._result_state.results = {}
     prompts = []
 
     def answer(dialog):
@@ -136,7 +136,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(
     assert (tmp_path / "sensor.csv").exists()
     assert len(list(window.history.directory.glob("*.json"))) == (0 if confirm else 5)
     if confirm:
-        assert window._run_state.current_run is None and window.results is None
+        assert window._run_state.current_run is None and window._result_state.results is None
         assert window.run_recordings.toPlainText() == ""
         assert not window.clear_runs_button.isEnabled() and not window.delete_run_button.isEnabled()
 
