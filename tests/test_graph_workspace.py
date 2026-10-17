@@ -102,7 +102,7 @@ def test_plot_tree_is_graph_selector_and_table_dataset_selection_remains(window)
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_tabs.setCurrentIndex(1)
     assert window.dataset_field.isHidden() and window.y_column.isHidden()
-    item = window._series_items[("quantifications/tremor", "other")]
+    item = window._result_state._series_items[("quantifications/tremor", "other")]
     item.setCheckState(0, Qt.Checked)
     window.result_series.setCurrentItem(item)
     assert window.y_column.currentData() == "other"
@@ -219,7 +219,7 @@ def test_result_canvas_accepts_mouse_wheel_and_touchpad_scrolling(window):
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
@@ -448,7 +448,7 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
     )
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
@@ -552,7 +552,7 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
 def test_binary_display_fills_positive_intervals_without_shading_missing_or_zero_states(window):
     frame = pd.DataFrame({"time": [0.0, 1.0, 2.0, 3.0], "pred_event": [0.0, 1.0, np.nan, 0.0]})
     window.analyzed({"classifications": {"tremor": frame}})
-    item = window._series_items[("classifications/tremor", "pred_event")]
+    item = window._result_state._series_items[("classifications/tremor", "pred_event")]
     item.setCheckState(0, Qt.Checked)
     axes = window.figure.axes[0]
     bars = axes.collections[0].get_paths()
@@ -661,7 +661,9 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
             },
         }
     )
-    window._series_items[("classifications/tremor", "pred_tremor")].setCheckState(0, Qt.Checked)
+    window._result_state._series_items[("classifications/tremor", "pred_tremor")].setCheckState(
+        0, Qt.Checked
+    )
     window.dataset.setCurrentText("classifications/tremor")
     window.result_tabs.setCurrentIndex(1)
     x = dates.date2num(clock_times([1.0], window._result_state.display_clock))[0]

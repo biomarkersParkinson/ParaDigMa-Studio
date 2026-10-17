@@ -102,7 +102,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(STYLESHEET)
         self._job_state.worker = None
         self._data_state._input_descriptions = {}
-        self._result_state._table_choices, self._series_items = {}, {}
+        self._result_state._table_choices, self._result_state._series_items = {}, {}
         self._graph_state._result_selection_artists = []
         self._graph_state._result_shared_axes = None
         self._result_state._result_layout_index = None

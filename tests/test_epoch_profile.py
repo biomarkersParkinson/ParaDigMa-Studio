@@ -151,7 +151,7 @@ def profile_results():
 
 def select_profile_graphs(window):
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.result_tabs.setCurrentIndex(1)
@@ -222,8 +222,10 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
     window.graph_clicked(SimpleNamespace(inaxes=power, xdata=3600))
     assert window.time_axis._selected_x == 900  # Empty slots cannot create a result selection.
     cached = power._paradigma_epoch_data
-    coverage_key = next(key for key in window._series_items if key[0].startswith("preparation/"))
-    window._series_items[coverage_key].setCheckState(0, Qt.Unchecked)
+    coverage_key = next(
+        key for key in window._result_state._series_items if key[0].startswith("preparation/")
+    )
+    window._result_state._series_items[coverage_key].setCheckState(0, Qt.Unchecked)
     power = next(ax for ax in window.figure.axes if ax._paradigma_metric == "tremor_power")
     assert power._paradigma_epoch_data is cached and window.time_axis._selected_x == 900
     reads = []
@@ -239,7 +241,7 @@ def test_profile_click_selects_a_clock_slot_without_fabricating_a_dated_sample(w
             "_result_plot_values",
             read_values,
         )
-        window._series_items[coverage_key].setCheckState(0, Qt.Checked)
+        window._result_state._series_items[coverage_key].setCheckState(0, Qt.Checked)
     assert not reads, "A cached aggregate view reread the raw sample values"
     replacement = profile_results()
     replacement["quantifications"]["pulse_rate"]["pulse_rate"] *= 2

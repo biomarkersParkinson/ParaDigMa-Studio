@@ -131,7 +131,7 @@ def test_gait_filtered_and_unfiltered_use_their_own_presence_and_keep_medians(wi
     original = deepcopy(output)
     window.analyzed(output)
     window.result_series.blockSignals(True)
-    for (name, _metric), item in window._series_items.items():
+    for (name, _metric), item in window._result_state._series_items.items():
         item.setCheckState(0, Qt.Checked if name.startswith("quantifications/") else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(1)

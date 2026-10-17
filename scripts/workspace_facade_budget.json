@@ -1,9 +1,8 @@
 {
-  "max_lines": 199,
+  "max_lines": 198,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
-    "_series_items",
     "about_button",
     "acc",
     "activate_dataset_rows",

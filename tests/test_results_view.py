@@ -466,8 +466,10 @@ def test_classifications_can_plot_alongside_quantifications_and_click_selects_co
     results["classifications"]["tremor"]["pred_tremor_checked"] = [0, 1, 1, 0]
     setup(window, results)
     key = ("classifications/tremor", "pred_tremor_checked")
-    window._series_items[key].setCheckState(0, Qt.Checked)
-    window._series_items["quantifications/tremor", "tremor_power"].setCheckState(0, Qt.Checked)
+    window._result_state._series_items[key].setCheckState(0, Qt.Checked)
+    window._result_state._series_items["quantifications/tremor", "tremor_power"].setCheckState(
+        0, Qt.Checked
+    )
     assert len(window.figure.axes) == 3
     ax = next(ax for ax in window.figure.axes if ax._paradigma_dataset == key[0])
     assert ax._paradigma_binary

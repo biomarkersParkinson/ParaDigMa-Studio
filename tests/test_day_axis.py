@@ -170,7 +170,9 @@ def test_live_day_axis_aligns_graphs_exports_dates_and_preserves_series(window):
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
     select_plot_metric(window, "quantifications/pulse_rate", "pulse_rate")
     coverage = next(
-        item for key, item in window._series_items.items() if key[0].startswith("preparation/")
+        item
+        for key, item in window._result_state._series_items.items()
+        if key[0].startswith("preparation/")
     )
     coverage.setCheckState(0, Qt.Unchecked)
     window.result_graph_view.setCurrentIndex(2)

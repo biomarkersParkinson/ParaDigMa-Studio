@@ -88,9 +88,10 @@ owning state/controller or the service APIs, rather than add window aliases.
 Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`,
 `DataState`, `JobState`, `SensorState`.
 Callers access these fields through their owning state objects directly.
-Retired `ResultState` aliases cover overview widgets, result selections, row
-positions, active/display frames, result payloads, native tables, original source
-frames, clock metadata, row-timing tables and the current Results scroll area.
+Retired `ResultState` aliases cover overview widgets, result selections, the
+series-item mapping, row positions, active/display frames, result payloads, native
+tables, original source frames, clock metadata, row-timing tables and the current
+Results scroll area.
 Access these fields through `window._result_state` directly. Results view layouts,
 scroll-area lists and overview containers use `window._layout` directly.
 Other state, UI and callback ports remain in the facade. The

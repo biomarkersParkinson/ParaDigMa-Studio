@@ -151,7 +151,7 @@ def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metada
         ("classifications/tremor", "pred_tremor_checked"),
     }
     window.result_series.blockSignals(True)
-    for key, item in window._series_items.items():
+    for key, item in window._result_state._series_items.items():
         item.setCheckState(0, Qt.Checked if key in chosen else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.plot()

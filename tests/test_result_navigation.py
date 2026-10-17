@@ -22,7 +22,9 @@ def result_graphs(window, *, view=0, calendar=False):
         {"time": times, "pulse_rate": 65 + np.sin(times / 10000), "other": 70 + times / 86400}
     )
     window.analyzed({"quantifications": {"pulse_rate": frame}})
-    window._series_items[("quantifications/pulse_rate", "other")].setCheckState(0, Qt.Checked)
+    window._result_state._series_items[("quantifications/pulse_rate", "other")].setCheckState(
+        0, Qt.Checked
+    )
     window.result_graph_view.setCurrentIndex(view)
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
@@ -162,7 +164,7 @@ def test_scroll_history_home_keyboard_and_series_changes_follow_the_same_time_ra
     assert axes.get_xlim() == zoomed and bar.value() == 0
     toolbar.forward()
     assert axes.get_xlim() == shifted and bar.value() > 0
-    item = window._series_items[("quantifications/pulse_rate", "other")]
+    item = window._result_state._series_items[("quantifications/pulse_rate", "other")]
     item.setCheckState(0, Qt.Unchecked)
     item.setCheckState(0, Qt.Checked)
     assert axes.get_xlim() == shifted and bar.isEnabled()
@@ -329,7 +331,9 @@ def test_interrupting_trackpad_gestures_preserves_automatic_y_and_navigation(win
     shifted = axes.get_xlim()
     assert toolbar.scrolling_time and not axes.get_autoscaley_on()
     if action == "series":
-        window._series_items[("quantifications/pulse_rate", "other")].setCheckState(0, Qt.Unchecked)
+        window._result_state._series_items[("quantifications/pulse_rate", "other")].setCheckState(
+            0, Qt.Unchecked
+        )
         assert axes.get_xlim() == shifted
     elif action == "drag-zoom":
         toolbar.zoom()

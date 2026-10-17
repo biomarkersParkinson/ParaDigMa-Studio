@@ -109,7 +109,7 @@ def test_displayed_gait_predictions_share_epoch_denominator_and_preserve_raw_tab
         window.analyzed(output)
         window.result_tabs.setCurrentIndex(1)
         window.result_series.blockSignals(True)
-        for (_name, metric), item in window._series_items.items():
+        for (_name, metric), item in window._result_state._series_items.items():
             item.setCheckState(0, Qt.Checked if metric.endswith("_window") else Qt.Unchecked)
         window.result_series.blockSignals(False)
         window.plot()

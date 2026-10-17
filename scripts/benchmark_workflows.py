@@ -187,7 +187,7 @@ def _benchmark_result_workflows(window, app, measure, frame, output_rows):
 
 def _benchmark_graph_series(window, app, measure):
     def series(checked):
-        for item in list(window._series_items.values())[:3]:
+        for item in list(window._result_state._series_items.values())[:3]:
             item.setCheckState(0, checked)
             app.processEvents()
 

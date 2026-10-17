@@ -206,7 +206,7 @@ def test_compact_results_fit_four_graphs_with_readable_titles_and_fixed_time_axi
     )
     window.analyzed({"quantifications": {"tremor": frame}})
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(int(epochs))

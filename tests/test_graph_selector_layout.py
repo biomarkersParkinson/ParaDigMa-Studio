@@ -48,7 +48,7 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
         "Tremor",
         "Data coverage",
     }
-    assert window._series_items["preparation/gait", "available"].text(0) == "Gait"
+    assert window._result_state._series_items["preparation/gait", "available"].text(0) == "Gait"
     leaves = []
     for i in range(tree.topLevelItemCount()):
         module = tree.topLevelItem(i)
@@ -59,9 +59,9 @@ def test_all_metrics_are_direct_module_children_with_distinguishable_output_cont
             item = module.child(j)
             assert item.childCount() == 0
             assert item.flags() & Qt.ItemIsUserCheckable
-            assert item.data(0, Qt.UserRole) in window._series_items
+            assert item.data(0, Qt.UserRole) in window._result_state._series_items
             leaves.append(item)
-    assert len(leaves) == len(window._series_items)
+    assert len(leaves) == len(window._result_state._series_items)
     assert {item.text(0) for item in leaves if item.parent().text(0) == "Gait"} == {
         "Gait presence (probability)",
         "Gait presence (prediction)",
@@ -144,7 +144,7 @@ def test_module_title_and_arrow_toggle_once_while_leaf_clicks_only_change_select
     assert leaf.checkState(0) != before
     assert root.isExpanded()
     for ax in window.figure.axes:
-        assert ax.get_title(loc="left") == window._series_items[
+        assert ax.get_title(loc="left") == window._result_state._series_items[
             ax._paradigma_dataset, ax._paradigma_metric
         ].text(0)
 
@@ -174,7 +174,7 @@ def test_selected_graphs_follow_module_groups_in_all_views_and_long_labels_wrap(
     )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     for width in (960, 1200):
@@ -184,7 +184,7 @@ def test_selected_graphs_follow_module_groups_in_all_views_and_long_labels_wrap(
             ("pred_no_other_arm_activity_proba", "probability"),
             ("pred_no_other_arm_activity_window", "prediction"),
         ]:
-            item = window._series_items["classifications/gait/arm_activity", metric]
+            item = window._result_state._series_items["classifications/gait/arm_activity", metric]
             assert item.text(0) == f"Filtered gait presence ({suffix})"
             assert (
                 window.result_series.visualItemRect(item).height()
@@ -358,5 +358,5 @@ def test_requested_defaults_select_predictions_and_filtered_rom_without_extra_me
     )
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         assert window.result_series.visualItemRect(item).left() <= 12

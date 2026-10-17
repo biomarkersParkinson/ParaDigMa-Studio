@@ -105,7 +105,7 @@ def window(tmp_path):
 
 def select_all(window):
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
@@ -149,7 +149,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     axes = {(ax._paradigma_dataset, ax._paradigma_metric): ax for ax in window.figure.axes}
     assert all(ax._paradigma_epoch and ax._paradigma_bars for ax in axes.values())
     for key, ax in axes.items():
-        assert ax.get_title(loc="left") == window._series_items[key].text(0)
+        assert ax.get_title(loc="left") == window._result_state._series_items[key].text(0)
         assert ax._left_title.get_bbox_patch() is not None
     assert len({ax.get_xlim() for ax in axes.values()}) == 1
     power = axes["quantifications/tremor", "tremor_power"]
@@ -159,7 +159,7 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
         [25 / 450 * 100, 0, 100],
     )
     assert ("classifications/tremor", "pred_tremor_proba") not in axes
-    assert ("classifications/tremor", "pred_tremor_proba") not in window._series_items
+    assert ("classifications/tremor", "pred_tremor_proba") not in window._result_state._series_items
     np.testing.assert_array_equal(
         axes["quantifications/pulse_rate", "pulse_rate"]._paradigma_epoch_data.value, [60, 80, 70]
     )
@@ -179,18 +179,20 @@ def test_shared_view_switches_binary_continuous_and_availability_and_keeps_raw_o
     )
     assert marker.get_ydata()[0] == pytest.approx(np.log10(6))
     cached = power._paradigma_epoch_data
-    coverage_key = next(key for key in window._series_items if key[0].startswith("preparation/"))
-    window._series_items[coverage_key].setCheckState(0, Qt.Unchecked)
+    coverage_key = next(
+        key for key in window._result_state._series_items if key[0].startswith("preparation/")
+    )
+    window._result_state._series_items[coverage_key].setCheckState(0, Qt.Unchecked)
     power = next(
         ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/tremor"
     )
     assert power._paradigma_epoch_data is cached
-    window._series_items[coverage_key].setCheckState(0, Qt.Checked)
+    window._result_state._series_items[coverage_key].setCheckState(0, Qt.Checked)
     window.result_graph_view.setCurrentIndex(0)
     assert window.selected_result_series() == chosen
     assert not any(ax._paradigma_epoch for ax in window.figure.axes)
     for ax in window.figure.axes:
-        assert ax.get_title(loc="left") == window._series_items[
+        assert ax.get_title(loc="left") == window._result_state._series_items[
             ax._paradigma_dataset, ax._paradigma_metric
         ].text(0)
     for stage in ("classifications", "quantifications"):

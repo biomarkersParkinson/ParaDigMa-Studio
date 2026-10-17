@@ -209,7 +209,7 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for key, item in window._series_items.items():
+    for key, item in window._result_state._series_items.items():
         item.setCheckState(0, Qt.Checked if key == (name, "pred_event") else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.plot()

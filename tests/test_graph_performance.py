@@ -163,7 +163,7 @@ def test_changing_active_table_keeps_graph_zoom_settings_and_cached_row_selectio
     frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [2.0, 3.0, 4.0]})
     window.analyzed({"quantifications": {"tremor": frame, "pulse_rate": frame.copy()}})
     window.result_tabs.setCurrentIndex(1)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     app = QApplication.instance()
     app.processEvents()
@@ -260,7 +260,7 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     )
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for (name, _metric), item in window._series_items.items():
+    for (name, _metric), item in window._result_state._series_items.items():
         item.setCheckState(0, Qt.Checked if name == "quantifications/tremor" else Qt.Unchecked)
     window.result_series.blockSignals(False)
     window.result_graph_view.setCurrentIndex(mode)
@@ -275,7 +275,7 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     # Add before and after the retained axis in module order. Paths stay exact
     # and sharing still works after axes are removed/re-added to the Figure.
     for name in ("quantifications/gait/unfiltered", "quantifications/pulse_rate"):
-        window._series_items[name, "metric"].setCheckState(0, Qt.Checked)
+        window._result_state._series_items[name, "metric"].setCheckState(0, Qt.Checked)
         app.processEvents()
         retained = next(
             ax for ax in window.figure.axes if ax._paradigma_dataset == "quantifications/tremor"
@@ -298,7 +298,9 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     window.plot_toolbar.home()
     assert window.figure.axes[0].get_xlim()[0] <= 0.0
     assert window.figure.axes[0].get_xlim()[1] >= 2000.0
-    window._series_items["quantifications/gait/unfiltered", "metric"].setCheckState(0, Qt.Unchecked)
+    window._result_state._series_items["quantifications/gait/unfiltered", "metric"].setCheckState(
+        0, Qt.Unchecked
+    )
     original.set_xlim(250.0, 450.0)
     assert all(ax.get_xlim() == (250.0, 450.0) for ax in window.figure.axes)
 

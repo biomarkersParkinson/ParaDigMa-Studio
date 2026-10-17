@@ -328,7 +328,7 @@ def test_graph_changes_reuse_one_bridge_and_other_views_and_clear_remove_it(wind
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
     window.result_graph_view.setCurrentIndex(1)
     bridge = next(artist for artist in window.figure.artists if isinstance(artist, MidnightBridges))
-    extra = window._series_items[("classifications/tremor", "pred_arm_at_rest")]
+    extra = window._result_state._series_items[("classifications/tremor", "pred_arm_at_rest")]
     for state in (Qt.Checked, Qt.Unchecked, Qt.Checked):
         extra.setCheckState(0, state)
         window.canvas.draw()

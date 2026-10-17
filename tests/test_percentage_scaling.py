@@ -36,8 +36,10 @@ def test_percentage_and_coverage_bars_start_with_automatic_limits(window, view, 
     original = results["classifications"]["tremor"].copy(deep=True)
     window.analyzed(results)
     window.result_tabs.setCurrentIndex(1)
-    coverage_key = next(key for key in window._series_items if key[0].startswith("preparation/"))
-    window._series_items[coverage_key].setCheckState(0, Qt.Checked)
+    coverage_key = next(
+        key for key in window._result_state._series_items if key[0].startswith("preparation/")
+    )
+    window._result_state._series_items[coverage_key].setCheckState(0, Qt.Checked)
     window.result_graph_view.setCurrentIndex(view)
     for ax in window.figure.axes:
         assert ax.get_autoscaley_on()
@@ -75,8 +77,10 @@ def test_percentage_autoscaling_follows_time_zoom_and_respects_manual_limits_and
     assert not ax.get_autoscaley_on() and ax.get_ylim() == (0, 50)
     ax.set_xlim(0, width)
     assert ax.get_ylim() == (0, 50)
-    coverage_key = next(key for key in window._series_items if key[0].startswith("preparation/"))
-    window._series_items[coverage_key].setCheckState(0, Qt.Checked)
+    coverage_key = next(
+        key for key in window._result_state._series_items if key[0].startswith("preparation/")
+    )
+    window._result_state._series_items[coverage_key].setCheckState(0, Qt.Checked)
     ax = presence_axis(window)
     assert not ax.get_autoscaley_on() and ax.get_ylim() == (0, 50)
     toolbar.active_axes = ax

@@ -44,7 +44,7 @@ def test_toggling_availability_keeps_outcome_values_timing_and_axes(
     window.result_tabs.setCurrentIndex(1)
     coverage = next(
         item
-        for (name, metric), item in window._series_items.items()
+        for (name, metric), item in window._result_state._series_items.items()
         if name.startswith("preparation/")
     )
     coverage.setCheckState(0, Qt.Unchecked)
@@ -83,7 +83,7 @@ def test_toggling_availability_keeps_outcome_values_timing_and_axes(
         assert outcome().get_xlim()[1] >= end
         # Selecting coverage from an empty workspace starts with its full range.
         window.result_series.blockSignals(True)
-        for item in window._series_items.values():
+        for item in window._result_state._series_items.values():
             item.setCheckState(0, Qt.Unchecked)
         window.result_series.blockSignals(False)
         window.plot()

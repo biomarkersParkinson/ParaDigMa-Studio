@@ -155,7 +155,7 @@ def test_day_switches_all_modules_uses_metric_data_and_keeps_caches_and_tables(w
     original = deepcopy(output)
     window.analyzed(output)
     window.result_tabs.setCurrentIndex(1)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_graph_view.setCurrentIndex(1)
     thirty = _series_axis(window, "quantifications/tremor", "tremor_power")._paradigma_epoch_data
@@ -224,7 +224,7 @@ def test_day_gait_quantification_coverage_uses_valid_estimated_swing_intervals(w
         },
     }
     window.analyzed(output)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_graph_view.setCurrentIndex(2)
     for branch in ("filtered", "unfiltered"):

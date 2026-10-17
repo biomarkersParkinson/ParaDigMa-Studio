@@ -454,10 +454,10 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
                 assert positive.any()
             else:
                 assert not positive.any()  # Official left-side fixture has no clean-arm windows.
-            assert (name, probability) in window._series_items
-            assert (name, indicator) in window._series_items
+            assert (name, probability) in window._result_state._series_items
+            assert (name, indicator) in window._result_state._series_items
             window.result_series.blockSignals(True)
-            for key, item in window._series_items.items():
+            for key, item in window._result_state._series_items.items():
                 item.setCheckState(0, Qt.Checked if key == (name, indicator) else Qt.Unchecked)
             window.result_series.blockSignals(False)
             window.dataset.setCurrentText(name)
@@ -474,7 +474,7 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
                 rtol=0,
                 atol=1e-9,
             )
-            item = window._series_items[name, indicator]
+            item = window._result_state._series_items[name, indicator]
             assert axes.get_title(loc="left") == item.text(0)
             assert "(prediction)" in axes.get_title(loc="left")
             assert f"≥ {threshold:.5g}" in item.toolTip(0)
@@ -569,10 +569,10 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
             window.result_table.model().frame, actual["quantifications"]["tremor"], check_exact=True
         )
         for metric in ("pred_arm_at_rest", "pred_tremor_checked"):
-            assert ("quantifications/tremor", metric) not in window._series_items
-            assert ("classifications/tremor", metric) in window._series_items
+            assert ("quantifications/tremor", metric) not in window._result_state._series_items
+            assert ("classifications/tremor", metric) in window._result_state._series_items
         window.result_series.blockSignals(True)
-        for key, item in window._series_items.items():
+        for key, item in window._result_state._series_items.items():
             item.setCheckState(
                 0,
                 Qt.Checked

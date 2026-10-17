@@ -198,7 +198,7 @@ def _prepare_result_scroll(window):
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for item in window._series_items.values():
+    for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()

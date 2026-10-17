@@ -332,7 +332,7 @@ def _verify_binary_outputs(window, results):
     if not binary_indicator(classification[state], state):
         raise RuntimeError("Checked tremor predictions are not binary")
     window.result_series.blockSignals(True)
-    for key, item in window._series_items.items():
+    for key, item in window._result_state._series_items.items():
         item.setCheckState(
             0, Qt.Checked if key == ("classifications/tremor", state) else Qt.Unchecked
         )

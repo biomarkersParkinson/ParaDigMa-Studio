@@ -43,7 +43,7 @@ def test_results_y_axis_position_stays_fixed_across_selections_views_and_window_
         window.resize(*size)
         for selected in ((presence,), (presence, power, wide), (power,), (wide,), (presence,)):
             window.result_series.blockSignals(True)
-            for key, item in window._series_items.items():
+            for key, item in window._result_state._series_items.items():
                 item.setCheckState(0, Qt.Checked if key in selected else Qt.Unchecked)
             window.result_series.blockSignals(False)
             window.plot()
