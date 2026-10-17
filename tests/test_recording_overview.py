@@ -174,7 +174,7 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
     )
     frame.loc[[0, 1, 4, 9], "gyroscope_x"] = np.nan
     output = result({"tremor": section([[0.0, 2.0], [3.0, 7.0]])})
-    window.frame = frame
+    window._input_state.frame = frame
     window.provenance = {
         "source": "missing.csv",
         "settings": {
@@ -196,7 +196,7 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
         path = tmp_path / "results.json"
         export_results(path, output, window.provenance)
         window.provenance, saved = load_result_export(path)
-        window.frame = None
+        window._input_state.frame = None
         window.analyzed(saved)
         assert recording_summary(saved, window.provenance, window.display_clock) == entries
         texts = [label.text() for label in window.overview_content.findChildren(QLabel)]
@@ -228,7 +228,7 @@ def test_multiple_recording_clocks_include_between_file_gaps_in_the_timespan(tmp
         "recordings": keys,
         "sections": {key: key for key in keys},
     }
-    window.recordings = frames
+    window._input_state.recordings = frames
     window.provenance = {
         "sources": {key: key + ".csv" for key in keys},
         "settings": {"pipelines": ["tremor"], "time_input_unit": "absolute_s"},

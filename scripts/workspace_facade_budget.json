@@ -1,8 +1,7 @@
 {
-  "max_lines": 224,
+  "max_lines": 221,
   "aliases": [
     "_data_graph",
-    "_data_plot_dirty",
     "_detail_selections",
     "_result_view_layouts",
     "_result_view_scrolls",
@@ -62,7 +61,6 @@
     "figure",
     "figure_actions",
     "finish_run",
-    "frame",
     "gaps",
     "graph_clicked",
     "graph_footer",
@@ -117,7 +115,6 @@
     "provenance",
     "record_output",
     "recording_time_label",
-    "recordings",
     "refresh_data_descriptives",
     "refresh_detail_table",
     "refresh_runs",

@@ -858,7 +858,7 @@ def test_exported_json_can_reopen_after_restart_without_loading_pickle(
         assert reopened.open_run_button.isEnabled()
         reopened.open_run()
         wait_for_job(reopened)
-        assert reopened.frame is None
+        assert reopened._input_state.frame is None
         assert reopened.result_source_frame is None
         assert reopened.result_table.model().rowCount() == 6
         assert reopened.provenance["source"].endswith("trusted.pkl")

@@ -382,4 +382,4 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     )
     assert window._graph_state._result_shared_axes is None
     # Clearing outputs preserves the loaded source for subsequent analyses.
-    assert window.frame is frame
+    assert window._input_state.frame is frame

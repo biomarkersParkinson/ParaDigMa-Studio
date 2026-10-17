@@ -182,8 +182,8 @@ def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(win
         (window.sensor_toolbar, window.sensor_figure),
     ):
         if toolbar is window.sensor_toolbar:
-            window.sensor_frame = window.frame
-            window.sensor_times = window.frame.time.to_numpy()
+            window.sensor_frame = window._input_state.frame
+            window.sensor_times = window._input_state.frame.time.to_numpy()
             window.populate_sensor_channels()
             window.plot_sensor()
         toolbar.settings_action.setChecked(True)
@@ -195,7 +195,7 @@ def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(win
         assert figure.axes[0].get_ylim() == pytest.approx((0, 40))
     pd.testing.assert_frame_equal(window.active_frame, result)
     np.testing.assert_array_equal(
-        window.sensor_figure.axes[0].lines[0].get_ydata(), window.frame.gyroscope_x
+        window.sensor_figure.axes[0].lines[0].get_ydata(), window._input_state.frame.gyroscope_x
     )
 
 
@@ -259,8 +259,8 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
 
 def test_channel_labels_toggle_once_and_support_multiple_channels(window):
     recording(window)
-    window.sensor_frame = window.frame
-    window.sensor_times = window.frame.time.to_numpy()
+    window.sensor_frame = window._input_state.frame
+    window.sensor_times = window._input_state.frame.time.to_numpy()
     window.populate_sensor_channels()
     window.plot_sensor()
     window.result_tabs.setCurrentIndex(3)
@@ -293,7 +293,7 @@ def test_channel_labels_toggle_once_and_support_multiple_channels(window):
 
 def test_axis_limits_shade_only_the_selected_graph_and_restore_backgrounds(window):
     recording(window)
-    window.frame["accelerometer_x"] = [0.1, 0.2, 0.3]
+    window._input_state.frame["accelerometer_x"] = [0.1, 0.2, 0.3]
     window.populate_input_channels()
     window.set_input_channels(["gyroscope_x", "accelerometer_x"])
     toolbar, figure = window.data_toolbar, window.data_figure

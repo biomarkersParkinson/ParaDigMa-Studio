@@ -88,7 +88,7 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     exported = tmp_path / "aligned.json"
     export_results(exported, output, window.provenance)
     provenance, saved = load_result_export(exported)
-    window.frame = None
+    window._input_state.frame = None
     window.provenance = provenance
     window.analyzed(saved)
     window.dataset.setCurrentText(f"quantifications/{early}")
@@ -487,7 +487,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     path = tmp_path / "results.json"
     export_results(path, results, window.provenance)
     provenance, restored = load_result_export(path)
-    window.result_source_frame = window.frame = None
+    window.result_source_frame = window._input_state.frame = None
     window.provenance = provenance
     window.analyzed(restored)
     assert window.display_clock["origin"] == "2026-10-07T12:00:00+02:00"

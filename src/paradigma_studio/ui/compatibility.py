@@ -4,8 +4,6 @@ from ..workspace_state import state_property
 from .component_ports import component_attribute
 
 _PORTS = {
-    "frame": state_property("_input_state", "frame"),
-    "recordings": state_property("_input_state", "recordings"),
     "provenance": state_property("_result_state", "provenance"),
     "tables": state_property("_result_state", "tables"),
     "_timings": state_property("_result_state", "_timings"),
@@ -20,7 +18,6 @@ _PORTS = {
     "sensor_times": state_property("_sensor_state", "sensor_times"),
     "_sensor_context": state_property("_sensor_state", "_sensor_context"),
     "_sensor_navigator": state_property("_sensor_state", "_sensor_navigator"),
-    "_data_plot_dirty": state_property("_data_state", "_data_plot_dirty"),
     "worker": state_property("_job_state", "worker"),
     "_series_items": state_property("_result_state", "_series_items"),
     "results_scroll": state_property("_result_state", "results_scroll"),

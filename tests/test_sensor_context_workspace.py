@@ -62,7 +62,7 @@ def window(tmp_path):
 
 
 def test_context_groups_modalities_with_data_colors_and_original_values(window):
-    source = window.frame.copy(deep=True)
+    source = window._input_state.frame.copy(deep=True)
     context = window.sensor_frame.copy(deep=True)
     channels = ["accelerometer_x", "gyroscope_y", "gyroscope_z"]
     window.set_sensor_channels(channels)
@@ -79,7 +79,7 @@ def test_context_groups_modalities_with_data_colors_and_original_values(window):
     assert window.selected_input_channels() == ["accelerometer_x"]
     window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, context)
-    pd.testing.assert_frame_equal(window.frame, source)
+    pd.testing.assert_frame_equal(window._input_state.frame, source)
 
 
 def test_context_checkboxes_and_bulk_actions_preserve_selection_across_drilldowns(window):
@@ -394,7 +394,7 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
     assert window.sensor_table.model() is None
     window.sensor_tabs.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.sensor_table.model().frame, window.sensor_frame)
-    pd.testing.assert_frame_equal(window.frame, frame)
+    pd.testing.assert_frame_equal(window._input_state.frame, frame)
 
 
 def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(window):
@@ -418,7 +418,7 @@ def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(w
     np.testing.assert_array_equal(
         signal_lines(axes)[0].get_ydata(), window.sensor_frame.gyroscope_x
     )
-    pd.testing.assert_frame_equal(window.frame, frame)
+    pd.testing.assert_frame_equal(window._input_state.frame, frame)
     view_sensor(window, 40, 60)
     view_sensor(window, 20, 40)
     marker = next(
@@ -500,8 +500,8 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
 
     times = np.arange(250_000) / 100
     frame = pd.DataFrame({"time": times, "gyroscope_x": np.sin(times)})
-    window.frame = frame
-    window.recordings = {}
+    window._input_state.frame = frame
+    window._input_state.recordings = {}
     window.provenance = {
         "settings": {"skip_preparation": True},
         "display_clock": {"origin": "2026-10-10T00:00:00Z", "timezone": "UTC"},

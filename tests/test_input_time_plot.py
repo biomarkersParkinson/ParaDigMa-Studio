@@ -51,14 +51,14 @@ def test_data_time_selection_refreshes_visible_and_hidden_graphs(window, unit):
     # Changing formats from Overview must invalidate the already-rendered plot.
     window.data_tabs.setCurrentIndex(0)
     window.data_time_unit.setCurrentText("relative_s")
-    assert window._data_plot_dirty
+    assert window._data_state._data_plot_dirty
     window.data_tabs.setCurrentIndex(1)
     for axes in window.data_figure.axes:
         np.testing.assert_array_equal(axes.lines[0].get_xdata(), increments)
     # Analyze's existing synchronization also updates Data when revisited.
     window.navigate(1)
     window.time.setCurrentText(unit)
-    assert window._data_plot_dirty
+    assert window._data_state._data_plot_dirty
     window.navigate(0)
     for axes in window.data_figure.axes:
         np.testing.assert_allclose(axes.lines[0].get_xdata(), [0.0, 0.01, 0.04, 0.05])

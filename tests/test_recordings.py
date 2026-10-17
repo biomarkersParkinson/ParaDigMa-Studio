@@ -110,7 +110,7 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
     window.open_file()
     wait_for_worker(window)
     assert window.input_recording.count() == 2 and not window.input_recording.isHidden()
-    assert len(window.recordings) == 2
+    assert len(window._input_state.recordings) == 2
     window.input_recording.setCurrentIndex(1)
     pd.testing.assert_frame_equal(window.input_table.model().frame, frames["recording_002"])
     assert "2 recordings" in window.analysis_input.text()
@@ -186,7 +186,7 @@ def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_an
     assert window.data_tabs.currentIndex() == 1 and len(plots) == 2
     for line in window.data_figure.axes[0].lines:
         np.testing.assert_array_equal(line.get_ydata(), frames["recording_001"][line.get_label()])
-    assert window.recordings is frames and window.clock_input.text() == clock
+    assert window._input_state.recordings is frames and window.clock_input.text() == clock
     for key in frames:
         pd.testing.assert_frame_equal(frames[key], original[key])
 

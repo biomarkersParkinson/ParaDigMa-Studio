@@ -196,7 +196,7 @@ def test_custom_mapping_groups_original_names_and_does_not_block_on_incomplete_j
         ["a", "b"],
         ["c"],
     ]
-    pd.testing.assert_frame_equal(window.frame, frame)
+    pd.testing.assert_frame_equal(window._input_state.frame, frame)
 
 
 @pytest.mark.parametrize("epochs", [False, True], ids=["detailed", "30-minute"])

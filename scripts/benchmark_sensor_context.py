@@ -30,7 +30,7 @@ def benchmark(report_path, samples=3_000_000):
         window.resize(1450, 920)
         window.show()
         times = np.arange(samples) / 100
-        window.frame = pd.DataFrame(
+        window._input_state.frame = pd.DataFrame(
             {
                 "time": times,
                 "gyroscope_x": np.sin(times),
