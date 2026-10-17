@@ -27,7 +27,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Responsibility | Modules |
 | --- | --- |
 | Component creation, Qt lifecycle adapters and ordered signal wiring | `app.py` |
-| Remaining legacy window aliases during incremental retirement | `ui/compatibility.py` |
+| Internal workspace driver API for tests, probes and benchmarks | `ui/compatibility.py` |
 | Explicit attribute forwarding between composed UI components | `ui/component_ports.py` |
 | Input, result, run, sensor, job and presentation state | `workspace_state.py` |
 | Recording loading, inspection previews and raw Data graphs | `data_controller.py` |
@@ -81,19 +81,20 @@ The main result and run responsibilities belong to these components:
 | Populate result series | `ui.result_series.ResultSeries.populate` |
 | Delete runs | `run_controller.RunController.delete_runs` |
 
-`workspace_state.py` owns shared state. The explicit alias table in
-`ui/compatibility.py` retains a shrinking subset of legacy window attributes and
-methods; components do not use that facade. New integrations should use the
-owning state/controller or the service APIs, rather than add window aliases.
-MainWindow's composition and signal wiring use those owners directly. The
-`workspace_ports` decorator retains aliases for existing probe and integration
-callers; MainWindow also works without installing them.
-All legacy state aliases are retired. Callers use their owning state objects
-directly, such as `window._result_state.provenance` for result metadata.
-Results view layouts, scroll-area lists and overview containers use
-`window._layout` directly. UI and callback ports remain in the facade. The
-[facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
-requires its name and line budgets to shrink alongside removals. The reusable
+`workspace_state.py` owns shared state. Application code, including MainWindow's
+composition and signal wiring, uses explicit layout/state/controller owners.
+State assertions use those objects directly, such as
+`window._result_state.provenance` for result metadata.
+
+`ui/compatibility.py` is the **internal workspace driver API** for UI tests,
+startup/smoke probes and benchmarks. Its historical filename is retained. The
+`workspace_ports` decorator exposes declared widgets and actions on MainWindow
+for automation; the application also works without installing those ports.
+The ports follow UI implementation details and carry no public stability
+guarantee. Keep useful driver ports; further removal is not a goal by itself.
+Choosing a stable supported driver contract requires a separate review.
+The [driver-port budget guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
+remains shrink-only and requires both budgets to match any removals. The reusable
 `component_attribute` descriptor belongs to `ui/component_ports.py`; it supports
 explicit component composition without a generic host fallback.
 Graphics stay deferred through frozen callable ports and reuse their canvases.

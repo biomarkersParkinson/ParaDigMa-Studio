@@ -10,7 +10,7 @@ trigger and expected behavior still apply.
 | Responsibility | Test modules |
 | --- | --- |
 | Source-module 900-line limit and boundary cases | `test_module_size.py`; CI entry point `scripts/check_module_size.py` |
-| Shrinking workspace aliases, line budget and retired-name protection | `test_workspace_facade.py`; CI entry point `scripts/check_workspace_facade.py` |
+| Internal driver port budget, physical-line limit and retired-name protection | `test_workspace_facade.py`; CI entry point `scripts/check_workspace_facade.py` |
 | Independent official ParaDigMa comparisons | `test_scientific_equivalence.py` |
 | Loading, validation and preparation | `test_core.py`, `test_preparation.py`, `test_missing_samples.py`, `test_cwa.py`, `test_empatica.py`, `test_tsdf_input.py` |
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
@@ -38,7 +38,7 @@ trigger and expected behavior still apply.
 | Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 | Frozen layout/graph ports without application-window dependencies, Qt/job ordering and coordinator size | `test_composition_order.py` |
-| MainWindow ownership boundaries and recording/results/sensor workflows without legacy window ports | `test_composition_without_facade.py` |
+| MainWindow ownership boundaries and recording/results/sensor workflows without driver ports | `test_composition_without_facade.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export
 unit test exercises special numeric values, a scientific test checks real outputs,
@@ -73,8 +73,10 @@ context from scientific filtered-gait processing.
 
 Use the owning state for state assertions and the owning controller for isolated
 behavior tests. UI integration tests should continue driving widgets/signals and
-checking ordering. Legacy window aliases are being retired incrementally; avoid
-introducing new dependencies on that facade.
+checking ordering, using the internal workspace driver API in
+`ui/compatibility.py` where useful. Startup/smoke probes and benchmarks share
+these implementation-coupled ports. Application code uses explicit component
+owners, and the driver API retains its shrink-only budget guard.
 
 Checks for removed UI controls inspect the actual widget tree, including hidden
 children; an absent window alias does not prove that a widget is absent. Resource

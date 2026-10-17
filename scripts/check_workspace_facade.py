@@ -1,4 +1,4 @@
-"""Keep the remaining MainWindow compatibility aliases and line budget shrinking."""
+"""Enforce the shrink-only budget for internal workspace driver ports."""
 
 import ast
 import json

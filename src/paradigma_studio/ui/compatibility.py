@@ -1,4 +1,4 @@
-"""Explicit legacy API adapters; controllers never receive this window facade."""
+"""Internal workspace driver API for tests, probes and benchmarks; app code uses owners."""
 
 from .component_ports import component_attribute
 
@@ -160,7 +160,7 @@ _PORTS = {
 
 
 def workspace_ports(cls):
-    """Keep explicit integration aliases; components use frozen views, never this facade."""
+    """Install implementation-coupled driver ports; no public API stability is promised."""
     for name, port in _PORTS.items():
         if isinstance(port, component_attribute):
             port.__set_name__(cls, name)

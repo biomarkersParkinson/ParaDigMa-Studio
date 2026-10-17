@@ -95,18 +95,25 @@ dependencies. The script reports every oversized module and exits with failure;
 there are no exemptions. Extract cohesive components or helpers before reaching
 the limit, preserving explicit dependencies and deferred imports.
 
-The remaining legacy window aliases have a separate shrinking guard:
+`ui/compatibility.py` provides an internal workspace driver API for UI tests,
+startup/smoke probes and benchmarks. Keep its historical filename. Automation
+may use its declared widget/action ports; application code uses explicit owners.
+These ports are coupled to UI implementation details and have no public API
+stability guarantee. Keep useful ports; removing them is not a target by itself.
+Choosing a stable supported driver contract requires a separate review.
+
+The existing shrink-only budget guard remains in place:
 `python scripts/check_workspace_facade.py`. Both Windows workflows run it before
 installing dependencies. `scripts/workspace_facade_budget.json` lists the exact
-remaining aliases and physical-line budget for `ui/compatibility.py`. Retiring an
-alias requires removing its budget entry and lowering the line budget to match;
-new aliases, retired names returning, and file growth fail the check. Do not raise
-the budget. Migrate callers to their owning state/component while preserving Qt
-signal ordering and job lifecycles. The reusable component descriptor lives in
-`ui/component_ports.py`, outside the legacy window adapter.
+driver ports and physical-line budget for `ui/compatibility.py`. When a port is
+removed, remove its budget entry and lower the line budget to match; new aliases,
+retired names returning, and file growth fail the check. Do not raise the budget;
+any future policy change needs a separate review of the supported driver ports.
+Preserve Qt signal ordering and job lifecycles when migrating callers. The reusable
+component descriptor lives in `ui/component_ports.py`, outside the driver API.
 MainWindow's composition must access widgets and callbacks through their explicit
 layout/state/controller owners. `test_composition_without_facade.py` checks this
-boundary and exercises loading, results and sensor context with the legacy-port
+boundary and exercises loading, results and sensor context with the driver-port
 decorator disabled. Preserve deferred lambdas and the real Qt receiver methods
 when changing callback wiring.
 
