@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
             preview.diagnostic.connect(self.append_log)
         self._data_plot_dirty = True
         self.active_positions = np.array([], dtype=int)
-        self.sidebar_collapsed = True
+        self._shell_state.sidebar_collapsed = True
         directory = history_dir or user_storage_path(
             QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation), "runs"
         )

@@ -1,7 +1,6 @@
 {
-  "max_lines": 226,
+  "max_lines": 224,
   "aliases": [
-    "_acknowledgements_dialog",
     "_data_graph",
     "_data_plot_dirty",
     "_detail_selections",
@@ -182,7 +181,6 @@
     "show_notice",
     "side",
     "sidebar",
-    "sidebar_collapsed",
     "start_job",
     "status",
     "status_row",

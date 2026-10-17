@@ -97,7 +97,7 @@ def _verify_bundled_ui(window, app):
     if QPixmap(str(files("paradigma_studio") / "data" / "directions_axes.png")).isNull():
         raise RuntimeError("Bundled ParaDigMa device-axis reference figure could not be rendered")
     window.about_button.click()
-    attribution = window._acknowledgements_dialog
+    attribution = window._shell_state._acknowledgements_dialog
     if "10.21105/joss.09502" not in attribution.acknowledgement.toPlainText():
         raise RuntimeError("ParaDigMa research citation is missing from About")
     if "Copyright (c) 2023, Peter Kok" not in attribution.licence.toPlainText():

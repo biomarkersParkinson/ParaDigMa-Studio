@@ -42,7 +42,7 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     window.navigate(1)
     window.set_modules(["gait", "tremor", "pulse_rate"])
     window.about_button.click()
-    dialog = window._acknowledgements_dialog
+    dialog = window._shell_state._acknowledgements_dialog
     assert dialog.isVisible()
     assert dialog.windowTitle() == "About"
     assert [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())] == [
@@ -108,7 +108,7 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
     assert not dialog.copy_button.isVisible()
     dialog.close()
     window.about_button.click()
-    assert window._acknowledgements_dialog is dialog
+    assert window._shell_state._acknowledgements_dialog is dialog
     window.close()
     assert not dialog.isVisible()
     application.processEvents()

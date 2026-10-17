@@ -304,11 +304,14 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     window.navigate(2)
     QTest.mouseMove(window.pages, QPoint(300, 100))
     QTest.qWait(150)
-    assert window.sidebar_collapsed and window.sidebar.width() == 68
+    assert window._shell_state.sidebar_collapsed and window.sidebar.width() == 68
     position = window.result_tabs.mapTo(window, QPoint(0, 0))
     QTest.mouseMove(window.sidebar, QPoint(30, 100))
     QTest.qWait(160)
-    assert not window.sidebar_collapsed and window.sidebar.width() == window.sidebar.expanded_width
+    assert (
+        not window._shell_state.sidebar_collapsed
+        and window.sidebar.width() == window.sidebar.expanded_width
+    )
     assert window.sidebar.expanded_width >= 194
     assert [item.text() for item in window.nav_buttons] == [
         f"{i + 1}    {title}" for i, title in enumerate(window.SECTIONS)
@@ -316,7 +319,7 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     assert window.result_tabs.mapTo(window, QPoint(0, 0)) == position
     QTest.mouseMove(window.pages, QPoint(300, 100))
     QTest.qWait(160)
-    assert window.sidebar_collapsed and window.sidebar.width() == 68
+    assert window._shell_state.sidebar_collapsed and window.sidebar.width() == 68
     assert window.result_tabs.mapTo(window, QPoint(0, 0)) == position
     assert window.about_button.text() == "About"
     assert window.sidebar.isAncestorOf(window.about_button)
@@ -332,8 +335,8 @@ def test_sidebar_hover_expands_without_moving_page_and_about_stays_in_footer(win
     assert window.about_button.visibleRegion().contains(text)
     assert window.sidebar.findChildren(QPushButton) == [*window.nav_buttons, window.about_button]
     window.about_button.click()
-    assert window._acknowledgements_dialog.isVisible()
-    window._acknowledgements_dialog.close()
+    assert window._shell_state._acknowledgements_dialog.isVisible()
+    window._shell_state._acknowledgements_dialog.close()
 
 
 @pytest.mark.parametrize("brand_font_px", [None, 30])
