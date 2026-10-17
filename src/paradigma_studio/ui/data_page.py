@@ -53,7 +53,7 @@ class DataPage:
         self.callbacks, self.channel_graph = callbacks, channel_graph
         self._build_data()
 
-    def _build_data(self):
+    def _build_data(self) -> None:
         layout = self._layout
         self._build_data_header(layout)
         self.data_tabs = QTabWidget()
@@ -71,7 +71,7 @@ class DataPage:
             self.data_values.append(value)
             metrics.addWidget(panel, 1)
         overview_layout.addLayout(metrics)
-        details = self.data_details = QSplitter(Qt.Horizontal)
+        details = self.data_details = QSplitter(Qt.Orientation.Horizontal)
         details.setHandleWidth(12)
         panel, content = card()
         content.addWidget(label("Sensor channels", "sectionTitle"))
@@ -142,7 +142,9 @@ class DataPage:
         layout.addWidget(panel)
 
     def resize_data(self, width: int) -> None:
-        orientation = Qt.Horizontal if width >= 1280 else Qt.Vertical
+        orientation = Qt.Orientation.Horizontal if width >= 1280 else Qt.Orientation.Vertical
         if self.data_details.orientation() != orientation:
             self.data_details.setOrientation(orientation)
-            self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
+            self.data_details.setSizes(
+                [660, 400] if orientation == Qt.Orientation.Horizontal else [220, 300]
+            )

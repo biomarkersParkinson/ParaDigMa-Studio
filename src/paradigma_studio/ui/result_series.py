@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable, Iterable, Mapping
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -18,8 +19,11 @@ from ..results_view import (
 from ..theme import module_color, tooltip_text
 
 if TYPE_CHECKING:
+    import pandas as pd
     from PySide6.QtWidgets import QTreeWidget
 
+
+SeriesKey = tuple[str, Hashable]
 
 DEFAULT_SERIES = {
     "gait": (
@@ -30,8 +34,10 @@ DEFAULT_SERIES = {
 }
 
 
-def default_series(names, frames, tables):
-    selected = {
+def default_series(
+    names: Iterable[str], frames: Mapping[str, pd.DataFrame], tables: Mapping[str, pd.DataFrame]
+) -> set[SeriesKey]:
+    selected: set[SeriesKey] = {
         (name, metric)
         for choices in DEFAULT_SERIES.values()
         for name, metric in choices
@@ -56,15 +62,20 @@ def default_series(names, frames, tables):
 
 
 class ResultSeries:
-    def __init__(self, tree: QTreeWidget):
+    def __init__(self, tree: QTreeWidget) -> None:
         self.tree = tree
 
-    def populate(self, plot_tables, plot_labels, tables):
+    def populate(
+        self,
+        plot_tables: Mapping[str, pd.DataFrame],
+        plot_labels: Mapping[SeriesKey, str],
+        tables: Mapping[str, pd.DataFrame],
+    ) -> dict[SeriesKey, QTreeWidgetItem]:
         self.tree.blockSignals(True)
         self.tree.clear()
-        items = {}
+        items: dict[SeriesKey, QTreeWidgetItem] = {}
         roots = {}
-        title_counts = {}
+        title_counts: dict[tuple[str, str], int] = {}
         module_order = {
             module: index for index, module in enumerate((*MODULE_NAMES, "preparation"))
         }
@@ -95,18 +106,20 @@ class ResultSeries:
                     ],
                 )
                 root.setForeground(0, QColor(module_color(module)))
-                root.setFlags(root.flags() & ~Qt.ItemIsUserCheckable)
+                root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
                 root.setExpanded(True)
                 roots[module] = root
             metrics = plot_metrics(name, frame)
             for metric in metrics:
                 title = self._title(module, name, metric, plot_labels, title_counts)
                 item = QTreeWidgetItem(roots[module], [title])
-                item.setData(0, Qt.UserRole, (name, metric))
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setData(0, Qt.ItemDataRole.UserRole, (name, metric))
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(
                     0,
-                    Qt.Checked if (name, metric) in defaults else Qt.Unchecked,
+                    Qt.CheckState.Checked
+                    if (name, metric) in defaults
+                    else Qt.CheckState.Unchecked,
                 )
                 item.setToolTip(0, self._tooltip(module, name, metric))
                 items[(name, metric)] = item
@@ -115,7 +128,13 @@ class ResultSeries:
         return items
 
     @staticmethod
-    def _title(module, name, metric, plot_labels, title_counts):
+    def _title(
+        module: str,
+        name: str,
+        metric: Hashable,
+        plot_labels: Mapping[SeriesKey, str],
+        title_counts: Mapping[tuple[str, str], int],
+    ) -> str:
         title = plot_labels.get((name, metric), str(metric).replace("_", " "))
         if (
             module != "preparation"
@@ -132,7 +151,7 @@ class ResultSeries:
         return title
 
     @staticmethod
-    def _tooltip(module, name, metric):
+    def _tooltip(module: str, name: str, metric: Hashable) -> str:
         if module == "preparation":
             return "Coverage of the prepared samples supplied to this pipeline."
         if name.startswith("classifications/gait/") and metric in (

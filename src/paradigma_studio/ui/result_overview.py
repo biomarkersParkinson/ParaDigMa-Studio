@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -14,15 +14,32 @@ from ..theme import tooltip_text
 from ..widgets import card, label, precision_tooltip
 
 if TYPE_CHECKING:
-    from PySide6.QtWidgets import QScrollArea, QVBoxLayout
+    import pandas as pd
+    from PySide6.QtWidgets import QLabel, QLayoutItem, QScrollArea, QVBoxLayout
+
+    from ..contracts import AnalysisResults, ClockMetadata, Provenance
+
+
+# Gait chart metadata contains canvas/axes handles, category pairs and arrays.
+OverviewHandles = tuple[
+    dict[tuple[str, str, tuple[str, ...]], "QLabel"],
+    dict[str, QWidget],
+    dict[str, dict[str, Any]],
+]
 
 
 class ResultOverview:
-    def __init__(self, layout: QVBoxLayout, scroll_area: QScrollArea):
+    def __init__(self, layout: QVBoxLayout, scroll_area: QScrollArea) -> None:
         self.layout = layout
         self.scroll_area = scroll_area
 
-    def render(self, results, provenance, clock, prepared_views=None):
+    def render(
+        self,
+        results: AnalysisResults | None,
+        provenance: Provenance,
+        clock: ClockMetadata | None,
+        prepared_views: tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]] | None = None,
+    ) -> OverviewHandles:
         """Replace overview widgets without transforming the scientific outputs."""
         self._clear()
         results = results or {}
@@ -37,12 +54,14 @@ class ResultOverview:
 
     def _clear(self):
         while self.layout.count():
-            item = self.layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
-        self.overview_values = {}
-        self.overview_module_cards = {}
-        self.overview_gait_charts = {}
+            # The positive count guarantees takeAt(0) returns a layout item.
+            item = cast("QLayoutItem", self.layout.takeAt(0))
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.overview_values: dict[tuple[str, str, tuple[str, ...]], QLabel] = {}
+        self.overview_module_cards: dict[str, QWidget] = {}
+        self.overview_gait_charts: dict[str, dict[str, Any]] = {}
 
     def _recording_cards(self, entries):
         if entries:
@@ -54,7 +73,7 @@ class ResultOverview:
             index = 0
             for title, value in entries:
                 box, inside = card()
-                inside.setAlignment(Qt.AlignTop)
+                inside.setAlignment(Qt.AlignmentFlag.AlignTop)
                 heading = label(title, "muted")
                 heading.setWordWrap(True)
                 inside.addWidget(heading)

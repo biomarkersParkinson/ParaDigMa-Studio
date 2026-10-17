@@ -120,10 +120,17 @@ files = [
     "src/paradigma_studio/previews.py",
     "src/paradigma_studio/storage.py",
     "src/paradigma_studio/exports.py",
+    "src/paradigma_studio/ui/workspace_callbacks.py",
+    "src/paradigma_studio/ui/graph_views.py",
+    "src/paradigma_studio/ui/data_page.py",
+    "src/paradigma_studio/ui/result_series.py",
+    "src/paradigma_studio/ui/result_overview.py",
+    "src/paradigma_studio/ui/deferred.py",
+    "src/paradigma_studio/ui/component_ports.py",
 ]
-# Check service APIs and the composed job/result/export/shell controllers.
-# Remaining untyped UI code can be migrated incrementally; imported modules
-# still supply their available contracts.
+# Check service/controller APIs and the initial UI contracts/components.
+# Remaining UI modules can be migrated incrementally; imported modules still
+# supply their available contracts.
 follow_imports = "silent"
 disallow_incomplete_defs = true
 warn_unused_ignores = true
@@ -144,6 +151,20 @@ module = [
 # Require complete annotations and check nested helpers in this expanded scope.
 disallow_untyped_defs = true
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "paradigma_studio.ui.workspace_callbacks",
+    "paradigma_studio.ui.graph_views",
+    "paradigma_studio.ui.data_page",
+    "paradigma_studio.ui.result_series",
+    "paradigma_studio.ui.result_overview",
+    "paradigma_studio.ui.deferred",
+    "paradigma_studio.ui.component_ports",
+]
+# Check UI bodies while annotations are introduced gradually.
+check_untyped_defs = true
+disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = ["paradigma.*", "openmovement.*"]

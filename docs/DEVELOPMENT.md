@@ -166,14 +166,23 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 - `job_controller`, `result_controller`, `export_controller` and `shell_controller`;
 - `workspace_state`, `result_data`, `previews`, `storage` and `exports`.
 
+The initial UI targets are `ui.workspace_callbacks`, `ui.graph_views`,
+`ui.data_page`, `ui.result_series`, `ui.result_overview`, `ui.deferred` and
+`ui.component_ports`. Their bodies are checked (`check_untyped_defs`) while
+unannotated functions remain allowed (`disallow_untyped_defs = false`). Public
+component contracts are annotated; scientific and plotting types stay under
+`TYPE_CHECKING` to preserve deferred imports. Dynamic descriptor values retain
+`Any` at their boundary; do not suppress whole UI modules or error categories.
+
 The controller and supporting-service modules listed above require complete
 function annotations (`disallow_untyped_defs`) and check helper bodies
 (`check_untyped_defs`), including job operations, preview completion and export
 writers. Callback protocols describe
 optional arguments and service dependencies; atomic writes distinguish text and
 binary streams. Existing service checks remain lenient, and the remaining UI and
-controller modules can be typed incrementally. Extend both the `files` list and
-the stricter module override in `pyproject.toml` when migrating another module.
+controller modules can be typed incrementally. Add new targets to the `files`
+list in `pyproject.toml`; apply the stricter override only when a module has
+complete annotations.
 
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
 messages. Extensible ParaDigMa payloads, the heterogeneous Qt job-completion
