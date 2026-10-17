@@ -138,7 +138,9 @@ class WorkspaceLayout:
         self.graphs, self.shell, self.results = graphs, shell, results
         self.history_directory = history_directory
         self.sections, self.modules = sections, modules
-        self._data_canvas_view = self._sensor_canvas_view = self._result_canvas_view = None
+        self._data_canvas_view: ChannelCanvasView | None = None
+        self._sensor_canvas_view: ChannelCanvasView | None = None
+        self._result_canvas_view: ResultCanvasView | None = None
         self._build_shell()
         self._build_data()
         self._build_analyze()
@@ -242,7 +244,7 @@ class WorkspaceLayout:
     def channel_graph(self, select_channels, accessible_name, prefix):
         """Shared raw-sensor workspace: a channel list beside a fitted graph."""
         preview = QWidget()
-        preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         preview_layout = QHBoxLayout(preview)
         channels = QWidget()
         channels.setMinimumWidth(190)
@@ -258,15 +260,18 @@ class WorkspaceLayout:
             button(
                 "Select all",
                 lambda: select_channels(
-                    [channel_list.item(i).data(Qt.UserRole) for i in range(channel_list.count())]
+                    [
+                        channel_list.item(i).data(Qt.ItemDataRole.UserRole)
+                        for i in range(channel_list.count())
+                    ]
                 ),
             )
         )
         selection.addWidget(button("Clear", lambda: select_channels([])))
         channel_layout.addLayout(selection)
         channel_list.setPalette(light_palette())
-        channel_list.setSelectionMode(QAbstractItemView.NoSelection)
-        channel_list.setTextElideMode(Qt.ElideNone)
+        channel_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        channel_list.setTextElideMode(Qt.TextElideMode.ElideNone)
         channel_list.setAccessibleName(accessible_name)
         channel_layout.addWidget(channel_list, 1)
         preview_layout.addWidget(channels)
@@ -286,7 +291,7 @@ class WorkspaceLayout:
         canvas.defer_when_hidden = True
         # Use the available height instead of imposing the canvas's preferred
         # 480-pixel height on the enclosing page or clipping its time axis.
-        canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         toolbar = add_graph_controls(graph_layout, canvas, self.parent)
         graph_layout.addWidget(canvas, 1)
         if prefix == "sensor":
@@ -321,14 +326,14 @@ class WorkspaceLayout:
 
     def _result_view(self, title, pinned=False):
         scroll = QScrollArea()
-        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(12, 12, 12, 12)
         body_layout.setSpacing(12)
-        body_layout.setSizeConstraint(QLayout.SetMinimumSize)
+        body_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         scroll.setWidget(body)
         if pinned:
             self.graph_view = DeferredWidget(self._initialize_result_graph)
@@ -365,12 +370,12 @@ class WorkspaceLayout:
         self.export_button.setAccessibleName("Export results")
         self.export_button.setEnabled(False)
         action_layout.addWidget(self.export_button)
-        self.result_tabs.setCornerWidget(actions, Qt.TopRightCorner)
+        self.result_tabs.setCornerWidget(actions, Qt.Corner.TopRightCorner)
 
     def _build_result_table_controls(self):
         self.detail_controls = QWidget()
         controls_layout = QVBoxLayout(self.detail_controls)
-        controls_layout.setSizeConstraint(QLayout.SetMinimumSize)
+        controls_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         settings = QHBoxLayout()
         self.table_actions_layout = settings
@@ -443,7 +448,7 @@ class WorkspaceLayout:
         self.result_series.setMinimumWidth(190)
         self.result_series.setMaximumWidth(285)
         self.result_series.setWordWrap(True)
-        self.result_series.setTextElideMode(Qt.ElideNone)
+        self.result_series.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.result_series.setAccessibleName("Results to plot simultaneously")
         self.graph_footer = QWidget(self.graph_view)
         self.graph_footer_layout = QHBoxLayout(self.graph_footer)
@@ -467,7 +472,7 @@ class WorkspaceLayout:
 
         graphs = QWidget()
         # The plot scroll area handles tall figures without spilling over the ruler.
-        graphs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        graphs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         graph_layout = QHBoxLayout(graphs)
         graph_layout.setContentsMargins(0, 0, 0, 0)
         graph = QWidget()
@@ -490,7 +495,7 @@ class WorkspaceLayout:
         graph_body.addWidget(self.figure_actions)
         graph_body.addWidget(self.plot_toolbar.settings)
         graph_scroll = QScrollArea()
-        graph_scroll.setFrameShape(QFrame.NoFrame)
+        graph_scroll.setFrameShape(QFrame.Shape.NoFrame)
         graph_scroll.setWidgetResizable(True)
         graph_scroll.setWidget(self.canvas)
         self.graph_scroll = graph_scroll
@@ -528,7 +533,7 @@ class WorkspaceLayout:
         plot_view_layout.addWidget(self.result_time_scroll)
         self.recording_time_label = label("", "muted")
         self.recording_time_label.setWordWrap(True)
-        self.recording_time_label.setAlignment(Qt.AlignCenter)
+        self.recording_time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.recording_time_label.setAccessibleName("Recording time axis label")
         self.graph_footer_layout.insertWidget(0, self.recording_time_label, 1)
         self.time_axis.label_changed.connect(self.recording_time_label.setText)
@@ -561,7 +566,7 @@ class WorkspaceLayout:
 
     def _build_sensor_context_view(self):
         self.sensor_tabs = QTabWidget()
-        self.sensor_tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)
+        self.sensor_tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         (
             sensor_graph,
             self.sensor_channels,
@@ -597,10 +602,10 @@ class WorkspaceLayout:
 
     def _build_runs(self):
         layout = self.page()
-        split = QSplitter(Qt.Vertical)
+        split = QSplitter(Qt.Orientation.Vertical)
         panel, content = card()
         self.run_table = table()
-        self.run_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.run_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.run_table.setAccessibleName("Runs; use Ctrl or Shift to select multiple runs")
         content.addWidget(self.run_table, 1)
         actions = QHBoxLayout()
@@ -615,8 +620,8 @@ class WorkspaceLayout:
         self.clear_runs_button = button("Clear all…", self.callbacks.clear_runs)
         actions.addWidget(self.clear_runs_button)
         actions.addStretch()
-        self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.run_table)
-        self.delete_run_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        self.delete_run_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.run_table)
+        self.delete_run_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.delete_run_shortcut.activated.connect(self.callbacks.delete_run)
         content.addLayout(actions)
         split.addWidget(panel)
@@ -624,7 +629,7 @@ class WorkspaceLayout:
         self.run_heading = label("Select a run", "sectionTitle")
         content.addWidget(self.run_heading)
         self.run_summary = label("", "muted")
-        self.run_summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.run_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         content.addWidget(self.run_summary)
         self.run_detail_tabs = QTabWidget()
         self.run_recordings = readout()
@@ -654,7 +659,7 @@ class WorkspaceLayout:
         layout.addWidget(split, 1)
         self.history_location = label(str(self.history_directory), "muted")
         self.history_location.setToolTip("Local run history")
-        self.history_location.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.history_location.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.history_location)
 
     def toggle_sidebar(self):

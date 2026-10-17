@@ -12,10 +12,12 @@ from .epochs import EPOCH_SECONDS
 from .results_view import clock_times
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import pandas as pd
 
 
-def mean_epoch_profile(summary: pd.DataFrame, clock: dict[str, Any] | None) -> pd.DataFrame:
+def mean_epoch_profile(summary: pd.DataFrame, clock: Mapping[str, Any] | None) -> pd.DataFrame:
     """Mean valid epoch values by local clock slot, with one contribution per day.
 
     Existing medians, percentages and presence gates have already been applied.

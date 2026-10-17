@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Add gradual mypy body checks for UI contracts and smaller components, retaining
-  deferred imports and the stricter service/controller checks.
+- Add gradual mypy body checks for the entire UI package, with typed component
+  contracts, explicit optional graphics caches and read-only clock inputs;
+  retain deferred imports and the stricter service/controller checks.
 - Extract Data page construction and responsive layout from the shared workspace
   builder, retaining widget order, shortcuts, callbacks and deferred graphs.
 - Reduce temporary row containers during JSON saving, retaining exact numeric

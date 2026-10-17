@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from PySide6.QtCore import QObject
@@ -33,6 +33,9 @@ from ..workspace_state import (
 from .deferred import DeferredWidget
 from .graph_views import ResultCanvasView
 from .result_plot_data import PROFILE_VIEW, ResultPlotData, _is_tremor_power
+
+if TYPE_CHECKING:
+    from matplotlib.gridspec import GridSpec
 
 
 @dataclass(frozen=True)
@@ -141,12 +144,16 @@ class ResultGraphs(QObject):
         binaries = [False] * len(chosen) if epochs else actual_binaries
         self._size_result_canvas(chosen, binaries)
         first_axes = None
-        grid = (
-            self.view.figure.add_gridspec(
-                len(chosen), 1, height_ratios=[0.34 if binary else 1 for binary in binaries]
-            )
-            if chosen
-            else None
+        # Only a non-empty selection indexes this grid.
+        grid = cast(
+            "GridSpec",
+            (
+                self.view.figure.add_gridspec(
+                    len(chosen), 1, height_ratios=[0.34 if binary else 1 for binary in binaries]
+                )
+                if chosen
+                else None
+            ),
         )
         for index, (name, metric) in enumerate(chosen):
             ax = existing.get((name, metric))
@@ -480,13 +487,14 @@ class ResultGraphs(QObject):
     def _style_daily_axis(self, ax):
         from ..day_axis import RecordingDayFormatter, RecordingDayLocator
 
-        calendar = self.results.display_clock is not None
-        timezone = clock_origin(self.results.display_clock).tz if calendar else None
+        clock = self.results.display_clock
+        calendar = clock is not None
+        timezone = clock_origin(clock).tz if calendar else None
         ax.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar))
         ax.xaxis.set_major_formatter(RecordingDayFormatter(timezone, calendar=calendar))
         ax.set_xlabel(
-            f"Recording date ({self.results.display_clock.get('timezone') or 'timezone unspecified'})"
-            if calendar
+            f"Recording date ({clock.get('timezone') or 'timezone unspecified'})"
+            if clock is not None
             else "Day (elapsed 24-hour periods)"
         )
 
@@ -537,7 +545,7 @@ class ResultGraphs(QObject):
         frame = self.results.active_frame
         valid_row = current.isValid() and frame is not None
         timestamp = False
-        if valid_row:
+        if valid_row and frame is not None:
             # Empty Results plots also refresh this button during startup.
             # Inspect tabular values only after a real result row exists.
             import pandas as pd
@@ -552,7 +560,7 @@ class ResultGraphs(QObject):
             gait_context(
                 self.results.results, self.view.dataset.currentText(), frame.iloc[current.row()]
             )
-            if valid_row
+            if valid_row and frame is not None
             else None
         )
         profile = (
@@ -606,7 +614,8 @@ class ResultGraphs(QObject):
         if frame is None or not current.isValid() or name not in self.results._timings:
             return
         row = current.row()
-        position = self.results.active_positions[row]
+        # Positions are installed alongside the selected frame.
+        position = cast(np.ndarray, self.results.active_positions)[row]
         timing = self.results._timings[name].iloc[position]
         seconds = float(timing["Timeline time (s)"])
         if not np.isfinite(seconds):
@@ -637,7 +646,7 @@ class ResultGraphs(QObject):
             value = selected.value.iloc[0] if len(selected) else np.nan
         else:
             value = self._result_plot_values(
-                name, ax._paradigma_metric, [self.results.active_positions[row]]
+                name, ax._paradigma_metric, [cast(np.ndarray, self.results.active_positions)[row]]
             )[0]
             if (
                 name == "classifications/gait/arm_activity"

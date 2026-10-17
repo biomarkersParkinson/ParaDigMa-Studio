@@ -10,6 +10,8 @@ from .gait_presence import union
 from .results_view import clock_origin
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import pandas as pd
     from numpy.typing import ArrayLike
 
@@ -19,7 +21,7 @@ DAY_SECONDS = 86400.0
 MIN_DAY_DATA_SECONDS = DAY_SECONDS * 0.01
 
 
-def day_edges(clock: dict[str, Any] | None, starts: ArrayLike, ends: ArrayLike) -> FloatArray:
+def day_edges(clock: Mapping[str, Any] | None, starts: ArrayLike, ends: ArrayLike) -> FloatArray:
     """Midnight boundaries in recording time; elapsed 24-hour bins without a clock."""
     import pandas as pd
 
@@ -88,7 +90,7 @@ def daily_summary(
     values: ArrayLike,
     starts: ArrayLike,
     ends: ArrayLike,
-    clock: dict[str, Any] | None,
+    clock: Mapping[str, Any] | None,
     *,
     binary: bool = False,
 ) -> pd.DataFrame:
@@ -118,7 +120,7 @@ def daily_summary(
 
 
 def daily_availability_summary(
-    starts: ArrayLike, ends: ArrayLike, clock: dict[str, Any] | None
+    starts: ArrayLike, ends: ArrayLike, clock: Mapping[str, Any] | None
 ) -> pd.DataFrame:
     """Prepared input time as a percentage of the full calendar day."""
     edges = day_edges(clock, starts, ends)
@@ -127,7 +129,7 @@ def daily_availability_summary(
 
 
 def gait_daily_summaries(
-    intervals: dict[str, FloatArray], clock: dict[str, Any] | None
+    intervals: dict[str, FloatArray], clock: Mapping[str, Any] | None
 ) -> dict[str, pd.DataFrame]:
     """Gait percentages share observed time, preserving the filtered subset."""
     domain = intervals["domain"]

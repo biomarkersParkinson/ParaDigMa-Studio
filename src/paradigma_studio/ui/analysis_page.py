@@ -62,13 +62,13 @@ class AnalysisPage:
         layout.setSpacing(12)
         scroll = self.analysis_scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         body.setObjectName("analysisBody")
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
         content.setSpacing(16)
-        content.setSizeConstraint(QLayout.SetMinimumSize)
+        content.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self._build_analysis_input(content)
         # The full stack, including wrapped help, must reserve its real height.
         # Otherwise native controls can grow while the parent still allocates
@@ -90,7 +90,7 @@ class AnalysisPage:
         content.addWidget(self.analysis_controls)
         content.addStretch()
         self._build_analysis_actions()
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         bar = scroll.verticalScrollBar()
         bar.rangeChanged.connect(
             lambda low, high: bar.setStyleSheet(
@@ -121,7 +121,9 @@ class AnalysisPage:
         )
         modules.addWidget(module_heading)
         self.module_requirements = label("", "muted")
-        self.module_requirements.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.module_requirements.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         self.module_buttons = {}
         for name in ("Gait", "Tremor", "Pulse rate"):
             item = button(name)
@@ -137,17 +139,21 @@ class AnalysisPage:
         self.settings_panel, parameter_card = card()
         parameter_card.setContentsMargins(18, 16, 18, 16)
         parameter_card.setSpacing(14)
-        parameter_card.setAlignment(Qt.AlignTop)
+        parameter_card.setAlignment(Qt.AlignmentFlag.AlignTop)
         # Reserve the form's actual minimum before help changes the outer
         # layout. Otherwise Qt briefly clips the bottom rows while settling.
-        parameter_card.setSizeConstraint(QLayout.SetMinimumSize)
+        parameter_card.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.analysis_parameter_fields = WrappedForm()
-        self.analysis_parameter_fields.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.analysis_parameter_fields.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         parameters = QVBoxLayout(self.analysis_parameter_fields)
         parameters.setContentsMargins(0, 0, 0, 0)
         parameters.setSpacing(14)
-        parameters.setAlignment(Qt.AlignTop)
-        parameter_card.addWidget(self.analysis_parameter_fields, alignment=Qt.AlignTop)
+        parameters.setAlignment(Qt.AlignmentFlag.AlignTop)
+        parameter_card.addWidget(
+            self.analysis_parameter_fields, alignment=Qt.AlignmentFlag.AlignTop
+        )
         parameter_header = QHBoxLayout()
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
@@ -156,8 +162,8 @@ class AnalysisPage:
         right = QFormLayout()
         columns = AdaptiveFormColumns(left, right)
         for form in (left, right):
-            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
-            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             form.setHorizontalSpacing(10)
             form.setVerticalSpacing(12)
         self.side = self.combo(["left", "right"], combo_type=ContextComboBox)
@@ -191,9 +197,9 @@ class AnalysisPage:
         # Each column flows independently, so short fields use available space.
         self.analysis_field("Device axes", self.orientation, form=left)
         self.analysis_field("Column mapping (JSON)", self.mapping, form=sections)
-        left.setFormAlignment(Qt.AlignTop)
-        right.setFormAlignment(Qt.AlignTop)
-        sections.setAlignment(Qt.AlignTop)
+        left.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+        right.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+        sections.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._build_analysis_origin(parameters)
 
     def _build_analysis_segmentation(self, right):
@@ -201,8 +207,8 @@ class AnalysisPage:
         self.gaps = QCheckBox("Split recordings at time gaps")
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(True)
-        for widget in (self.prepared, self.gaps, self.drop_missing):
-            widget.setPalette(light_palette())
+        for checkbox in (self.prepared, self.gaps, self.drop_missing):
+            checkbox.setPalette(light_palette())
         right.addRow(
             self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True)
         )
@@ -242,20 +248,20 @@ class AnalysisPage:
 
     def _build_analysis_origin(self, parameters):
         self.clock_input = TimeField("Time origin", origin=True)
-        self.clock_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.clock_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.origin_reset = button("Default", self.callbacks.reset_origin)
         origin_row = WrappedForm()
         clock_group, reset_group = QHBoxLayout(), QHBoxLayout()
         clock_group.addWidget(self.clock_input)
-        reset_group.addWidget(self.origin_reset, alignment=Qt.AlignRight)
+        reset_group.addWidget(self.origin_reset, alignment=Qt.AlignmentFlag.AlignRight)
         origin_layout = AdaptiveFormColumns(clock_group, reset_group, right_stretch=0)
         origin_layout.setSpacing(12)
         origin_row.setLayout(origin_layout)
         origin_form = QFormLayout()
-        origin_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        origin_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         origin_form.setHorizontalSpacing(10)
         origin_form.setVerticalSpacing(12)
-        origin_form.setFormAlignment(Qt.AlignTop)
+        origin_form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self.analysis_field("Time origin", origin_row, form=origin_form)
         parameters.addLayout(origin_form)
         parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
@@ -321,10 +327,10 @@ class AnalysisPage:
             f'href="{url}">{link_title}</a>'
         )
         description.setWordWrap(True)
-        description.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        description.setTextFormat(Qt.RichText)
+        description.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        description.setTextFormat(Qt.TextFormat.RichText)
         description.setOpenExternalLinks(True)
-        description.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        description.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         description.setAccessibleName(f"Help: {title}")
         description.setObjectName("fieldHelp")
         description.hide()
@@ -338,20 +344,20 @@ class AnalysisPage:
         if not inline:
             title_label.setBuddy(control)
         row.addWidget(title_label)
-        row.addWidget(info, alignment=Qt.AlignVCenter)
+        row.addWidget(info, alignment=Qt.AlignmentFlag.AlignVCenter)
         row.addStretch()
         body = QWidget()
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(4)
-        content.setSizeConstraint(QLayout.SetMinimumSize)
+        content.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         if form is not None:
-            content.setAlignment(Qt.AlignTop)
-            content.addWidget(control, alignment=Qt.AlignTop)
+            content.setAlignment(Qt.AlignmentFlag.AlignTop)
+            content.addWidget(control, alignment=Qt.AlignmentFlag.AlignTop)
             if isinstance(form, QGridLayout):
                 index = form.rowCount()
-                form.addWidget(heading, index, 0, Qt.AlignTop)
-                form.addWidget(body, index, 1, Qt.AlignTop)
+                form.addWidget(heading, index, 0, Qt.AlignmentFlag.AlignTop)
+                form.addWidget(body, index, 1, Qt.AlignmentFlag.AlignTop)
             else:
                 form.addRow(heading, body)
         else:

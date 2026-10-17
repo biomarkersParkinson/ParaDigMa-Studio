@@ -168,10 +168,12 @@ class ResultPlotData:
                     )
             else:
                 for candidate in ("classifications/tremor", name):
-                    source = self.results._plot_tables.get(candidate)
-                    if source is not None and "pred_tremor_checked" in source:
+                    tremor_source = self.results._plot_tables.get(candidate)
+                    if tremor_source is not None and "pred_tremor_checked" in tremor_source:
                         positive = (
-                            source.pred_tremor_checked.eq(1).fillna(False).to_numpy(dtype=bool)
+                            tremor_source.pred_tremor_checked.eq(1)
+                            .fillna(False)
+                            .to_numpy(dtype=bool)
                         )
                         pairs = np.column_stack(
                             (
