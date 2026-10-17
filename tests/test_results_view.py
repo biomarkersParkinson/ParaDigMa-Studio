@@ -159,28 +159,40 @@ def test_overview_only_contains_official_aggregates_metadata_and_segment_summari
     setup(window, results)
     assert window.result_tabs.currentIndex() == 0
     assert window.detail_controls.isHidden() and not window.export_button.isHidden()
-    assert window.overview_gait_charts["median_range_of_motion"]["values"].tolist() == [25.0]
+    assert window._result_state.overview_gait_charts["median_range_of_motion"][
+        "values"
+    ].tolist() == [25.0]
     assert (
-        window.overview_values[("tremor", "Aggregates", ("perc_windows_tremor",))].text() == "42.00"
+        window._result_state.overview_values[
+            ("tremor", "Aggregates", ("perc_windows_tremor",))
+        ].text()
+        == "42.00"
     )
     assert (
-        window.overview_values[("tremor", "Metadata", ("percentage_arm_at_rest",))].text()
+        window._result_state.overview_values[
+            ("tremor", "Metadata", ("percentage_arm_at_rest",))
+        ].text()
         == "50.00"
     )
-    assert ("tremor", "Metadata", ("nr_windows_total",)) not in window.overview_values
-    assert not any("per_segment" in path for module, group, path in window.overview_values)
+    assert ("tremor", "Metadata", ("nr_windows_total",)) not in window._result_state.overview_values
+    assert not any(
+        "per_segment" in path for module, group, path in window._result_state.overview_values
+    )
     np.testing.assert_array_equal(
-        window.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 2, 0]
+        window._result_state.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 2, 0]
     )
     assert not any(
-        "gait segments" in group.lower() for module, group, path in window.overview_values
+        "gait segments" in group.lower()
+        for module, group, path in window._result_state.overview_values
     )
     assert all(key.startswith(("classifications/", "quantifications/")) for key in window.tables)
     assert set(window.tables) == set(detail_tables(results))
     window.result_tabs.setCurrentIndex(1)
     assert window.detail_controls.isHidden()
     window.figure.axes[0].set_xlim(10.0, 14.0)
-    assert window.overview_gait_charts["median_range_of_motion"]["values"].tolist() == [25.0]
+    assert window._result_state.overview_gait_charts["median_range_of_motion"][
+        "values"
+    ].tolist() == [25.0]
     for module, table in results["quantifications"].items():
         if isinstance(table, pd.DataFrame):
             pd.testing.assert_frame_equal(table, original["quantifications"][module])
@@ -208,7 +220,8 @@ def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without
     original = deepcopy(results)
     window.analyzed(results)
     texts = [
-        widget.text() for widget in window.overview_module_cards["tremor"].findChildren(QLabel)
+        widget.text()
+        for widget in window._result_state.overview_module_cards["tremor"].findChildren(QLabel)
     ]
     assert "Aggregates" not in texts and "Metadata" not in texts
     assert {
@@ -218,7 +231,7 @@ def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without
         "90th percentile tremor power",
         "Percentage arm at rest (%)",
     }.issubset(texts)
-    assert set(window.overview_values) == {
+    assert set(window._result_state.overview_values) == {
         ("tremor", "Aggregates", (key,))
         for key in (
             "perc_windows_tremor",
@@ -227,7 +240,7 @@ def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without
             "90p_tremor_power",
         )
     } | {("tremor", "Metadata", ("percentage_arm_at_rest",))}
-    assert {widget.text() for widget in window.overview_values.values()} == {
+    assert {widget.text() for widget in window._result_state.overview_values.values()} == {
         "42.12",
         "1.23",
         "2.00",
@@ -241,7 +254,11 @@ def test_tremor_overview_shows_only_requested_measures_with_two_decimals_without
             assert np.isnan(results["aggregations"]["tremor"][key])
     assert results["metadata"] == original["metadata"]
     assert (
-        float(window.overview_values["tremor", "Aggregates", ("median_tremor_power",)].toolTip())
+        float(
+            window._result_state.overview_values[
+                "tremor", "Aggregates", ("median_tremor_power",)
+            ].toolTip()
+        )
         == 1.234567
     )
     assert "percentage_arm_at_rest" not in results["metadata"]["tremor"]
@@ -571,9 +588,9 @@ def test_overview_avoids_redundant_key_and_value_tooltips(window):
         {"aggregations": {"test": {"exact": 2.0, "rounded": 1.234567, "missing": None}}}
     )
     for key in ("exact", "missing"):
-        widget = window.overview_values["test", "Aggregates", (key,)]
+        widget = window._result_state.overview_values["test", "Aggregates", (key,)]
         assert not widget.toolTip()
         assert not widget.parentWidget().toolTip()
-    rounded = window.overview_values["test", "Aggregates", ("rounded",)]
+    rounded = window._result_state.overview_values["test", "Aggregates", ("rounded",)]
     assert rounded.text() == "1.2346"
     assert rounded.toolTip() == "1.234567"

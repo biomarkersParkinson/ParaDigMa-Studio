@@ -255,7 +255,7 @@ def _verify_result_navigation(window, app, results, quantified):
     import pandas as pd
 
     window.analyzed(results)
-    if results["classifications"]["tremor"].empty or not window.overview_values:
+    if results["classifications"]["tremor"].empty or not window._result_state.overview_values:
         raise RuntimeError("Official classification retention or aggregate overview failed")
     if window.pages.currentIndex() != 2:
         raise RuntimeError("Completed analysis did not open the Results workspace")
@@ -461,7 +461,7 @@ def _verify_gait_workspace(window, app, cwa_source, cwa_frame, cwa_results):
     window.analyzed(cwa_results)
     if window.display_clock is None:
         raise RuntimeError("CWA recording dates are missing from results")
-    if any("per_segment" in path for module, group, path in window.overview_values):
+    if any("per_segment" in path for module, group, path in window._result_state.overview_values):
         raise RuntimeError("Individual gait-segment metadata leaked into Overview")
     timing = window._timings["quantifications/gait/unfiltered"]
     if not timing["Time basis"].str.contains("Estimated", case=False).all():

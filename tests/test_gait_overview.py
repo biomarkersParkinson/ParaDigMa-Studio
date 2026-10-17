@@ -45,15 +45,15 @@ def test_overview_three_cards_with_all_statistics_and_ordered_exact_values(tmp_p
             "range_of_motion",
             "peak_velocity",
         }
-        assert len(window.overview_gait_charts) == 10
-        assert np.isnan(window.overview_gait_charts["segment_count"]["values"]).all()
+        assert len(window._result_state.overview_gait_charts) == 10
+        assert np.isnan(window._result_state.overview_gait_charts["segment_count"]["values"]).all()
         ordered = aggregate_rows(source)
         assert [(branch, duration) for branch, duration, _ in ordered] == [
             (branch, duration)
             for branch in ("filtered", "unfiltered")
             for duration in ("0_inf", "0_20", "20_inf")
         ]
-        for metric, chart in window.overview_gait_charts.items():
+        for metric, chart in window._result_state.overview_gait_charts.items():
             if metric == "segment_count":
                 continue
             expected = np.asarray(
@@ -74,13 +74,13 @@ def test_overview_three_cards_with_all_statistics_and_ordered_exact_values(tmp_p
             chart["canvas"].draw()
         assert not any(
             module == "gait" and group == "Aggregates"
-            for module, group, path in window.overview_values
+            for module, group, path in window._result_state.overview_values
         )
         assert source == original  # No derived statistics or edits to aggregate dictionaries.
         assert window._result_state.aggregation_tables
         scroll = window._result_view_scrolls[0].verticalScrollBar()
         scroll.setValue(0)
-        canvas = window.overview_gait_charts["duration_s"]["canvas"]
+        canvas = window._result_state.overview_gait_charts["duration_s"]["canvas"]
         event = QWheelEvent(
             QPointF(50, 50),
             QPointF(canvas.mapToGlobal(QPoint(50, 50))),
@@ -117,10 +117,12 @@ def test_missing_statistics_and_unknown_aggregate_fields_are_retained(tmp_path):
         }
     )
     try:
-        assert window.overview_gait_charts["duration_s"]["values"].tolist() == [0.0]
-        assert np.isnan(window.overview_gait_charts["median_range_of_motion"]["values"][0])
+        assert window._result_state.overview_gait_charts["duration_s"]["values"].tolist() == [0.0]
+        assert np.isnan(
+            window._result_state.overview_gait_charts["median_range_of_motion"]["values"][0]
+        )
         assert (
-            window.overview_values[
+            window._result_state.overview_values[
                 ("gait", "Aggregates", ("unfiltered", "all", "custom_measure"))
             ].text()
             == "123"
@@ -159,14 +161,16 @@ def test_charts_match_official_gait_aggregation_output(tmp_path):
         }
     )
     try:
-        assert len(window.overview_gait_charts) == 10
+        assert len(window._result_state.overview_gait_charts) == 10
         np.testing.assert_array_equal(
-            window.overview_gait_charts["segment_count"]["values"], [np.nan, np.nan, 1, 1]
+            window._result_state.overview_gait_charts["segment_count"]["values"],
+            [np.nan, np.nan, 1, 1],
         )
         assert [
-            text.get_text() for text in window.overview_gait_charts["segment_count"]["axis"].texts
+            text.get_text()
+            for text in window._result_state.overview_gait_charts["segment_count"]["axis"].texts
         ] == ["—", "—", "1", "1"]
-        for metric, chart in window.overview_gait_charts.items():
+        for metric, chart in window._result_state.overview_gait_charts.items():
             if metric == "segment_count":
                 continue
             expected = [official[duration][metric] for branch, duration in chart["categories"]]

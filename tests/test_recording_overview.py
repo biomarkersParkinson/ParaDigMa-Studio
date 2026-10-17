@@ -275,7 +275,7 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     )
     window.provenance = provenance
     window.analyzed(result)
-    assert set(window.overview_module_cards) == {"tremor"}
+    assert set(window._result_state.overview_module_cards) == {"tremor"}
     assert (
         sum(
             label.text() == "Recording & preparation"

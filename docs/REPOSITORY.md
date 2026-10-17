@@ -88,7 +88,8 @@ owning state/controller or the service APIs, rather than add window aliases.
 Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`,
 `DataState`, `JobState`, `SensorState`.
 Callers access these fields through their owning state objects directly.
-Other UI/callback ports remain in the facade. The
+Overview values, module cards and gait charts use `window._result_state` directly.
+Other state, UI and callback ports remain in the facade. The
 [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
 requires its name and line budgets to shrink alongside removals. The reusable
 `component_attribute` descriptor belongs to `ui/component_ports.py`; it supports

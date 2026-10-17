@@ -524,17 +524,20 @@ def test_metric_selection_and_zoom_leave_official_overview_aggregates_unchanged(
             "errors": [],
         }
     )
-    aggregate = window.overview_values[("test", "Aggregates", ("median_metric",))]
+    aggregate = window._result_state.overview_values[("test", "Aggregates", ("median_metric",))]
     assert aggregate.text() == "12.5"
     assert not window.overview_content.findChildren(desktop.ReadableTable)
     select_plot_metric(window, "quantifications/test", "other_metric")
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.other_metric)
     window.figure.axes[0].set_xlim(2.0, 4.0)
-    assert window.overview_values[("test", "Aggregates", ("median_metric",))] is aggregate
+    assert (
+        window._result_state.overview_values[("test", "Aggregates", ("median_metric",))]
+        is aggregate
+    )
     assert aggregate.text() == "12.5"
     pd.testing.assert_frame_equal(window.active_frame, frame)
     window.clear_results()
-    assert window.overview_values == {}
+    assert window._result_state.overview_values == {}
     assert window.result_table.model() is None
 
 

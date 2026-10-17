@@ -1,5 +1,5 @@
 {
-  "max_lines": 216,
+  "max_lines": 213,
   "aliases": [
     "_data_graph",
     "_detail_selections",
@@ -95,10 +95,7 @@
     "origin_reset",
     "origin_setting",
     "overview_content",
-    "overview_gait_charts",
     "overview_layout",
-    "overview_module_cards",
-    "overview_values",
     "pages",
     "persist_run",
     "plot",

@@ -616,11 +616,15 @@ def test_checked_tremor_graph_and_raw_tables_reconcile_with_official_percentage(
         window.table_dataset.setCurrentIndex(window.table_dataset.findData("aggregations/tremor"))
         aggregated = window.aggregation_table.model().frame.set_index("measure")["value"]
         assert aggregated["perc_windows_tremor"] == percentage
-        shown = window.overview_values["tremor", "Aggregates", ("perc_windows_tremor",)]
+        shown = window._result_state.overview_values[
+            "tremor", "Aggregates", ("perc_windows_tremor",)
+        ]
         assert float(shown.toolTip() or shown.text()) == percentage
         assert shown.text() == f"{percentage:.2f}"
         rest_percentage = int(resting.sum()) / len(reference) * 100
-        shown = window.overview_values["tremor", "Metadata", ("percentage_arm_at_rest",)]
+        shown = window._result_state.overview_values[
+            "tremor", "Metadata", ("percentage_arm_at_rest",)
+        ]
         assert float(shown.toolTip() or shown.text()) == rest_percentage
         assert shown.text() == f"{rest_percentage:.2f}"
         assert len(window.aggregation_table.model().frame) == len(actual["aggregations"]["tremor"])
@@ -847,7 +851,9 @@ def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_res
         np.testing.assert_array_equal(bar_values(axes), selected.range_of_motion.to_numpy())
         for key, value in expected["aggregations"]["gait"]["unfiltered"].items():
             if isinstance(value, (int, float)):
-                shown = window.overview_values[("gait", "Aggregates", ("unfiltered", key))]
+                shown = window._result_state.overview_values[
+                    ("gait", "Aggregates", ("unfiltered", key))
+                ]
                 assert float(shown.toolTip() or shown.text()) == value
         window.activate_dataset_rows()
         assert_equivalent(window.active_frame, reference, "reset selection")

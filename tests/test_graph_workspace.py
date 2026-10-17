@@ -519,7 +519,7 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
             == MODULE_PALETTE[module]["tint"]
         )
     window.navigate(2)
-    for module, panel in window.overview_module_cards.items():
+    for module, panel in window._result_state.overview_module_cards.items():
         assert panel.property("analysisModule") == module
         image = panel.grab().toImage()
         ratio = image.devicePixelRatio()
