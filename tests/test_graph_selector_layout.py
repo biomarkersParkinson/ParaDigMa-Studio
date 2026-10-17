@@ -202,7 +202,7 @@ def test_selected_graphs_follow_module_groups_in_all_views_and_long_labels_wrap(
 
 @pytest.mark.parametrize("dated", [False, True])
 def test_selector_uses_full_height_and_time_axis_stays_close_aligned_and_readable(window, dated):
-    window.provenance = (
+    window._result_state.provenance = (
         {"display_clock": {"origin": "2026-10-07T12:00:00Z", "timezone": "UTC"}} if dated else {}
     )
     window.analyzed(

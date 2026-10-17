@@ -29,7 +29,7 @@ def window(tmp_path):
     frame = pd.DataFrame(
         {"time": times, **{f"metric_{i}": 2 + np.sin(times / (50 + i)) for i in range(8)}}
     )
-    window.provenance = {
+    window._result_state.provenance = {
         "display_clock": {"origin": "2026-10-10T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
     }
     window.analyzed({"quantifications": {"tremor": frame}})

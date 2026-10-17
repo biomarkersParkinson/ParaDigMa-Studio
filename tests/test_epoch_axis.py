@@ -303,7 +303,7 @@ def test_epoch_graphs_preserve_original_metadata_clock_without_assuming_a_timezo
     source = pd.DataFrame({"time": [0.0, 1.0]})
     source.attrs["desktop_recording_start"] = start
     clock = recording_clock(source, {}, timeline=np.array([0.0, 1.0]))
-    window.provenance = {"display_clock": clock}
+    window._result_state.provenance = {"display_clock": clock}
     window.analyzed(epoch_results())
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
     window.result_graph_view.setCurrentIndex(1)
@@ -348,7 +348,7 @@ def test_graph_changes_reuse_one_bridge_and_other_views_and_clear_remove_it(wind
 @pytest.mark.parametrize("view", [0, 1, 2], ids=["detailed", "30-minute", "day"])
 @pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
 def test_axis_limits_keep_dates_or_seconds_for_all_views(window, view, calendar):
-    window.provenance = (
+    window._result_state.provenance = (
         {"display_clock": {"origin": "2026-10-14T00:00:00+02:00", "timezone": "Europe/Amsterdam"}}
         if calendar
         else {}
@@ -389,7 +389,7 @@ def test_axis_limits_keep_dates_or_seconds_for_all_views(window, view, calendar)
 @pytest.mark.parametrize("view", [0, 1], ids=["detailed", "30-minute"])
 def test_live_grouped_axis_and_exports_keep_days_hours_selection_and_values(window, view):
     window.resize(1450, 920)
-    window.provenance = {
+    window._result_state.provenance = {
         "display_clock": {"origin": "2026-10-14T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
     }
     results = epoch_results()

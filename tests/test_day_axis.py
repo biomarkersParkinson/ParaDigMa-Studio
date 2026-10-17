@@ -163,7 +163,7 @@ def test_live_day_axis_aligns_graphs_exports_dates_and_preserves_series(window):
     window.resize(1450, 920)
     output = daily_results()
     original = deepcopy(output)
-    window.provenance = {
+    window._result_state.provenance = {
         "display_clock": {"origin": "2026-10-14T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
     }
     window.analyzed(output)

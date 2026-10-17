@@ -70,7 +70,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
             window.data_toolbar,
             window.data_figure.axes[0].get_xlim(),
         )
-        window.provenance = {"settings": {"skip_preparation": True}}
+        window._result_state.provenance = {"settings": {"skip_preparation": True}}
         window.analyzed({"quantifications": {"tremor": output}})
         window.result_table.setCurrentIndex(window.result_table.model().index(30, 0))
         window.inspect_sensor_context()
@@ -181,7 +181,7 @@ def _measure_time_selection(app, report, window, limits, repeats, frames):
 
 
 def _prepare_result_scroll(window):
-    window.provenance = {
+    window._result_state.provenance = {
         "display_clock": {
             "origin": "2026-10-10T00:00:00+02:00",
             "timezone": "Europe/Amsterdam",

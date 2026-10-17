@@ -221,7 +221,7 @@ def test_cursor_modes_are_exclusive_and_default_to_selection(window):
 def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
     recording(window)
     result = pd.DataFrame({"time": [1.0], "metric": [2.0]})
-    window.provenance = {"settings": {"skip_preparation": True}}
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
     window.analyzed({"quantifications": {"tremor": result}})
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.inspect_sensor_context()

@@ -22,7 +22,7 @@ def test_toggling_availability_keeps_outcome_values_timing_and_axes(
     window = MainWindow(tmp_path)
     window.show()
     if absolute:
-        window.provenance = {
+        window._result_state.provenance = {
             "display_clock": {
                 "origin": "2026-10-07T12:00:00+02:00",
                 "timezone": "Europe/Amsterdam",

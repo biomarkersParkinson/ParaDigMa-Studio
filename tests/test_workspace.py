@@ -682,7 +682,7 @@ def test_context_drills_into_original_mapped_sensor_values(window):
     )
     original = frame.copy()
     window.loaded(("sensor.csv", frame))
-    window.provenance = {
+    window._result_state.provenance = {
         "source": "sensor.csv",
         "settings": {
             "time_input_unit": "absolute_ms",
@@ -741,7 +741,10 @@ def test_gait_defaults_to_measurement_and_drills_using_explicit_segment_metadata
     raw = pd.DataFrame({"time": np.arange(40) / 10, "gyroscope_x": np.arange(40, dtype=float)})
     window.loaded(("sensor.csv", raw))
     quantified = pd.DataFrame({"gait_segment_nr": [3, 3], "range_of_motion": [20.0, 30.0]})
-    window.provenance = {"source": "sensor.csv", "settings": {"skip_preparation": True}}
+    window._result_state.provenance = {
+        "source": "sensor.csv",
+        "settings": {"skip_preparation": True},
+    }
     window.analyzed(
         {
             "quantifications": {"gait": {"unfiltered": quantified}},
@@ -826,7 +829,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
     window.open_run()
     assert window._run_state.current_run is first
-    assert window.provenance["source"] == "first.csv"
+    assert window._result_state.provenance["source"] == "first.csv"
     assert window._input_state.source == "second.csv"  # Exploring history does not replace input.
     assert window._result_state.result_source_frame is frame
     assert window.result_table.model().rowCount() == 6
@@ -866,7 +869,7 @@ def test_exported_json_can_reopen_after_restart_without_loading_pickle(
         assert reopened._input_state.frame is None
         assert reopened._result_state.result_source_frame is None
         assert reopened.result_table.model().rowCount() == 6
-        assert reopened.provenance["source"].endswith("trusted.pkl")
+        assert reopened._result_state.provenance["source"].endswith("trusted.pkl")
         assert not reopened.context_button.isEnabled()
     finally:
         reopened.close()
@@ -879,7 +882,7 @@ def test_export_protects_result_source_and_current_input(
     original = tmp_path / "original.csv"
     original.write_text("original samples")
     window.loaded((str(original), pd.DataFrame({"time": [0.0, 1.0]})))
-    window.provenance = {"source": str(original), "settings": {}}
+    window._result_state.provenance = {"source": str(original), "settings": {}}
     window.analyzed({"quantifications": {"tremor": output()}, "errors": []})
     current = tmp_path / "new.csv"
     current.write_text("current sensor samples")

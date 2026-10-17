@@ -74,7 +74,7 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     np.testing.assert_array_equal(common, np.arange(10) - 2)
     assert offsets == {early: -2.0, late: 0.0}
     window.loaded(("sensor.csv", raw))
-    window.provenance = {"source": "sensor.csv", "settings": settings}
+    window._result_state.provenance = {"source": "sensor.csv", "settings": settings}
     window.analyzed(output)
     assert pd.Timestamp(window._result_state.display_clock["origin"]) == start + pd.Timedelta(
         seconds=2
@@ -92,10 +92,10 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
         expected_start = start if module == early else start + pd.Timedelta(seconds=2)
         assert bar_starts(axes)[0] == pytest.approx(dates.date2num(expected_start.to_pydatetime()))
     exported = tmp_path / "aligned.json"
-    export_results(exported, output, window.provenance)
+    export_results(exported, output, window._result_state.provenance)
     provenance, saved = load_result_export(exported)
     window._input_state.frame = None
-    window.provenance = provenance
+    window._result_state.provenance = provenance
     window.analyzed(saved)
     window.dataset.setCurrentText(f"quantifications/{early}")
     assert window._result_state.display_frame["Recording date/time"].iloc[0] == start
@@ -155,7 +155,10 @@ def setup(window, results, clock=True):
             raw.time, unit="s"
         )
     window.loaded(("sensor.csv", raw))
-    window.provenance = {"source": "sensor.csv", "settings": {"skip_preparation": True}}
+    window._result_state.provenance = {
+        "source": "sensor.csv",
+        "settings": {"skip_preparation": True},
+    }
     window.analyzed(results)
     return raw
 
@@ -516,15 +519,15 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     window.timing_toggle.setChecked(True)
     window.clock_input.setText("2026-10-07T12:00:00+02:00")
     window.origin_edited()
-    window.provenance["settings"]["plot_time_origin"] = window.origin_setting()
+    window._result_state.provenance["settings"]["plot_time_origin"] = window.origin_setting()
     window.analyzed(results)
     assert window._result_state.display_clock["source"] == "User supplied"
     assert "Recording date/time" in window.result_table.model().frame
     path = tmp_path / "results.json"
-    export_results(path, results, window.provenance)
+    export_results(path, results, window._result_state.provenance)
     provenance, restored = load_result_export(path)
     window._result_state.result_source_frame = window._input_state.frame = None
-    window.provenance = provenance
+    window._result_state.provenance = provenance
     window.analyzed(restored)
     assert window._result_state.display_clock["origin"] == "2026-10-07T12:00:00+02:00"
     assert window.result_table.model().frame["Recording date/time"].iloc[0] == pd.Timestamp(
@@ -539,13 +542,13 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
 def test_invalid_analyze_clock_does_not_change_existing_results(window, results):
     setup(window, results)
     original = window._result_state.active_frame.copy()
-    provenance = deepcopy(window.provenance)
+    provenance = deepcopy(window._result_state.provenance)
     window.clock_input.setText("invalid")
     window.origin_edited()
     with pytest.raises(ValueError):
         window.origin_setting()
     pd.testing.assert_frame_equal(window._result_state.active_frame, original)
-    assert window.provenance == provenance
+    assert window._result_state.provenance == provenance
 
 
 @pytest.mark.parametrize("unit", ["absolute_s", "absolute_ms"])

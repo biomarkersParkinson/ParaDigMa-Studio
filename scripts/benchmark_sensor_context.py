@@ -38,7 +38,7 @@ def benchmark(report_path, samples=3_000_000):
                 "gyroscope_z": np.sin(times / 2),
             }
         )
-        window.provenance = {
+        window._result_state.provenance = {
             "settings": {"skip_preparation": True},
             "display_clock": {
                 "origin": "2026-10-10T00:00:00+02:00",

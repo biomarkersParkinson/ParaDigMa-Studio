@@ -1,5 +1,5 @@
 {
-  "max_lines": 198,
+  "max_lines": 196,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
@@ -96,7 +96,6 @@
     "preparation_changed",
     "prepared",
     "progress",
-    "provenance",
     "record_output",
     "recording_time_label",
     "refresh_data_descriptives",

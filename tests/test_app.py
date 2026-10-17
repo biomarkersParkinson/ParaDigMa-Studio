@@ -107,7 +107,7 @@ def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypat
     assert not window.orientation.isEnabled()
     monkeypatch.setattr(window, "start_job", lambda *args: None)
     window.run_analysis()
-    settings = window.provenance["settings"]
+    settings = window._result_state.provenance["settings"]
     assert settings["time_input_unit"] == "relative_s"
     assert settings["gyroscope_units"] == "deg/s"
     assert settings["device_orientation"] == ["x", "y", "z"]

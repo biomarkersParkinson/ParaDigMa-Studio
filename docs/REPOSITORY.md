@@ -85,16 +85,10 @@ The existing window entry points delegate to these components:
 `ui/compatibility.py` retains a shrinking subset of legacy window attributes and
 methods; components do not use that facade. New integrations should use the
 owning state/controller or the service APIs, rather than add window aliases.
-Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`,
-`DataState`, `JobState`, `SensorState`.
-Callers access these fields through their owning state objects directly.
-Retired `ResultState` aliases cover overview widgets, result selections, the
-series-item mapping, row positions, active/display frames, result payloads, native
-tables, original source frames, clock metadata, row-timing tables and the current
-Results scroll area.
-Access these fields through `window._result_state` directly. Results view layouts,
-scroll-area lists and overview containers use `window._layout` directly.
-Other state, UI and callback ports remain in the facade. The
+All legacy state aliases are retired. Callers use their owning state objects
+directly, such as `window._result_state.provenance` for result metadata.
+Results view layouts, scroll-area lists and overview containers use
+`window._layout` directly. UI and callback ports remain in the facade. The
 [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
 requires its name and line budgets to shrink alongside removals. The reusable
 `component_attribute` descriptor belongs to `ui/component_ports.py`; it supports

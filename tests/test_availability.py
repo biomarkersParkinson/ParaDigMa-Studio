@@ -33,7 +33,7 @@ def test_prepared_coverage_retains_real_gaps_sections_offsets_and_distinct_pipel
     assert set(views) == {"preparation/gait_tremor", "preparation/pulse_rate"}
     np.testing.assert_allclose(views["preparation/gait_tremor"].time, [2.0, 3.0, 10.0])
     assert "Gait, Tremor" in labels[("preparation/gait_tremor", "available")]
-    window.provenance = {"display_offsets": offsets}
+    window._result_state.provenance = {"display_offsets": offsets}
     window.analyzed(result)
     names = [
         name for name, metric in window.selected_result_series() if name.startswith("preparation/")

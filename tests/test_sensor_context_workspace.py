@@ -43,7 +43,10 @@ def window(tmp_path):
         }
     )
     widget.loaded(("subject.csv", frame))
-    widget.provenance = {"source": "subject.csv", "settings": {"skip_preparation": True}}
+    widget._result_state.provenance = {
+        "source": "subject.csv",
+        "settings": {"skip_preparation": True},
+    }
     widget.analyzed(
         {
             "quantifications": {
@@ -108,7 +111,7 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
     frame["source_clock"] = frame.pop("time")
     frame["complex_signal"] = 1j
     window._sensor_state.sensor_frame = frame
-    window.provenance["settings"]["column_mapping"] = {"source_clock": "time"}
+    window._result_state.provenance["settings"]["column_mapping"] = {"source_clock": "time"}
     window._result_state.display_clock = {
         "origin": "2026-10-09T13:00:00+02:00",
         "timezone": "Europe/Amsterdam",
@@ -189,7 +192,10 @@ def open_long_context(window, *, gap=False, gait=False):
     if gap:
         frame = frame.loc[(frame.time < 40) | (frame.time > 60)].copy()
     window.loaded(("subject.csv", frame))
-    window.provenance = {"source": "subject.csv", "settings": {"skip_preparation": True}}
+    window._result_state.provenance = {
+        "source": "subject.csv",
+        "settings": {"skip_preparation": True},
+    }
     result = {"quantifications": {"tremor": pd.DataFrame({"time": [30.0], "tremor_power": [2.0]})}}
     if gait:
         result = {
@@ -533,7 +539,7 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
     frame = pd.DataFrame({"time": times, "gyroscope_x": np.sin(times)})
     window._input_state.frame = frame
     window._input_state.recordings = {}
-    window.provenance = {
+    window._result_state.provenance = {
         "settings": {"skip_preparation": True},
         "display_clock": {"origin": "2026-10-10T00:00:00Z", "timezone": "UTC"},
     }
@@ -676,7 +682,7 @@ def test_context_uses_saved_analysis_units_for_single_and_multiple_channels(
     source = open_long_context(window, gait=gait)
     source["accelerometer_x"] = np.sin(source.time)
     window.inspect_sensor_context()
-    window.provenance.setdefault("settings", {}).update(
+    window._result_state.provenance.setdefault("settings", {}).update(
         accelerometer_units=accelerometer_unit, gyroscope_units=gyroscope_unit
     )
     # Current form changes must not relabel an earlier run's original samples.

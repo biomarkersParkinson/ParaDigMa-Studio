@@ -90,7 +90,7 @@ def load(window, sources, frames):
         )
     )
     wait_for_previews(window)
-    window.provenance = {
+    window._result_state.provenance = {
         "source": next(iter(sources.values())),
         "sources": sources,
         "settings": {"pipelines": ["tremor"], "skip_preparation": True},

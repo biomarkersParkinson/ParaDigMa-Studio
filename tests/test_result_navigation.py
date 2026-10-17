@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionSlider
 
 def result_graphs(window, *, view=0, calendar=False):
     if calendar:
-        window.provenance = {
+        window._result_state.provenance = {
             "display_clock": {"origin": "2026-10-24T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
         }
     times = np.arange(0, 3 * 86400, 60)

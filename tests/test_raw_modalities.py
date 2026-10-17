@@ -54,7 +54,10 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
     original = source.copy(deep=True)
     window.loaded(("recording.csv", source))
     if context:
-        window.provenance = {"source": "recording.csv", "settings": {"skip_preparation": True}}
+        window._result_state.provenance = {
+            "source": "recording.csv",
+            "settings": {"skip_preparation": True},
+        }
         window.analyzed(
             {"quantifications": {"tremor": pd.DataFrame({"time": [5.0], "tremor_power": [2.0]})}}
         )
@@ -182,7 +185,7 @@ def test_custom_mapping_groups_original_names_and_does_not_block_on_incomplete_j
     ]
     window.mapping.setPlainText('{"a":')
     assert len(window.data_figure.axes) == 3
-    window.provenance = {
+    window._result_state.provenance = {
         "source": "sensor.csv",
         "settings": {"column_mapping": mapping, "skip_preparation": True},
     }

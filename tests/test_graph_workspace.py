@@ -178,7 +178,7 @@ def test_analyze_calendar_default_preserves_source_precision_and_results(window)
     wait_for_previews(window)
     assert window.clock_input.text() == start.isoformat()
     assert window.clock_input.calendar.calendarPopup()
-    window.provenance = {"settings": {"skip_preparation": True}}
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
     result = {
         "quantifications": {
             name: pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [4.0, 5.0, 6.0]})
@@ -442,7 +442,7 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
             ),
         )
     )
-    window.provenance = {"settings": {"skip_preparation": True}}
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
     frame = pd.DataFrame(
         {"time": [0.0, 1.0, 2.0], **{f"metric_{i}": [2.0, 3.0, 4.0] for i in range(8)}}
     )
@@ -650,7 +650,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
         }
     )
     window.loaded(("sensor.csv", raw))
-    window.provenance = {"settings": {"skip_preparation": True}}
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
     states = pd.DataFrame({"time": np.arange(4.0), "pred_tremor": [0.0, 1.0, np.nan, 0.0]})
     window.analyzed(
         {

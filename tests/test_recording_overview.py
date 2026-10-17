@@ -175,7 +175,7 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
     frame.loc[[0, 1, 4, 9], "gyroscope_x"] = np.nan
     output = result({"tremor": section([[0.0, 2.0], [3.0, 7.0]])})
     window._input_state.frame = frame
-    window.provenance = {
+    window._result_state.provenance = {
         "source": "missing.csv",
         "settings": {
             "pipelines": ["tremor"],
@@ -185,8 +185,13 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
     }
     try:
         window.analyzed(output)
-        entries = recording_summary(output, window.provenance, window._result_state.display_clock)
-        assert window.provenance["recording_extent"] == {"start_s": -2.0, "end_s": 8.0}
+        entries = recording_summary(
+            output, window._result_state.provenance, window._result_state.display_clock
+        )
+        assert window._result_state.provenance["recording_extent"] == {
+            "start_s": -2.0,
+            "end_s": 8.0,
+        }
         assert (
             dict(entries)["Recording timespan"]
             == "07 Oct 2026, 10:00:00 – 07 Oct 2026, 10:00:10 · UTC"
@@ -194,12 +199,14 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
         assert dict(entries)["Tremor · Data coverage"] == "0 days · 0.001667 h · 60.0% of timespan"
         assert dict(entries)["Tremor · Gaps"] == "1"
         path = tmp_path / "results.json"
-        export_results(path, output, window.provenance)
-        window.provenance, saved = load_result_export(path)
+        export_results(path, output, window._result_state.provenance)
+        window._result_state.provenance, saved = load_result_export(path)
         window._input_state.frame = None
         window.analyzed(saved)
         assert (
-            recording_summary(saved, window.provenance, window._result_state.display_clock)
+            recording_summary(
+                saved, window._result_state.provenance, window._result_state.display_clock
+            )
             == entries
         )
         texts = [label.text() for label in window._layout.overview_content.findChildren(QLabel)]
@@ -232,14 +239,16 @@ def test_multiple_recording_clocks_include_between_file_gaps_in_the_timespan(tmp
         "sections": {key: key for key in keys},
     }
     window._input_state.recordings = frames
-    window.provenance = {
+    window._result_state.provenance = {
         "sources": {key: key + ".csv" for key in keys},
         "settings": {"pipelines": ["tremor"], "time_input_unit": "absolute_s"},
     }
     try:
         window.analyzed(output)
         entries = dict(
-            recording_summary(output, window.provenance, window._result_state.display_clock)
+            recording_summary(
+                output, window._result_state.provenance, window._result_state.display_clock
+            )
         )
         assert (
             entries["Recording timespan"] == "07 Oct 2026, 10:00:00 – 08 Oct 2026, 11:00:00 · UTC"
@@ -278,7 +287,7 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     assert not any(
         "section" in title.lower() and isinstance(value, dict) for title, value in entries
     )
-    window.provenance = provenance
+    window._result_state.provenance = provenance
     window.analyzed(result)
     assert set(window._result_state.overview_module_cards) == {"tremor"}
     assert (
@@ -295,7 +304,9 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     assert fields.layout().contentsMargins().left() == 0
     assert fields.layout().count() == len(
         recording_summary(
-            window._result_state.results, window.provenance, window._result_state.display_clock
+            window._result_state.results,
+            window._result_state.provenance,
+            window._result_state.display_clock,
         )
     )
     assert all(

@@ -169,7 +169,7 @@ def _benchmark_result_workflows(window, app, measure, frame, output_rows):
         "aggregations": {"tremor": {"perc_windows_tremor": 50.0}},
         "metadata": {},
     }
-    window.provenance = {
+    window._result_state.provenance = {
         "source": "sensor.csv",
         "settings": {"pipelines": ["tremor"], "skip_preparation": True},
     }
@@ -296,7 +296,7 @@ def _benchmark_exports(window, directory, results, measure, export_bytes):
             lambda ext=extension: export_selection(
                 str(Path(directory) / f"output.{ext}"),
                 results,
-                window.provenance,
+                window._result_state.provenance,
                 selected,
                 "JSON" if ext == "json" else "CSV",
             ),

@@ -368,7 +368,7 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     frame = pd.DataFrame({"time": np.arange(800.0) / 100.0, "gyroscope_x": np.ones(800)})
     window.loaded(("sensor.csv", frame))
     wait_for_previews(window)
-    window.provenance = {"settings": {"skip_preparation": True}}
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
     output = pd.DataFrame({"time": [0.0, 4.0], "tremor_power": [1.0, 2.0]})
     window.analyzed({"quantifications": {"tremor": output}})
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))

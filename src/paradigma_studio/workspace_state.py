@@ -132,14 +132,6 @@ class ShellState:
     _acknowledgements_dialog: QDialog | None = None
 
 
-def state_property(container: str, name: str) -> property:
-    """Keep existing window attributes as explicit views of controller state."""
-    return property(
-        lambda owner: getattr(getattr(owner, container), name),
-        lambda owner, value: setattr(getattr(owner, container), name, value),
-    )
-
-
 @dataclass(frozen=True)
 class PreviewServices:
     _origin_preview: CachedPreview

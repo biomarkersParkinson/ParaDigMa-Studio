@@ -1,10 +1,8 @@
 """Explicit legacy API adapters; controllers never receive this window facade."""
 
-from ..workspace_state import state_property
 from .component_ports import component_attribute
 
 _PORTS = {
-    "provenance": state_property("_result_state", "provenance"),
     "_data_graph": component_attribute("_layout"),
     "_sensor_graph": component_attribute("_layout"),
     "about_button": component_attribute("_layout"),

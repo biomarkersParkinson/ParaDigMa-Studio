@@ -411,7 +411,7 @@ def test_tremor_power_plot_matches_official_aggregate_transform_and_preserves_ex
         window._result_state.tables["quantifications/tremor"], reference, check_exact=True
     )
     path = tmp_path / "raw-results.json"
-    export_results(path, window._result_state.results, window.provenance)
+    export_results(path, window._result_state.results, window._result_state.provenance)
     _, reopened = load_result_export(path)
     assert_equivalent(reopened["quantifications"]["tremor"], reference, roundtrip=True)
     assert_equivalent(reopened["aggregations"]["tremor"], expected["aggregations"]["tremor"])

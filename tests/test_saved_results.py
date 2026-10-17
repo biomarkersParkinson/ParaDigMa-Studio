@@ -24,7 +24,7 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
     window._run_state.active_run = window._run_state.current_run = (
         window._run_state.selected_run
     ) = record
-    window.provenance = {
+    window._result_state.provenance = {
         "source": str(source),
         "settings": record["settings"],
         "paradigma_version": "1.1.2",
@@ -61,7 +61,7 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
     saved = Path(record["outputs"][-1]["path"])
     assert saved.parent == window.history.directory / "results"
     provenance, results = load_result_export(saved)
-    assert provenance == window.provenance
+    assert provenance == window._result_state.provenance
     for kind in ("classifications", "quantifications"):
         pd.testing.assert_frame_equal(results[kind]["tremor"], tremor_outputs[kind]["tremor"])
     assert results["aggregations"] == tremor_outputs["aggregations"]
@@ -102,7 +102,7 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
         },
     }
     path = tmp_path / "user-export.json"
-    export_results(path, changed, window.provenance)
+    export_results(path, changed, window._result_state.provenance)
     window.record_output(path, "JSON")
     shown = window.run_table.model().frame.iloc[0]
     assert shown["Saved"] == "Yes" and shown["Exports"] == 1
@@ -314,7 +314,7 @@ def test_local_save_does_not_overwrite_original_recordings(window, tremor_output
     target.write_text("original sensor file")
     with pytest.raises(ValueError, match="overwrite"):
         window.history.save_results(
-            record, tremor_outputs, window.provenance, protected_sources=[target]
+            record, tremor_outputs, window._result_state.provenance, protected_sources=[target]
         )
     assert target.read_text() == "original sensor file"
 
@@ -336,6 +336,6 @@ def test_failed_overwrite_retains_previous_saved_result(
 
     monkeypatch.setattr(serialization, "_write_json", fail)
     with pytest.raises(OSError, match="Write failed"):
-        window.history.save_results(record, tremor_outputs, window.provenance)
+        window.history.save_results(record, tremor_outputs, window._result_state.provenance)
     assert target.read_bytes() == before
     assert not list(target.parent.glob("*.tmp"))

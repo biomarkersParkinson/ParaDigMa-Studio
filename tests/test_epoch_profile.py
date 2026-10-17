@@ -162,7 +162,7 @@ def select_profile_graphs(window):
 
 @pytest.mark.parametrize("clock", [None, {"origin": "2026-10-14T00:00+05:45", "timezone": None}])
 def test_live_profile_reuses_epoch_rules_and_preserves_all_original_values(window, clock):
-    window.provenance = {"display_clock": clock} if clock else {}
+    window._result_state.provenance = {"display_clock": clock} if clock else {}
     output = profile_results()
     original = deepcopy(output)
     window.analyzed(output)
@@ -328,7 +328,9 @@ def test_sensor_inspection_is_restored_when_returning_to_a_dated_view(window):
 
 
 def test_profile_limits_accept_clock_times_reset_to_24_hours_and_do_not_carry_dates(window):
-    window.provenance = {"display_clock": {"origin": "2026-10-14T00:00Z", "timezone": "UTC"}}
+    window._result_state.provenance = {
+        "display_clock": {"origin": "2026-10-14T00:00Z", "timezone": "UTC"}
+    }
     window.analyzed(profile_results())
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
     window.figure.axes[0].set_xlim(

@@ -520,7 +520,7 @@ def _verify_multiple_recordings(window, directory, frame):
             {key: inspect_recording(data, "relative_s") for key, data in batch_frames.items()},
         )
     )
-    window.provenance = {
+    window._result_state.provenance = {
         "source": str(batch_paths[0]),
         "sources": batch_sources,
         "settings": {"pipelines": ["tremor"]},
@@ -539,7 +539,7 @@ def _verify_multiple_recordings(window, directory, frame):
     ):
         raise RuntimeError("Sensor context used the wrong source recording")
     batch_export = directory / "batch-results.json"
-    export_results(batch_export, batch_results, window.provenance)
+    export_results(batch_export, batch_results, window._result_state.provenance)
     from .history import load_result_export
 
     batch_provenance, reopened_batch = load_result_export(batch_export)
