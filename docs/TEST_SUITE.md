@@ -38,6 +38,7 @@ trigger and expected behavior still apply.
 | Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 | Frozen layout/graph ports without application-window dependencies, Qt/job ordering and coordinator size | `test_composition_order.py` |
+| MainWindow ownership boundaries and recording/results/sensor workflows without legacy window ports | `test_composition_without_facade.py` |
 
 Some behaviors are checked at several boundaries for different reasons: an export
 unit test exercises special numeric values, a scientific test checks real outputs,

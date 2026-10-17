@@ -119,8 +119,15 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
         "input_plot_changed",
         "update_origin_default",
     )
+    owners = {
+        "preparation_changed": desktop.AnalysisController,
+        "update_time_statistics": desktop.DataController,
+        "input_plot_changed": desktop.DataController,
+        "update_origin_default": desktop.AnalysisController,
+    }
     for name in names:
-        original = getattr(desktop.MainWindow, name)
+        owner = owners[name]
+        original = getattr(owner, name)
 
         def observed(self, *args, _name=name, _original=original, **kwargs):
             events.append(_name)
@@ -128,7 +135,7 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
                 return _original(self)
             return _original(self, *args, **kwargs)
 
-        monkeypatch.setattr(desktop.MainWindow, name, observed)
+        monkeypatch.setattr(owner, name, observed)
     window = desktop.MainWindow(history_dir=tmp_path)
     try:
         events.clear()

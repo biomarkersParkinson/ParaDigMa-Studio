@@ -127,40 +127,64 @@ class MainWindow(QMainWindow):
         self.history = RunHistory(directory)
         self._run_state.runs, history_issues = self.history.load()
         callbacks = WorkspaceCallbacks(
-            update_context_action=lambda *args, **kwargs: self.update_context_action(
+            update_context_action=lambda *args, **kwargs: (
+                self._graph_controller.update_context_action(*args, **kwargs)
+            ),
+            choose_export=lambda *args, **kwargs: self._export_controller.choose_export(
                 *args, **kwargs
             ),
-            choose_export=lambda *args, **kwargs: self.choose_export(*args, **kwargs),
-            clear_runs=lambda *args, **kwargs: self.clear_runs(*args, **kwargs),
-            delete_run=lambda *args, **kwargs: self.delete_run(*args, **kwargs),
-            graph_clicked=lambda *args, **kwargs: self.graph_clicked(*args, **kwargs),
-            hide_sensor_context=lambda *args, **kwargs: self.hide_sensor_context(*args, **kwargs),
-            inspect_input_recording=lambda *args, **kwargs: self.inspect_input_recording(
+            clear_runs=lambda *args, **kwargs: self._run_controller.clear_runs(*args, **kwargs),
+            delete_run=lambda *args, **kwargs: self._run_controller.delete_run(*args, **kwargs),
+            graph_clicked=lambda *args, **kwargs: self._graph_controller.graph_clicked(
                 *args, **kwargs
             ),
-            inspect_sensor_context=lambda *args, **kwargs: self.inspect_sensor_context(
+            hide_sensor_context=lambda *args, **kwargs: self._sensor_controller.hide_sensor_context(
                 *args, **kwargs
             ),
-            navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
-            open_file=lambda *args, **kwargs: self.open_file(*args, **kwargs),
-            open_run=lambda *args, **kwargs: self.open_run(*args, **kwargs),
-            plot=lambda *args, **kwargs: self.plot(*args, **kwargs),
-            reset_origin=lambda *args, **kwargs: self.reset_origin(*args, **kwargs),
+            inspect_input_recording=lambda *args, **kwargs: (
+                self._data_controller.inspect_input_recording(*args, **kwargs)
+            ),
+            inspect_sensor_context=lambda *args, **kwargs: (
+                self._sensor_controller.inspect_sensor_context(*args, **kwargs)
+            ),
+            navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
+            open_file=lambda *args, **kwargs: self._data_controller.open_file(*args, **kwargs),
+            open_run=lambda *args, **kwargs: self._run_controller.open_run(*args, **kwargs),
+            plot=lambda *args, **kwargs: self._graph_controller.plot(*args, **kwargs),
+            reset_origin=lambda *args, **kwargs: self._analysis_controller.reset_origin(
+                *args, **kwargs
+            ),
             reset_sensor_context=self.reset_sensor_context,
-            results_tab_changed=lambda *args, **kwargs: self.results_tab_changed(*args, **kwargs),
-            run_analysis=lambda *args, **kwargs: self.run_analysis(*args, **kwargs),
-            save_results=lambda *args, **kwargs: self.save_results(*args, **kwargs),
-            selected_result_series=lambda *args, **kwargs: self.selected_result_series(
+            results_tab_changed=lambda *args, **kwargs: (
+                self._workspace_controller.results_tab_changed(*args, **kwargs)
+            ),
+            run_analysis=lambda *args, **kwargs: self._analysis_controller.run_analysis(
                 *args, **kwargs
             ),
-            set_input_channels=lambda *args, **kwargs: self.set_input_channels(*args, **kwargs),
-            set_sensor_channels=lambda *args, **kwargs: self.set_sensor_channels(*args, **kwargs),
-            show_acknowledgements=lambda *args, **kwargs: self.show_acknowledgements(
+            save_results=lambda *args, **kwargs: self._export_controller.save_results(
                 *args, **kwargs
             ),
-            stop_analysis=lambda *args, **kwargs: self.stop_analysis(*args, **kwargs),
-            toggle_analysis_help=lambda *args, **kwargs: self.toggle_analysis_help(*args, **kwargs),
-            use_run_parameters=lambda *args, **kwargs: self.use_run_parameters(*args, **kwargs),
+            selected_result_series=lambda *args, **kwargs: (
+                self._workspace_controller.selected_result_series(*args, **kwargs)
+            ),
+            set_input_channels=lambda *args, **kwargs: self._data_controller.set_input_channels(
+                *args, **kwargs
+            ),
+            set_sensor_channels=lambda *args, **kwargs: self._sensor_controller.set_sensor_channels(
+                *args, **kwargs
+            ),
+            show_acknowledgements=lambda *args, **kwargs: (
+                self._shell_controller.show_acknowledgements(*args, **kwargs)
+            ),
+            stop_analysis=lambda *args, **kwargs: self._job_controller.stop_analysis(
+                *args, **kwargs
+            ),
+            toggle_analysis_help=lambda *args, **kwargs: (
+                self._analysis_controller.toggle_analysis_help(*args, **kwargs)
+            ),
+            use_run_parameters=lambda *args, **kwargs: self._analysis_controller.use_run_parameters(
+                *args, **kwargs
+            ),
         )
         self._layout = WorkspaceLayout(
             self,
@@ -174,13 +198,13 @@ class MainWindow(QMainWindow):
         )
         self._compose_controllers()
         self._connect()
-        self.refresh_runs()
-        self.navigate(0)
-        self.build_result_overview()
-        self.sync_table_outputs()
-        self.plot()
+        self._run_controller.refresh_runs()
+        self._shell_controller.navigate(0)
+        self._workspace_controller.build_result_overview()
+        self._workspace_controller.sync_table_outputs()
+        self._graph_controller.plot()
         if history_issues:
-            self.show_notice("\n".join(history_issues))
+            self._shell_controller.show_notice("\n".join(history_issues))
 
     def _compose_controllers(self):
         """Wire only the state, widgets and actions each component needs."""
@@ -221,16 +245,20 @@ class MainWindow(QMainWindow):
             clear_runs_button=self._layout.clear_runs_button,
         )
         run_callbacks = RunCallbacks(
-            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
-            clear_results=lambda *args, **kwargs: self.clear_results(*args, **kwargs),
-            start_job=lambda *args, **kwargs: self.start_job(*args, **kwargs),
-            analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
-            selected_export_table=lambda *args, **kwargs: self.selected_export_table(
+            show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
+            clear_results=lambda *args, **kwargs: self._workspace_controller.clear_results(
                 *args, **kwargs
             ),
+            start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
+            analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
+            selected_export_table=lambda *args, **kwargs: (
+                self._workspace_controller.selected_export_table(*args, **kwargs)
+            ),
             is_busy=lambda: self._job_state.worker is not None,
-            select_run=lambda *args, **kwargs: self.select_run(*args, **kwargs),
-            update_run_actions=lambda *args, **kwargs: self.update_run_actions(*args, **kwargs),
+            select_run=lambda *args, **kwargs: self._run_controller.select_run(*args, **kwargs),
+            update_run_actions=lambda *args, **kwargs: self._run_controller.update_run_actions(
+                *args, **kwargs
+            ),
         )
         self._run_controller = RunController(
             self._run_state,
@@ -253,21 +281,25 @@ class MainWindow(QMainWindow):
         )
         result_callbacks = ResultCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
-            build_result_overview=lambda *args, **kwargs: self.build_result_overview(
+            build_result_overview=lambda *args, **kwargs: (
+                self._workspace_controller.build_result_overview(*args, **kwargs)
+            ),
+            populate_result_series=lambda *args, **kwargs: (
+                self._workspace_controller.populate_result_series(*args, **kwargs)
+            ),
+            selected_result_series=lambda *args, **kwargs: (
+                self._workspace_controller.selected_result_series(*args, **kwargs)
+            ),
+            select_dataset=lambda *args, **kwargs: self._workspace_controller.select_dataset(
                 *args, **kwargs
             ),
-            populate_result_series=lambda *args, **kwargs: self.populate_result_series(
-                *args, **kwargs
+            sync_table_outputs=lambda *args, **kwargs: (
+                self._workspace_controller.sync_table_outputs(*args, **kwargs)
             ),
-            selected_result_series=lambda *args, **kwargs: self.selected_result_series(
-                *args, **kwargs
-            ),
-            select_dataset=lambda *args, **kwargs: self.select_dataset(*args, **kwargs),
-            sync_table_outputs=lambda *args, **kwargs: self.sync_table_outputs(*args, **kwargs),
-            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
-            finish_run=lambda *args, **kwargs: self.finish_run(*args, **kwargs),
+            show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
+            finish_run=lambda *args, **kwargs: self._run_controller.finish_run(*args, **kwargs),
             capture_warning=lambda *args, **kwargs: self.capture_warning(*args, **kwargs),
-            navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
+            navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             is_busy=lambda: self._job_state.worker is not None,
             align_recordings=lambda *args, **kwargs: align_recordings(*args, **kwargs),
             analysis_alignment=lambda *args, **kwargs: analysis_alignment(*args, **kwargs),
@@ -313,10 +345,12 @@ class MainWindow(QMainWindow):
     def _compose_data(self):
         callbacks = DataCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
-            modules_changed=lambda *args, **kwargs: self.modules_changed(*args, **kwargs),
-            navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
-            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
-            start_job=lambda *args, **kwargs: self.start_job(*args, **kwargs),
+            modules_changed=lambda *args, **kwargs: self._analysis_controller.modules_changed(
+                *args, **kwargs
+            ),
+            navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
+            show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
+            start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )
         services = DataServices(
             load_recordings=lambda *args, **kwargs: load_recordings(*args, **kwargs),
@@ -346,13 +380,15 @@ class MainWindow(QMainWindow):
     def _compose_analysis(self):
         callbacks = AnalysisCallbacks(
             analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
-            clear_results=lambda *args, **kwargs: self.clear_results(*args, **kwargs),
+            clear_results=lambda *args, **kwargs: self._workspace_controller.clear_results(
+                *args, **kwargs
+            ),
             failure=lambda *args, **kwargs: self.failure(*args, **kwargs),
-            navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
-            persist_run=lambda *args, **kwargs: self.persist_run(*args, **kwargs),
-            refresh_runs=lambda *args, **kwargs: self.refresh_runs(*args, **kwargs),
-            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
-            start_job=lambda *args, **kwargs: self.start_job(*args, **kwargs),
+            navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
+            persist_run=lambda *args, **kwargs: self._run_controller.persist_run(*args, **kwargs),
+            refresh_runs=lambda *args, **kwargs: self._run_controller.refresh_runs(*args, **kwargs),
+            show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
+            start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )
         services = AnalysisServices(
             recording_clock=lambda *args, **kwargs: recording_clock(*args, **kwargs),
@@ -378,11 +414,17 @@ class MainWindow(QMainWindow):
         callbacks = JobCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
             close=lambda *args, **kwargs: self.close(*args, **kwargs),
-            finish_run=lambda *args, **kwargs: self.finish_run(*args, **kwargs),
-            modules_changed=lambda *args, **kwargs: self.modules_changed(*args, **kwargs),
-            preparation_changed=lambda *args, **kwargs: self.preparation_changed(*args, **kwargs),
-            show_notice=lambda *args, **kwargs: self.show_notice(*args, **kwargs),
-            update_run_actions=lambda *args, **kwargs: self.update_run_actions(*args, **kwargs),
+            finish_run=lambda *args, **kwargs: self._run_controller.finish_run(*args, **kwargs),
+            modules_changed=lambda *args, **kwargs: self._analysis_controller.modules_changed(
+                *args, **kwargs
+            ),
+            preparation_changed=lambda *args, **kwargs: (
+                self._analysis_controller.preparation_changed(*args, **kwargs)
+            ),
+            show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
+            update_run_actions=lambda *args, **kwargs: self._run_controller.update_run_actions(
+                *args, **kwargs
+            ),
             connect_worker=self._connect_worker,
         )
         services = JobServices(
@@ -399,15 +441,21 @@ class MainWindow(QMainWindow):
 
     def _compose_workspace(self):
         callbacks = ResultWorkspaceCallbacks(
-            disconnect_sensor_view=lambda *args, **kwargs: self.disconnect_sensor_view(
+            disconnect_sensor_view=lambda *args, **kwargs: (
+                self._sensor_controller.disconnect_sensor_view(*args, **kwargs)
+            ),
+            hide_sensor_context=lambda *args, **kwargs: self._sensor_controller.hide_sensor_context(
                 *args, **kwargs
             ),
-            hide_sensor_context=lambda *args, **kwargs: self.hide_sensor_context(*args, **kwargs),
-            highlight_result_row=lambda *args, **kwargs: self.highlight_result_row(*args, **kwargs),
-            plot=lambda *args, **kwargs: self.plot(*args, **kwargs),
-            result_row_changed=lambda *args, **kwargs: self.result_row_changed(*args, **kwargs),
-            update_context_action=lambda *args, **kwargs: self.update_context_action(
+            highlight_result_row=lambda *args, **kwargs: (
+                self._graph_controller.highlight_result_row(*args, **kwargs)
+            ),
+            plot=lambda *args, **kwargs: self._graph_controller.plot(*args, **kwargs),
+            result_row_changed=lambda *args, **kwargs: self._graph_controller.result_row_changed(
                 *args, **kwargs
+            ),
+            update_context_action=lambda *args, **kwargs: (
+                self._graph_controller.update_context_action(*args, **kwargs)
             ),
         )
         self._workspace_controller = ResultWorkspaceController(
@@ -424,14 +472,18 @@ class MainWindow(QMainWindow):
         callbacks = ExportCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
             failure=lambda *args, **kwargs: self.failure(*args, **kwargs),
-            persist_run=lambda *args, **kwargs: self.persist_run(*args, **kwargs),
-            record_output=lambda *args, **kwargs: self.record_output(*args, **kwargs),
-            refresh_runs=lambda *args, **kwargs: self.refresh_runs(*args, **kwargs),
-            save_run_results=lambda *args, **kwargs: self.save_run_results(*args, **kwargs),
-            selected_export_table=lambda *args, **kwargs: self.selected_export_table(
+            persist_run=lambda *args, **kwargs: self._run_controller.persist_run(*args, **kwargs),
+            record_output=lambda *args, **kwargs: self._run_controller.record_output(
                 *args, **kwargs
             ),
-            start_job=lambda *args, **kwargs: self.start_job(*args, **kwargs),
+            refresh_runs=lambda *args, **kwargs: self._run_controller.refresh_runs(*args, **kwargs),
+            save_run_results=lambda *args, **kwargs: self._run_controller.save_run_results(
+                *args, **kwargs
+            ),
+            selected_export_table=lambda *args, **kwargs: (
+                self._workspace_controller.selected_export_table(*args, **kwargs)
+            ),
+            start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )
         services = ExportServices(
             export_results=lambda *args, **kwargs: export_results(*args, **kwargs),
@@ -452,7 +504,9 @@ class MainWindow(QMainWindow):
 
     def _compose_shell(self):
         callbacks = ShellCallbacks(
-            data_tab_changed=lambda *args, **kwargs: self.data_tab_changed(*args, **kwargs),
+            data_tab_changed=lambda *args, **kwargs: self._data_controller.data_tab_changed(
+                *args, **kwargs
+            ),
         )
         self._shell_controller = ShellController(
             shell=self._shell_state,
@@ -463,10 +517,12 @@ class MainWindow(QMainWindow):
 
     def _compose_graph(self):
         callbacks = ResultGraphCallbacks(
-            selected_result_series=lambda *args, **kwargs: self.selected_result_series(
-                *args, **kwargs
+            selected_result_series=lambda *args, **kwargs: (
+                self._workspace_controller.selected_result_series(*args, **kwargs)
             ),
-            sync_table_outputs=lambda *args, **kwargs: self.sync_table_outputs(*args, **kwargs),
+            sync_table_outputs=lambda *args, **kwargs: (
+                self._workspace_controller.sync_table_outputs(*args, **kwargs)
+            ),
         )
         self._graph_controller = ResultGraphs(
             graphs=self._graph_state,
@@ -476,37 +532,51 @@ class MainWindow(QMainWindow):
         )
 
     def _connect(self):
-        self._layout.result_graph_view.currentIndexChanged.connect(self.plot)
-        self._layout.data_tabs.currentChanged.connect(self.data_tab_changed)
-        self._layout.prepared.toggled.connect(self.preparation_changed)
-        self._layout.gaps.toggled.connect(self.preparation_changed)
-        self._layout.drop_missing.toggled.connect(self.preparation_changed)
+        self._layout.result_graph_view.currentIndexChanged.connect(self._graph_controller.plot)
+        self._layout.data_tabs.currentChanged.connect(self._data_controller.data_tab_changed)
+        self._layout.prepared.toggled.connect(self._analysis_controller.preparation_changed)
+        self._layout.gaps.toggled.connect(self._analysis_controller.preparation_changed)
+        self._layout.drop_missing.toggled.connect(self._analysis_controller.preparation_changed)
         for name, item in self._layout.module_buttons.items():
-            item.toggled.connect(lambda checked, n=name: self.modules_changed(n, checked))
+            item.toggled.connect(
+                lambda checked, n=name: self._analysis_controller.modules_changed(n, checked)
+            )
         for combo in (self._layout.acc, self._layout.gyro, self._layout.time):
-            combo.currentTextChanged.connect(self.preparation_changed)
-        self._layout.data_channels.itemChanged.connect(self.plot_input)
-        self._layout.data_time_channel.currentIndexChanged.connect(self.refresh_data_descriptives)
+            combo.currentTextChanged.connect(self._analysis_controller.preparation_changed)
+        self._layout.data_channels.itemChanged.connect(self._data_controller.plot_input)
+        self._layout.data_time_channel.currentIndexChanged.connect(
+            self._data_controller.refresh_data_descriptives
+        )
         self._layout.time.currentTextChanged.connect(self._layout.data_time_unit.setCurrentText)
-        self._layout.data_time_unit.currentTextChanged.connect(self.update_time_statistics)
-        self._layout.data_time_unit.currentTextChanged.connect(self.input_plot_changed)
-        self._layout.dataset.currentTextChanged.connect(self.select_dataset)
-        self._layout.table_dataset.currentIndexChanged.connect(self.select_output_table)
-        self._layout.table_module_tabs.currentChanged.connect(self.table_module_changed)
-        self._layout.timing_toggle.toggled.connect(self.table_timing_changed)
-        self._layout.y_column.currentIndexChanged.connect(self.update_metric)
-        self._layout.result_series.itemChanged.connect(self.plot)
-        self._layout.result_series.currentItemChanged.connect(self.select_plot_series)
-        self._layout.clock_input.valueEdited.connect(self.origin_edited)
-        self._layout.mapping.textChanged.connect(self.update_origin_default)
-        self._layout.mapping.textChanged.connect(self.input_plot_changed)
+        self._layout.data_time_unit.currentTextChanged.connect(
+            self._data_controller.update_time_statistics
+        )
+        self._layout.data_time_unit.currentTextChanged.connect(
+            self._data_controller.input_plot_changed
+        )
+        self._layout.dataset.currentTextChanged.connect(self._workspace_controller.select_dataset)
+        self._layout.table_dataset.currentIndexChanged.connect(
+            self._workspace_controller.select_output_table
+        )
+        self._layout.table_module_tabs.currentChanged.connect(
+            self._workspace_controller.table_module_changed
+        )
+        self._layout.timing_toggle.toggled.connect(self._workspace_controller.table_timing_changed)
+        self._layout.y_column.currentIndexChanged.connect(self._workspace_controller.update_metric)
+        self._layout.result_series.itemChanged.connect(self._graph_controller.plot)
+        self._layout.result_series.currentItemChanged.connect(
+            self._workspace_controller.select_plot_series
+        )
+        self._layout.clock_input.valueEdited.connect(self._analysis_controller.origin_edited)
+        self._layout.mapping.textChanged.connect(self._analysis_controller.update_origin_default)
+        self._layout.mapping.textChanged.connect(self._data_controller.input_plot_changed)
         for control in (self._layout.time,):
-            control.currentTextChanged.connect(self.update_origin_default)
+            control.currentTextChanged.connect(self._analysis_controller.update_origin_default)
         for control in (self._layout.prepared, self._layout.drop_missing):
-            control.toggled.connect(self.update_origin_default)
+            control.toggled.connect(self._analysis_controller.update_origin_default)
         self._layout.sensor_channels.itemChanged.connect(self.plot_sensor)
-        self.modules_changed()
-        self.preparation_changed()
+        self._analysis_controller.modules_changed()
+        self._analysis_controller.preparation_changed()
 
     def _connect_worker(self, worker, completed):
         worker.completed.connect(completed)

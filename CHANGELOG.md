@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Compose MainWindow widgets and callbacks through their owning components,
+  preserving Qt wiring and keeping legacy ports for existing integration callers.
+  Add regression coverage for workflows with those ports disabled.
 - Strengthen UI regression checks after component extraction, isolate worker RAM
   and configuration fallbacks, and verify complete daily calendar boundaries.
 - Continue retiring legacy window aliases onto existing state and UI components.

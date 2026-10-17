@@ -72,19 +72,22 @@ view and service ports. A Qt parent provides ownership/dialog APIs, never access
 to application attributes. New UI controllers retain GUI-thread QObject affinity.
 Overview and series renderers receive their layout/tree and result inputs directly.
 
-The existing window entry points delegate to these components:
+The main result and run responsibilities belong to these components:
 
-| Window entry point | Implementation |
+| Responsibility | Implementation |
 | --- | --- |
-| `build_result_overview` | `ui.result_overview.ResultOverview.render` |
-| `analyzed` | `result_controller.ResultController.analyzed` |
-| `populate_result_series` | `ui.result_series.ResultSeries.populate` |
-| `delete_runs` | `run_controller.RunController.delete_runs` |
+| Render the result overview | `ui.result_overview.ResultOverview.render` |
+| Install completed analysis results | `result_controller.ResultController.analyzed` |
+| Populate result series | `ui.result_series.ResultSeries.populate` |
+| Delete runs | `run_controller.RunController.delete_runs` |
 
 `workspace_state.py` owns shared state. The explicit alias table in
 `ui/compatibility.py` retains a shrinking subset of legacy window attributes and
 methods; components do not use that facade. New integrations should use the
 owning state/controller or the service APIs, rather than add window aliases.
+MainWindow's composition and signal wiring use those owners directly. The
+`workspace_ports` decorator retains aliases for existing probe and integration
+callers; MainWindow also works without installing them.
 All legacy state aliases are retired. Callers use their owning state objects
 directly, such as `window._result_state.provenance` for result metadata.
 Results view layouts, scroll-area lists and overview containers use

@@ -104,6 +104,11 @@ new aliases, retired names returning, and file growth fail the check. Do not rai
 the budget. Migrate callers to their owning state/component while preserving Qt
 signal ordering and job lifecycles. The reusable component descriptor lives in
 `ui/component_ports.py`, outside the legacy window adapter.
+MainWindow's composition must access widgets and callbacks through their explicit
+layout/state/controller owners. `test_composition_without_facade.py` checks this
+boundary and exercises loading, results and sensor context with the legacy-port
+decorator disabled. Preserve deferred lambdas and the real Qt receiver methods
+when changing callback wiring.
 
 ## CI artifacts
 
