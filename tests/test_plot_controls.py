@@ -182,8 +182,8 @@ def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(win
         (window.sensor_toolbar, window.sensor_figure),
     ):
         if toolbar is window.sensor_toolbar:
-            window.sensor_frame = window._input_state.frame
-            window.sensor_times = window._input_state.frame.time.to_numpy()
+            window._sensor_state.sensor_frame = window._input_state.frame
+            window._sensor_state.sensor_times = window._input_state.frame.time.to_numpy()
             window.populate_sensor_channels()
             window.plot_sensor()
         toolbar.settings_action.setChecked(True)
@@ -259,8 +259,8 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
 
 def test_channel_labels_toggle_once_and_support_multiple_channels(window):
     recording(window)
-    window.sensor_frame = window._input_state.frame
-    window.sensor_times = window._input_state.frame.time.to_numpy()
+    window._sensor_state.sensor_frame = window._input_state.frame
+    window._sensor_state.sensor_times = window._input_state.frame.time.to_numpy()
     window.populate_sensor_channels()
     window.plot_sensor()
     window.result_tabs.setCurrentIndex(3)

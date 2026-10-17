@@ -63,7 +63,7 @@ def window(tmp_path):
 
 def test_context_groups_modalities_with_data_colors_and_original_values(window):
     source = window._input_state.frame.copy(deep=True)
-    context = window.sensor_frame.copy(deep=True)
+    context = window._sensor_state.sensor_frame.copy(deep=True)
     channels = ["accelerometer_x", "gyroscope_y", "gyroscope_z"]
     window.set_sensor_channels(channels)
     accelerometer, gyroscope = window.sensor_figure.axes
@@ -73,7 +73,7 @@ def test_context_groups_modalities_with_data_colors_and_original_values(window):
     assert len({line.get_color() for line in lines}) == len(channels)
     assert [text.get_text() for text in gyroscope.get_legend().get_texts()] == channels[1:]
     for line in lines:
-        np.testing.assert_array_equal(line.get_xdata(), window.sensor_times)
+        np.testing.assert_array_equal(line.get_xdata(), window._sensor_state.sensor_times)
         np.testing.assert_array_equal(line.get_ydata(), context[line.get_label()])
         assert line.get_color() == window._data_state._channel_colors[line.get_label()]
     assert window.selected_input_channels() == ["accelerometer_x"]
@@ -104,10 +104,10 @@ def test_context_checkboxes_and_bulk_actions_preserve_selection_across_drilldown
 
 
 def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_alignment(window):
-    frame = window.sensor_frame.copy()
+    frame = window._sensor_state.sensor_frame.copy()
     frame["source_clock"] = frame.pop("time")
     frame["complex_signal"] = 1j
-    window.sensor_frame = frame
+    window._sensor_state.sensor_frame = frame
     window.provenance["settings"]["column_mapping"] = {"source_clock": "time"}
     window.display_clock = {"origin": "2026-10-09T13:00:00+02:00", "timezone": "Europe/Amsterdam"}
     window.populate_sensor_channels()
@@ -119,7 +119,7 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
     window.set_sensor_channels(["gyroscope_x", "gyroscope_y"])
     expected = dates.date2num(
         pd.Timestamp(window.display_clock["origin"])
-        + pd.to_timedelta(window.sensor_times, unit="s")
+        + pd.to_timedelta(window._sensor_state.sensor_times, unit="s")
     )
     for line in signal_lines(window.sensor_figure.axes[0]):
         np.testing.assert_allclose(dates.date2num(line.get_xdata()), expected)
@@ -220,7 +220,7 @@ def view_sensor(window, start, end):
 @pytest.mark.parametrize("gait", [False, True])
 def test_hidden_sensor_table_defers_pans_and_home_until_opened(window, monkeypatch, gait):
     frame = open_long_context(window, gait=gait)
-    initial = window.sensor_frame.copy(deep=True)
+    initial = window._sensor_state.sensor_frame.copy(deep=True)
     assert window.sensor_table.model() is None
     updates = []
     set_model = window.sensor_table.setModel
@@ -233,7 +233,7 @@ def test_hidden_sensor_table_defers_pans_and_home_until_opened(window, monkeypat
     for start in (40, 60, 0):
         view_sensor(window, start, start + 20)
         expected = frame.loc[frame.time.between(start, start + 20)]
-        pd.testing.assert_frame_equal(window.sensor_frame, expected)
+        pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, expected)
         for line in signal_lines(window.sensor_figure.axes[0]):
             np.testing.assert_array_equal(line.get_ydata(), expected[line.get_label()])
     assert not updates
@@ -250,7 +250,7 @@ def test_hidden_sensor_table_defers_pans_and_home_until_opened(window, monkeypat
 
     window.sensor_tabs.setCurrentIndex(0)
     window.sensor_toolbar.home()
-    pd.testing.assert_frame_equal(window.sensor_frame, initial)
+    pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, initial)
     assert len(updates) == 1
     window.sensor_tabs.setCurrentIndex(1)
     assert len(updates) == 2
@@ -289,7 +289,9 @@ def test_context_navigation_keeps_channels_original_samples_and_recording_bounda
     frame = open_long_context(window)
     original = frame.copy(deep=True)
     axes = tuple(window.sensor_figure.axes)
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(20, 40)]
+    )
     graph = window.sensor_tabs.widget(0)
     # Navigation and axis-limit controls are checked in test_plot_controls.py.
     navigation = set(window.sensor_toolbar.findChildren(QWidget)) | set(
@@ -307,51 +309,67 @@ def test_context_navigation_keeps_channels_original_samples_and_recording_bounda
     for start in (40, 60, 40, 20, 0):
         view_sensor(window, start, start + 20)
         pd.testing.assert_frame_equal(
-            window.sensor_frame, frame.loc[frame.time.between(start, start + 20)]
+            window._sensor_state.sensor_frame, frame.loc[frame.time.between(start, start + 20)]
         )
         assert tuple(window.sensor_figure.axes) == axes
         assert window.selected_sensor_channels() == ["gyroscope_x", "gyroscope_z"]
         for line in signal_lines(axes[0]):
-            np.testing.assert_array_equal(line.get_ydata(), window.sensor_frame[line.get_label()])
+            np.testing.assert_array_equal(
+                line.get_ydata(), window._sensor_state.sensor_frame[line.get_label()]
+            )
     view_sensor(window, -20, 0)
     assert axes[0].get_xlim() == pytest.approx((0, 20))
     view_sensor(window, 80, 100)
     assert axes[0].get_xlim() == pytest.approx((60, 80))
-    assert window._sensor_context.selected_time == 30
+    assert window._sensor_state._sensor_context.selected_time == 30
     pd.testing.assert_frame_equal(frame, original)
     window.sensor_close.click()
     assert not window.result_tabs.isTabVisible(window.sensor_tab_index)
     window.clear_results()
-    assert window._sensor_context is None and window._sensor_navigator is None
+    assert (
+        window._sensor_state._sensor_context is None
+        and window._sensor_state._sensor_navigator is None
+    )
 
 
 def test_context_navigation_crosses_gaps_without_creating_original_samples(window):
     frame = open_long_context(window, gap=True)
     view_sensor(window, 40, 60)
-    assert window.sensor_frame.empty
+    assert window._sensor_state.sensor_frame.empty
     assert all(len(line.get_xdata()) == 0 for line in signal_lines(window.sensor_figure.axes[0]))
     assert any(
         text.get_gid() == "sensor-no-data" and text.get_visible()
         for text in window.sensor_figure.axes[0].texts
     )
     view_sensor(window, 60, 80)
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(60, 80)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(60, 80)]
+    )
     view_sensor(window, 20, 40)
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(20, 40)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(20, 40)]
+    )
 
 
 def test_gait_context_begins_at_full_segment_and_can_move_beyond_its_bounds(window):
     frame = open_long_context(window, gait=True)
     pd.testing.assert_frame_equal(
-        window.sensor_frame, frame.loc[(frame.time >= 30) & (frame.time < 36)]
+        window._sensor_state.sensor_frame, frame.loc[(frame.time >= 30) & (frame.time < 36)]
     )
-    assert (window._sensor_context.start, window._sensor_context.end) == (30, 36)
-    selected = window._sensor_context.selected_time
+    assert (
+        window._sensor_state._sensor_context.start,
+        window._sensor_state._sensor_context.end,
+    ) == (30, 36)
+    selected = window._sensor_state._sensor_context.selected_time
     view_sensor(window, 36, 42)
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(36, 42)])
-    assert window._sensor_context.selected_time == selected
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(36, 42)]
+    )
+    assert window._sensor_state._sensor_context.selected_time == selected
     view_sensor(window, 30, 36)
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(30, 36)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(30, 36)]
+    )
 
 
 @pytest.mark.parametrize("calendar", [False, True])
@@ -372,13 +390,15 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
         MouseEvent("motion_notify_event", canvas, x - axes.bbox.width * 0.8, y, buttons={1})
     )
     QApplication.instance().processEvents()
-    assert window.sensor_frame.time.min() > 30
-    assert window.sensor_frame.time.max() > 50
+    assert window._sensor_state.sensor_frame.time.min() > 30
+    assert window._sensor_state.sensor_frame.time.max() > 50
     assert window.sensor_figure.axes[0] is axes
-    assert window._sensor_context.selected_time == 30
+    assert window._sensor_state._sensor_context.selected_time == 30
     toolbar.release_pan(MouseEvent("button_release_event", canvas, x, y, button=1))
     for line in signal_lines(axes):
-        np.testing.assert_array_equal(line.get_ydata(), window.sensor_frame[line.get_label()])
+        np.testing.assert_array_equal(
+            line.get_ydata(), window._sensor_state.sensor_frame[line.get_label()]
+        )
     assert not any(
         line.get_visible() for line in axes.lines if line.get_gid() == "selected-result-time"
     )
@@ -390,10 +410,12 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
     )
     toolbar.forward()
     QApplication.instance().processEvents()
-    assert window.sensor_frame.time.min() > 30
+    assert window._sensor_state.sensor_frame.time.min() > 30
     assert window.sensor_table.model() is None
     window.sensor_tabs.setCurrentIndex(1)
-    pd.testing.assert_frame_equal(window.sensor_table.model().frame, window.sensor_frame)
+    pd.testing.assert_frame_equal(
+        window.sensor_table.model().frame, window._sensor_state.sensor_frame
+    )
     pd.testing.assert_frame_equal(window._input_state.frame, frame)
 
 
@@ -416,7 +438,7 @@ def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(w
         assert path.vertices[:, 1].max() > 0
         assert line.get_ydata()[0] == 0
     np.testing.assert_array_equal(
-        signal_lines(axes)[0].get_ydata(), window.sensor_frame.gyroscope_x
+        signal_lines(axes)[0].get_ydata(), window._sensor_state.sensor_frame.gyroscope_x
     )
     pd.testing.assert_frame_equal(window._input_state.frame, frame)
     view_sensor(window, 40, 60)
@@ -434,7 +456,7 @@ def test_context_can_begin_in_a_gap_and_reselect_channels_before_panning_to_data
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.active_frame.loc[0, "time"] = 50.0
     window.inspect_sensor_context()
-    assert window.sensor_frame.empty
+    assert window._sensor_state.sensor_frame.empty
     assert window.sensor_figure.axes[0].get_xlim() == pytest.approx((40, 60))
     window.set_sensor_channels(["gyroscope_z"])
     assert window.sensor_figure.axes[0].get_xlim() == pytest.approx((40, 60))
@@ -477,7 +499,7 @@ def test_context_channel_changes_preserve_initial_and_panned_time_limits(window,
         ),
     ):
         window.sensor_figure.axes[0].set_xlim(*limits)
-        sample_view = window.sensor_frame.copy(deep=True)
+        sample_view = window._sensor_state.sensor_frame.copy(deep=True)
         for channels in (
             ["gyroscope_x"],
             ["gyroscope_x", "gyroscope_z"],
@@ -489,8 +511,8 @@ def test_context_channel_changes_preserve_initial_and_panned_time_limits(window,
             QApplication.instance().processEvents()
             if channels:
                 assert all(ax.get_xlim() == limits for ax in window.sensor_figure.axes)
-            pd.testing.assert_frame_equal(window.sensor_frame, sample_view)
-        assert window._sensor_navigator.limits == limits
+            pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, sample_view)
+        assert window._sensor_state._sensor_navigator.limits == limits
 
 
 def test_context_opening_converts_only_visible_timestamps_and_reuses_source_index(
@@ -527,14 +549,18 @@ def test_context_opening_converts_only_visible_timestamps_and_reuses_source_inde
     )
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.inspect_sensor_context()
-    index = window._sensor_navigator.index
+    index = window._sensor_state._sensor_navigator.index
     assert calls and max(calls) < 3000
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(110, 130)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(110, 130)]
+    )
     window.result_table.setCurrentIndex(window.result_table.model().index(1, 0))
     window.inspect_sensor_context()
-    assert window._sensor_navigator.index is index
+    assert window._sensor_state._sensor_navigator.index is index
     assert max(calls) < 3000
-    pd.testing.assert_frame_equal(window.sensor_frame, frame.loc[frame.time.between(170, 190)])
+    pd.testing.assert_frame_equal(
+        window._sensor_state.sensor_frame, frame.loc[frame.time.between(170, 190)]
+    )
     window.clear_results()
     assert not window._sensor_state._sensor_time_indices
 
@@ -574,13 +600,13 @@ def test_sensor_reset_restores_initial_context_after_channel_changes_and_keeps_h
     if calendar:
         window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
         window.plot_sensor()
-    original = window.sensor_frame.copy(deep=True)
+    original = window._sensor_state.sensor_frame.copy(deep=True)
     initial = window.sensor_figure.axes[0].get_xlim()
     width = initial[1] - initial[0]
     changed = initial[0] + width, initial[1] + width
     window.sensor_figure.axes[0].set_xlim(*changed)
     window.set_sensor_channels(["gyroscope_z"])
-    panned = window.sensor_frame.copy(deep=True)
+    panned = window._sensor_state.sensor_frame.copy(deep=True)
     if action == "home":
         window.sensor_toolbar._actions["home"].trigger()
     else:
@@ -588,7 +614,7 @@ def test_sensor_reset_restores_initial_context_after_channel_changes_and_keeps_h
         window.sensor_toolbar.settings.reset_button.click()
     QApplication.instance().processEvents()
     assert window.sensor_figure.axes[0].get_xlim() == initial
-    pd.testing.assert_frame_equal(window.sensor_frame, original)
+    pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, original)
     assert any(
         line.get_visible()
         for line in window.sensor_figure.axes[0].lines
@@ -597,7 +623,7 @@ def test_sensor_reset_restores_initial_context_after_channel_changes_and_keeps_h
     window.sensor_toolbar.back()
     QApplication.instance().processEvents()
     assert window.sensor_figure.axes[0].get_xlim() == changed
-    pd.testing.assert_frame_equal(window.sensor_frame, panned)
+    pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, panned)
 
 
 def test_context_close_shares_recording_summary_row_and_nested_tabs_have_compact_spacing(window):
@@ -644,7 +670,7 @@ def test_context_uses_saved_analysis_units_for_single_and_multiple_channels(
     # Current form changes must not relabel an earlier run's original samples.
     window.acc.setCurrentText("m/s^2" if accelerometer_unit == "g" else "g")
     window.gyro.setCurrentText("rad/s" if gyroscope_unit == "deg/s" else "deg/s")
-    original = window.sensor_frame.copy(deep=True)
+    original = window._sensor_state.sensor_frame.copy(deep=True)
     window.set_sensor_channels(["accelerometer_x", "gyroscope_x", "gyroscope_z"])
     labels = [ax.get_ylabel() for ax in window.sensor_figure.axes]
     assert set(labels) == {
@@ -654,4 +680,4 @@ def test_context_uses_saved_analysis_units_for_single_and_multiple_channels(
     for ax in window.sensor_figure.axes:
         for line in signal_lines(ax):
             np.testing.assert_array_equal(line.get_ydata(), original[line.get_label()])
-    pd.testing.assert_frame_equal(window.sensor_frame, original)
+    pd.testing.assert_frame_equal(window._sensor_state.sensor_frame, original)

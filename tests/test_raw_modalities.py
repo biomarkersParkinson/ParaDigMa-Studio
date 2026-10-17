@@ -65,7 +65,7 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
             window.sensor_figure,
             window.sensor_toolbar,
         )
-        frame = window.sensor_frame
+        frame = window._sensor_state.sensor_frame
     else:
         window.navigate(0)
         window.data_tabs.setCurrentIndex(1)

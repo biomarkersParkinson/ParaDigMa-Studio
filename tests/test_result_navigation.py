@@ -450,8 +450,8 @@ def test_raw_graph_zoom_keeps_both_axes_and_pan_control(window, sensor_context):
     frame = pd.DataFrame({"time": np.arange(20.0), "gyroscope_x": np.arange(20.0) ** 2})
     window.loaded(("sensor.csv", frame))
     if sensor_context:
-        window.sensor_frame = window._input_state.frame
-        window.sensor_times = window._input_state.frame.time.to_numpy()
+        window._sensor_state.sensor_frame = window._input_state.frame
+        window._sensor_state.sensor_times = window._input_state.frame.time.to_numpy()
         window.populate_sensor_channels()
         window.plot_sensor()
         toolbar, canvas = window.sensor_toolbar, window.sensor_canvas

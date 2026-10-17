@@ -531,9 +531,9 @@ def _verify_multiple_recordings(window, directory, frame):
     window.result_table.setCurrentIndex(window.result_table.model().index(position, 0))
     window.inspect_sensor_context()
     if (
-        window._sensor_context.source_name != "subject-part2.csv"
-        or not len(window.sensor_times)
-        or window.sensor_times.min() < 120.0 - 1e-9
+        window._sensor_state._sensor_context.source_name != "subject-part2.csv"
+        or not len(window._sensor_state.sensor_times)
+        or window._sensor_state.sensor_times.min() < 120.0 - 1e-9
     ):
         raise RuntimeError("Sensor context used the wrong source recording")
     batch_export = directory / "batch-results.json"

@@ -371,10 +371,10 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     window.analyzed({"quantifications": {"tremor": output}})
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
     window.inspect_sensor_context()
-    assert window.sensor_frame is not None
+    assert window._sensor_state.sensor_frame is not None
     assert window._result_state._bar_bounds and window._graph_state._result_shared_axes is not None
     window.clear_results()
-    assert window.sensor_frame is None and window.display_frame is None
+    assert window._sensor_state.sensor_frame is None and window.display_frame is None
     assert window.sensor_table.model() is None
     assert not window.sensor_figure.axes and not window.figure.axes
     assert (

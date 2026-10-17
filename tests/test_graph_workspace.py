@@ -536,8 +536,8 @@ def test_module_colors_match_analysis_overview_and_graphs(window):
     window.result_tabs.setTabVisible(window.sensor_tab_index, True)
     window.result_tabs.setCurrentIndex(window.sensor_tab_index)
     QTest.qWait(30)
-    window.sensor_frame = pd.DataFrame({"gyroscope_x": [1.0, 2.0, 3.0]})
-    window.sensor_times = np.array([0.0, 1.0, 2.0])
+    window._sensor_state.sensor_frame = pd.DataFrame({"gyroscope_x": [1.0, 2.0, 3.0]})
+    window._sensor_state.sensor_times = np.array([0.0, 1.0, 2.0])
     window.populate_sensor_channels()
     window.plot_sensor()
     assert to_rgba(window.sensor_figure.axes[0].lines[0].get_color()) == to_rgba(
