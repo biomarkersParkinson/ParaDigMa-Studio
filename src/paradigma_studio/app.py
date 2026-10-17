@@ -126,7 +126,29 @@ class MainWindow(QMainWindow):
         )
         self.history = RunHistory(directory)
         self._run_state.runs, history_issues = self.history.load()
-        callbacks = WorkspaceCallbacks(
+        callbacks = self._workspace_callbacks()
+        self._layout = WorkspaceLayout(
+            self,
+            callbacks,
+            self._graph_state,
+            self._shell_state,
+            self._result_state,
+            self.history.directory,
+            self.SECTIONS,
+            self.MODULES,
+        )
+        self._compose_controllers()
+        self._connect()
+        self._run_controller.refresh_runs()
+        self._shell_controller.navigate(0)
+        self._workspace_controller.build_result_overview()
+        self._workspace_controller.sync_table_outputs()
+        self._graph_controller.plot()
+        if history_issues:
+            self._shell_controller.show_notice("\n".join(history_issues))
+
+    def _workspace_callbacks(self) -> WorkspaceCallbacks:
+        return WorkspaceCallbacks(
             update_context_action=lambda *args, **kwargs: (
                 self._graph_controller.update_context_action(*args, **kwargs)
             ),
@@ -186,25 +208,6 @@ class MainWindow(QMainWindow):
                 *args, **kwargs
             ),
         )
-        self._layout = WorkspaceLayout(
-            self,
-            callbacks,
-            self._graph_state,
-            self._shell_state,
-            self._result_state,
-            self.history.directory,
-            self.SECTIONS,
-            self.MODULES,
-        )
-        self._compose_controllers()
-        self._connect()
-        self._run_controller.refresh_runs()
-        self._shell_controller.navigate(0)
-        self._workspace_controller.build_result_overview()
-        self._workspace_controller.sync_table_outputs()
-        self._graph_controller.plot()
-        if history_issues:
-            self._shell_controller.show_notice("\n".join(history_issues))
 
     def _compose_controllers(self):
         """Wire only the state, widgets and actions each component needs."""
