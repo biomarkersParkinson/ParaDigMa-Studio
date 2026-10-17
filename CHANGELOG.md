@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extract Data page construction and responsive layout from the shared workspace
+  builder, retaining widget order, shortcuts, callbacks and deferred graphs.
 - Reduce temporary row containers during JSON saving, retaining exact numeric
   encoding, the saved-file format, bounded batches and atomic writes.
 - Compose MainWindow widgets and callbacks through their owning components,

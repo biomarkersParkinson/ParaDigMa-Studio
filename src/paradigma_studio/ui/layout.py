@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -50,6 +50,7 @@ from ..widgets import (
 from ..workspace_state import GraphState, ResultState, ShellState
 from .analysis_page import AnalysisFooterView, AnalysisPage
 from .component_ports import component_attribute
+from .data_page import DataPage, DataPageHost
 from .deferred import DeferredWidget, deferred_attribute
 from .graph_views import ChannelCanvasView, ResultCanvasView
 from .result_graphs import ResultGraphView
@@ -87,6 +88,22 @@ class WorkspaceLayout:
     side = component_attribute("_analysis_page")
     stop_button = component_attribute("_analysis_page")
     time = component_attribute("_analysis_page")
+
+    _data_graph = component_attribute("_data_page")
+    channel_table = component_attribute("_data_page")
+    continue_button = component_attribute("_data_page")
+    data_channels = component_attribute("_data_page")
+    data_details = component_attribute("_data_page")
+    data_tabs = component_attribute("_data_page")
+    data_time_channel = component_attribute("_data_page")
+    data_time_unit = component_attribute("_data_page")
+    data_values = component_attribute("_data_page")
+    file_label = component_attribute("_data_page")
+    input_recording = component_attribute("_data_page")
+    input_table = component_attribute("_data_page")
+    open_action = component_attribute("_data_page")
+    open_button = component_attribute("_data_page")
+    time_table = component_attribute("_data_page")
 
     data_figure = deferred_attribute("_data_graph")
     data_canvas = deferred_attribute("_data_graph")
@@ -216,92 +233,11 @@ class WorkspaceLayout:
         return layout
 
     def _build_data(self):
-        layout = self.page()
-        self._build_data_header(layout)
-        self.data_tabs = QTabWidget()
-        overview = QWidget()
-        overview_layout = QVBoxLayout(overview)
-        overview_layout.setContentsMargins(18, 18, 18, 18)
-        overview_layout.setSpacing(16)
-        metrics = QHBoxLayout()
-        self.data_values = []
-        for title in ("Sensor samples", "Channels", "Missing values"):
-            panel, content = card()
-            content.addWidget(label(title, "muted"))
-            value = label("—", "metricValue")
-            content.addWidget(value)
-            self.data_values.append(value)
-            metrics.addWidget(panel, 1)
-        overview_layout.addLayout(metrics)
-        details = self.data_details = QSplitter(Qt.Horizontal)
-        details.setHandleWidth(12)
-        panel, content = card()
-        content.addWidget(label("Sensor channels", "sectionTitle"))
-        self.channel_table = table()
-        content.addWidget(self.channel_table, 1)
-        details.addWidget(panel)
-        panel, content = card()
-        time_controls = QHBoxLayout()
-        content.addWidget(label("Time channel", "sectionTitle"))
-        self.data_time_channel = self.combo()
-        self.data_time_channel.setPlaceholderText("Select time column")
-        self.data_time_channel.setToolTip(
-            tooltip_text("Time column inspected here. Analysis uses its column mapping.")
+        self._data_page = DataPage(
+            DataPageHost(self.parent, self.page(), self.status_layout),
+            self.callbacks,
+            self.channel_graph,
         )
-        time_controls.addWidget(self.data_time_channel, 1)
-        self.data_time_unit = self.combo(
-            [
-                "relative_s",
-                "relative_ms",
-                "absolute_s",
-                "absolute_ms",
-                "difference_s",
-                "difference_ms",
-            ]
-        )
-        self.data_time_unit.setToolTip(
-            tooltip_text(
-                "Units for inspecting the raw time column. Analysis parameters are set on Analyze."
-            )
-        )
-        time_controls.addWidget(self.data_time_unit)
-        content.addLayout(time_controls)
-        self.time_table = table()
-        content.addWidget(self.time_table, 1)
-        details.addWidget(panel)
-        details.setSizes([660, 400])
-        overview_layout.addWidget(details, 1)
-        self.data_tabs.addTab(overview, "Overview")
-        preview, self.data_channels, self._data_graph = self.channel_graph(
-            self.callbacks.set_input_channels, "Sensor channels to plot", "data"
-        )
-        self.data_tabs.addTab(preview, "Graphs")
-        self.input_table = table()
-        self.data_tabs.addTab(self.input_table, "Tables")
-        layout.addWidget(self.data_tabs, 1)
-        self.continue_button = button("Configure analysis  →", lambda: self.callbacks.navigate(1))
-        self.continue_button.setEnabled(False)
-        self.status_layout.addWidget(self.continue_button)
-
-    def _build_data_header(self, layout: QVBoxLayout) -> None:
-        panel, content = card()
-        row = QHBoxLayout()
-        self.file_label = label("No recording loaded", "sectionTitle")
-        row.addWidget(self.file_label, 1)
-        self.input_recording = self.combo()
-        self.input_recording.setAccessibleName("Recording to inspect")
-        self.input_recording.hide()
-        self.input_recording.currentIndexChanged.connect(self.callbacks.inspect_input_recording)
-        row.addWidget(self.input_recording, 1)
-        self.open_button = button("Open sensor files…", self.callbacks.open_file, primary=True)
-        self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
-        self.open_action = QAction("Open recording", self.parent)
-        self.open_action.setShortcut("Ctrl+O")
-        self.open_action.triggered.connect(self.callbacks.open_file)
-        self.parent.addAction(self.open_action)
-        row.addWidget(self.open_button)
-        content.addLayout(row)
-        layout.addWidget(panel)
 
     def channel_graph(self, select_channels, accessible_name, prefix):
         """Shared raw-sensor workspace: a channel list beside a fitted graph."""
@@ -732,10 +668,7 @@ class WorkspaceLayout:
             item.setToolTip("" if expanded else self.sections[i])
 
     def resize_data(self, width: int) -> None:
-        orientation = Qt.Horizontal if width >= 1280 else Qt.Vertical
-        if self.data_details.orientation() != orientation:
-            self.data_details.setOrientation(orientation)
-            self.data_details.setSizes([660, 400] if orientation == Qt.Horizontal else [220, 300])
+        self._data_page.resize_data(width)
 
     def data_graphics(self) -> ChannelCanvasView:
         self._data_graph.initialize()

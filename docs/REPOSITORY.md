@@ -40,7 +40,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Result installation, source alignment, clock selection and completion status | `result_controller.py` |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
-| Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Analyze widgets in `ui/analysis_page.py` |
+| Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` |
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
 | Results rendering and linked graph selection | `ui/result_graphs.py`; cached summaries and display transforms in `ui/result_plot_data.py` |
@@ -71,6 +71,9 @@ returns frozen page views. `ResultGraphs` receives result/graph state, a frozen
 view and service ports. A Qt parent provides ownership/dialog APIs, never access
 to application attributes. New UI controllers retain GUI-thread QObject affinity.
 Overview and series renderers receive their layout/tree and result inputs directly.
+`DataPage` owns the recording header, overview/tabs, footer action and responsive
+splitter. Its frozen `DataPageHost` supplies the parent and page/footer layouts;
+callbacks and the deferred channel-graph factory are separate explicit dependencies.
 
 The main result and run responsibilities belong to these components:
 
