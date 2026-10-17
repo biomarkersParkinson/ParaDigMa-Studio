@@ -202,7 +202,7 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
             recording_summary(saved, window.provenance, window._result_state.display_clock)
             == entries
         )
-        texts = [label.text() for label in window.overview_content.findChildren(QLabel)]
+        texts = [label.text() for label in window._layout.overview_content.findChildren(QLabel)]
         assert dict(entries)["Recording timespan"] in texts
         assert dict(entries)["Tremor · Data coverage"] in texts
     finally:
@@ -284,13 +284,13 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     assert (
         sum(
             label.text() == "Recording & preparation"
-            for label in window.overview_content.findChildren(QLabel)
+            for label in window._layout.overview_content.findChildren(QLabel)
         )
         == 0
     )
-    fields = window.overview_layout.itemAt(0).widget()
+    fields = window._layout.overview_layout.itemAt(0).widget()
     assert fields.objectName() == "recordingOverviewFields"
-    assert fields.parentWidget() is window.overview_content
+    assert fields.parentWidget() is window._layout.overview_content
     assert fields.objectName() != "card"
     assert fields.layout().contentsMargins().left() == 0
     assert fields.layout().count() == len(

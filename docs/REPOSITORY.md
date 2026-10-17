@@ -90,8 +90,9 @@ Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`,
 Callers access these fields through their owning state objects directly.
 Retired `ResultState` aliases cover overview widgets, result selections, row
 positions, active/display frames, result payloads, native tables, original source
-frames, clock metadata and row-timing tables. Access these fields through
-`window._result_state` directly.
+frames, clock metadata, row-timing tables and the current Results scroll area.
+Access these fields through `window._result_state` directly. Results view layouts,
+scroll-area lists and overview containers use `window._layout` directly.
 Other state, UI and callback ports remain in the facade. The
 [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
 requires its name and line budgets to shrink alongside removals. The reusable

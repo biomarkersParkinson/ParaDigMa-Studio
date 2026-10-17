@@ -148,7 +148,7 @@ def test_full_context_graph_and_left_channel_list_fit_without_page_scrolling(
     window.show()
     window.set_sensor_channels(["accelerometer_x", "gyroscope_x", "gyroscope_z"])
     QTest.qWait(40)
-    scroll = window._result_view_scrolls[window.sensor_tab_index]
+    scroll = window._layout._result_view_scrolls[window.sensor_tab_index]
     assert scroll.verticalScrollBar().maximum() == 0
     assert scroll.horizontalScrollBar().maximum() == 0
     assert window.sensor_canvas.visibleRegion().boundingRect().contains(window.sensor_canvas.rect())
@@ -652,7 +652,7 @@ def test_context_close_shares_recording_summary_row_and_nested_tabs_have_compact
         )
         <= 1
     )
-    body = window._result_view_layouts[window.sensor_tab_index]
+    body = window._layout._result_view_layouts[window.sensor_tab_index]
     assert body.spacing() == 6
     assert [
         body.itemAt(i).widget() for i in range(body.count()) if body.itemAt(i).widget().isVisible()

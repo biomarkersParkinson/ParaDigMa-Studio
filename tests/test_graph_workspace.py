@@ -293,8 +293,8 @@ def test_results_tabs_stay_anchored_across_views_and_scrolling(window):
             <= export_center
             <= bar.mapTo(window, QPoint(0, bar.height())).y()
         )
-        window.results_scroll.verticalScrollBar().setValue(
-            window.results_scroll.verticalScrollBar().maximum()
+        window._result_state.results_scroll.verticalScrollBar().setValue(
+            window._result_state.results_scroll.verticalScrollBar().maximum()
         )
         QTest.qWait(20)
         assert positions() == original
@@ -412,7 +412,7 @@ def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window
     window.resize(960, 650)
     QTest.qWait(50)
     inner = window.graph_scroll.verticalScrollBar()
-    outer = window.results_scroll.verticalScrollBar()
+    outer = window._result_state.results_scroll.verticalScrollBar()
     assert inner.maximum() == 0 and outer.maximum() > 120
     tab_position = window.result_tabs.tabBar().mapTo(window, QPoint(0, 0))
     outer.setValue(100)
@@ -459,11 +459,14 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
     window.canvas.draw()
     anchor = window.time_axis.mapTo(window, QPoint(0, 0))
     assert window.graph_view.isAncestorOf(window.time_axis)
-    assert not window.results_scroll.isAncestorOf(window.time_axis)
+    assert not window._result_state.results_scroll.isAncestorOf(window.time_axis)
     assert not window.graph_scroll.isAncestorOf(window.time_axis)
     assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
     assert "Recording time" in window.time_axis.axes.get_xlabel()
-    for bar in (window.results_scroll.verticalScrollBar(), window.graph_scroll.verticalScrollBar()):
+    for bar in (
+        window._result_state.results_scroll.verticalScrollBar(),
+        window.graph_scroll.verticalScrollBar(),
+    ):
         assert bar.maximum() > 100
         for position in (bar.maximum() // 2, bar.maximum(), 0):
             bar.setValue(position)
@@ -619,7 +622,7 @@ def test_view_shares_figure_toolbar_and_sensor_context_stays_bottom_right(window
                 > toolbar.mapTo(window, QPoint(toolbar.width(), 0)).x()
             )
         assert controls.visibleRegion().contains(controls.rect())
-        body = window._result_view_layouts[1]
+        body = window._layout._result_view_layouts[1]
         assert body.itemAt(body.count() - 1).widget() is window.graphs_workspace
         graph_bottom = window.graph_scroll.mapTo(
             window, QPoint(0, window.graph_scroll.height())

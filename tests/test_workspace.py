@@ -526,7 +526,7 @@ def test_metric_selection_and_zoom_leave_official_overview_aggregates_unchanged(
     )
     aggregate = window._result_state.overview_values[("test", "Aggregates", ("median_metric",))]
     assert aggregate.text() == "12.5"
-    assert not window.overview_content.findChildren(desktop.ReadableTable)
+    assert not window._layout.overview_content.findChildren(desktop.ReadableTable)
     select_plot_metric(window, "quantifications/test", "other_metric")
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.other_metric)
     window.figure.axes[0].set_xlim(2.0, 4.0)

@@ -1,9 +1,7 @@
 {
-  "max_lines": 204,
+  "max_lines": 199,
   "aliases": [
     "_data_graph",
-    "_result_view_layouts",
-    "_result_view_scrolls",
     "_sensor_graph",
     "_series_items",
     "about_button",
@@ -88,8 +86,6 @@
     "origin_edited",
     "origin_reset",
     "origin_setting",
-    "overview_content",
-    "overview_layout",
     "pages",
     "persist_run",
     "plot",
@@ -117,7 +113,6 @@
     "result_tabs",
     "result_time_scroll",
     "results_header",
-    "results_scroll",
     "results_source",
     "results_tab_changed",
     "run_analysis",

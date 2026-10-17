@@ -184,7 +184,9 @@ class MainWindow(QMainWindow):
 
     def _compose_controllers(self):
         """Wire only the state, widgets and actions each component needs."""
-        self._overview = ResultOverview(self.overview_layout, self._result_view_scrolls[0])
+        self._overview = ResultOverview(
+            self._layout.overview_layout, self._layout._result_view_scrolls[0]
+        )
         self._series = ResultSeries(self.result_series)
         self._compose_run_controller()
         self._compose_result_controller()

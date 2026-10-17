@@ -78,7 +78,7 @@ def test_overview_three_cards_with_all_statistics_and_ordered_exact_values(tmp_p
         )
         assert source == original  # No derived statistics or edits to aggregate dictionaries.
         assert window._result_state.aggregation_tables
-        scroll = window._result_view_scrolls[0].verticalScrollBar()
+        scroll = window._layout._result_view_scrolls[0].verticalScrollBar()
         scroll.setValue(0)
         canvas = window._result_state.overview_gait_charts["duration_s"]["canvas"]
         event = QWheelEvent(
