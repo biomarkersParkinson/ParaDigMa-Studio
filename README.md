@@ -1,7 +1,7 @@
 # ParaDigMa Studio
 
 A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings,
-based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist-sensor recordings, run gait, tremor or pulse-rate analysis modules,
+based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist sensor recordings, run gait, tremor and pulse-rate analysis modules,
 and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
@@ -11,7 +11,6 @@ and explore results. Recordings and results stay on your computer.
 3. Extract the **entire ZIP** into a new folder.
 4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
 
-The download includes Python; no separate Python installation is required.
 This is a preview for evaluation and feedback. See the [release notes](CHANGELOG.md).
 
 Development builds remain available under
@@ -32,15 +31,14 @@ A verified signing identity must be configured before the signed workflow can pr
 2. **Analyze:** Run any combination of gait, tremor and pulse rate analysis modules.
    Review units, time representation, watch side and channel mapping; use each
    field's **i** button for guidance. Then click **Run Analysis**.
-3. **Results:** Overview shows module aggregates and metadata. Graphs compare
-   selected metrics from multiple modules across recording time; Tables includes each module's
-   classification, quantification and aggregation tables.
+3. **Results:** Overview shows module aggregates and metadata across the full recordings' timespan. Graphs compare
+   selected metrics from multiple modules across recording time.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
    Switch **View** between Detailed, 30-minute epochs, Day and a 24-hour profile
    averaging valid 30-minute summaries across days. The
    [user guide](docs/USER_GUIDE.md#inspecting-data-and-results) explains summaries,
    availability thresholds and graph controls.
-   Tables and exports retain the original outputs.
+   Tables and exports retain each module's original classification, quantification and aggregation outputs.
 4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
    run, after confirmation. Original sensor files are preserved.
@@ -48,14 +46,13 @@ A verified signing identity must be configured before the signed workflow can pr
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
 Keep preparation enabled for raw recordings. Missing-sample exclusion is a desktop
-option enabled by default. Gap splitting defaults to off, matching ParaDigMa;
+option enabled by default. If your recordings contain sampling gaps, enable gap splitting;
 its thresholds are 1.5 seconds, with **Default** buttons to restore them.
 
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
 Click **Save results** to store the complete current run locally and reopen it
-from **Runs** after restarting. Closing warns about any unsaved runs, with options
-to save them, discard them or cancel. See [saving and run history](docs/USER_GUIDE.md#exports-and-run-history).
+from **Runs** after restarting. See [saving and run history](docs/USER_GUIDE.md#exports-and-run-history).
 
 ## Supported input
 
