@@ -5,8 +5,6 @@ from .component_ports import component_attribute
 
 _PORTS = {
     "provenance": state_property("_result_state", "provenance"),
-    "_timings": state_property("_result_state", "_timings"),
-    "display_clock": state_property("_result_state", "display_clock"),
     "_series_items": state_property("_result_state", "_series_items"),
     "results_scroll": state_property("_result_state", "results_scroll"),
     "_data_graph": component_attribute("_layout"),

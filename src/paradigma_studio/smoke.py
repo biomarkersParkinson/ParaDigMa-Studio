@@ -367,13 +367,15 @@ def _verify_result_selection(window, classification, present):
     row = int(np.flatnonzero(present)[0]) if present.any() else 0
     window.result_table.setCurrentIndex(window.result_table.model().index(row, 0))
     window.canvas.draw()
-    seconds = float(window._timings["classifications/tremor"].iloc[row]["Timeline time (s)"])
+    seconds = float(
+        window._result_state._timings["classifications/tremor"].iloc[row]["Timeline time (s)"]
+    )
     expected_label = (
-        clock_times([seconds], window.display_clock)[0]
+        clock_times([seconds], window._result_state.display_clock)[0]
         .strftime("%d %b %Y %H:%M:%S.%f")
         .rstrip("0")
         .rstrip(".")
-        if window.display_clock
+        if window._result_state.display_clock
         else f"{seconds:.6g} s"
     )
     if (
@@ -459,11 +461,11 @@ def _verify_combined_modules(frame, t):
 def _verify_gait_workspace(window, app, cwa_source, cwa_frame, cwa_results):
     window.loaded((str(cwa_source), cwa_frame))
     window.analyzed(cwa_results)
-    if window.display_clock is None:
+    if window._result_state.display_clock is None:
         raise RuntimeError("CWA recording dates are missing from results")
     if any("per_segment" in path for module, group, path in window._result_state.overview_values):
         raise RuntimeError("Individual gait-segment metadata leaked into Overview")
-    timing = window._timings["quantifications/gait/unfiltered"]
+    timing = window._result_state._timings["quantifications/gait/unfiltered"]
     if not timing["Time basis"].str.contains("Estimated", case=False).all():
         raise RuntimeError("Gait display times were not identified as estimates")
     window.dataset.setCurrentText("quantifications/gait/unfiltered")
@@ -524,7 +526,7 @@ def _verify_multiple_recordings(window, directory, frame):
         "settings": {"pipelines": ["tremor"]},
     }
     window.analyzed(batch_results)
-    if window.display_clock is not None or window.input_recording.isHidden():
+    if window._result_state.display_clock is not None or window.input_recording.isHidden():
         raise RuntimeError("Multiple input selection or relative recording clocks are incorrect")
     window.dataset.setCurrentText("quantifications/tremor")
     position = int(np.flatnonzero(batch_quantified.file_key.eq("recording_002"))[0])

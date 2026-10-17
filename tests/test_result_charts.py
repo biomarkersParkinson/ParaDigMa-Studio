@@ -165,7 +165,7 @@ def test_result_titles_and_compact_presence_tracks_keep_scientific_timing_metada
     assert indicator.get_position().height < axes["range_of_motion"].get_position().height * 0.5
     assert np.ptp(indicator.collections[0].get_paths()[0].vertices[:, 1]) == pytest.approx(0.48)
     assert (
-        window._timings["quantifications/gait/unfiltered"]["Time basis"]
+        window._result_state._timings["quantifications/gait/unfiltered"]["Time basis"]
         .str.contains("Estimated")
         .all()
     )

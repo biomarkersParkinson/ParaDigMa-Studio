@@ -201,9 +201,9 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     window.analyzed(results)
     name = "quantifications/tremor"
     np.testing.assert_array_equal(
-        window._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
+        window._result_state._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
     )
-    assert window.display_clock["origin"] == "2026-10-07T13:00:00+02:00"
+    assert window._result_state.display_clock["origin"] == "2026-10-07T13:00:00+02:00"
     pd.testing.assert_frame_equal(
         window.result_table.model().frame, results["quantifications"]["tremor"]
     )
@@ -239,9 +239,9 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     window.restore_run((record["id"], provenance, restored))
     assert window._result_state.result_source_frame is None
     np.testing.assert_array_equal(
-        window._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
+        window._result_state._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
     )
-    assert window.display_clock["origin"] == provenance["display_clock"]["origin"]
+    assert window._result_state.display_clock["origin"] == provenance["display_clock"]["origin"]
 
 
 @pytest.mark.parametrize("clocks", [False, "mixed", "incompatible"])

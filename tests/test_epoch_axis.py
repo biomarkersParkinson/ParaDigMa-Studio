@@ -309,7 +309,7 @@ def test_epoch_graphs_preserve_original_metadata_clock_without_assuming_a_timezo
     window.result_graph_view.setCurrentIndex(1)
     window.canvas.draw()
     window.time_axis.draw()
-    assert window.display_clock == clock
+    assert window._result_state.display_clock == clock
     assert [label.get_text() for label in window.time_axis.axes.get_xticklabels()] == [
         "14 Oct 2026",
         "15 Oct 2026",

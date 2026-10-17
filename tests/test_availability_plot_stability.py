@@ -56,7 +56,7 @@ def test_toggling_availability_keeps_outcome_values_timing_and_axes(
         )
 
     if zoomed:
-        limits = time_coordinates(clock_times([5.0, 14.0], window.display_clock))
+        limits = time_coordinates(clock_times([5.0, 14.0], window._result_state.display_clock))
         outcome().set_xlim(*limits)
     if manual_y:
         outcome().set_ylim(0.0, 50.0)
@@ -78,7 +78,7 @@ def test_toggling_availability_keeps_outcome_values_timing_and_axes(
         # Home can still expose the full prepared input after retaining a zoom.
         window.plot_toolbar.home()
         app.processEvents()
-        start, end = time_coordinates(clock_times([0.0, 40.0], window.display_clock))
+        start, end = time_coordinates(clock_times([0.0, 40.0], window._result_state.display_clock))
         assert outcome().get_xlim()[0] <= start
         assert outcome().get_xlim()[1] >= end
         # Selecting coverage from an empty workspace starts with its full range.

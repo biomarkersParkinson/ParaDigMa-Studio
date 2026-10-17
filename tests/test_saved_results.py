@@ -79,7 +79,7 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
         assert reopened.pages.currentIndex() == 2
         assert not reopened.unsaved_result_runs()
         assert reopened._result_state.result_source_frame is None
-        assert reopened.display_clock == window.display_clock
+        assert reopened._result_state.display_clock == window._result_state.display_clock
         pd.testing.assert_frame_equal(
             reopened._result_state.results["quantifications"]["tremor"],
             tremor_outputs["quantifications"]["tremor"],

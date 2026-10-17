@@ -76,7 +76,9 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     window.loaded(("sensor.csv", raw))
     window.provenance = {"source": "sensor.csv", "settings": settings}
     window.analyzed(output)
-    assert pd.Timestamp(window.display_clock["origin"]) == start + pd.Timedelta(seconds=2)
+    assert pd.Timestamp(window._result_state.display_clock["origin"]) == start + pd.Timedelta(
+        seconds=2
+    )
     window.dataset.setCurrentText(f"quantifications/{early}")
     np.testing.assert_array_equal(
         window._result_state.display_frame["Analysis time (s)"], [0.0, 1.0, 2.0, 3.0]
@@ -353,7 +355,7 @@ def test_module_tabs_select_original_outputs_and_export_full_run_aggregates(
         for ax in window.figure.axes
         if ax._paradigma_dataset == "quantifications/gait/unfiltered"
     )
-    anchor = dates.date2num(clock_times([11.0], window.display_clock))[0]
+    anchor = dates.date2num(clock_times([11.0], window._result_state.display_clock))[0]
     window.graph_clicked(SimpleNamespace(inaxes=gait_axes, xdata=anchor))
     assert window.table_module_tabs.currentIndex() == 0
     assert window.table_dataset.currentData() == "quantifications/gait/unfiltered"
@@ -433,10 +435,10 @@ def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_
     assert all("Recording time" in ax.get_xlabel() for ax in axes)
     np.testing.assert_allclose(
         bar_centers(axes[0]),
-        dates.date2num(clock_times([1.0, 3.0, 11.0, 13.0], window.display_clock)),
+        dates.date2num(clock_times([1.0, 3.0, 11.0, 13.0], window._result_state.display_clock)),
     )
     np.testing.assert_array_equal(bar_values(axes[0]), [10.0, 20.0, 30.0, 40.0])
-    low = dates.date2num(clock_times([5.0], window.display_clock))[0]
+    low = dates.date2num(clock_times([5.0], window._result_state.display_clock))[0]
     axes[0].set_xlim(low, low + 8.0 / 86400)
     assert window._result_state.active_positions.tolist() == [0, 1, 2, 3]
     assert window._result_state._detail_selections["quantifications/tremor"][1].tolist() == [
@@ -472,9 +474,9 @@ def test_classifications_can_plot_alongside_quantifications_and_click_selects_co
     assert len(ax.collections[0].get_paths()) == 2
     np.testing.assert_array_equal(
         [bar.vertices[:, 0].min() for bar in ax.collections[0].get_paths()],
-        dates.date2num(clock_times([4.0, 8.0], window.display_clock)),
+        dates.date2num(clock_times([4.0, 8.0], window._result_state.display_clock)),
     )
-    click = dates.date2num(clock_times([8.0], window.display_clock))[0]
+    click = dates.date2num(clock_times([8.0], window._result_state.display_clock))[0]
     window.graph_clicked(SimpleNamespace(inaxes=ax, xdata=click))
     assert window.dataset.currentText() == key[0]
     assert (
@@ -506,7 +508,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     window, results, tmp_path
 ):
     setup(window, results, clock=False)
-    assert window.display_clock is None
+    assert window._result_state.display_clock is None
     assert "Elapsed" in window.figure.axes[0].get_xlabel()
     assert "Recording date/time" not in window.result_table.model().frame
     window.timing_toggle.setChecked(True)
@@ -514,7 +516,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     window.origin_edited()
     window.provenance["settings"]["plot_time_origin"] = window.origin_setting()
     window.analyzed(results)
-    assert window.display_clock["source"] == "User supplied"
+    assert window._result_state.display_clock["source"] == "User supplied"
     assert "Recording date/time" in window.result_table.model().frame
     path = tmp_path / "results.json"
     export_results(path, results, window.provenance)
@@ -522,7 +524,7 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
     window._result_state.result_source_frame = window._input_state.frame = None
     window.provenance = provenance
     window.analyzed(restored)
-    assert window.display_clock["origin"] == "2026-10-07T12:00:00+02:00"
+    assert window._result_state.display_clock["origin"] == "2026-10-07T12:00:00+02:00"
     assert window.result_table.model().frame["Recording date/time"].iloc[0] == pd.Timestamp(
         "2026-10-07T12:00:01+02:00"
     )

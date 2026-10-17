@@ -212,7 +212,7 @@ def _benchmark_result_interactions(window, app, measure):
     _benchmark_table_interactions(window, app, measure)
     window.result_tabs.setCurrentIndex(1)
     app.processEvents()
-    origin = dates.date2num(pd.Timestamp(window.display_clock["origin"]))
+    origin = dates.date2num(pd.Timestamp(window._result_state.display_clock["origin"]))
     measure(
         "GRAPH CLICKS 10",
         lambda: [

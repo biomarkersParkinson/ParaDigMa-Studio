@@ -1,12 +1,11 @@
 {
-  "max_lines": 206,
+  "max_lines": 204,
   "aliases": [
     "_data_graph",
     "_result_view_layouts",
     "_result_view_scrolls",
     "_sensor_graph",
     "_series_items",
-    "_timings",
     "about_button",
     "acc",
     "activate_dataset_rows",
@@ -47,7 +46,6 @@
     "delete_runs",
     "detail_controls",
     "disconnect_sensor_view",
-    "display_clock",
     "drop_missing",
     "export",
     "export_button",

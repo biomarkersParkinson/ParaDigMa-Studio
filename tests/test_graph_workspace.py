@@ -186,10 +186,10 @@ def test_analyze_calendar_default_preserves_source_precision_and_results(window)
         }
     }
     window.analyzed(result)
-    original = deepcopy(window.display_clock)
+    original = deepcopy(window._result_state.display_clock)
     window.clock_input.calendar.setDateTime(window.clock_input.calendar.dateTime().addMSecs(1500))
     assert window.origin_setting()["mode"] == "custom"
-    assert window.display_clock == original
+    assert window._result_state.display_clock == original
     assert all(
         positions.tolist() == [0, 1, 2]
         for _, positions in window._result_state._detail_selections.values()
@@ -661,7 +661,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
     window._series_items[("classifications/tremor", "pred_tremor")].setCheckState(0, Qt.Checked)
     window.dataset.setCurrentText("classifications/tremor")
     window.result_tabs.setCurrentIndex(1)
-    x = dates.date2num(clock_times([1.0], window.display_clock))[0]
+    x = dates.date2num(clock_times([1.0], window._result_state.display_clock))[0]
     axes = next(
         ax for ax in window.figure.axes if ax._paradigma_dataset == "classifications/tremor"
     )

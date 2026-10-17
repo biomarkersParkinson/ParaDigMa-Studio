@@ -109,7 +109,10 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
     frame["complex_signal"] = 1j
     window._sensor_state.sensor_frame = frame
     window.provenance["settings"]["column_mapping"] = {"source_clock": "time"}
-    window.display_clock = {"origin": "2026-10-09T13:00:00+02:00", "timezone": "Europe/Amsterdam"}
+    window._result_state.display_clock = {
+        "origin": "2026-10-09T13:00:00+02:00",
+        "timezone": "Europe/Amsterdam",
+    }
     window.populate_sensor_channels()
     available = [
         window.sensor_channels.item(i).data(Qt.UserRole)
@@ -118,7 +121,7 @@ def test_context_excludes_mapped_time_and_complex_channels_and_keeps_calendar_al
     assert "source_clock" not in available and "complex_signal" not in available
     window.set_sensor_channels(["gyroscope_x", "gyroscope_y"])
     expected = dates.date2num(
-        pd.Timestamp(window.display_clock["origin"])
+        pd.Timestamp(window._result_state.display_clock["origin"])
         + pd.to_timedelta(window._sensor_state.sensor_times, unit="s")
     )
     for line in signal_lines(window.sensor_figure.axes[0]):
@@ -378,7 +381,10 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
 
     frame = open_long_context(window)
     if calendar:
-        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window._result_state.display_clock = {
+            "origin": "2026-10-25T00:00:00Z",
+            "timezone": "Europe/Amsterdam",
+        }
         window.plot_sensor()
     canvas, toolbar = window.sensor_canvas, window.sensor_toolbar
     canvas.draw()
@@ -488,7 +494,10 @@ def test_context_channel_changes_preserve_initial_and_panned_time_limits(window,
     frame["accelerometer_x"] = frame.gyroscope_x / 10
     window.inspect_sensor_context()
     if calendar:
-        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window._result_state.display_clock = {
+            "origin": "2026-10-25T00:00:00Z",
+            "timezone": "Europe/Amsterdam",
+        }
         window.plot_sensor()
     initial = window.sensor_figure.axes[0].get_xlim()
     for limits in (
@@ -598,7 +607,10 @@ def test_sensor_reset_restores_initial_context_after_channel_changes_and_keeps_h
 ):
     open_long_context(window, gait=gait)
     if calendar:
-        window.display_clock = {"origin": "2026-10-25T00:00:00Z", "timezone": "Europe/Amsterdam"}
+        window._result_state.display_clock = {
+            "origin": "2026-10-25T00:00:00Z",
+            "timezone": "Europe/Amsterdam",
+        }
         window.plot_sensor()
     original = window._sensor_state.sensor_frame.copy(deep=True)
     initial = window.sensor_figure.axes[0].get_xlim()

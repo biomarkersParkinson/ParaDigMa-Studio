@@ -265,7 +265,7 @@ def test_day_graph_calendar_boundaries_and_zoom_use_saved_display_clock(window):
     frame = pd.DataFrame({"time": times, "pred_tremor_checked": 0})
     window.analyzed({"classifications": {"tremor": frame}})
     clock = {"origin": "2026-10-13T23:50:00+02:00", "timezone": "Europe/Amsterdam"}
-    window.display_clock = clock
+    window._result_state.display_clock = clock
     select_plot_metric(window, "classifications/tremor", "pred_tremor_checked")
     window.result_graph_view.setCurrentIndex(2)
     axes = _series_axis(window, "classifications/tremor", "pred_tremor_checked")

@@ -185,7 +185,7 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
     }
     try:
         window.analyzed(output)
-        entries = recording_summary(output, window.provenance, window.display_clock)
+        entries = recording_summary(output, window.provenance, window._result_state.display_clock)
         assert window.provenance["recording_extent"] == {"start_s": -2.0, "end_s": 8.0}
         assert (
             dict(entries)["Recording timespan"]
@@ -198,7 +198,10 @@ def test_timespan_and_coverage_survive_reopening_without_sensor_files(tmp_path):
         window.provenance, saved = load_result_export(path)
         window._input_state.frame = None
         window.analyzed(saved)
-        assert recording_summary(saved, window.provenance, window.display_clock) == entries
+        assert (
+            recording_summary(saved, window.provenance, window._result_state.display_clock)
+            == entries
+        )
         texts = [label.text() for label in window.overview_content.findChildren(QLabel)]
         assert dict(entries)["Recording timespan"] in texts
         assert dict(entries)["Tremor · Data coverage"] in texts
@@ -235,7 +238,9 @@ def test_multiple_recording_clocks_include_between_file_gaps_in_the_timespan(tmp
     }
     try:
         window.analyzed(output)
-        entries = dict(recording_summary(output, window.provenance, window.display_clock))
+        entries = dict(
+            recording_summary(output, window.provenance, window._result_state.display_clock)
+        )
         assert (
             entries["Recording timespan"] == "07 Oct 2026, 10:00:00 – 08 Oct 2026, 11:00:00 · UTC"
         )
@@ -289,7 +294,9 @@ def test_recording_overview_groups_desktop_metadata_and_deduplicates_preparation
     assert fields.objectName() != "card"
     assert fields.layout().contentsMargins().left() == 0
     assert fields.layout().count() == len(
-        recording_summary(window._result_state.results, window.provenance, window.display_clock)
+        recording_summary(
+            window._result_state.results, window.provenance, window._result_state.display_clock
+        )
     )
     assert all(
         fields.layout().itemAt(i).widget().objectName() == "card"
