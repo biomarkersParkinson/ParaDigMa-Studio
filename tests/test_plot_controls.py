@@ -193,7 +193,7 @@ def test_result_and_sensor_limits_use_clicked_graph_and_keep_original_tables(win
         upper.setText("40")
         toolbar.settings.apply()
         assert figure.axes[0].get_ylim() == pytest.approx((0, 40))
-    pd.testing.assert_frame_equal(window.active_frame, result)
+    pd.testing.assert_frame_equal(window._result_state.active_frame, result)
     np.testing.assert_array_equal(
         window.sensor_figure.axes[0].lines[0].get_ydata(), window._input_state.frame.gyroscope_x
     )

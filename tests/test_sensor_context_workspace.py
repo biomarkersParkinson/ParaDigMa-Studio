@@ -262,7 +262,7 @@ def test_selected_sensor_table_updates_for_new_inspection_and_after_clear(window
     window.sensor_tabs.setCurrentIndex(1)
     initial_model = window.sensor_table.model()
     window.hide_sensor_context()
-    window.active_frame.loc[0, "time"] = 70.0
+    window._result_state.active_frame.loc[0, "time"] = 70.0
     window.inspect_sensor_context()
     assert window.sensor_tabs.currentWidget() is window.sensor_table
     assert window.sensor_table.model() is not initial_model
@@ -454,7 +454,7 @@ def test_context_time_marker_matches_result_marker_and_triangle_tip_meets_axis(w
 def test_context_can_begin_in_a_gap_and_reselect_channels_before_panning_to_data(window):
     frame = open_long_context(window, gap=True)
     window.result_table.setCurrentIndex(window.result_table.model().index(0, 0))
-    window.active_frame.loc[0, "time"] = 50.0
+    window._result_state.active_frame.loc[0, "time"] = 50.0
     window.inspect_sensor_context()
     assert window._sensor_state.sensor_frame.empty
     assert window.sensor_figure.axes[0].get_xlim() == pytest.approx((40, 60))

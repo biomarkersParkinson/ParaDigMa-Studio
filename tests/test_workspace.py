@@ -535,7 +535,7 @@ def test_metric_selection_and_zoom_leave_official_overview_aggregates_unchanged(
         is aggregate
     )
     assert aggregate.text() == "12.5"
-    pd.testing.assert_frame_equal(window.active_frame, frame)
+    pd.testing.assert_frame_equal(window._result_state.active_frame, frame)
     window.clear_results()
     assert window._result_state.overview_values == {}
     assert window.result_table.model() is None
@@ -653,8 +653,8 @@ def test_graph_zoom_preserves_full_official_table_and_csv(window, tmp_path, monk
     window.analyzed({"quantifications": {"test": frame}})
     for limits in ((4.0, 5.0), (9.0, 10.0)):
         window.figure.axes[0].set_xlim(*limits)
-        np.testing.assert_array_equal(window.active_positions, np.arange(len(frame)))
-        pd.testing.assert_frame_equal(window.active_frame, frame)
+        np.testing.assert_array_equal(window._result_state.active_positions, np.arange(len(frame)))
+        pd.testing.assert_frame_equal(window._result_state.active_frame, frame)
         pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
         np.testing.assert_allclose(bar_starts(window.figure.axes[0]), frame.time, atol=1e-12)
         np.testing.assert_array_equal(bar_values(window.figure.axes[0]), frame.metric)
@@ -669,7 +669,7 @@ def test_graph_click_selects_nearest_row_within_active_selection(window):
     window.analyzed({"quantifications": {"test": output()}, "errors": []})
     window.graph_clicked(SimpleNamespace(inaxes=window.figure.axes[0], xdata=3.1))
     assert window.result_table.currentIndex().row() == 3
-    assert window.active_frame.iloc[3]["time"] == 3.0
+    assert window._result_state.active_frame.iloc[3]["time"] == 3.0
 
 
 def test_context_drills_into_original_mapped_sensor_values(window):

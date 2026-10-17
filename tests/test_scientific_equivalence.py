@@ -483,7 +483,7 @@ def test_gait_window_presence_uses_official_thresholds_and_preserves_raw_outputs
                 anchor = start + min(cadence * 0.8, (end - start) / 2)
                 window.graph_clicked(SimpleNamespace(inaxes=axes, xdata=anchor))
                 row = window.result_table.currentIndex().row()
-                selected_start = float(window.active_frame.time.iloc[row])
+                selected_start = float(window._result_state.active_frame.time.iloc[row])
                 assert selected_start <= anchor < selected_start + cadence
                 assert reference[probability].iloc[row] >= threshold
             pd.testing.assert_frame_equal(
@@ -831,7 +831,7 @@ def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_res
         positions = np.arange(len(reference))
         selected = reference.iloc[positions]
         assert len(selected) == len(reference) > 0
-        np.testing.assert_array_equal(window.active_positions, positions)
+        np.testing.assert_array_equal(window._result_state.active_positions, positions)
         assert_equivalent(
             window.result_table.model().frame[selected.columns],
             selected,
@@ -856,7 +856,7 @@ def test_real_result_graph_zoom_and_tables_preserve_official_values(recorded_res
                 ]
                 assert float(shown.toolTip() or shown.text()) == value
         window.activate_dataset_rows()
-        assert_equivalent(window.active_frame, reference, "reset selection")
+        assert_equivalent(window._result_state.active_frame, reference, "reset selection")
         assert_equivalent(actual, originals, "unaltered scientific results")
     finally:
         window.close()

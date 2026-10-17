@@ -78,9 +78,13 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     window.analyzed(output)
     assert pd.Timestamp(window.display_clock["origin"]) == start + pd.Timedelta(seconds=2)
     window.dataset.setCurrentText(f"quantifications/{early}")
-    np.testing.assert_array_equal(window.display_frame["Analysis time (s)"], [0.0, 1.0, 2.0, 3.0])
-    np.testing.assert_array_equal(window.display_frame["Timeline time (s)"], [-2.0, -1.0, 0.0, 1.0])
-    assert window.display_frame["Recording date/time"].iloc[0] == start
+    np.testing.assert_array_equal(
+        window._result_state.display_frame["Analysis time (s)"], [0.0, 1.0, 2.0, 3.0]
+    )
+    np.testing.assert_array_equal(
+        window._result_state.display_frame["Timeline time (s)"], [-2.0, -1.0, 0.0, 1.0]
+    )
+    assert window._result_state.display_frame["Recording date/time"].iloc[0] == start
     for axes in window.figure.axes:
         module = axes._paradigma_dataset.split("/")[1]
         expected_start = start if module == early else start + pd.Timedelta(seconds=2)
@@ -92,7 +96,7 @@ def test_independent_module_origins_align_to_source_clock_and_survive_reopening(
     window.provenance = provenance
     window.analyzed(saved)
     window.dataset.setCurrentText(f"quantifications/{early}")
-    assert window.display_frame["Recording date/time"].iloc[0] == start
+    assert window._result_state.display_frame["Recording date/time"].iloc[0] == start
     assert window._result_state._display_offsets == offsets
 
 
@@ -431,8 +435,13 @@ def test_multiple_modules_share_absolute_time_axes_and_preserve_full_tables_and_
     np.testing.assert_array_equal(bar_values(axes[0]), [10.0, 20.0, 30.0, 40.0])
     low = dates.date2num(clock_times([5.0], window.display_clock))[0]
     axes[0].set_xlim(low, low + 8.0 / 86400)
-    assert window.active_positions.tolist() == [0, 1, 2, 3]
-    assert window._detail_selections["quantifications/tremor"][1].tolist() == [0, 1, 2, 3]
+    assert window._result_state.active_positions.tolist() == [0, 1, 2, 3]
+    assert window._result_state._detail_selections["quantifications/tremor"][1].tolist() == [
+        0,
+        1,
+        2,
+        3,
+    ]
     np.testing.assert_array_equal(bar_values(window.figure.axes[0]), [10.0, 20.0, 30.0, 40.0])
     np.testing.assert_allclose(bar_values(window.figure.axes[1]), np.log10([2.0, 3.0, 4.0, 5.0]))
     path = tmp_path / "selection.csv"
@@ -466,7 +475,10 @@ def test_classifications_can_plot_alongside_quantifications_and_click_selects_co
     window.graph_clicked(SimpleNamespace(inaxes=ax, xdata=click))
     assert window.dataset.currentText() == key[0]
     assert (
-        window.active_frame.iloc[window.result_table.currentIndex().row()].pred_tremor_proba == 0.4
+        window._result_state.active_frame.iloc[
+            window.result_table.currentIndex().row()
+        ].pred_tremor_proba
+        == 0.4
     )
     assert len(window.selected_result_series()) == 3
     assert window.context_button.isEnabled()
@@ -519,13 +531,13 @@ def test_relative_only_recordings_keep_elapsed_time_until_user_sets_clock_and_js
 
 def test_invalid_analyze_clock_does_not_change_existing_results(window, results):
     setup(window, results)
-    original = window.active_frame.copy()
+    original = window._result_state.active_frame.copy()
     provenance = deepcopy(window.provenance)
     window.clock_input.setText("invalid")
     window.origin_edited()
     with pytest.raises(ValueError):
         window.origin_setting()
-    pd.testing.assert_frame_equal(window.active_frame, original)
+    pd.testing.assert_frame_equal(window._result_state.active_frame, original)
     assert window.provenance == provenance
 
 

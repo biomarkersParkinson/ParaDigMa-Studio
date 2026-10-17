@@ -42,8 +42,8 @@ def test_timing_table_cache_reuses_views_without_modifying_native_outputs(window
         window.timing_toggle.setChecked(enabled)
         window.refresh_detail_table()
         if enabled in views:
-            assert window.display_frame is views[enabled]
-        views[enabled] = window.display_frame
+            assert window._result_state.display_frame is views[enabled]
+        views[enabled] = window._result_state.display_frame
     assert set(window._result_state._table_views) == {
         ("quantifications/tremor", False),
         ("quantifications/tremor", True),

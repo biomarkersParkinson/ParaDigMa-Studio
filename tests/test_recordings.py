@@ -218,7 +218,7 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     np.testing.assert_allclose(axis.collections[0].get_paths()[-1].vertices[:, 0].min(), anchor)
     window.graph_clicked(SimpleNamespace(inaxes=axis, xdata=anchor + 0.5 / 86400))
     assert (
-        window.active_frame.file_key.iloc[window.result_table.currentIndex().row()]
+        window._result_state.active_frame.file_key.iloc[window.result_table.currentIndex().row()]
         == "recording_002"
     )
     window.inspect_sensor_context()

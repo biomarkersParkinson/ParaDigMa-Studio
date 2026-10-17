@@ -170,15 +170,15 @@ def test_changing_active_table_keeps_graph_zoom_settings_and_cached_row_selectio
     axes = tuple(window.figure.axes)
     axes[0].set_xlim(0.25, 1.75)
     axes[0].set_ylabel("Custom label")
-    selection = window._detail_selections
+    selection = window._result_state._detail_selections
     for table in ("quantifications/pulse_rate", "quantifications/tremor"):
         window.dataset.setCurrentText(table)
         app.processEvents()
         assert tuple(window.figure.axes) == axes
         assert axes[0].get_xlim() == pytest.approx((0.25, 1.75))
         assert axes[0].get_ylabel() == "Custom label"
-        assert window._detail_selections is selection
-        pd.testing.assert_frame_equal(window.active_frame, frame)
+        assert window._result_state._detail_selections is selection
+        pd.testing.assert_frame_equal(window._result_state.active_frame, frame)
     # New results with identical metric names must invalidate the old plot.
     replacement = frame.assign(metric=[100.0, 200.0, 300.0])
     window.analyzed({"quantifications": {"tremor": replacement}})
@@ -374,7 +374,7 @@ def test_discarded_results_release_render_and_sensor_context_views(window):
     assert window._sensor_state.sensor_frame is not None
     assert window._result_state._bar_bounds and window._graph_state._result_shared_axes is not None
     window.clear_results()
-    assert window._sensor_state.sensor_frame is None and window.display_frame is None
+    assert window._sensor_state.sensor_frame is None and window._result_state.display_frame is None
     assert window.sensor_table.model() is None
     assert not window.sensor_figure.axes and not window.figure.axes
     assert (

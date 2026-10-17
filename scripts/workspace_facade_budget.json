@@ -1,8 +1,7 @@
 {
-  "max_lines": 213,
+  "max_lines": 209,
   "aliases": [
     "_data_graph",
-    "_detail_selections",
     "_result_view_layouts",
     "_result_view_scrolls",
     "_sensor_graph",
@@ -11,8 +10,6 @@
     "about_button",
     "acc",
     "activate_dataset_rows",
-    "active_frame",
-    "active_positions",
     "aggregation_table",
     "analysis_controls",
     "analysis_help",
@@ -51,7 +48,6 @@
     "detail_controls",
     "disconnect_sensor_view",
     "display_clock",
-    "display_frame",
     "drop_missing",
     "export",
     "export_button",

@@ -147,7 +147,7 @@ def test_binary_raster_shows_only_presence_without_losing_time_range_or_rare_eve
     axes.set_xlim(3.0, 9.0)
     window.canvas.draw()
     assert len(axes.collections[0].get_paths()) == 1
-    assert len(window.active_frame) == len(frame)
+    assert len(window._result_state.active_frame) == len(frame)
     pd.testing.assert_frame_equal(frame, original)
     axes.set_xlim(1.2, 1.8)
     assert paths[0].contains_point((1.5, 1.0))
@@ -191,7 +191,8 @@ def test_analyze_calendar_default_preserves_source_precision_and_results(window)
     assert window.origin_setting()["mode"] == "custom"
     assert window.display_clock == original
     assert all(
-        positions.tolist() == [0, 1, 2] for _, positions in window._detail_selections.values()
+        positions.tolist() == [0, 1, 2]
+        for _, positions in window._result_state._detail_selections.values()
     )
     window.origin_reset.click()
     assert window.clock_input.text() == start.isoformat()
@@ -589,7 +590,7 @@ def test_binary_intervals_respect_recording_gaps_and_clicks_inside_bars(window):
     axes.set_xlim(8.0, 9.0)
     window.canvas.draw()
     assert axes.collections[0].get_paths()[1].contains_point((8.5, 1.0))
-    assert len(window.active_frame) == len(frame)
+    assert len(window._result_state.active_frame) == len(frame)
     pd.testing.assert_frame_equal(frame, original)
 
 
