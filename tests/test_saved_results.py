@@ -37,9 +37,9 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
 
 def finish_job(window):
     deadline = time.monotonic() + 10
-    while window.worker is not None and time.monotonic() < deadline:
+    while window._job_state.worker is not None and time.monotonic() < deadline:
         QTest.qWait(10)
-    assert window.worker is None
+    assert window._job_state.worker is None
     QTest.qWait(20)  # Deliver any requested close after the successful save.
 
 

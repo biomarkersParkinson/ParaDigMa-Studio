@@ -97,7 +97,7 @@ def release_closed_desktop_windows(monkeypatch):
     app = QApplication.instance()
     if app is not None:
         for widget in app.topLevelWidgets():
-            if type(widget).__name__ == "MainWindow" and widget.worker is None:
+            if type(widget).__name__ == "MainWindow" and widget._job_state.worker is None:
                 widget.close()
                 widget.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
@@ -150,9 +150,9 @@ def window(tmp_path):
         deadline = time.monotonic() + 10
         from PySide6.QtTest import QTest
 
-        while widget.worker is not None and time.monotonic() < deadline:
+        while widget._job_state.worker is not None and time.monotonic() < deadline:
             QTest.qWait(20)
-        assert widget.worker is None, "Background operation did not finish"
+        assert widget._job_state.worker is None, "Background operation did not finish"
         widget.close()
         application.processEvents()
 

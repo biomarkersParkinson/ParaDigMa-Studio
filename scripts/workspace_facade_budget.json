@@ -1,5 +1,5 @@
 {
-  "max_lines": 221,
+  "max_lines": 220,
   "aliases": [
     "_data_graph",
     "_detail_selections",
@@ -204,7 +204,6 @@
     "update_time_statistics",
     "use_parameters_button",
     "use_run_parameters",
-    "worker",
     "y_column"
   ]
 }

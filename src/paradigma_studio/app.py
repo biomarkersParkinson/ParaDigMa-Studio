@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 650)
         self.setPalette(light_palette())
         self.setStyleSheet(STYLESHEET)
-        self.worker = None
+        self._job_state.worker = None
         self._data_state._input_descriptions = {}
         self._result_state._table_choices, self._series_items = {}, {}
         self._graph_state._result_selection_artists = []
@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
             selected_export_table=lambda *args, **kwargs: self.selected_export_table(
                 *args, **kwargs
             ),
-            is_busy=lambda: self.worker is not None,
+            is_busy=lambda: self._job_state.worker is not None,
             select_run=lambda *args, **kwargs: self.select_run(*args, **kwargs),
             update_run_actions=lambda *args, **kwargs: self.update_run_actions(*args, **kwargs),
         )
@@ -266,7 +266,7 @@ class MainWindow(QMainWindow):
             finish_run=lambda *args, **kwargs: self.finish_run(*args, **kwargs),
             capture_warning=lambda *args, **kwargs: self.capture_warning(*args, **kwargs),
             navigate=lambda *args, **kwargs: self.navigate(*args, **kwargs),
-            is_busy=lambda: self.worker is not None,
+            is_busy=lambda: self._job_state.worker is not None,
             align_recordings=lambda *args, **kwargs: align_recordings(*args, **kwargs),
             analysis_alignment=lambda *args, **kwargs: analysis_alignment(*args, **kwargs),
         )

@@ -18,7 +18,6 @@ _PORTS = {
     "sensor_times": state_property("_sensor_state", "sensor_times"),
     "_sensor_context": state_property("_sensor_state", "_sensor_context"),
     "_sensor_navigator": state_property("_sensor_state", "_sensor_navigator"),
-    "worker": state_property("_job_state", "worker"),
     "_series_items": state_property("_result_state", "_series_items"),
     "results_scroll": state_property("_result_state", "results_scroll"),
     "overview_values": state_property("_result_state", "overview_values"),

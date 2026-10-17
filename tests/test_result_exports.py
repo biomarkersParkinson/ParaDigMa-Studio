@@ -162,17 +162,17 @@ def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_
     window.choose_export()
     try:
         assert started.wait(2)
-        assert window.worker is not None and not path.exists()
+        assert window._job_state.worker is not None and not path.exists()
         window.navigate(0)
         QApplication.instance().processEvents()
         assert window.pages.currentIndex() == 0
     finally:
         release.set()
         deadline = time.monotonic() + 5
-        while window.worker is not None and time.monotonic() < deadline:
+        while window._job_state.worker is not None and time.monotonic() < deadline:
             QApplication.instance().processEvents()
             time.sleep(0.01)
-    assert window.worker is None
+    assert window._job_state.worker is None
     assert (
         json.loads(path.read_text())["results"]["quantifications"]["tremor"]["data"][1]["metric"]
         == 3.0

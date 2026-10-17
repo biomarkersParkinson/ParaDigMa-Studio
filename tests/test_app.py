@@ -74,7 +74,7 @@ def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
     monkeypatch.setattr(window, "start_job", lambda *args: started.append(args))
     window.open_file()
     assert started == []
-    assert window.worker is None
+    assert window._job_state.worker is None
     window.close()
 
 
@@ -129,10 +129,10 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     window.run_analysis()
     assert not window.run_button.isEnabled()
     deadline = time.monotonic() + 10
-    while window.worker is not None and time.monotonic() < deadline:
+    while window._job_state.worker is not None and time.monotonic() < deadline:
         _app.processEvents()
         time.sleep(0.01)  # Let Python worker code acquire the GIL while tracing.
-    assert window.worker is None
+    assert window._job_state.worker is None
     assert window.results["errors"]
     assert warnings == []  # Processing errors are reported inline, without a modal.
     assert "processing error" in window.notice.text()
@@ -154,10 +154,10 @@ def test_empatica_opens_in_background_without_gyro(monkeypatch):
     monkeypatch.setattr(desktop_app.QMessageBox, "critical", lambda *args: errors.append(args))
     window.open_file()
     deadline = time.monotonic() + 10
-    while window.worker is not None and time.monotonic() < deadline:
+    while window._job_state.worker is not None and time.monotonic() < deadline:
         _app.processEvents()
         time.sleep(0.01)
-    assert window.worker is None
+    assert window._job_state.worker is None
     assert errors == []
     assert window.input_table.model().rowCount() == 115904
     assert "require gyroscope data" in window.status.text()

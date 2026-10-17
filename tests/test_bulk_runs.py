@@ -159,9 +159,9 @@ def test_partial_deletion_error_keeps_ui_in_sync_and_reports_error(window, monke
 
 
 def test_clear_and_selected_delete_are_disabled_during_background_work(window):
-    window.worker = object()
+    window._job_state.worker = object()
     window.update_run_actions()
     assert not window.clear_runs_button.isEnabled() and not window.delete_run_button.isEnabled()
     window.clear_runs()
     assert len(window._run_state.runs) == 5
-    window.worker = None
+    window._job_state.worker = None

@@ -32,10 +32,10 @@ def window(tmp_path):
 
 def wait_for_worker(window):
     deadline = time.monotonic() + 30
-    while window.worker is not None and time.monotonic() < deadline:
+    while window._job_state.worker is not None and time.monotonic() < deadline:
         QApplication.instance().processEvents()
         time.sleep(0.01)  # Let Python loader/import work run in the Qt worker.
-    assert window.worker is None, "Background load/analysis did not finish"
+    assert window._job_state.worker is None, "Background load/analysis did not finish"
 
 
 def inputs(tmp_path, *, clocks=True):

@@ -617,18 +617,18 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     window.refresh_runs()
     window.navigate(3)
     window.open_run()
-    if window.worker is None:
+    if window._job_state.worker is None:
         raise RuntimeError("Exported result was not reopened in a background worker")
     loop = QEventLoop()
     timer = QTimer()
     timer.setSingleShot(True)
     timer.timeout.connect(loop.quit)
-    window.worker.finished.connect(loop.quit)
+    window._job_state.worker.finished.connect(loop.quit)
     timer.start(15000)
     loop.exec()
     timer.stop()
     if (
-        window.worker is not None
+        window._job_state.worker is not None
         or window.results["quantifications"]["tremor"].shape != quantified.shape
     ):
         raise RuntimeError("Exported run did not reopen correctly")
@@ -637,13 +637,13 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
             "Reopening a run changed its navigation or reloaded original sensor data"
         )
     window.save_results_button.click()
-    if window.worker is None:
+    if window._job_state.worker is None:
         raise RuntimeError("Local results were not saved in a background worker")
-    window.worker.finished.connect(loop.quit)
+    window._job_state.worker.finished.connect(loop.quit)
     timer.start(15000)
     loop.exec()
     timer.stop()
-    if window.worker is not None:
+    if window._job_state.worker is not None:
         raise RuntimeError("Local results save did not finish")
     window._run_state.runs, issues = window.history.load()
     saved_output = window._run_state.runs[0]["outputs"][-1]
@@ -653,14 +653,14 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     window.refresh_runs()
     window.navigate(3)
     window.open_run()
-    if window.worker is None:
+    if window._job_state.worker is None:
         raise RuntimeError("Local saved run was not reopened from disk")
-    window.worker.finished.connect(loop.quit)
+    window._job_state.worker.finished.connect(loop.quit)
     timer.start(15000)
     loop.exec()
     timer.stop()
     if (
-        window.worker is not None
+        window._job_state.worker is not None
         or window.results["quantifications"]["tremor"].shape != quantified.shape
     ):
         raise RuntimeError("Local saved results did not reopen correctly")

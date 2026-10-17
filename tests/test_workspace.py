@@ -41,9 +41,9 @@ def window(tmp_path):
 
 def wait_for_job(window):
     deadline = time.monotonic() + 10
-    while window.worker is not None and time.monotonic() < deadline:
+    while window._job_state.worker is not None and time.monotonic() < deadline:
         QTest.qWait(20)
-    assert window.worker is None, "Background operation did not finish"
+    assert window._job_state.worker is None, "Background operation did not finish"
 
 
 def output():
@@ -374,7 +374,7 @@ def test_module_cards_allow_every_combination(window):
     assert window.selected_modules() == []
     assert not window.run_button.isEnabled()
     window.run_analysis()
-    assert window.worker is None and window._run_state.runs == []
+    assert window._job_state.worker is None and window._run_state.runs == []
     assert "Select an analysis module" in window.notice.text()
     window.module_buttons["Gait"].click()
     window.module_buttons["Tremor"].click()

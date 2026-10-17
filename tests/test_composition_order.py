@@ -48,7 +48,7 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
 
         def start(self):
             connections.append("start")
-            assert window.worker is self
+            assert window._job_state.worker is self
             assert not window.open_button.isEnabled()
             assert not window.settings_panel.isEnabled()
 
@@ -56,14 +56,14 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
             events.append("delete worker")
 
     def completed(value):
-        assert window.worker is worker and not window.open_button.isEnabled()
+        assert window._job_state.worker is worker and not window.open_button.isEnabled()
         events.append(("completed", value))
 
     monkeypatch.setattr(desktop, "Worker", RecordingWorker)
     monkeypatch.setattr(window, "failure", lambda message: events.append(("failed", message)))
     monkeypatch.setattr(window, "analysis_cancelled", lambda: events.append("cancelled"))
     window.start_job(lambda logger: None, completed)
-    worker = window.worker
+    worker = window._job_state.worker
     assert connections == [
         "completed",
         "failed",
@@ -76,7 +76,7 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
     ]
 
     def restored(name):
-        assert window.worker is None
+        assert window._job_state.worker is None
         assert window.open_button.isEnabled() and window.settings_panel.isEnabled()
         events.append(name)
 
@@ -94,16 +94,16 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
         terminal = "cancelled"
     worker.finished.emit()
     assert events == [terminal, "modules", "preparation", "delete worker", "run actions"]
-    assert window.worker is None and window._job_state._analysis_stop is None
+    assert window._job_state.worker is None and window._job_state._analysis_stop is None
     assert not window.stop_button.isEnabled() and window.progress.isHidden()
 
 
 def test_save_close_is_queued_after_job_cleanup(window, monkeypatch):
     events = []
     worker = SimpleNamespace(deleteLater=lambda: events.append("delete worker"))
-    window.worker = worker
+    window._job_state.worker = worker
     window._run_state._close_after_save = True
-    monkeypatch.setattr(window, "close", lambda: events.append(("close", window.worker)))
+    monkeypatch.setattr(window, "close", lambda: events.append(("close", window._job_state.worker)))
     window.job_finished()
     assert events == ["delete worker"] and not window._run_state._close_after_save
     QApplication.processEvents()
@@ -195,7 +195,7 @@ def test_real_job_completion_preserves_gui_thread_and_cleanup_order(window):
         @Slot(object)
         def completed(self, result):
             assert QThread.currentThread() is application.thread()
-            assert window.worker is not None and not window.open_button.isEnabled()
+            assert window._job_state.worker is not None and not window.open_button.isEnabled()
             events.append(result)
 
     receiver = Receiver(window)
@@ -207,10 +207,10 @@ def test_real_job_completion_preserves_gui_thread_and_cleanup_order(window):
 
     window.start_job(operation, receiver.completed)
     for _ in range(500):
-        if window.worker is None:
+        if window._job_state.worker is None:
             break
         QTest.qWait(10)
-    assert window.worker is None
+    assert window._job_state.worker is None
     assert events == ["completed on GUI thread"]
     assert "Ordered worker message" in window.log.toPlainText()
     assert window.open_button.isEnabled() and window.progress.isHidden()

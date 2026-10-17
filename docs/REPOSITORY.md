@@ -85,7 +85,8 @@ The existing window entry points delegate to these components:
 `ui/compatibility.py` retains a shrinking subset of legacy window attributes and
 methods; components do not use that facade. New integrations should use the
 owning state/controller or the service APIs, rather than add window aliases.
-Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`, `DataState`.
+Retired state aliases: `RunState`, `GraphState`, `ShellState`, `InputState`,
+`DataState`, `JobState`.
 Callers access these fields through their owning state objects directly.
 Other UI/callback ports remain in the facade. The
 [facade guard](DEVELOPMENT.md#quality-gates-and-implementation-conventions)

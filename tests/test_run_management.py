@@ -78,7 +78,7 @@ def test_stop_button_cancels_run_without_error_and_controls_recover(monkeypatch,
     assert window.stop_button.parentWidget() is window.status_row
     assert not window.delete_run_button.isEnabled()
     window.stop_button.click()
-    wait_for(lambda: window.worker is None)
+    wait_for(lambda: window._job_state.worker is None)
     record = window._run_state.runs[0]
     assert record["status"] == "Cancelled" and record["finished"]
     assert record["errors"] == [] and not record["outputs"]
