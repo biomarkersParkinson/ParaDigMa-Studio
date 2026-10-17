@@ -1,8 +1,11 @@
 """Result export selection, formats and lossless serialization."""
 
 import json
+import math
 import threading
 import time
+from contextlib import nullcontext
+from decimal import Decimal
 from zipfile import ZipFile
 
 import numpy as np
@@ -139,6 +142,110 @@ def test_batched_json_preserves_schema_values_and_limits_temporary_rows(tmp_path
     assert value["results"] == expected
     assert value["analysis"] == {"source": "sensor.csv"}
     assert sum(batch_sizes) == count and max(batch_sizes) <= 1000
+
+
+def test_json_save_matches_existing_bytes_and_keeps_nested_source_values(tmp_path):
+    count = 2003
+    values = [-0.0, np.nextafter(0.0, 1.0), np.nextafter(1.0, 2.0), np.finfo(float).max]
+    nested = {1: 'µ\n"', "values": (np.int64(2**60 + 1), pd.NA, np.inf)}
+    scalars = [Decimal("1.234567890123456789"), np.datetime64("2026-10-25"), pd.NaT]
+    frame = pd.DataFrame(
+        {
+            "time": np.arange(count) / 100,
+            "metric": np.resize([*values, np.nan, np.inf, -np.inf], count),
+            "large": np.full(count, np.iinfo(np.uint64).max, dtype=np.uint64),
+            "nullable": pd.array(
+                [[2**60 + 1, None, -(2**60 + 1)][i % 3] for i in range(count)], dtype="Int64"
+            ),
+            "flag": pd.array([[True, None, False][i % 3] for i in range(count)], dtype="boolean"),
+            "float32": np.resize(np.array([0.1, np.nan, np.inf], dtype=np.float32), count),
+            "when": pd.date_range("2026-10-25T00:45Z", periods=count, freq="s").tz_convert(
+                "Europe/Amsterdam"
+            ),
+            "nested": [nested] * count,
+            "scalar": pd.Series([scalars[i % 3] for i in range(count)], dtype=object),
+        }
+    )
+    original = frame.copy(deep=True)
+    provenance = {"settings": {"threshold": np.float32(0.1), "pair": ("a", pd.NA)}}
+    results = {"quantifications": {"tremor": frame}, "errors": []}
+    expected = json.dumps(
+        core.json_value({"analysis": provenance, "results": results}),
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    destination = tmp_path / "results.json"
+    export_results(destination, results, provenance)
+    assert destination.read_bytes() == expected
+    rows = json.loads(expected)["results"]["quantifications"]["tremor"]["data"]
+    np.testing.assert_array_equal(
+        np.array([row["metric"] for row in rows[:4]]).view(np.uint64),
+        np.array(values).view(np.uint64),
+    )
+    assert math.copysign(1, rows[0]["metric"]) == -1
+    assert [row["metric"] for row in rows[4:7]] == [None, None, None]
+    assert rows[0]["large"] == 2**64 - 1 and rows[0]["nullable"] == 2**60 + 1
+    assert rows[0]["when"].endswith("+02:00") and rows[-1]["when"].endswith("+01:00")
+    pd.testing.assert_frame_equal(frame, original, check_exact=True)
+    assert 1 in nested and "1" not in nested and isinstance(nested["values"], tuple)
+    assert type(nested["values"][0]) is np.int64 and nested["values"][1] is pd.NA
+    assert np.isposinf(nested["values"][2])
+    assert type(provenance["settings"]["threshold"]) is np.float32
+    assert isinstance(provenance["settings"]["pair"], tuple)
+    assert provenance["settings"]["pair"][1] is pd.NA
+
+
+@pytest.mark.parametrize(
+    "columns",
+    [
+        ["time", "metric"],
+        [0, "0", 0],
+        ["metric", "time", "metric"],
+        [("metric", 1), ("metric", 2)],
+        [None, "None"],
+        [],
+    ],
+)
+def test_json_save_preserves_column_key_order_collisions_and_empty_tables(tmp_path, columns):
+    frame = pd.DataFrame(np.arange(3 * len(columns)).reshape(3, len(columns)), columns=columns)
+    destination = tmp_path / "columns.json"
+    result = {"table": frame, "empty": frame.iloc[:0]}
+    with (
+        pytest.warns(UserWarning, match="columns are not unique")
+        if frame.columns.has_duplicates
+        else nullcontext()
+    ):
+        expected = json.dumps(
+            core.json_value({"analysis": {}, "results": result}),
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+        export_results(destination, result, {})
+    assert destination.read_text(encoding="utf-8") == expected
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_later_batch_encoding_failure_keeps_destination_and_cleans_temporary_files(
+    tmp_path, existing
+):
+    class BrokenValue:
+        def __str__(self):
+            raise ValueError("failed encoding value")
+
+    destination = tmp_path / "results.json"
+    previous = b'{"previous":true}'
+    if existing:
+        destination.write_bytes(previous)
+    broken = BrokenValue()
+    frame = pd.DataFrame({"value": [*range(2002), broken]})
+    with pytest.raises(ValueError, match="failed encoding value"):
+        export_results(destination, {"table": frame}, {})
+    if existing:
+        assert destination.read_bytes() == previous
+    else:
+        assert not destination.exists()
+    assert sorted(tmp_path.iterdir()) == ([destination] if existing else [])
+    assert frame.iloc[-1, 0] is broken
 
 
 def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_path, monkeypatch):

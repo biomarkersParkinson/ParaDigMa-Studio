@@ -8,7 +8,7 @@ import math
 import time
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -59,6 +59,24 @@ def _write_export(path, writer, *, source=None, protected_sources=(), binary=Fal
         writer(stream)
 
 
+def _json_records(frame: pd.DataFrame) -> JSONValue:
+    """Normalize a table batch, reusing its freshly created string-keyed rows."""
+    records = frame.to_dict(orient="records")
+    if any(type(column) is not str for column in frame.columns):
+        # Preserve key conversion, collisions and ordering for other labels.
+        return json_value(records)
+    for record in records:
+        for key, child in record.items():
+            if type(child) is float:
+                if not math.isfinite(child):
+                    record[key] = None
+            elif child is not None and type(child) not in (str, int, bool):
+                # Nested values still need copies to protect the source objects.
+                record[key] = json_value(child)
+    # Keys are native strings and each remaining value is normalized above.
+    return cast(JSONValue, records)
+
+
 def _write_json(stream, value):
     """Lossless standard JSON, bounding temporary row objects to one table batch."""
     import pandas as pd
@@ -71,8 +89,9 @@ def _write_json(stream, value):
         for start in range(0, len(value), 1000):
             if start:
                 stream.write(",")
-            records = json_value(value.iloc[start : start + 1000].to_dict(orient="records"))
+            records = _json_records(value.iloc[start : start + 1000])
             stream.write(encode(records)[1:-1])
+            del records
             # Short native encoding blocks and an explicit yield keep Qt's busy
             # indicator and navigation responsive during large background saves.
             time.sleep(0)

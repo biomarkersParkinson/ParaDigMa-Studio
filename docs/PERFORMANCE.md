@@ -53,13 +53,39 @@
 - Saving serializes the complete in-memory result to JSON in a background worker.
   Temporary analysis files have already been removed; saving writes a snapshot,
   including tables, metadata and provenance. It does not rerun analysis. Large
-  outputs and repeated saves can therefore take time.
+  outputs and repeated saves can therefore take time. Normalization reuses fresh
+  string-keyed row dictionaries within each 1,000-row batch, retaining the standard
+  JSON encoder, cooperative yields and atomic file replacement.
 
 The portable bundle includes Python, Qt, Arrow and the scientific libraries.
 These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## JSON saving check — 17 October 2026
+
+Five alternating before/after pairs compared the writer at `7d7e77e` with the
+updated writer on synthetic tables in one Linux process (Python 3.12, pandas
+2.3.3, warm imports and file caches). Timings include the complete JSON export
+and atomic replacement in the same temporary directory; fixture construction and
+allocation tracing are excluded. Numeric inputs use ten normally distributed
+metrics (NumPy seed 42), elapsed time, binary predictions and large integers.
+
+| Table | Rows × columns | Before | After |
+| --- | ---: | ---: | ---: |
+| Numeric results | 100,003 × 13 | 0.902 s | 0.754 s |
+| Results with recording keys | 100,003 × 14 | 1.085 s | 0.832 s |
+| Results with timezone timestamps and nullable integers | 30,003 × 16 | 0.460 s | 0.397 s |
+
+Median saving time fell by 14–23% in these cases. Separately measured peak traced
+allocations on 3,003-row subsets fell by 22–25%; this measures temporary saving
+allocations, not total application RAM. Every full output matched the previous
+writer's SHA-256 digest. Regression tests also compare exact JSON bytes, float
+bit patterns, large integers, column-key collisions, nested source objects and
+failure cleanup after earlier batches have been written. Non-string column
+labels retain their existing normalization. These warm-cache Linux measurements
+do not predict Windows timings or other result distributions.
 
 ## Hidden sensor-table check — 16 October 2026
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reduce temporary row containers during JSON saving, retaining exact numeric
+  encoding, the saved-file format, bounded batches and atomic writes.
 - Compose MainWindow widgets and callbacks through their owning components,
   preserving Qt wiring and keeping internal driver ports for tests and automation.
   Document the driver API's scope and unchanged shrink-only guard; add regression
