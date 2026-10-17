@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Split analysis launch, sensor plotting and run-history refresh into named
+  workflow helpers, preserving state/signal order and queued cancellation inputs.
 - Add gradual mypy body checks for the entire UI package, with typed component
   contracts, explicit optional graphics caches and read-only clock inputs;
   retain deferred imports and the stricter service/controller checks.

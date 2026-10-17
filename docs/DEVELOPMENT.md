@@ -70,6 +70,9 @@ large or complex functions into cohesive helpers; keep any rule-specific
 suppression narrow and explain its reason in a nearby comment.
 Keep functions around 100 lines or fewer; statement and branch counts apply
 independently of physical length.
+Review functions over 60 physical lines for distinct responsibilities. Extract
+cohesive phases with explicit inputs; declarative widget builders and callback
+lists can remain longer when they read clearly.
 Ruff rejects unused suppressions (`RUF100`). The documented immutable Qt
 `QModelIndex()` default is allowed for native model method signatures.
 Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep

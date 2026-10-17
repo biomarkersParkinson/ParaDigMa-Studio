@@ -1,9 +1,11 @@
 """Pin observable connection and lifecycle ordering before extracting the window."""
 
-from dataclasses import FrozenInstanceError, fields
+from dataclasses import FrozenInstanceError, fields, replace
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from PySide6.QtCore import QObject, QThread, Slot
 from PySide6.QtTest import QTest
@@ -26,6 +28,108 @@ class RecordingSignal:
     def emit(self, *args):
         for slot in self.slots:
             slot(*args)
+
+
+def observe_analysis_launch(controller, monkeypatch):
+    events, operations, applications = [], [], []
+    clear_log = controller.view.log.clear
+
+    def persist(record):
+        events.append("persist")
+        assert record is controller.runs.active_run is controller.runs.current_run
+        assert controller.results.result_source_frame is record["_frame"]
+        assert controller.view.log.toPlainText() == ""
+        assert controller.jobs._analysis_stop is None
+
+    def navigate(index):
+        events.append(("navigate", index))
+        assert controller.view.status.text() == "Running ParaDigMa… Review progress in Runs."
+        assert "sources" not in controller.results.provenance
+
+    def start_job(operation, completed):
+        events.append("start")
+        assert controller.jobs._analysis_stop is not None
+        operations.append((operation, completed))
+        controller.jobs.worker = object()
+
+    def clear():
+        events.append("clear log")
+        clear_log()
+
+    monkeypatch.setattr(controller.view.log, "clear", clear)
+    monkeypatch.setattr(
+        controller,
+        "callbacks",
+        replace(
+            controller.callbacks,
+            show_notice=lambda text: events.append(("notice", text)),
+            clear_results=lambda: events.append("clear results"),
+            persist_run=persist,
+            refresh_runs=lambda: events.append("refresh"),
+            navigate=navigate,
+            start_job=start_job,
+        ),
+    )
+    monkeypatch.setattr(
+        controller,
+        "services",
+        replace(
+            controller.services,
+            run_isolated_analysis=lambda *args: applications.append(args),
+        ),
+    )
+    return events, operations, applications
+
+
+@pytest.mark.parametrize("multiple", [False, True])
+def test_analysis_launch_order_and_queued_input_cancel_snapshots(window, monkeypatch, multiple):
+    controller = window._analysis_controller
+    controller.set_modules(["tremor"])
+    controller.view.log.setPlainText("Previous run log")
+    frame = pd.DataFrame({"time": [0.0, 0.01], "gyroscope_x": [1.0, 2.0]})
+    controller.inputs.frame, controller.inputs.source = frame, "sensor.csv"
+    if multiple:
+        controller.inputs.recordings = {"first": frame, "second": frame.copy()}
+        controller.inputs.sources = {"first": "first.csv", "second": "second.csv"}
+    expected_input = controller.inputs.recordings if multiple else frame
+    events, operations, applications = observe_analysis_launch(controller, monkeypatch)
+    try:
+        controller.run_analysis()
+        assert events == [
+            ("notice", ""),
+            "clear results",
+            "clear log",
+            "persist",
+            "refresh",
+            ("navigate", 1),
+            "start",
+        ]
+        assert controller.view.stop_button.isEnabled()
+        record = controller.runs.current_run
+        assert record is controller.runs.selected_run is controller.runs.runs[0]
+        assert record["_frame"] is expected_input
+        if multiple:
+            assert record["sources"] == controller.inputs.sources
+            assert controller.results.provenance["sources"] == controller.inputs.sources
+        assert len(operations) == 1 and operations[0][1] is controller.callbacks.analyzed
+        cancel, logger = controller.jobs._analysis_stop, object()
+        controller.jobs._analysis_stop = Event()
+        controller.inputs.frame, controller.inputs.recordings = frame.copy(), {}
+        record["settings"]["watch_side"] = "changed after launch"
+        operations[0][0](logger)
+        assert len(applications) == 1
+        source, settings, observed_logger, observed_cancel = applications[0]
+        assert source is expected_input and observed_logger is logger and observed_cancel is cancel
+        assert observed_cancel is not controller.jobs._analysis_stop
+        assert "plot_time_origin" not in settings
+        assert settings["watch_side"] != record["settings"]["watch_side"]
+        assert "plot_time_origin" in record["settings"]
+        pd.testing.assert_frame_equal(
+            frame, pd.DataFrame({"time": [0.0, 0.01], "gyroscope_x": [1.0, 2.0]})
+        )
+    finally:
+        controller.jobs.worker = None
+        controller.jobs._analysis_stop = None
 
 
 @pytest.mark.parametrize("outcome", ["completed", "failed", "cancelled"])

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import version
 from threading import Event
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import (
@@ -42,6 +42,9 @@ from .workspace_state import (
     ResultState,
     RunState,
 )
+
+if TYPE_CHECKING:
+    from .contracts import AnalysisSettings, SensorInput
 
 
 @dataclass(frozen=True)
@@ -280,45 +283,53 @@ class AnalysisController(QObject):
             self.callbacks.navigate(1)
             return
         try:
-            mapping = validate_column_mapping(json.loads(self.view.mapping.toPlainText()))
-            axes = (
-                ["x", "y", "z"]
-                if self.view.prepared.isChecked()
-                else validate_orientation(
-                    [v.strip() for v in self.view.orientation.text().split(",")]
-                )
-            )
-            settings = {
-                "pipelines": pipelines,
-                "watch_side": self.view.side.currentText(),
-                "accelerometer_units": self.view.acc.currentText(),
-                "gyroscope_units": self.view.gyro.currentText(),
-                "time_input_unit": self.view.time.currentText(),
-                "device_orientation": axes,
-                "column_mapping": mapping,
-                "skip_preparation": self.view.prepared.isChecked(),
-                "split_by_gaps": self.view.gaps.isChecked(),
-                "drop_missing_samples": self.view.drop_missing.isChecked(),
-                "max_gap_seconds": self.view.max_gap.value(),
-                "min_segment_seconds": self.view.min_segment.value(),
-            }
-            settings["plot_time_origin"] = self.origin_setting()
-            if self.view.prepared.isChecked():
-                settings.update(
-                    accelerometer_units="g",
-                    gyroscope_units="deg/s",
-                    time_input_unit="relative_s",
-                    split_by_gaps=False,
-                )
+            settings = self._analysis_settings(pipelines)
         except (ValueError, KeyError) as exc:
             self.callbacks.failure(str(exc))
             return
+        frame = self._initialize_analysis_run(settings)
+        self._start_analysis_job(frame, settings)
+
+    def _analysis_settings(self, pipelines: list[str]) -> AnalysisSettings:
+        mapping = validate_column_mapping(json.loads(self.view.mapping.toPlainText()))
+        axes = (
+            ["x", "y", "z"]
+            if self.view.prepared.isChecked()
+            else validate_orientation([v.strip() for v in self.view.orientation.text().split(",")])
+        )
+        settings = {
+            "pipelines": pipelines,
+            "watch_side": self.view.side.currentText(),
+            "accelerometer_units": self.view.acc.currentText(),
+            "gyroscope_units": self.view.gyro.currentText(),
+            "time_input_unit": self.view.time.currentText(),
+            "device_orientation": axes,
+            "column_mapping": mapping,
+            "skip_preparation": self.view.prepared.isChecked(),
+            "split_by_gaps": self.view.gaps.isChecked(),
+            "drop_missing_samples": self.view.drop_missing.isChecked(),
+            "max_gap_seconds": self.view.max_gap.value(),
+            "min_segment_seconds": self.view.min_segment.value(),
+        }
+        settings["plot_time_origin"] = self.origin_setting()
+        if self.view.prepared.isChecked():
+            settings.update(
+                accelerometer_units="g",
+                gyroscope_units="deg/s",
+                time_input_unit="relative_s",
+                split_by_gaps=False,
+            )
+        return settings
+
+    def _initialize_analysis_run(self, settings: AnalysisSettings) -> SensorInput:
         self.callbacks.show_notice("")
         record = new_run(self.inputs.source, settings)
         if self.inputs.recordings:
             record["sources"] = dict(self.inputs.sources)
         record["paradigma_version"] = version("paradigma")
-        frame = self.inputs.recordings if self.inputs.recordings else self.inputs.frame
+        frame = cast(
+            "SensorInput", self.inputs.recordings if self.inputs.recordings else self.inputs.frame
+        )
         record["_frame"] = frame
         self.runs.runs.insert(0, record)
         self.runs.active_run = self.runs.current_run = self.runs.selected_run = record
@@ -338,6 +349,9 @@ class AnalysisController(QObject):
         self.callbacks.navigate(1)
         if self.inputs.recordings:
             self.results.provenance["sources"] = dict(self.inputs.sources)
+        return frame
+
+    def _start_analysis_job(self, frame: SensorInput, settings: AnalysisSettings) -> None:
         core_settings = dict(settings)
         core_settings.pop("plot_time_origin", None)
         self.jobs._analysis_stop = Event()

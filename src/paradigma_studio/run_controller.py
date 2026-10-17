@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from PySide6.QtCore import QModelIndex
     from PySide6.QtWidgets import QLabel, QPlainTextEdit, QPushButton, QWidget
 
+    from .contracts import RunRecord
     from .widgets import ReadableTable
 
 
@@ -148,26 +149,35 @@ class RunController:
             record is self.state.selected_run for record in self.state._run_row_records
         ):
             selected_ids = {self.state.selected_run["id"]}
+        self._install_run_model()
+        if self.state.runs:
+            self._restore_run_selection(selected_ids)
+        else:
+            self.state.selected_run = None
+        self.update_run_actions()
+
+    @staticmethod
+    def _run_row(record: RunRecord) -> dict[str, Any]:
+        return {
+            "Started": datetime.fromisoformat(record["started"])
+            .astimezone()
+            .strftime("%d %b %Y · %H:%M"),
+            "Status": run_status(record),
+            "Input": (
+                f"{len(record['sources'])} recordings"
+                if len(record.get("sources", {})) > 1
+                else Path(record["source"]).name
+            ),
+            "Modules": ", ".join(record["settings"].get("pipelines", [])),
+            "Warnings": len(record["warnings"]),
+            "Errors": len(record.get("errors", [])),
+            "Saved": "Yes" if run_is_saved(record) else "No",
+            "Exports": len(run_exports(record)),
+        }
+
+    def _install_run_model(self) -> None:
         model = RecordModel(
-            [
-                {
-                    "Started": datetime.fromisoformat(record["started"])
-                    .astimezone()
-                    .strftime("%d %b %Y · %H:%M"),
-                    "Status": run_status(record),
-                    "Input": (
-                        f"{len(record['sources'])} recordings"
-                        if len(record.get("sources", {})) > 1
-                        else Path(record["source"]).name
-                    ),
-                    "Modules": ", ".join(record["settings"].get("pipelines", [])),
-                    "Warnings": len(record["warnings"]),
-                    "Errors": len(record.get("errors", [])),
-                    "Saved": "Yes" if run_is_saved(record) else "No",
-                    "Exports": len(run_exports(record)),
-                }
-                for record in self.state.runs
-            ],
+            [self._run_row(record) for record in self.state.runs],
             columns=[
                 "Started",
                 "Status",
@@ -187,33 +197,27 @@ class RunController:
         self.view.run_table.selectionModel().selectionChanged.connect(
             self.callbacks.update_run_actions
         )
-        if self.state.runs:
-            index = next(
-                (
-                    i
-                    for i, record in enumerate(self.state.runs)
-                    if record is self.state.selected_run
-                ),
-                0,
+
+    def _restore_run_selection(self, selected_ids: set[str]) -> None:
+        index = next(
+            (i for i, record in enumerate(self.state.runs) if record is self.state.selected_run),
+            0,
+        )
+        selection = self.view.run_table.selectionModel()
+        selection.blockSignals(True)
+        selection.setCurrentIndex(
+            self.view.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate
+        )
+        rows = [i for i, record in enumerate(self.state.runs) if record["id"] in selected_ids] or [
+            index
+        ]
+        for row in rows:
+            selection.select(
+                self.view.run_table.model().index(row, 0),
+                QItemSelectionModel.Select | QItemSelectionModel.Rows,
             )
-            selection = self.view.run_table.selectionModel()
-            selection.blockSignals(True)
-            selection.setCurrentIndex(
-                self.view.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate
-            )
-            rows = [
-                i for i, record in enumerate(self.state.runs) if record["id"] in selected_ids
-            ] or [index]
-            for row in rows:
-                selection.select(
-                    self.view.run_table.model().index(row, 0),
-                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
-                )
-            selection.blockSignals(False)
-            self.select_run(selection.currentIndex(), None)
-        else:
-            self.state.selected_run = None
-        self.update_run_actions()
+        selection.blockSignals(False)
+        self.select_run(selection.currentIndex(), None)
 
     def select_run(self, current, previous):
         if not current.isValid() or current.row() >= len(self.state.runs):

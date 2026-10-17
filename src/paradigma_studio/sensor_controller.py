@@ -253,6 +253,14 @@ class SensorController:
         # not a user pan, and must not replace the current context samples.
         self.disconnect_sensor_view()
         context = self.state._sensor_context
+        navigator = self._prepare_sensor_navigator(context)
+        view_limits = navigator.limits if navigator is not None else None
+        self._render_sensor_channels()
+        self._restore_sensor_navigation(context, navigator, view_limits)
+        self.view.sensor_toolbar.refresh()
+        self.view.sensor_canvas.draw_idle()
+
+    def _prepare_sensor_navigator(self, context: SensorContext | None) -> SensorNavigator | None:
         navigator = self.state._sensor_navigator
         if context is not None and (
             navigator is None
@@ -264,7 +272,9 @@ class SensorController:
                 self.results.display_clock,
                 index=self.sensor_time_index(context.display_times),
             )
-        view_limits = navigator.limits if navigator is not None else None
+        return navigator
+
+    def _render_sensor_channels(self) -> None:
         xs = (
             clock_times(self.state.sensor_times, self.results.display_clock)
             if self.state.sensor_frame is not None
@@ -291,6 +301,13 @@ class SensorController:
             if self.state._sensor_context is not None
             else None,
         )
+
+    def _restore_sensor_navigation(
+        self,
+        context: SensorContext | None,
+        navigator: SensorNavigator | None,
+        view_limits: tuple[float, float] | None,
+    ) -> None:
         if context is not None and self.selected_sensor_channels():
             mark_sensor_time(
                 self.view.sensor_figure, context.selected_time, self.results.display_clock
@@ -321,8 +338,6 @@ class SensorController:
                     )
                     message.set_gid("sensor-no-data")
                     message.set_visible(self.state.sensor_frame.empty)
-        self.view.sensor_toolbar.refresh()
-        self.view.sensor_canvas.draw_idle()
 
     def disconnect_sensor_view(self):
         for ax, callback in self.state._sensor_view_callbacks.items():

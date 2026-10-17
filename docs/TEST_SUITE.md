@@ -37,7 +37,7 @@ trigger and expected behavior still apply.
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
-| Frozen layout/graph ports without application-window dependencies, Qt/job ordering and coordinator size | `test_composition_order.py` |
+| Frozen layout/graph ports, analysis/job ordering, queued input/cancellation snapshots and coordinator size | `test_composition_order.py` |
 | Data page tab/action order, callback delivery, deferred graphs and responsive splitter transitions | `test_data_page.py` |
 | MainWindow ownership boundaries and recording/results/sensor workflows without driver ports | `test_composition_without_facade.py` |
 
