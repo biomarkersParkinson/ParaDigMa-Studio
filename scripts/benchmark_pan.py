@@ -49,6 +49,7 @@ def benchmark(report_path, *, frames=8, repeats=3):
             app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
         )
         _measure_time_selection(app, report, window, full, repeats, frames)
+        _measure_result_selection(app, report, window, repeats)
         sensor = _synthetic_pan_sensors()
         window.loaded(("sensor.csv", sensor))
         deadline = time.monotonic() + 30
@@ -147,6 +148,46 @@ def _record_measurement(report, name, frame_times, release_times, graphs):
         "graphs": graphs,
     }
     print(f"{name}: {statistics.median(frame_times):.4f} s/frame", flush=True)
+
+
+def _measure_result_selection(app, report, window, repeats):
+    """Always remove the actual shared owner, which changes between selections."""
+    previous_mode = window.result_graph_view.currentIndex()
+    report["selection"] = {}
+    for mode, name in enumerate(("detailed", "30-minute", "day", "profile")):
+        window.result_graph_view.setCurrentIndex(mode)
+        removals, additions, retained = [], [], []
+        for _ in range(repeats):
+            window.result_series.blockSignals(True)
+            for item in window._result_state._series_items.values():
+                item.setCheckState(0, Qt.Checked)
+            window.result_series.blockSignals(False)
+            window.plot()
+            app.processEvents()
+            previous = tuple(window.figure.axes)
+            owner = window._graph_state._result_shared_axes
+            item = window._result_state._series_items[
+                owner._paradigma_dataset, owner._paradigma_metric
+            ]
+            started = time.perf_counter()
+            item.setCheckState(0, Qt.Unchecked)
+            app.processEvents()
+            removals.append(time.perf_counter() - started)
+            retained.append(sum(ax in previous for ax in window.figure.axes))
+            started = time.perf_counter()
+            item.setCheckState(0, Qt.Checked)
+            app.processEvents()
+            additions.append(time.perf_counter() - started)
+        report["selection"][name] = {
+            "remove_owner_seconds": removals,
+            "median_remove_owner_seconds": statistics.median(removals),
+            "add_seconds": additions,
+            "median_add_seconds": statistics.median(additions),
+            "retained_axes": retained,
+        }
+        print(f"{name}: {statistics.median(removals):.4f} s/owner removal", flush=True)
+    window.result_graph_view.setCurrentIndex(previous_mode)
+    app.processEvents()
 
 
 def _measure_time_selection(app, report, window, limits, repeats, frames):

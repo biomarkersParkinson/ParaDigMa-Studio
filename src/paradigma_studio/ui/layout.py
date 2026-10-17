@@ -484,6 +484,7 @@ class WorkspaceLayout:
         self.result_overlay = SelectionOverlay(
             self.canvas, lambda: self.graphs._result_selection_artists
         )
+        self.canvas.bind_viewport_overlay(self.result_overlay)
         self.canvas.pinned_time_axis = True
         self.plot_toolbar = ResultsToolbar(self.canvas, self.parent)
         self.figure_actions = FigureActionBar(self.plot_toolbar)
@@ -547,11 +548,12 @@ class WorkspaceLayout:
         self.graph_view_layout.addWidget(workspace, 1)
         graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
-        self.graph_scroll.verticalScrollBar().valueChanged.connect(
-            lambda: self.canvas.draw_idle() if self.canvas.panning else None
-        )
+        self.graph_scroll.verticalScrollBar().valueChanged.connect(self.canvas.redraw_viewport)
         self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
             self.time_axis.synchronize
+        )
+        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
+            self.canvas.redraw_viewport
         )
 
     def _build_result_tables_view(self):

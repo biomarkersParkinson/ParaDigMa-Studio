@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reuse surviving Results plots when their shared time-axis owner is deselected.
+  Paint only visible graphs after selection and horizontal scrolling; vertical
+  scrolling reuses the existing bounded image and renders newly exposed graphs.
+  Preserve original paths, manual limits, navigation, markers and full exports.
+
 - Strengthen graph-settings tests against restored or renamed controls, avoid
   unrelated navigation fixtures and duplicate setup renders, and consolidate
   first-date checks while retaining partial-day, bounds and timezone coverage.

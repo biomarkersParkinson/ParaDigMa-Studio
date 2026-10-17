@@ -8,6 +8,7 @@ import pytest
 from matplotlib import dates
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import ConstrainedLayoutEngine
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -106,7 +107,7 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
     # The full reference uses the same settled layout and exactly the same limits.
     canvas.panning = False
     figure.set_layout_engine("none")
-    canvas.draw()
+    FigureCanvasQTAgg.draw(canvas)
     reference = np.asarray(canvas.buffer_rgba()).copy()
     figure.set_layout_engine(engine)
     canvas.panning = True
@@ -122,18 +123,90 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
     window.result_time_scroll.setSliderDown(False)
     QApplication.instance().processEvents()
     assert not canvas.panning and figure in executions
-    assert set(drawn) == set(figure.axes)
+    assert 0 < len(set(drawn)) < len(figure.axes)
+    # Release still restores full precision and normal layout. It no longer
+    # rasterizes offscreen axes; compare every visible pixel to a full render.
+    released = np.asarray(canvas.buffer_rgba()).copy()
+    figure.set_layout_engine("none")
+    FigureCanvasQTAgg.draw(canvas)
+    figure.set_layout_engine(engine)
+    np.testing.assert_array_equal(
+        released[top:bottom, left:right], np.asarray(canvas.buffer_rgba())[top:bottom, left:right]
+    )
     assert [ax.get_autoscaley_on() for ax in figure.axes] == automatic
     assert figure.axes[1].get_ylim() == (0.5, 4.0)
     np.testing.assert_allclose(window.time_axis.axes.get_xlim(), figure.axes[0].get_xlim())
 
 
-def test_export_during_scroll_includes_every_axes_and_render_errors_restore_state(
-    multi_graph_window, monkeypatch
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+def test_settled_results_paint_only_visible_graphs_and_refresh_after_vertical_scroll(
+    multi_graph_window, monkeypatch, pixel_ratio
 ):
     window = multi_graph_window
     canvas, figure = window.canvas, window.figure
-    start_scroll(window)
+    canvas._set_device_pixel_ratio(pixel_ratio)
+    app = QApplication.instance()
+    app.processEvents()
+    drawn = []
+    for ax in figure.axes:
+        original = ax.draw
+        monkeypatch.setattr(
+            ax,
+            "draw",
+            lambda renderer, original=original, ax=ax: (drawn.append(ax), original(renderer))[1],
+        )
+    bar = window.graph_scroll.verticalScrollBar()
+    for index, scroll in enumerate((0, 450, bar.maximum(), 0)):
+        painted = canvas._painted_axes.copy()
+        drawn.clear()
+        window.result_table.setCurrentIndex(window.result_table.model().index((index + 1) * 100, 0))
+        bar.setValue(scroll)
+        app.processEvents()
+        if index == 0:
+            canvas.draw()
+        else:
+            assert not set(drawn).intersection(painted), "Unchanged rows retain their pixels"
+        assert len(set(drawn)) < len(figure.axes)
+        if index in (0, 1):
+            assert drawn, "Newly exposed graphs must actually be rendered"
+        actual = np.asarray(canvas.buffer_rgba()).copy()
+        # Restore the partial image/cache after the reference, so a complete
+        # reference render cannot hide a missing viewport refresh on the next scroll.
+        partial_image = canvas.copy_from_bbox(figure.bbox)
+        background = window.result_overlay.background
+        engine = figure.get_layout_engine()
+        figure.set_layout_engine("none")
+        try:
+            FigureCanvasQTAgg.draw(canvas)
+            reference = np.asarray(canvas.buffer_rgba()).copy()
+        finally:
+            figure.set_layout_engine(engine)
+            figure.stale = False
+            canvas.restore_region(partial_image)
+            window.result_overlay.background = background
+        region = canvas.visibleRegion().boundingRect()
+        ratio = canvas.device_pixel_ratio
+        left, right = round(region.x() * ratio), round((region.x() + region.width()) * ratio)
+        top, bottom = round(region.y() * ratio), round((region.y() + region.height()) * ratio)
+        np.testing.assert_array_equal(
+            actual[top:bottom, left:right], reference[top:bottom, left:right]
+        )
+    # A normal export after viewport drawing must include the hidden rows too.
+    drawn.clear()
+    image = BytesIO()
+    figure.savefig(image, format="png")
+    assert image.getvalue().startswith(b"\x89PNG")
+    assert set(drawn) == set(figure.axes)
+
+
+@pytest.mark.parametrize("scrolling", [False, True])
+def test_export_includes_every_axes_and_render_errors_restore_state(
+    multi_graph_window, monkeypatch, scrolling
+):
+    window = multi_graph_window
+    canvas, figure = window.canvas, window.figure
+    if scrolling:
+        start_scroll(window)
     engine = figure.get_layout_engine()
     drawn = []
     for ax in figure.axes:
@@ -147,9 +220,7 @@ def test_export_during_scroll_includes_every_axes_and_render_errors_restore_stat
     figure.savefig(image, format="png")
     assert image.getvalue().startswith(b"\x89PNG")
     assert set(drawn) == set(figure.axes)
-    assert canvas.panning and figure.get_layout_engine() is engine
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-
+    assert canvas.panning == scrolling and figure.get_layout_engine() is engine
     with monkeypatch.context() as patch:
 
         def fail(self):
@@ -161,6 +232,56 @@ def test_export_during_scroll_includes_every_axes_and_render_errors_restore_stat
     assert figure.get_layout_engine() is engine and all(ax.get_visible() for ax in figure.axes)
     canvas.draw()
     window.result_time_scroll.setSliderDown(False)
+
+
+def test_incremental_viewport_failure_invalidates_pixels_and_preserves_traceback(
+    multi_graph_window, monkeypatch
+):
+    window = multi_graph_window
+    canvas = window.canvas
+    canvas.draw()
+    missing = next(ax for ax in window.figure.axes if ax not in canvas._painted_axes)
+    assert window.result_overlay.background is not None
+    with monkeypatch.context() as patch:
+        patch.setattr(canvas, "_viewport_bounds", lambda: (missing.bbox.y0, missing.bbox.y1))
+
+        def fail(renderer):
+            raise RuntimeError("newly exposed graph failed")
+
+        patch.setattr(missing, "draw", fail)
+        with pytest.raises(RuntimeError, match="newly exposed graph failed") as error:
+            canvas._extend_viewport()
+        assert error.traceback[-1].name == "fail"
+    assert canvas._viewport_renderer is None and window.result_overlay.background is None
+    canvas.draw()
+    assert canvas._viewport_renderer is canvas.get_renderer()
+    assert window.result_overlay.background is not None
+
+
+@pytest.mark.parametrize("change", ["limits", "style", "budget"])
+def test_viewport_reuse_falls_back_after_changes_or_without_a_static_image(
+    multi_graph_window, monkeypatch, change
+):
+    window = multi_graph_window
+    canvas = window.canvas
+    canvas.draw()
+    if change == "limits":
+        window.figure.axes[0].set_xlim(*window.figure.axes[0].get_xlim()[::-1])
+    elif change == "style":
+        window.figure.axes[0].set_ylabel("Changed label")
+    else:
+        window.result_overlay.invalidate()
+    draws = []
+    original = FigureCanvasQTAgg.draw
+    monkeypatch.setattr(
+        FigureCanvasQTAgg, "draw", lambda self: (draws.append(self), original(self))[1]
+    )
+    canvas.redraw_viewport()
+    QApplication.instance().processEvents()
+    assert canvas in draws
+    assert window.figure.axes[0] in canvas._painted_axes
+    assert canvas._viewport_renderer is canvas.get_renderer()
+    assert window.result_overlay.background is not None
 
 
 @pytest.mark.parametrize("end", ["release", "refresh", "clear_results", "hide"])

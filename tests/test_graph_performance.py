@@ -305,6 +305,80 @@ def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, m
     assert all(ax.get_xlim() == (250.0, 450.0) for ax in window.figure.axes)
 
 
+def select_shared_owner(window, owner_index):
+    items = list(window._result_state._series_items.values())
+    for item in items:
+        item.setCheckState(0, Qt.Unchecked)
+    items[owner_index].setCheckState(0, Qt.Checked)
+    for item in items:
+        item.setCheckState(0, Qt.Checked)
+    QApplication.instance().processEvents()
+
+
+@pytest.mark.parametrize("mode", [0, 1, 2, 3])
+@pytest.mark.parametrize("owner_index", [0, -1])
+def test_removing_shared_axis_owner_retains_artists_settings_and_navigation(
+    window, mode, owner_index
+):
+    times = np.arange(0.0, 3 * 86400, 60.0)
+    frame = pd.DataFrame(
+        {"time": times, **{f"metric_{i}": 2 + np.sin(times / 100) for i in range(3)}}
+    )
+    unchanged = frame.copy(deep=True)
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    for item in window._result_state._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_graph_view.setCurrentIndex(mode)
+    app = QApplication.instance()
+    app.processEvents()
+    select_shared_owner(window, owner_index)
+    # Remove successive owners, including the final axis, to cover singleton
+    # sharing, new owners, empty selections and subsequent reconstruction.
+    while window.selected_result_series():
+        owner = window._graph_state._result_shared_axes
+        survivors = [ax for ax in window.figure.axes if ax is not owner]
+        paths = [ax.collections[0].get_paths() for ax in survivors]
+        full = tuple(window.result_time_scroll._full_limits)
+        low, high = owner.get_xlim()
+        zoom = low + (high - low) * 0.2, low + (high - low) * 0.7
+        owner.set_xlim(*zoom)
+        for ax in survivors:
+            ax.set_ylim(-2.0, 5.0)
+            ax.set_ylabel("Custom label")
+        key = owner._paradigma_dataset, owner._paradigma_metric
+        window._result_state._series_items[key].setCheckState(0, Qt.Unchecked)
+        app.processEvents()
+        if not survivors:
+            assert window._graph_state._result_shared_axes is None
+            continue
+        assert window.figure.axes == survivors
+        assert window._graph_state._result_shared_axes in survivors
+        assert all(not ax.get_shared_x_axes().joined(ax, owner) for ax in survivors)
+        for axis in ("major", "minor"):
+            assert getattr(survivors[0].xaxis, axis).locator.axis.axes in survivors
+            assert getattr(survivors[0].xaxis, axis).formatter.axis.axes in survivors
+        for ax, original in zip(survivors, paths, strict=True):
+            assert ax.collections[0].get_paths() is original
+            assert ax.get_ylabel() == "Custom label" and ax.get_ylim() == (-2.0, 5.0)
+            assert not ax.get_autoscaley_on()
+            np.testing.assert_allclose(ax.get_xlim(), zoom)
+        survivors[-1].set_xlim(zoom[0], zoom[0] + (zoom[1] - zoom[0]) / 2)
+        assert all(ax.get_xlim() == survivors[-1].get_xlim() for ax in survivors)
+        np.testing.assert_allclose(window.time_axis.axes.get_xlim(), survivors[-1].get_xlim())
+        window.plot_toolbar.home()
+        np.testing.assert_allclose(survivors[0].get_xlim(), full)
+        window.plot_toolbar.back()
+        np.testing.assert_allclose(survivors[0].get_xlim(), zoom)
+    next(iter(window._result_state._series_items.values())).setCheckState(0, Qt.Checked)
+    app.processEvents()
+    assert (
+        len(window.figure.axes) == 1
+        and window._graph_state._result_shared_axes in window.figure.axes
+    )
+    pd.testing.assert_frame_equal(frame, unchanged)
+
+
 def test_presence_draw_union_preserves_pixels_real_gaps_and_every_original_interval():
     figure = Figure(figsize=(8, 2), dpi=100)
     canvas = FigureCanvasAgg(figure)
@@ -360,6 +434,24 @@ def test_row_markers_reuse_pixels_but_changed_limits_redraw(window, monkeypatch)
     window.figure.savefig(stream, format="png")
     assert stream.getvalue().startswith(b"\x89PNG")
     assert window._graph_state._result_selection_artists  # Export does not discard selection.
+
+
+def test_discarding_hidden_results_releases_previously_painted_axes(window):
+    import gc
+    import weakref
+
+    frame = pd.DataFrame({"time": np.arange(2000.0), "metric": 2 + np.arange(2000.0)})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    QApplication.instance().processEvents()
+    assert window.canvas._painted_axes
+    references = [weakref.ref(ax) for ax in window.figure.axes]
+    window.result_tabs.setCurrentIndex(0)
+    QApplication.instance().processEvents()
+    window.clear_results()
+    gc.collect()
+    assert all(reference() is None for reference in references)
+    assert not window.canvas._painted_axes
 
 
 def test_discarded_results_release_render_and_sensor_context_views(window):

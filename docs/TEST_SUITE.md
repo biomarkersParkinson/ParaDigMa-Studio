@@ -48,6 +48,14 @@ Those layers are complementary. Performance regressions primarily check retained
 values, cache reuse, redraw counts and event-loop responsiveness; hardware timings
 belong in the benchmark scripts rather than strict CI time limits.
 
+Results rendering checks compare visible pixels against a complete native render
+at both display scales, after horizontal release and at successive vertical
+positions. Reference draws restore the partial image afterward, so they cannot
+mask missing viewport updates. Checks cover marker changes, unchanged-row reuse,
+cache invalidation, drawing failures and full exports. Shared-axis owner removal
+retains path identity, settings and navigation in all four views; clearing hidden
+results must release previously painted axes.
+
 Navigation tests build the eight-graph workspace only when they exercise shared
 or offscreen axes; dense single-graph cases start from an empty window. Setup
 processes queued Qt paints and forces a draw only if the figure is still stale.

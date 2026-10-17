@@ -1,36 +1,143 @@
 """Results-only canvas rendering; raw data keeps its existing canvas."""
 
-from contextlib import contextmanager
+from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+from weakref import WeakSet
+
+from matplotlib.backend_bases import DrawEvent
 from matplotlib.ticker import NullFormatter, NullLocator
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QPen
 
 from .plotting import ScrollableFigureCanvas
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.backends.backend_agg import RendererAgg
+    from matplotlib.figure import Figure
+
+    from .plotting import SelectionOverlay
+
 
 class ResultFigureCanvas(ScrollableFigureCanvas):
-    """Direct interval painting and bounded rendering during Results scrolling."""
+    """Direct interval painting and viewport-bounded Results rendering."""
 
     zoom_rectangle = None
     time_scrolling = False
 
+    def __init__(self, figure: Figure) -> None:
+        super().__init__(figure)
+        self._painted_axes: WeakSet[Axes] = WeakSet()
+        self._viewport_renderer: RendererAgg | None = None
+        self._viewport_pending = False
+        self._viewport_overlay: SelectionOverlay | None = None
+
+    def bind_viewport_overlay(self, overlay: SelectionOverlay) -> None:
+        """Share the existing bounded static image, without another pixel cache."""
+        self._viewport_overlay = overlay
+
+    def redraw_viewport(self, *_: object) -> None:
+        self._viewport_pending = True
+        self.draw_idle()
+
     def draw(self):
-        if not self.time_scrolling or not self.panning or self.is_saving():
+        viewport_only = self._viewport_pending
+        self._viewport_pending = False
+        if viewport_only and self._extend_viewport():
+            return
+        self._painted_axes.clear()
+        self._viewport_renderer = None
+        if self.is_saving() or not self.isVisible():
             return super().draw()
+        if not self.time_scrolling or not self.panning:
+            with self._viewport_axes():
+                return super().draw()
         # Heading geometry is settled before a scroll. Avoid recalculating the
         # unused native title positions and all their axis-label bounds per frame.
         titles = [(ax, ax._autotitlepos) for ax in self.figure.axes]
         for ax, _ in titles:
             ax._autotitlepos = False
         try:
-            with self._fixed_y_axes(), self._hidden_x_labels():
+            with self._viewport_axes(), self._fixed_y_axes(), self._hidden_x_labels():
                 result = super().draw()
             self.prepare_time_scroll()
             return result
         finally:
             for ax, automatic in titles:
                 ax._autotitlepos = automatic
+
+    def _viewport_bounds(self):
+        region = self.visibleRegion().boundingRect()
+        ratio = self.device_pixel_ratio
+        return (
+            (self.height() - region.y() - region.height()) * ratio,
+            (self.height() - region.y()) * ratio,
+        )
+
+    def _intersects_viewport(self, ax, bottom, top):
+        padding = self.figure.dpi * 0.35
+        return ax.bbox.y1 + padding >= bottom and ax.bbox.y0 - padding <= top
+
+    def _extend_viewport(self):
+        overlay = self._viewport_overlay
+        if (
+            self.panning
+            or self.is_saving()
+            or not self.isVisible()
+            or self.figure.stale
+            or overlay is None
+            or overlay.background is None
+            or self.get_renderer() is not self._viewport_renderer
+        ):
+            return False
+        bottom, top = self._viewport_bounds()
+        missing = [
+            ax
+            for ax in self.figure.axes
+            if ax not in self._painted_axes and self._intersects_viewport(ax, bottom, top)
+        ]
+        if missing:
+            # The overlay image excludes animated row markers. Restore it before
+            # extending, so the next snapshot cannot bake in obsolete markers.
+            self.restore_region(overlay.background)
+            try:
+                for ax in missing:
+                    ax.draw(self._viewport_renderer)
+                self._painted_axes.update(missing)
+                self.figure.stale = False
+                DrawEvent("draw_event", self, self._viewport_renderer)._process()
+            except Exception:
+                # Drawing/observer code is third party. Restore cache validity
+                # for a fresh draw and propagate its complete original traceback.
+                self._viewport_renderer = None
+                overlay.invalidate()
+                raise
+        self.update()
+        return True
+
+    @contextmanager
+    def _viewport_axes(self):
+        bottom, top = self._viewport_bounds()
+        original = {ax: ax.draw for ax in self.figure.axes}
+
+        def draw_visible(ax, draw, renderer):
+            # Figure.draw runs the complete layout first. Check the resulting
+            # positions here, keeping offscreen axes visible to layout, shared
+            # navigation, settings, selection and all full-precision exports.
+            if self._intersects_viewport(ax, bottom, top):
+                draw(renderer)
+                self._painted_axes.add(ax)
+
+        for ax, draw in original.items():
+            ax.draw = lambda renderer, ax=ax, draw=draw: draw_visible(ax, draw, renderer)
+        try:
+            yield
+            self._viewport_renderer = self.get_renderer()
+        finally:
+            for ax, draw in original.items():
+                ax.draw = draw
 
     def prepare_time_scroll(self):
         previous = getattr(self, "_scroll_y_ticks", {})

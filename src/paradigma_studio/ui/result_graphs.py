@@ -221,18 +221,30 @@ class ResultGraphs(QObject):
             previous_mode == mode
             and shared in self.view.figure.axes
             and shared is not None
-            and (
-                getattr(shared, "_paradigma_dataset", None),
-                getattr(shared, "_paradigma_metric", None),
-            )
-            in chosen
+            and any(key in existing for key in chosen)
         )
-        if reuse:
-            # Remove/re-add in tree order using the public Figure API. Rejoin
-            # the existing X master after delaxes disconnects sharing groups.
+        if reuse and shared is not None:
+            # Remove/re-add in tree order using the public Figure API. delaxes
+            # disconnects sharing groups, but leaves each Axes' parent pointer.
             for ax in tuple(self.view.figure.axes):
                 self.view.figure.delaxes(ax)
             existing = {key: ax for key, ax in existing.items() if key in chosen}
+            if shared not in existing.values():
+                shared = next(existing[key] for key in chosen if key in existing)
+            for ax in existing.values():
+                # Matplotlib has no public reparenting API. Clear only the old
+                # sharing parent, then plot() rejoins via public Axes.sharex.
+                # This also releases a deselected owner's strong references.
+                ax._sharex = None
+            # Removing the last Figure axis can leave shared tick helpers
+            # pointing at the discarded owner even after the groups rejoin.
+            for helper in (
+                shared.xaxis.get_major_locator(),
+                shared.xaxis.get_minor_locator(),
+                shared.xaxis.get_major_formatter(),
+                shared.xaxis.get_minor_formatter(),
+            ):
+                helper.set_axis(shared.xaxis)
         else:
             self.view.figure.clear()
             existing = {}

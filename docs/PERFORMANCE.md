@@ -22,12 +22,19 @@
   statistic still finishes before a recording is displayed.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
-  Results scrollbar drags and horizontal trackpad gestures reuse settled axes,
-  tick positions and measured date-label widths. Ordered intervals use indexed
-  viewport lookup. Dense scrolling previews retain pixel-column minima/maxima,
-  gaps and long intervals; the full bars return when movement stops, and exports
-  always use original bars. Only visible plots redraw during a gesture. Interval
-  selection paints directly over the cached Qt image without redrawing graph data,
+  Removing the shared time-axis owner retains the remaining axes, paths and
+  per-graph settings. Results scrollbar drags and horizontal trackpad gestures
+  reuse settled axes, tick positions and measured date-label widths. Ordered
+  intervals use indexed viewport lookup. Dense scrolling previews retain
+  pixel-column minima/maxima, gaps and long intervals; the full bars return when movement stops, and exports
+  always use original bars. Painting also skips offscreen plots after selection
+  and when a horizontal gesture ends. Vertical scrolling extends the existing
+  static image with newly exposed plots; revisiting painted plots needs no new
+  rasterization while limits and layout stay unchanged. This shares the row
+  marker overlay's existing 32 MiB budget, uses weak axis references, and falls
+  back to a fresh viewport draw after changes or when no background is available.
+  Exports render every graph. Interval selection paints directly over the cached
+  Qt image without redrawing graph data,
   including when the figure exceeds the timepoint overlay's memory budget. Raw
   graphs retain panning. Dense full-recording plots still cost more than zoomed views.
 - Raw plots display at most 20,000 samples per channel. Sensor context indexes
@@ -62,6 +69,38 @@ These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## Results responsiveness check — 17 October 2026
+
+Two before/after pairs compared `a05bded` with plot reuse and viewport painting
+in separate Linux/Fusion/offscreen processes at 1450×920, using six continuous
+metrics with 30,000 values each. The order was before/after/after/before, with
+three gestures or selections per process and six updates per gesture. Timings
+include queued Qt paints, warm imports and caches, without profiling or coverage.
+
+| Interaction | Before | After |
+| --- | ---: | ---: |
+| Deselect the shared-axis owner, Detailed | 1,015 ms | 390 ms |
+| Deselect the shared-axis owner, 30-minute epochs | 301 ms | 196 ms |
+| Deselect the shared-axis owner, Day | 222 ms | 144 ms |
+| Deselect the shared-axis owner, 24-hour profile | 277 ms | 166 ms |
+| Finish a wide horizontal scroll | 686 ms | 480 ms |
+| Finish a zoomed horizontal scroll | 189 ms | 155 ms |
+| Wide scroll update | 71 ms | 70 ms |
+
+These are pooled medians, not Windows performance guarantees. The final extended
+pan benchmark reproduced the main gains (392 ms for Detailed owner removal and
+481 ms for wide-scroll release). Continuous horizontal scrolling remains the next
+rendering bottleneck. Source-frame hashes stayed unchanged. Tests check retained
+path identity, shared navigation, complete exports, exact visible RGBA pixels at
+both display scales, new viewport painting, marker changes, failure recovery and
+release of discarded graph objects. They replace the former requirement to paint
+all offscreen graphs on release with pixel equivalence and complete-export checks.
+
+The pan benchmark now measures removal and re-addition of the actual shared-axis
+owner in all four views; it does not assume the first tree item remains the owner.
+A cache of deselected plot objects is deferred to avoid retaining large arrays and
+adding another invalidation policy before further measurements justify it.
 
 ## JSON saving check — 17 October 2026
 
@@ -214,7 +253,7 @@ New-Item -ItemType Directory -Force build-reports | Out-Null
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
 | `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
-| `pan-performance.json` | Results time scrolling and interval selection, raw toolbar drags and queued painting |
+| `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw toolbar drags and queued painting |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 
 Both Windows workflows publish these files in the separate
