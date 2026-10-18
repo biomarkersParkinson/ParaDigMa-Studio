@@ -56,7 +56,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Reusable Qt controls, lazy run-record tables and forms | `widgets.py`, `time_controls.py` |
 | Graph controls, rendering, selection overlay, continuous selector and pinned time axis | `plot_controls.py`, `plotting.py`, `selection_lines.py`, `time_axis.py` |
 | Results date/time labels and fixed Y-axis layout | `day_axis.py`, `epoch_axis.py`, `profile_axis.py`, `result_layout.py` |
-| Results time navigation, interval painting, bounded bar-geometry reuse and history | `result_navigation.py`, `result_canvas.py`, `result_plot_cache.py` |
+| Results time navigation, interval painting, bounded bar-geometry/coordinate reuse and history | `result_navigation.py`, `result_canvas.py`, `result_plot_cache.py` |
 | Application identity, compatible user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |
 | Matplotlib font-cache initialization | `bootstrap.py`, `plot_cache.py` |
 | About, licences and citations | `acknowledgements.py`, `data/notices/` |

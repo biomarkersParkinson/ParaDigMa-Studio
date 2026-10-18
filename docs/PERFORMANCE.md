@@ -24,7 +24,10 @@
   graphs defer painting, and rendering excludes bars outside the visible range.
   Compatible selections reuse bounded layout/text measurements. Recently removed
   bar plots retain original geometry in a four-entry, 128 MiB cache, cleared on
-  result, view or display-clock changes. The cache owns no detached axes. Exports
+  result, view or display-clock changes. Detailed metrics share converted time
+  coordinates per dataset/row selection/clock; up to four coordinate entries
+  use at most 32 MiB within the same 128 MiB total budget. Source references are
+  weak, and changed inputs invalidate reuse. The cache owns no detached axes. Exports
   always solve their complete layout, and unsupported screen layouts fall back
   to the native solver. Rapid toggles coalesce paints without delaying selection
   signals; the pinned time ruler paints after the final graph draw.

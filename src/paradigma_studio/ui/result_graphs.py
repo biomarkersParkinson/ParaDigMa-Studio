@@ -100,7 +100,7 @@ class ResultGraphs(QObject):
         self.results = results
         self.view = view
         self.callbacks = callbacks
-        self.data = ResultPlotData(results)
+        self.data = ResultPlotData(results, graphs._result_plot_cache)
 
     def gait_plot_presence(self):
         return self.data.gait_plot_presence()
@@ -298,21 +298,15 @@ class ResultGraphs(QObject):
             # Aggregated views reuse their summaries; only Detailed needs
             # per-sample plotting arrays and recording-clock conversion here.
             ys = self._result_plot_values(name, metric, positions)
-            xs = clock_times(times, self.results.display_clock)
             color = module_color(
                 "preparation" if name.startswith("preparation/") else name.split("/")[1]
             )
             if binary:
+                xs = self.data.point_coordinates(name, positions)
                 self._render_binary_series(ax, name, metric, positions, xs, ys, color)
             else:
-                starts, ends = self.results._bar_bounds[name]
-                bars = plot_bars(
-                    ax,
-                    clock_times(starts[positions], self.results.display_clock),
-                    clock_times(ends[positions], self.results.display_clock),
-                    ys,
-                    color,
-                )
+                starts, ends = self.data.bar_coordinates(name, positions)
+                bars = plot_bars(ax, starts, ends, ys, color)
                 if _is_tremor_power(name, metric):
                     # A subpixel rectangle can vanish when zoomed out, hiding
                     # the very peak that determines the automatic Y range.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 import weakref
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -60,6 +60,14 @@ class CachedBars:
     size: int
 
 
+@dataclass(frozen=True)
+class CachedCoordinates:
+    sources: tuple[weakref.ReferenceType, ...]
+    clock: str
+    arrays: tuple[np.ndarray, ...]
+    size: int
+
+
 def _array_bytes(value: Any, seen: set[int]) -> int:
     if value is None or id(value) in seen:
         return 0
@@ -105,22 +113,73 @@ def _geometry_bytes(geometry: RectangleGeometry, data: tuple) -> int:
 
 
 class ResultPlotCache:
-    """LRU for at most four deselected bar plots and 128 MiB of owned geometry."""
+    """Bounded original bar geometry and shared display coordinates."""
 
     MAX_BYTES = 128 * 1024**2
     MAX_ENTRIES = 4
+    MAX_COORDINATE_ENTRIES = 4
+    MAX_COORDINATE_BYTES = 32 * 1024**2  # Within the shared 128 MiB budget.
 
     def __init__(self) -> None:
         self._entries: OrderedDict[tuple, CachedBars] = OrderedDict()
+        self._coordinates: OrderedDict[tuple, CachedCoordinates] = OrderedDict()
         self._sources: dict[str, weakref.ReferenceType] = {}
         self._context: tuple = ()
         self.memory_bytes = 0
+        self.coordinate_bytes = 0
 
     def clear(self) -> None:
         self._entries.clear()
+        self._coordinates.clear()
         self._sources.clear()
         self._context = ()
         self.memory_bytes = 0
+        self.coordinate_bytes = 0
+
+    def coordinates(
+        self,
+        key: tuple,
+        sources: tuple,
+        clock: Mapping | None,
+        prepare: Callable[[], tuple[np.ndarray, ...]],
+    ) -> tuple[np.ndarray, ...]:
+        """Reuse conversion only while every source object and clock still match."""
+        self._trim()
+        cached = self._coordinates.get(key)
+        if (
+            cached is not None
+            and cached.clock == repr(clock)
+            and len(cached.sources) == len(sources)
+            and all(ref() is source for ref, source in zip(cached.sources, sources, strict=True))
+        ):
+            self._coordinates.move_to_end(key)
+            return cached.arrays
+        if cached is not None:
+            self._coordinates.pop(key)
+            self.coordinate_bytes -= cached.size
+        arrays = prepare()
+        seen: set[int] = set()
+        size = sum(_array_bytes(array, seen) for array in arrays)
+        if size <= min(self.MAX_COORDINATE_BYTES, self.MAX_BYTES):
+            self._coordinates[key] = CachedCoordinates(
+                tuple(weakref.ref(source) for source in sources), repr(clock), arrays, size
+            )
+            self.coordinate_bytes += size
+            self._trim()
+        return arrays
+
+    def _trim(self) -> None:
+        while len(self._coordinates) > self.MAX_COORDINATE_ENTRIES or self.coordinate_bytes > min(
+            self.MAX_COORDINATE_BYTES, self.MAX_BYTES
+        ):
+            _, previous = self._coordinates.popitem(last=False)
+            self.coordinate_bytes -= previous.size
+        while self._entries and (
+            len(self._entries) > self.MAX_ENTRIES
+            or self.memory_bytes + self.coordinate_bytes > self.MAX_BYTES
+        ):
+            _, bars = self._entries.popitem(last=False)
+            self.memory_bytes -= bars.size
 
     def bind(self, tables: dict, mode: int, clock: Mapping | None, *, reset: bool) -> None:
         context = mode, repr(clock)
@@ -162,9 +221,7 @@ class ResultPlotCache:
             size,
         )
         self.memory_bytes += size
-        while len(self._entries) > self.MAX_ENTRIES or self.memory_bytes > self.MAX_BYTES:
-            _, previous = self._entries.popitem(last=False)
-            self.memory_bytes -= previous.size
+        self._trim()
 
     def restore(self, key: tuple, axes: Axes) -> bool:
         from .plotting import plot_bars

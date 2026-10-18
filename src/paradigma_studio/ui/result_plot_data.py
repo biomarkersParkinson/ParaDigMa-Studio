@@ -7,6 +7,8 @@ from ..epoch_profile import mean_epoch_profile
 from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
 from ..exploration import PARTICIPANT_COLUMNS
 from ..gait_presence import gait_epoch_summaries, gait_presence_intervals
+from ..result_plot_cache import ResultPlotCache
+from ..results_view import clock_times
 from ..workspace_state import ResultState
 
 PROFILE_VIEW = 3
@@ -17,8 +19,42 @@ def _is_tremor_power(name, metric):
 
 
 class ResultPlotData:
-    def __init__(self, results: ResultState) -> None:
+    def __init__(self, results: ResultState, cache: ResultPlotCache) -> None:
         self.results = results
+        self.cache = cache
+
+    def bar_coordinates(self, name: str, positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        from ..plotting import time_coordinates
+
+        starts, ends = self.results._bar_bounds[name]
+        left, right = self.cache.coordinates(
+            (name, "bars"),
+            (self.results._plot_tables[name], starts, ends, positions),
+            self.results.display_clock,
+            lambda: tuple(
+                time_coordinates(clock_times(values[positions], self.results.display_clock))
+                for values in (starts, ends)
+            ),
+        )
+        return left, right
+
+    def point_coordinates(self, name: str, positions: np.ndarray) -> np.ndarray:
+        from ..plotting import time_coordinates
+
+        timing = self.results._timings[name]
+        return self.cache.coordinates(
+            (name, "points"),
+            (self.results._plot_tables[name], timing, positions),
+            self.results.display_clock,
+            lambda: (
+                time_coordinates(
+                    clock_times(
+                        timing["Timeline time (s)"].to_numpy()[positions],
+                        self.results.display_clock,
+                    )
+                ),
+            ),
+        )[0]
 
     def gait_plot_presence(self):
         import pandas as pd
