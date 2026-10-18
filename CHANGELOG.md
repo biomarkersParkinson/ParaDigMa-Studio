@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep dense Results plots consistent during horizontal scrolling and after
+  release, so narrow gait bars remain visible. Preserve original values,
+  per-interval detail when zoomed in, missing gaps and full export geometry.
+
 - Reuse surviving Results plots when their shared time-axis owner is deselected.
   Paint only visible graphs after selection and horizontal scrolling; vertical
   scrolling reuses the existing bounded image and renders newly exposed graphs.

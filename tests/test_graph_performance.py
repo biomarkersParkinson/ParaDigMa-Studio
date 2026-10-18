@@ -87,11 +87,24 @@ def test_failed_render_does_not_discard_offscreen_data(monkeypatch):
     assert len(collection.get_paths()) == len(starts)
 
 
-def test_dense_scroll_preview_retains_peaks_gaps_and_long_intervals_then_restores_exact_pixels(
-    monkeypatch,
+def assert_dense_pixels_and_real_gap(canvas, axes):
+    rgb = np.asarray(canvas.buffer_rgba())[:, :, :3].astype(int)
+    colored = (rgb[:, :, 2] > rgb[:, :, 0] + 20) & (rgb[:, :, 1] > rgb[:, :, 0] + 10)
+    left, right = int(np.ceil(axes.bbox.x0)), int(np.floor(axes.bbox.x1))
+    top, bottom = rgb.shape[0] - int(axes.bbox.y1), rgb.shape[0] - int(axes.bbox.y0)
+    visible = colored[top:bottom]
+    assert np.count_nonzero(visible[:, left:right].any(axis=0)) > (right - left) * 0.8
+    gap = int(axes.transData.transform((55.0, 0.0))[0])
+    assert not visible[:, gap - 2 : gap + 3].any(), "Missing observations remain visibly empty"
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+def test_dense_rendering_retains_peaks_gaps_original_intervals_and_export_geometry(
+    monkeypatch, persistent
 ):
     figure = Figure(figsize=(8, 3), dpi=100)
     canvas = FigureCanvasAgg(figure)
+    canvas._result_dense_display = persistent
     axes = figure.add_subplot()
     starts = np.arange(16000, dtype=float) / 100
     ends = starts + 0.01
@@ -117,6 +130,11 @@ def test_dense_scroll_preview_retains_peaks_gaps_and_long_intervals_then_restore
     canvas.time_scrolling = canvas.panning = True
     canvas.draw()
     preview = drawn[-1]
+    if persistent:
+        # A settled Results plot must retain the visible peaks/density of the
+        # moving plot, rather than rasterizing thin individual bars away.
+        np.testing.assert_array_equal(canvas.buffer_rgba(), reference)
+        assert_dense_pixels_and_real_gap(canvas, axes)
     assert 0 < len(preview) <= np.ceil(axes.bbox.width) + 1
     assert preview[:, :, 1].max() == 900 and preview[:, :, 1].min() == -700
     assert any(np.array_equal(path, vertices[0]) for path in preview)
@@ -129,6 +147,12 @@ def test_dense_scroll_preview_retains_peaks_gaps_and_long_intervals_then_restore
     canvas.time_scrolling = canvas.panning = False
     canvas.draw()
     np.testing.assert_array_equal(canvas.buffer_rgba(), reference)
+    axes.set_xlim(40.0, 41.0)
+    canvas.draw()
+    resolved = [path for path in vertices if path[:, 0].max() >= 40.0 and path[:, 0].min() <= 41.0]
+    np.testing.assert_array_equal(drawn[-1], resolved)
+    assert collection.get_paths() is original
+    axes.set_xlim(0, 160)
     canvas.time_scrolling = canvas.panning = True
 
     def fail(*_):

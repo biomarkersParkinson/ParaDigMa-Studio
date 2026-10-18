@@ -145,6 +145,9 @@ between-file gaps. Scientific timestamps remain unchanged. ParaDigMa's internal
 Continuous outputs use individual bars at the output update cadence, with gaps for
 missing or non-finite measurements. Actual zero values remain visible at the baseline.
 No interpolation connects values across missing outputs or recording sections.
+When many bars fit inside one screen pixel, the plot combines their extents to
+keep peaks and density visible both while scrolling and at rest. Zoom in to
+resolve individual bars. Original tables and exports retain all values and intervals.
 Gait arm-swing positions are evenly spaced bin midpoints within the official segment
 start/end, with bars confined to those bins. Timing details and sensor context identify them as **Estimated**;
 unknown segment boundaries leave timing unavailable. Values and aggregates stay exact.

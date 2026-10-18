@@ -124,7 +124,7 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
     QApplication.instance().processEvents()
     assert not canvas.panning and figure in executions
     assert 0 < len(set(drawn)) < len(figure.axes)
-    # Release still restores full precision and normal layout. It no longer
+    # Release retains normal layout and the same display-resolution density. It no longer
     # rasterizes offscreen axes; compare every visible pixel to a full render.
     released = np.asarray(canvas.buffer_rgba()).copy()
     figure.set_layout_engine("none")
@@ -345,7 +345,7 @@ def test_interval_drag_never_redraws_graphs_even_without_an_overlay_background(
 
 
 @pytest.mark.parametrize("control", ["scrollbar", "trackpad"])
-def test_dense_horizontal_navigation_bounds_render_work_and_restores_full_bars(
+def test_dense_horizontal_navigation_keeps_display_density_and_exports_original_bars(
     window, monkeypatch, control
 ):
     from matplotlib.collections import PolyCollection
@@ -393,10 +393,93 @@ def test_dense_horizontal_navigation_bounds_render_work_and_restores_full_bars(
     counts.clear()
     bar.finish_gesture()
     QApplication.instance().processEvents()
-    assert not canvas.time_scrolling and counts and max(counts) > axes.bbox.width * 2
+    assert not canvas.time_scrolling and counts and max(counts) <= np.ceil(axes.bbox.width)
     assert not canvas._scroll_y_ticks
+    assert len(collection.get_paths()) == len(frame)
+    counts.clear()
+    destination = BytesIO()
+    window.figure.savefig(destination, format="png")
+    assert destination.getvalue().startswith(b"\x89PNG")
+    low, high = sorted(axes.get_xlim())
+    visible = sum(
+        path.vertices[:, 0].max() >= low and path.vertices[:, 0].min() <= high
+        for path in collection.get_paths()
+    )
+    assert counts and max(counts) == visible > axes.bbox.width * 2
     pd.testing.assert_frame_equal(
         window._result_state.tables["quantifications/pulse_rate"], original
+    )
+
+
+def dense_gait_plot(window, metric, pixel_ratio):
+    samples = np.arange(20000.0)
+    values = 30 + 15 * np.sin(samples / 30)
+    values[2000:3000] = np.nan
+    frame = pd.DataFrame({"gait_segment_nr": np.repeat([1, 2], 10000), metric: values})
+    metadata = {
+        1: {"start_s": 0.0, "end_s": 36000.0, "duration_s": 36000.0},
+        2: {"start_s": 48000.0, "end_s": 120000.0, "duration_s": 72000.0},
+    }
+    window.analyzed(
+        {
+            "quantifications": {"gait": {"unfiltered": frame}},
+            "metadata": {"gait": {"unfiltered": {"per_segment": metadata}}},
+        }
+    )
+    window.result_tabs.setCurrentIndex(1)
+    window.canvas._set_device_pixel_ratio(pixel_ratio)
+    window.plot_toolbar._actions["zoom_in"].trigger()
+    QApplication.instance().processEvents()
+    axes = window.figure.axes[0]
+    axes.set_ylim(0, 50)
+    window.canvas.draw()
+    return frame, axes
+
+
+@pytest.mark.parametrize("metric", ["range_of_motion", "peak_velocity"])
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+@pytest.mark.parametrize("control", ["scrollbar", "trackpad"])
+def test_detailed_gait_density_is_identical_during_and_after_horizontal_scrolling(
+    window, metric, pixel_ratio, control
+):
+    frame, axes = dense_gait_plot(window, metric, pixel_ratio)
+    original = frame.copy(deep=True)
+    collection = next(item for item in axes.collections if isinstance(item, ViewportPolyCollection))
+    paths = collection.get_paths()
+    vertices = np.array([path.vertices.copy() for path in paths])
+    canvas, bar = window.canvas, window.result_time_scroll
+    if control == "scrollbar":
+        bar.setSliderDown(True)
+        bar.setValue(bar.maximum() // 3)
+    else:
+        event = QWheelEvent(
+            QPointF(30, 30),
+            QPointF(30, 30),
+            QPoint(-120, 0),
+            QPoint(),
+            Qt.NoButton,
+            Qt.NoModifier,
+            Qt.ScrollUpdate,
+            False,
+        )
+        QApplication.sendEvent(canvas, event)
+        assert event.isAccepted()
+    QApplication.instance().processEvents()
+    assert canvas.time_scrolling
+    limits = axes.get_xlim()
+    moving = np.asarray(canvas.buffer_rgba()).copy()
+    bar.finish_gesture()
+    QApplication.instance().processEvents()
+    assert not canvas.time_scrolling and axes.get_xlim() == limits
+    stopped = np.asarray(canvas.buffer_rgba()).copy()
+    height = moving.shape[0]
+    left, right = int(np.ceil(axes.bbox.x0)) + 1, int(np.floor(axes.bbox.x1)) - 1
+    top, bottom = height - int(np.floor(axes.bbox.y1)) + 1, height - int(np.ceil(axes.bbox.y0)) - 1
+    np.testing.assert_array_equal(moving[top:bottom, left:right], stopped[top:bottom, left:right])
+    assert collection.get_paths() is paths
+    np.testing.assert_array_equal([path.vertices for path in paths], vertices)
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/gait/unfiltered"], original
     )
 
 

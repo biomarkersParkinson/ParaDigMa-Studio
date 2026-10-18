@@ -25,9 +25,10 @@
   Removing the shared time-axis owner retains the remaining axes, paths and
   per-graph settings. Results scrollbar drags and horizontal trackpad gestures
   reuse settled axes, tick positions and measured date-label widths. Ordered
-  intervals use indexed viewport lookup. Dense scrolling previews retain
-  pixel-column minima/maxima, gaps and long intervals; the full bars return when movement stops, and exports
-  always use original bars. Painting also skips offscreen plots after selection
+  intervals use indexed viewport lookup. Dense Results plots retain pixel-column
+  minima/maxima, gaps and long intervals both while moving and at rest, so narrow
+  bars do not disappear on release. Zooming resolves individual intervals, and
+  exports always use original bars. Painting skips offscreen plots after selection
   and when a horizontal gesture ends. Vertical scrolling extends the existing
   static image with newly exposed plots; revisiting painted plots needs no new
   rasterization while limits and layout stay unchanged. This shares the row
@@ -69,6 +70,28 @@ These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## Detailed gait density correction — 18 October 2026
+
+The moving plot used a pixel-column envelope while the settled plot drew each
+original rectangle. At multi-day scales, subpixel gait bars could disappear in
+the settled raster image even though every original output was still present.
+The Results canvas now requests the same dense display at rest and while moving.
+Only bars narrower than a physical display pixel enter the envelope; larger
+intervals stay intact. Zoomed plots and exports retain original bar geometry.
+Raw and sensor-context canvases keep their existing rendering.
+
+Regression tests use gait range of motion and peak velocity without timestamps,
+positioned from official-style segment metadata, with both scrollbar and trackpad
+gestures at two display scales. They compare moving/stopped pixels exactly.
+Additional checks cover visible density, positive/negative peaks, missing gaps,
+long intervals, zoomed individual bars, original tables/paths and complete exports.
+A 900×300 synthetic reproduction retained 629 colored columns while moving but
+only 140 at rest; the correction retained 629 in every state with the same 27,000
+original finite intervals. A source-app benchmark (Linux/Fusion/offscreen,
+six graphs × 30,000 values, three eight-update gestures) measured wide-scroll
+release at 490 ms before and 221 ms after. Continuous updates were 75–80 ms;
+these timings describe this synthetic check and do not predict Windows behavior.
 
 ## Results responsiveness check — 17 October 2026
 
@@ -207,8 +230,10 @@ offscreen measurements; Windows timings depend on the display and data.
 
 A warm three-repeat scrollbar benchmark on the same six graphs (eight updates
 per drag, normal pixel density) measured 0.62 s → 0.10 s per update for a wide
-view and 0.11 s → 0.057 s when zoomed in. The wide view uses a temporary
-peak-preserving preview; stopping and exporting retain the full original bars.
+view and 0.11 s → 0.057 s when zoomed in. That version used a temporary
+peak-preserving preview and restored individual bars on release. The density
+correction above now keeps a consistent pixel envelope on screen; exports
+continue to retain every original bar.
 
 An isolated Linux loading check on 14 October 2026 compared these changes with
 commit `7ed2988` using a synthetic 24-hour, 100 Hz TSDF recording (8,640,000 rows,

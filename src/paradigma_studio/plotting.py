@@ -67,11 +67,15 @@ class ViewportPolyCollection(PolyCollection):
             np.diff(self._ends) >= 0
         ).all()
 
-    def _scroll_preview(self, visible):
+    def _pixel_envelope(self, visible):
         if self.axes is None or self.axes.get_xscale() != "linear":
             return None
         canvas = self.get_figure(root=True).canvas
-        if not getattr(canvas, "time_scrolling", False) or not canvas.panning or canvas.is_saving():
+        if canvas.is_saving() or not (
+            getattr(canvas, "_result_dense_display", False)
+            or getattr(canvas, "time_scrolling", False)
+            and canvas.panning
+        ):
             return None
         left = self._starts if visible is None else self._starts[visible]
         right = self._ends if visible is None else self._ends[visible]
@@ -84,6 +88,8 @@ class ViewportPolyCollection(PolyCollection):
         short = right - left <= step
         if np.count_nonzero(short) < count / 2:
             return None
+        # Use the same envelope at rest and during Results navigation: individual
+        # subpixel rectangles can otherwise vanish when the gesture finishes.
         # Only intervals narrower than a physical pixel enter the envelope.
         # Longer intervals retain their original bounds, including real gaps.
         first = np.clip(np.floor((left[short] - low) / step).astype(int), 0, columns - 1)
@@ -125,8 +131,8 @@ class ViewportPolyCollection(PolyCollection):
                 draw_paths = draw_paths[visible]
             elif not visible.all():
                 draw_paths = [draw_paths[index] for index in np.flatnonzero(visible)]
-        preview = self._scroll_preview(visible)
-        self._paths = draw_paths if preview is None else preview
+        envelope = self._pixel_envelope(visible)
+        self._paths = draw_paths if envelope is None else envelope
         try:
             return super().draw(renderer)
         finally:

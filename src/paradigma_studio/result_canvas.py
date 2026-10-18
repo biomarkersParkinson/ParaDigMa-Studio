@@ -26,6 +26,9 @@ class ResultFigureCanvas(ScrollableFigureCanvas):
 
     zoom_rectangle = None
     time_scrolling = False
+    # Keep subpixel values visible in both moving and stationary Results plots.
+    # Collections retain every original interval; exports bypass this display path.
+    _result_dense_display = True
 
     def __init__(self, figure: Figure) -> None:
         super().__init__(figure)

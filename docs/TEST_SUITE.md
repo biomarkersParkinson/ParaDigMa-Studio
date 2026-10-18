@@ -55,6 +55,11 @@ mask missing viewport updates. Checks cover marker changes, unchanged-row reuse,
 cache invalidation, drawing failures and full exports. Shared-axis owner removal
 retains path identity, settings and navigation in all four views; clearing hidden
 results must release previously painted axes.
+Dense Detailed gait cases also compare moving and stopped pixels for range of
+motion and peak velocity using segment metadata, scrollbar/trackpad controls and
+both pixel ratios. Display density stays consistent after release; independent
+checks retain visible gaps, signed peaks, long intervals, original per-bar paths
+when zoomed and every original visible bar during export.
 
 Navigation tests build the eight-graph workspace only when they exercise shared
 or offscreen axes; dense single-graph cases start from an empty window. Setup
