@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.layout_engine import ConstrainedLayoutEngine
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -193,6 +193,9 @@ def _measure_first_creation(
                     window.clear_results()
                     window.close()
                     window.deleteLater()
+                    # processEvents alone does not service DeferredDelete when
+                    # a benchmark drives Qt without QApplication.exec().
+                    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
                     _drain_paints(app)
         report["first_creation"][name] = {
             "samples": samples,

@@ -84,6 +84,60 @@ models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
 
+## First graph creation check — 18 October 2026
+
+Paired processes compared `1027cef` with shared time-coordinate preparation and
+reduced native-layout work, using the extended creation benchmark. Linux/Fusion/
+offscreen, 1450×920, warm imports, identical dependencies and alternating process
+order; three fresh windows per view and no concurrent tests/builds. Prepared
+tables and the initialized workspace are outside the timers. A fresh selection
+renders all configured metrics except the last; its first label click then adds
+that unseen metric. The separate first-use probe measures deferred workspace
+construction, including imports.
+
+| Configured workload | View | Fresh selection, before → after | Unseen metric, before → after |
+| --- | --- | ---: | ---: |
+| Six graphs × 30,000 values | Detailed | 836 → 656 ms | 415 → 372 ms |
+| Six graphs × 150,000 values | Detailed | 2,303 → 1,869 ms | 714 → 540 ms |
+| Twelve graphs × 30,000 values | Detailed | 1,523 → 1,212 ms | 482 → 337 ms |
+| Six graphs, double scale, limits/timepoint visible | Detailed | 798 → 701 ms | 456 → 315 ms |
+| Six graphs × 150,000 values, double scale and controls | Detailed | 2,377 → 1,911 ms | 577 → 423 ms |
+| Twelve graphs × 30,000 values | 30-minute epochs | 595 → 461 ms | 396 → 280 ms |
+| Twelve graphs × 30,000 values | Day | 553 → 437 ms | 331 → 247 ms |
+| Recorded fixture, official gait outputs | Detailed | 291 → 279 ms | 219 → 202 ms |
+
+Unseen-metric medians improved by 6–31% across the measured views/workloads.
+Fresh-selection results were less uniform: some aggregate cases changed little,
+and one Day case was 8% slower. The 30% target was reached in some cases; dense
+Detailed fresh selections improved by about 19–21%. These small local samples
+do not establish Windows timing guarantees. Original bar construction remains
+unchanged and is still a substantial first-creation cost.
+
+Coordinates retain the existing conversion and nanosecond-rounding operations;
+tests compare their exact float bits over both DST transitions. In the
+150,000-value case the shared coordinate accounting was 2.29 MiB, inside the
+existing combined cache budget. First layouts retain the native solver and both
+of its passes; only redundant key measurement and safe repeated tick updates
+are skipped. Independent-render tests compare exact pixels and positions against
+the unmodified native solver, including missing-data messages, mixed binary and
+signed graphs, scientific offsets, multiline labels and both display scales.
+Full figure exports use unmodified native layout and original bar paths. Source
+table hashes remained unchanged in every measured run.
+
+Fresh-process empty Results workspace medians were 395→393 ms at normal scale
+and 417→413 ms at double scale: this pass does not establish a startup gain.
+A separate allocation-traced six-by-30,000 check measured Detailed creation at
+64.0→62.1 MiB peak traced Python allocations and unseen-metric creation at
+15.8→15.1 MiB. Aggregate allocation peaks were essentially unchanged. These
+measurements exclude some native Qt/renderer memory; their traced timings are
+not used for the latency comparison above.
+
+Supplementary alternating-order process pairs checked repeated selection on six
+30,000-value graphs (ten clicks per operation/view). Warm re-selection medians
+were 136→140 ms in Detailed, 119→107 ms in 30-minute, 86→87 ms in Day and
+104→104 ms in Profile. These controls retain the earlier responsiveness scale;
+first-creation gains are reported separately above.
+
 ## Plot-series selection check — 18 October 2026
 
 Paired processes compared `d9ca122` with validated layout reuse, bounded original
