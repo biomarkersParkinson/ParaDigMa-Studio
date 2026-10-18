@@ -1,8 +1,77 @@
 """Stable Results plot columns with automatic vertical spacing."""
 
 from collections import OrderedDict
+from contextlib import contextmanager
 
 from matplotlib.layout_engine import ConstrainedLayoutEngine
+from matplotlib.ticker import NullFormatter, NullLocator, ScalarFormatter
+
+
+def _layout_tick_update(axis):
+    original = axis._update_ticks
+    last = []
+
+    def update():
+        # Shared locators can belong to another row. Native layout repositions
+        # all rows between its two passes; both geometries must invalidate reuse.
+        owners = [axis, axis.get_major_locator().axis, axis.get_minor_locator().axis]
+        key = tuple(
+            (tuple(owner.get_view_interval()), tuple(owner.axes.bbox.bounds)) for owner in owners
+        )
+        if not last or last[0] != key:
+            last[:] = [key, original()]
+        return last[1]
+
+    return update
+
+
+def _cacheable_ticks(axis):
+    if axis is axis.axes.yaxis:
+        # Numeric Y formatters belong to one row, so another row cannot change
+        # their offset state between two calls with identical geometry.
+        return axis.get_scale() == "linear" and all(
+            getattr(axis, f"get_{which}_locator")().axis is axis
+            and getattr(axis, f"get_{which}_formatter")().axis is axis
+            and isinstance(
+                getattr(axis, f"get_{which}_formatter")(), (ScalarFormatter, NullFormatter)
+            )
+            for which in ("major", "minor")
+        )
+    return not (
+        axis.label.get_visible()
+        or axis.offsetText.get_visible()
+        or any(
+            tick.label1.get_visible() or tick.label2.get_visible()
+            for which in ("major", "minor")
+            if not isinstance(getattr(axis, f"get_{which}_locator")(), NullLocator)
+            for tick in getattr(axis, f"{which}Ticks")
+        )
+    )
+
+
+@contextmanager
+def _reuse_layout_ticks(figure):
+    """Memoize only during a native solve, never during painting or export."""
+    missing = object()
+    saved = []
+    try:
+        for axes in figure.axes:
+            if not hasattr(axes, "_paradigma_dataset"):
+                continue
+            for axis in (axes.xaxis, axes.yaxis):
+                if not _cacheable_ticks(axis):
+                    continue
+                saved.append((axis, vars(axis).get("_update_ticks", missing)))
+                # The pinned Matplotlib version exposes no public per-layout
+                # tick cache. Restore this scoped adapter even on failure.
+                axis._update_ticks = _layout_tick_update(axis)
+        yield
+    finally:
+        for axis, previous in saved:
+            if previous is missing:
+                del axis._update_ticks
+            else:
+                axis._update_ticks = previous
 
 
 class ResultLayoutEngine(ConstrainedLayoutEngine):
@@ -36,7 +105,10 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
         ):
             return None
         axes = tuple(self._axes_key(ax) for ax in figure.axes)
-        return tuple(figure.get_size_inches()), figure.dpi, tuple(sorted(self.get().items())), axes
+        return (*self._geometry_key(figure), axes)
+
+    def _geometry_key(self, figure):
+        return tuple(figure.get_size_inches()), figure.dpi, tuple(sorted(self.get().items()))
 
     def _axes_key(self, ax):
         spec = ax.get_subplotspec()
@@ -152,7 +224,12 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
         return tuple(groups), self._text_key(axis.offsetText)
 
     def execute(self, figure):
-        key = None if figure.canvas.is_saving() else self._layout_key(figure)
+        screen = not figure.canvas.is_saving()
+        geometry = self._geometry_key(figure)
+        candidate = screen and any(
+            key[:3] == geometry and len(key[3]) == len(figure.axes) for key in self._positions
+        )
+        key = self._layout_key(figure) if candidate else None
         cached = self._positions.get(key) if key is not None else None
         if cached is not None:
             self._positions.move_to_end(key)
@@ -160,7 +237,7 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
                 axes.set_position(position)
                 axes.set_in_layout(True)
             return None
-        layout = super().execute(figure)
+        layout = self._native_layout(figure)
         width = figure.get_figwidth()
         left = self.LEFT_MARGIN_INCHES / width
         right = 1 - self.RIGHT_MARGIN_INCHES / width
@@ -172,11 +249,18 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
             # set_position opts out of layout by default. Retain automatic
             # heading/row spacing on the next draw and in saved figures.
             axes.set_in_layout(True)
-        if key is not None:
+        if screen:
             # Tick creation and offset formatting may settle during the solve.
             key = self._layout_key(figure)
-            self._positions[key] = tuple(ax.get_position().bounds for ax in figure.axes)
-            self._positions.move_to_end(key)
-            while len(self._positions) > self.MAX_LAYOUTS:
-                self._positions.popitem(last=False)
+            if key is not None:
+                self._positions[key] = tuple(ax.get_position().bounds for ax in figure.axes)
+                self._positions.move_to_end(key)
+                while len(self._positions) > self.MAX_LAYOUTS:
+                    self._positions.popitem(last=False)
         return layout
+
+    def _native_layout(self, figure):
+        if figure.canvas.is_saving():
+            return super().execute(figure)
+        with _reuse_layout_ticks(figure):
+            return super().execute(figure)

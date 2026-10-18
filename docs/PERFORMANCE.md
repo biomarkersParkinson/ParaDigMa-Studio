@@ -31,6 +31,10 @@
   always solve their complete layout, and unsupported screen layouts fall back
   to the native solver. Rapid toggles coalesce paints without delaying selection
   signals; the pinned time ruler paints after the final graph draw.
+  Fresh layouts skip detailed cache-key measurement when no stored shape can
+  match. Within a native screen-layout solve, safe tick updates are reused until
+  limits or row/locator geometry changes. The adapter is removed before painting
+  and on errors; figure exports retain the unmodified native solver.
   Removing the shared time-axis owner retains the remaining axes, paths and
   per-graph settings. Results scrollbar drags and horizontal trackpad gestures
   reuse settled axes, tick positions and measured date-label widths. Ordered

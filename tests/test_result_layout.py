@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication
 
@@ -200,3 +201,144 @@ def test_layout_and_text_caches_evict_old_geometry_and_release_all_entries():
     figure.set_layout_engine(ResultLayoutEngine())
     canvas.draw()
     np.testing.assert_array_equal(canvas.buffer_rgba(), pixels)
+
+
+@pytest.mark.parametrize("view", range(4))
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+def test_first_layout_tick_reuse_matches_unmodified_native_solver(
+    window, view, pixel_ratio, monkeypatch
+):
+    from matplotlib.axis import Axis
+
+    class NativeResultsLayout(ResultLayoutEngine):
+        def _native_layout(self, figure):
+            return ConstrainedLayoutEngine.execute(self, figure)
+
+    times = np.arange(0, 3 * 86400, 60.0)
+    window._result_state.provenance = {
+        "display_clock": {"origin": "2026-10-24T00:00+02:00", "timezone": "Europe/Amsterdam"}
+    }
+    window.analyzed(
+        {
+            "classifications": {
+                "tremor": pd.DataFrame({"time": times, "pred_tremor_checked": times % 120 == 0})
+            },
+            "quantifications": {
+                "tremor": pd.DataFrame(
+                    {
+                        "time": times,
+                        "positive": 2 + np.sin(times / 2000),
+                        "signed": np.linspace(-20000, 20000, len(times)),
+                        "missing": np.nan,
+                    }
+                )
+            },
+        }
+    )
+    window.result_tabs.setCurrentIndex(1)
+    window.result_series.blockSignals(True)
+    for item in window._result_state._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_series.blockSignals(False)
+    window.result_graph_view.setCurrentIndex(view)
+    window.plot()
+    window.canvas._set_device_pixel_ratio(pixel_ratio)
+    window.figure.axes[1].set_ylim(-1e8, 1e8)
+    window.figure.axes[1].set_ylabel("Manual\nmultiline label")
+    calls = {"x": [], "y": []}
+    original = Axis._update_ticks
+
+    def update(axis):
+        if axis.axes.figure is window.figure:
+            calls[axis.axis_name].append(axis)
+        return original(axis)
+
+    monkeypatch.setattr(Axis, "_update_ticks", update)
+    window.figure.set_layout_engine(ResultLayoutEngine())
+    window.canvas.draw()
+    pixels = np.asarray(window.canvas.buffer_rgba()).copy()
+    positions = [ax.get_position().bounds for ax in window.figure.axes]
+    optimized = {name: len(values) for name, values in calls.items()}
+    calls = {"x": [], "y": []}
+    window.figure.set_layout_engine(NativeResultsLayout())
+    window.canvas.draw()
+    np.testing.assert_array_equal(window.canvas.buffer_rgba(), pixels)
+    np.testing.assert_allclose(
+        [ax.get_position().bounds for ax in window.figure.axes], positions, atol=1e-12
+    )
+    assert all(optimized[name] < len(calls[name]) for name in ("x", "y"))
+    assert all(
+        "_update_ticks" not in vars(axis)
+        for ax in window.figure.axes
+        for axis in (ax.xaxis, ax.yaxis)
+    )
+
+
+def test_impossible_layout_cache_shape_skips_preflight_measurements(monkeypatch):
+    engine = ResultLayoutEngine()
+    figure = Figure(figsize=(7, 4), layout=engine)
+    canvas = FigureCanvasAgg(figure)
+    figure.add_subplot().plot([0, 1], [0, 1])
+    events = []
+    key = engine._layout_key
+    solve = ConstrainedLayoutEngine.execute
+    monkeypatch.setattr(engine, "_layout_key", lambda fig: (events.append("key"), key(fig))[1])
+    monkeypatch.setattr(
+        ConstrainedLayoutEngine,
+        "execute",
+        lambda self, fig: (events.append("native"), solve(self, fig))[1],
+    )
+    canvas.draw()
+    assert events == ["native", "key"]
+    events.clear()
+    canvas.draw()
+    assert events == ["key"]
+    events.clear()
+    figure.set_size_inches(8, 5)
+    canvas.draw()
+    assert events == ["native", "key"]
+
+
+def test_layout_tick_adapter_restores_original_override_after_failure(monkeypatch):
+    engine = ResultLayoutEngine()
+    figure = Figure(figsize=(7, 4), layout=engine)
+    FigureCanvasAgg(figure)
+    axes = figure.add_subplot()
+    axes._paradigma_dataset = "dataset"
+    axes.tick_params(axis="x", which="both", labelbottom=False, labeltop=False)
+    axes.xaxis.label.set_visible(False)
+    axes.xaxis.offsetText.set_visible(False)
+    original = axes.xaxis._update_ticks
+    calls = []
+
+    def override():
+        calls.append(True)
+        return original()
+
+    axes.xaxis._update_ticks = override
+
+    def fail(self, fig):
+        assert axes.xaxis._update_ticks() is axes.xaxis._update_ticks()
+        raise RuntimeError("layout failed")
+
+    monkeypatch.setattr(ConstrainedLayoutEngine, "execute", fail)
+    with pytest.raises(RuntimeError, match="layout failed"):
+        canvas = figure.canvas
+        canvas.draw()
+    assert axes.xaxis._update_ticks is override and len(calls) == 1
+
+
+def test_export_uses_unmodified_native_layout_even_for_hidden_results_ticks(monkeypatch):
+    import paradigma_studio.result_layout as layout
+
+    figure = Figure(figsize=(4, 3), layout=ResultLayoutEngine())
+    FigureCanvasAgg(figure)
+    axes = figure.add_subplot()
+    axes._paradigma_dataset = "dataset"
+    axes.tick_params(axis="x", which="both", labelbottom=False, labeltop=False)
+    axes.xaxis.label.set_visible(False)
+    axes.xaxis.offsetText.set_visible(False)
+    monkeypatch.setattr(
+        layout, "_layout_tick_update", lambda axis: pytest.fail("Export memoized ticks")
+    )
+    figure.savefig(BytesIO(), format="png", dpi=600)
