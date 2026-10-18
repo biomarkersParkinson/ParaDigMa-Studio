@@ -64,8 +64,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
       - run: python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json
-      - name: Measure dense graph selection at double display scale
-        run: python scripts/benchmark_pan.py --selection-only --rows 150000 --pixel-ratio 2 --with-controls --report build-reports/selection-performance.json
+      - name: Measure first graph creation at double display scale
+        run: python scripts/benchmark_pan.py --first-creation-only --rows 150000 --pixel-ratio 2 --with-controls --report build-reports/creation-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Save benchmark reports separately

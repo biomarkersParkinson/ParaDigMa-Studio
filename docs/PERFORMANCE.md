@@ -332,12 +332,21 @@ repeated clicks; hardware timings remain diagnostic, not strict CI limits.
 saved results, including gait metrics without individual timestamps. Reports
 also include the bounded cache's retained-geometry accounting after each click.
 
+Use `--first-creation-only --repeats 3` to measure fresh graph selections in
+each view, followed by a label click on a previously unseen metric. Each sample
+uses a fresh window; prepared tables and the initialized workspace are outside
+the timers, and display caches are cleared before the first selection. The
+unseen metric can reuse preparation shared by the other metrics in its dataset.
+The same rows/graphs, saved-results, display-scale and controls options apply.
+`--allocations` adds peak traced Python allocations in a separate diagnostic
+run; it changes timings and does not measure all native Qt/renderer memory.
+
 | Report | Measures |
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
 | `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
 | `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw toolbar drags and queued painting |
-| `selection-performance.json` | Dense Plot series label clicks at double display scale, first/repeated latency, layout/paint counts and retained geometry |
+| `creation-performance.json` | Fresh selections and unseen metric clicks at double display scale, first-view/metric latency, layout/paint counts and retained caches |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 
 Both Windows workflows publish these files in the separate
@@ -354,8 +363,11 @@ Two additional source benchmarks are available for manual comparisons:
 ```
 
 The first-use probe starts without plotting or scientific imports, measures the
-first graph opening and checks canvas reuse through 120 page changes. The processing
-probe uses temporary synthetic files, including a 24-hour TSDF recording, and the
+first graph opening and checks canvas reuse through 120 page changes. It accepts
+`--repeats 3` for independent subprocess
+samples and `--pixel-ratio 2` for the second scale. It reports workspace opening
+and the first explicit scaled draw separately from populated-metric creation.
+The processing probe uses temporary synthetic files, including a 24-hour TSDF recording, and the
 recorded scientific fixture under `tests/data/paradigma`. It measures complete
 loading/statistics, single/two-recording gait and tremor processing, and a
 600,000-row saved-run round trip. It verifies unchanged inputs and output digests

@@ -7,6 +7,7 @@ import platform
 import statistics
 import tempfile
 import time
+import tracemalloc
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
@@ -33,6 +34,8 @@ def benchmark(
     pixel_ratio=1,
     with_controls=False,
     results_path=None,
+    first_creation_only=False,
+    allocations=False,
 ):
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
@@ -45,6 +48,20 @@ def benchmark(
         "repeats": repeats,
         "measurements": {},
     }
+    if first_creation_only:
+        _measure_first_creation(
+            app,
+            report,
+            rows,
+            graphs,
+            repeats,
+            pixel_ratio,
+            with_controls,
+            results_path,
+            allocations,
+        )
+        _write_report(report_path, report)
+        return
     with tempfile.TemporaryDirectory(prefix="paradigma-pan-review-") as directory:
         window = MainWindow(Path(directory) / "runs")
         window.resize(1450, 920)
@@ -134,6 +151,97 @@ def _write_report(report_path, report):
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
+def _measure_first_creation(
+    app, report, rows, graphs, repeats, pixel_ratio, with_controls, results_path, allocations
+):
+    report["creation_conditions"] = {
+        "rows": rows,
+        "graphs": graphs,
+        "pixel_ratio": pixel_ratio,
+        "limits_and_timepoint": with_controls,
+        "input": str(results_path) if results_path else "synthetic",
+        "allocation_tracing": allocations,
+        "scope": "Fresh window per sample; warm imports. Prepared tables and graph workspace outside timers; display caches cleared before first view. Last metric excluded until its first label click. Allocation tracing requires a separate diagnostic run.",
+    }
+    report["first_creation"] = {}
+    for mode, name in enumerate(("detailed", "30-minute", "day", "profile")):
+        samples = []
+        for _ in range(repeats):
+            with tempfile.TemporaryDirectory(prefix="paradigma-first-graph-") as directory:
+                window = MainWindow(Path(directory) / "runs")
+                try:
+                    window.resize(1450, 920)
+                    window.show()
+                    _prepare_result_scroll(
+                        window,
+                        rows=rows,
+                        graphs=graphs,
+                        select_all=False,
+                        results_path=results_path,
+                    )
+                    last = _prepare_first_view(window, mode, pixel_ratio, with_controls)
+                    original = _table_signatures(window)
+                    view = _measure_graph_operation(app, window, window.plot, allocations)
+                    if mode == 3 and with_controls:
+                        _set_profile_marker(window)
+                        _drain_paints(app)
+                    metric = _measure_series_click(app, window, last, allocations)
+                    if _table_signatures(window) != original:
+                        raise AssertionError("First graph creation changed result values")
+                    samples.append({"view": view, "metric": metric})
+                finally:
+                    window.clear_results()
+                    window.close()
+                    window.deleteLater()
+                    _drain_paints(app)
+        report["first_creation"][name] = {
+            "samples": samples,
+            **{
+                operation: {
+                    "median_seconds": statistics.median(s[operation]["seconds"] for s in samples),
+                    "p95_seconds": float(
+                        np.percentile([s[operation]["seconds"] for s in samples], 95)
+                    ),
+                }
+                for operation in ("view", "metric")
+            },
+        }
+        print(
+            f"{name}: {report['first_creation'][name]['metric']['median_seconds']:.4f} s/first metric",
+            flush=True,
+        )
+    report["source_values_unchanged"] = True
+
+
+def _prepare_first_view(window, mode, pixel_ratio, with_controls):
+    items = list(window._result_state._series_items.values())
+    if len(items) < 2:
+        raise ValueError("First creation needs at least two plottable metrics")
+    last = items[-1]
+    window.result_series.blockSignals(True)
+    for item in items:
+        item.setCheckState(0, Qt.Unchecked if item is last else Qt.Checked)
+    window.result_series.blockSignals(False)
+    window.result_graph_view.blockSignals(True)
+    window.result_graph_view.setCurrentIndex(mode)
+    window.result_graph_view.blockSignals(False)
+    window.canvas._set_device_pixel_ratio(pixel_ratio)
+    window.time_axis._set_device_pixel_ratio(pixel_ratio)
+    if with_controls:
+        model = window.result_table.model()
+        window.result_table.setCurrentIndex(model.index(model.rowCount() // 2, 0))
+        window.plot_toolbar.settings_action.setChecked(True)
+    _drain_paints(QApplication.instance())
+    window._result_state._plot_signature = None
+    window._result_state._epoch_views.clear()
+    window._result_state._epoch_presence_views.clear()
+    window._result_state._gait_presence_cache = None
+    window._result_state._gait_epoch_cache = None
+    window._graph_state._result_plot_cache.clear()
+    window.canvas.clear_layout_cache()
+    return last
+
+
 def _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames):
     frame_times, release_times = [], []
     if not toolbar._actions["pan"].isChecked():
@@ -209,18 +317,8 @@ def _measure_result_selection(app, report, window, repeats):
         _drain_paints(app)
         first = _measure_series_click(app, window, last)
         if mode == 3 and window.plot_toolbar.settings_action.isChecked():
-            axis = window.figure.axes[0]
-            summary = axis._paradigma_epoch_data
-            valid = summary.loc[np.isfinite(summary.value)]
-            if len(valid):
-                x = float((valid.start_s.iloc[0] + valid.end_s.iloc[0]) / 2)
-                window._result_state._profile_selection = (
-                    axis._paradigma_dataset,
-                    axis._paradigma_metric,
-                    x,
-                )
-                window.highlight_result_row()
-                _drain_paints(app)
+            _set_profile_marker(window)
+            _drain_paints(app)
         removals, additions, retained, draws = [], [], [], []
         for _ in range(repeats):
             window.result_series.blockSignals(True)
@@ -272,16 +370,46 @@ def _table_signatures(window):
     }
 
 
+def _set_profile_marker(window):
+    for axis in window.figure.axes:
+        summary = axis._paradigma_epoch_data
+        valid = summary.loc[np.isfinite(summary.value)]
+        if len(valid):
+            x = float((valid.start_s.iloc[0] + valid.end_s.iloc[0]) / 2)
+            window._result_state._profile_selection = (
+                axis._paradigma_dataset,
+                axis._paradigma_metric,
+                x,
+            )
+            window.highlight_result_row()
+            return
+
+
 def _drain_paints(app):
     for _ in range(3):
         app.processEvents()
 
 
-def _measure_series_click(app, window, item):
+def _measure_series_click(app, window, item, allocations=False):
     tree = window.result_series
     tree.scrollToItem(item)
     _drain_paints(app)
     rect = tree.visualItemRect(item)
+    before = item.checkState(0)
+    measured = _measure_graph_operation(
+        app,
+        window,
+        lambda: QTest.mouseClick(
+            tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 55, rect.center().y())
+        ),
+        allocations,
+    )
+    if item.checkState(0) == before:
+        raise RuntimeError("Plot-series label click did not change selection")
+    return measured
+
+
+def _measure_graph_operation(app, window, operation, allocations=False):
     counts = {"main_draws": 0, "ruler_draws": 0, "full_layouts": 0}
 
     def count(name):
@@ -289,7 +417,8 @@ def _measure_series_click(app, window, item):
 
     main = window.canvas.mpl_connect("draw_event", lambda event: count("main_draws"))
     ruler = window.time_axis.mpl_connect("draw_event", lambda event: count("ruler_draws"))
-    before = item.checkState(0)
+    if allocations:
+        tracemalloc.start()
     started = time.perf_counter()
     execute = ConstrainedLayoutEngine.execute
 
@@ -300,20 +429,20 @@ def _measure_series_click(app, window, item):
 
     try:
         with patch.object(ConstrainedLayoutEngine, "execute", solve):
-            QTest.mouseClick(
-                tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 55, rect.center().y())
-            )
+            operation()
             _drain_paints(app)
         elapsed = time.perf_counter() - started
-        if item.checkState(0) == before:
-            raise RuntimeError("Plot-series label click did not change selection")
         cache = getattr(window._graph_state, "_result_plot_cache", None)
         return {
             "seconds": elapsed,
             **counts,
             "retained_geometry_bytes": getattr(cache, "memory_bytes", 0),
+            "retained_coordinate_bytes": getattr(cache, "coordinate_bytes", 0),
+            "peak_traced_bytes": tracemalloc.get_traced_memory()[1] if allocations else None,
         }
     finally:
+        if allocations:
+            tracemalloc.stop()
         window.canvas.mpl_disconnect(main)
         window.time_axis.mpl_disconnect(ruler)
 
@@ -404,18 +533,25 @@ def _synthetic_pan_sensors():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--selection-only", action="store_true")
+    scenario = parser.add_mutually_exclusive_group()
+    scenario.add_argument("--selection-only", action="store_true")
+    scenario.add_argument("--first-creation-only", action="store_true")
+    parser.add_argument(
+        "--allocations", action="store_true", help="Separate allocation diagnostic; affects timings"
+    )
     parser.add_argument("--rows", type=int, default=30000)
     parser.add_argument("--graphs", type=int, default=6)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--pixel-ratio", type=int, choices=(1, 2), default=1)
     parser.add_argument("--with-controls", action="store_true")
     parser.add_argument(
-        "--results", type=Path, help="Saved results JSON; requires --selection-only"
+        "--results", type=Path, help="Saved results JSON; requires a selection/creation scenario"
     )
     args = parser.parse_args()
-    if args.results is not None and not args.selection_only:
-        parser.error("--results requires --selection-only")
+    if args.results is not None and not (args.selection_only or args.first_creation_only):
+        parser.error("--results requires --selection-only or --first-creation-only")
+    if args.allocations and not args.first_creation_only:
+        parser.error("--allocations requires --first-creation-only")
     if args.rows < 2 or args.graphs < 2 or args.repeats < 1:
         parser.error("Use at least two rows/graphs and one repeat")
     benchmark(
@@ -427,4 +563,6 @@ if __name__ == "__main__":
         pixel_ratio=args.pixel_ratio,
         with_controls=args.with_controls,
         results_path=args.results,
+        first_creation_only=args.first_creation_only,
+        allocations=args.allocations,
     )
