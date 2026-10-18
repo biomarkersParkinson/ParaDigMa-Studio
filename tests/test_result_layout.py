@@ -86,3 +86,65 @@ def test_fixed_results_label_column_scales_with_dpi_and_fits_signed_and_multilin
     assert measured and all(positions == pytest.approx(live_positions) for positions in measured)
     canvas.draw()
     assert [axes.bbox.x0 / figure.dpi for axes in figure.axes] == pytest.approx(live_positions)
+
+
+@pytest.mark.parametrize("dpi", [100, 200])
+def test_repeated_results_layout_reuses_geometry_and_matches_native_pixels(dpi, monkeypatch):
+    from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+    figure = Figure(figsize=(7, 6), dpi=dpi, layout=ResultLayoutEngine())
+    canvas = FigureCanvasAgg(figure)
+    for row in range(1, 4):
+        ax = style_axes(figure, position=(3, 1, row))
+        ax.plot([0, 1], [-20000, 20000])
+        ax.set_ylabel("Range of motion" if row == 1 else "Mean epoch\nmedian")
+        ax.set_title(f"Metric {row}", loc="left")
+    canvas.draw()
+    solves = []
+    original = ConstrainedLayoutEngine.execute
+
+    def solve(self, fig):
+        solves.append(fig)
+        return original(self, fig)
+
+    monkeypatch.setattr(ConstrainedLayoutEngine, "execute", solve)
+    canvas.draw()
+    actual = np.asarray(canvas.buffer_rgba()).copy()
+    assert not solves
+    figure.set_layout_engine(ResultLayoutEngine())
+    canvas.draw()
+    np.testing.assert_array_equal(canvas.buffer_rgba(), actual)
+    assert solves == [figure]
+
+
+@pytest.mark.parametrize("change", ["size", "dpi", "label", "ticks", "font", "export"])
+def test_layout_recalculates_for_changed_geometry_and_exports(change, monkeypatch):
+    from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+    figure = Figure(figsize=(7, 4), layout=ResultLayoutEngine())
+    canvas = FigureCanvasAgg(figure)
+    ax = style_axes(figure)
+    ax.plot([0, 1], [0, 1])
+    canvas.draw()
+    solves = []
+    original = ConstrainedLayoutEngine.execute
+    monkeypatch.setattr(
+        ConstrainedLayoutEngine,
+        "execute",
+        lambda self, fig: (solves.append(fig), original(self, fig))[1],
+    )
+    if change == "size":
+        figure.set_size_inches(8, 5)
+    elif change == "dpi":
+        figure.set_dpi(200)
+    elif change == "label":
+        ax.set_ylabel("Changed\nlabel")
+    elif change == "ticks":
+        ax.set_ylim(-20000, 20000)
+    elif change == "font":
+        ax.yaxis.label.set_fontsize(18)
+    else:
+        figure.savefig(BytesIO(), format="png", dpi=600)
+    if change != "export":
+        canvas.draw()
+    assert solves

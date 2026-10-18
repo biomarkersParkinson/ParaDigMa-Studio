@@ -156,7 +156,12 @@ class ResultFigureCanvas(ScrollableFigureCanvas):
                 )
 
     def finish_time_scroll(self):
+        from .result_layout import ResultLayoutEngine
+
         self._scroll_y_ticks = {}
+        engine = self.figure.get_layout_engine()
+        if isinstance(engine, ResultLayoutEngine):
+            engine.invalidate()
 
     @staticmethod
     def _y_state(ax):
