@@ -642,11 +642,26 @@ class ResultGraphs(QObject):
         for ax in self.view.figure.axes:
             if not hasattr(ax, "_paradigma_dataset"):
                 continue
-            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit)
+            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit, linked=True)
             self.graphs._result_selection_artists.append(line)
             if ax._paradigma_dataset != name:
                 continue
             self._mark_selected_result(ax, name, row, seconds, x)
+        self._bridge_result_marker()
+
+    def _bridge_result_marker(self):
+        from matplotlib.lines import Line2D
+
+        from ..selection_lines import TimeSelectionBridges
+
+        lines = [
+            artist
+            for artist in self.graphs._result_selection_artists
+            if isinstance(artist, Line2D) and artist.get_gid() == "selected-result-time"
+        ]
+        if len(lines) > 1:
+            bridge = TimeSelectionBridges(self.view.figure, lines[0])
+            self.graphs._result_selection_artists.append(bridge)
 
     def _mark_selected_result(self, ax, name, row, seconds, x):
         """Add a point only where the selected result has a visible value."""
@@ -706,7 +721,7 @@ class ResultGraphs(QObject):
         for ax in self.view.figure.axes:
             if not getattr(ax, "_paradigma_profile", False):
                 continue
-            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit)
+            line = time_selection_line(ax, x, animated=self.view.canvas.supports_blit, linked=True)
             self.graphs._result_selection_artists.append(line)
             if (ax._paradigma_dataset, ax._paradigma_metric) != (name, metric):
                 continue
@@ -718,6 +733,7 @@ class ResultGraphs(QObject):
                 self.view.time_axis.set_selection(
                     x, f"{label} · {days} {'day' if days == 1 else 'days'}"
                 )
+        self._bridge_result_marker()
 
     def _profile_clicked(self, event):
         ax = event.inaxes

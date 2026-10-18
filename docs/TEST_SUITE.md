@@ -23,7 +23,7 @@ trigger and expected behavior still apply.
 | Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py`, `test_daily.py` |
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | `test_epoch_profile.py` |
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
-| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py` |
+| Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py`, `test_selection_lines.py` |
 | Automatic percentage scaling and fixed Y-axis alignment across all four graph views | `test_percentage_scaling.py`, `test_result_layout.py` |
 | Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
@@ -110,7 +110,10 @@ range. Temporary mutation probes verify that these checks reject restored contro
 ignored configurations and truncated calendar boundaries.
 
 Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
-views. Workflow benchmarks select series in each view and switch tables through
+views. The linked time marker is compared with a single native dashed stroke
+through plots and their gaps at both display scales, after resizing and panning,
+and in 600-DPI export. Value points remain above the line.
+Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 
 Use the [development commands](DEVELOPMENT.md) for local and CI checks.

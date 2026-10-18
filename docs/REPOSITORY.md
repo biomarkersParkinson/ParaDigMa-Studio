@@ -54,7 +54,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Half-hour, day and 24-hour-profile summaries | `epochs.py`, `daily.py`, `epoch_profile.py` |
 | Export selection, encoding and safe file writes | `exports.py`, `serialization.py`, `storage.py` |
 | Reusable Qt controls, lazy run-record tables and forms | `widgets.py`, `time_controls.py` |
-| Graph controls, rendering, selection overlay and pinned time axis | `plot_controls.py`, `plotting.py`, `time_axis.py` |
+| Graph controls, rendering, selection overlay, continuous selector and pinned time axis | `plot_controls.py`, `plotting.py`, `selection_lines.py`, `time_axis.py` |
 | Results date/time labels and fixed Y-axis layout | `day_axis.py`, `epoch_axis.py`, `profile_axis.py`, `result_layout.py` |
 | Results time navigation, interval painting and history | `result_navigation.py`, `result_canvas.py` |
 | Application identity, compatible user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |

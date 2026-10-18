@@ -17,9 +17,14 @@ def time_selection_triangle():
     return MarkerStyle("v", transform=Affine2D().translate(0, 0.5))
 
 
-def time_selection_line(ax, x, *, animated=False):
+def time_selection_line(ax, x, *, animated=False, linked=False):
     """Shared time-selection style for result graphs and original sensor context."""
-    line = Line2D(
+    line_type = Line2D
+    if linked:
+        from .selection_lines import LinkedTimeSelectionLine
+
+        line_type = LinkedTimeSelectionLine
+    line = line_type(
         [x, x],
         [0, 1],
         transform=ax.get_xaxis_transform(),
