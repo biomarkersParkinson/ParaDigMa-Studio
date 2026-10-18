@@ -12,14 +12,24 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from matplotlib.backend_bases import MouseEvent
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
 
 
-def benchmark(report_path, *, frames=8, repeats=3):
+def benchmark(
+    report_path,
+    *,
+    frames=8,
+    repeats=3,
+    selection_only=False,
+    rows=30000,
+    graphs=6,
+    pixel_ratio=1,
+    with_controls=False,
+):
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
     report = {
@@ -35,7 +45,25 @@ def benchmark(report_path, *, frames=8, repeats=3):
         window = MainWindow(Path(directory) / "runs")
         window.resize(1450, 920)
         window.show()
-        output, full = _prepare_result_scroll(window)
+        output, full = _prepare_result_scroll(
+            window, rows=rows, graphs=graphs, select_all=not selection_only
+        )
+        window.canvas._set_device_pixel_ratio(pixel_ratio)
+        if with_controls:
+            window.result_table.setCurrentIndex(window.result_table.model().index(rows // 2, 0))
+            window.plot_toolbar.settings_action.setChecked(True)
+        report["selection_conditions"] = {
+            "rows": rows,
+            "graphs": graphs,
+            "pixel_ratio": pixel_ratio,
+            "limits_and_timepoint": with_controls,
+        }
+        if selection_only:
+            _measure_result_selection(app, report, window, repeats)
+            window.clear_results()
+            window.close()
+            _write_report(report_path, report)
+            return
 
         def measure(name, canvas, toolbar, limits):
             _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames)
@@ -86,6 +114,10 @@ def benchmark(report_path, *, frames=8, repeats=3):
         )
         window.close()
         app.processEvents()
+    _write_report(report_path, report)
+
+
+def _write_report(report_path, report):
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -156,38 +188,80 @@ def _measure_result_selection(app, report, window, repeats):
     report["selection"] = {}
     for mode, name in enumerate(("detailed", "30-minute", "day", "profile")):
         window.result_graph_view.setCurrentIndex(mode)
-        removals, additions, retained = [], [], []
+        last = list(window._result_state._series_items.values())[-1]
+        window.result_series.blockSignals(True)
+        for item in window._result_state._series_items.values():
+            item.setCheckState(0, Qt.Unchecked if item is last else Qt.Checked)
+        window.result_series.blockSignals(False)
+        window.plot()
+        _drain_paints(app)
+        first = _measure_series_click(app, window, last)
+        removals, additions, retained, draws = [], [], [], []
         for _ in range(repeats):
             window.result_series.blockSignals(True)
             for item in window._result_state._series_items.values():
                 item.setCheckState(0, Qt.Checked)
             window.result_series.blockSignals(False)
             window.plot()
-            app.processEvents()
+            _drain_paints(app)
             previous = tuple(window.figure.axes)
             owner = window._graph_state._result_shared_axes
             item = window._result_state._series_items[
                 owner._paradigma_dataset, owner._paradigma_metric
             ]
-            started = time.perf_counter()
-            item.setCheckState(0, Qt.Unchecked)
-            app.processEvents()
-            removals.append(time.perf_counter() - started)
+            removed = _measure_series_click(app, window, item)
+            removals.append(removed["seconds"])
             retained.append(sum(ax in previous for ax in window.figure.axes))
-            started = time.perf_counter()
-            item.setCheckState(0, Qt.Checked)
-            app.processEvents()
-            additions.append(time.perf_counter() - started)
+            added = _measure_series_click(app, window, item)
+            additions.append(added["seconds"])
+            draws.append({"remove": removed, "add": added})
         report["selection"][name] = {
             "remove_owner_seconds": removals,
             "median_remove_owner_seconds": statistics.median(removals),
             "add_seconds": additions,
             "median_add_seconds": statistics.median(additions),
             "retained_axes": retained,
+            "first_selection": first,
+            "samples": draws,
+            "p95_remove_seconds": float(np.percentile(removals, 95)),
+            "p95_add_seconds": float(np.percentile(additions, 95)),
         }
         print(f"{name}: {statistics.median(removals):.4f} s/owner removal", flush=True)
     window.result_graph_view.setCurrentIndex(previous_mode)
     app.processEvents()
+
+
+def _drain_paints(app):
+    for _ in range(3):
+        app.processEvents()
+
+
+def _measure_series_click(app, window, item):
+    tree = window.result_series
+    tree.scrollToItem(item)
+    _drain_paints(app)
+    rect = tree.visualItemRect(item)
+    counts = {"main_draws": 0, "ruler_draws": 0}
+
+    def count(name):
+        counts[name] += 1
+
+    main = window.canvas.mpl_connect("draw_event", lambda event: count("main_draws"))
+    ruler = window.time_axis.mpl_connect("draw_event", lambda event: count("ruler_draws"))
+    before = item.checkState(0)
+    started = time.perf_counter()
+    try:
+        QTest.mouseClick(
+            tree.viewport(), Qt.LeftButton, pos=QPoint(rect.left() + 55, rect.center().y())
+        )
+        _drain_paints(app)
+        elapsed = time.perf_counter() - started
+        if item.checkState(0) == before:
+            raise RuntimeError("Plot-series label click did not change selection")
+        return {"seconds": elapsed, **counts}
+    finally:
+        window.canvas.mpl_disconnect(main)
+        window.time_axis.mpl_disconnect(ruler)
 
 
 def _measure_time_selection(app, report, window, limits, repeats, frames):
@@ -221,26 +295,27 @@ def _measure_time_selection(app, report, window, limits, repeats, frames):
     )
 
 
-def _prepare_result_scroll(window):
+def _prepare_result_scroll(window, *, rows=30000, graphs=6, select_all=True):
     window._result_state.provenance = {
         "display_clock": {
             "origin": "2026-10-10T00:00:00+02:00",
             "timezone": "Europe/Amsterdam",
         }
     }
-    times = np.arange(30000) * 4.0
+    times = np.arange(rows) * 4.0
     output = pd.DataFrame(
         {
             "time": times,
-            **{f"metric_{i}": (2 + np.sin(times / (i + 1) / 400)) * (i + 1) for i in range(6)},
+            **{f"metric_{i}": (2 + np.sin(times / (i + 1) / 400)) * (i + 1) for i in range(graphs)},
         }
     )
     window.analyzed({"quantifications": {"tremor": output}})
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
     window.result_series.blockSignals(True)
-    for item in window._result_state._series_items.values():
-        item.setCheckState(0, Qt.Checked)
+    if select_all:
+        for item in window._result_state._series_items.values():
+            item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
     QTest.qWait(30)
@@ -268,5 +343,19 @@ def _synthetic_pan_sensors():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--selection-only", action="store_true")
+    parser.add_argument("--rows", type=int, default=30000)
+    parser.add_argument("--graphs", type=int, default=6)
+    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--pixel-ratio", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--with-controls", action="store_true")
     args = parser.parse_args()
-    benchmark(args.report)
+    benchmark(
+        args.report,
+        selection_only=args.selection_only,
+        rows=args.rows,
+        graphs=args.graphs,
+        repeats=args.repeats,
+        pixel_ratio=args.pixel_ratio,
+        with_controls=args.with_controls,
+    )

@@ -274,6 +274,15 @@ New-Item -ItemType Directory -Force build-reports | Out-Null
 .\.venv\Scripts\python.exe scripts/benchmark_sensor_context.py --report build-reports/sensor-context-performance.json
 ```
 
+The panning benchmark also measures Plot series through real label clicks in
+all four views, recording first selection, repeated selection, median/tail
+latency, retained axes and main/ruler draw counts. To isolate selection work,
+use `--selection-only`; `--rows 150000 --graphs 12` changes the synthetic load,
+`--pixel-ratio 2` checks the second display scale, and `--with-controls` includes
+the limits panel and a selected timepoint. Run identical settings before and
+after an optimization. First-selection timings are reported separately from
+repeated clicks; hardware timings remain diagnostic, not strict CI limits.
+
 | Report | Measures |
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
