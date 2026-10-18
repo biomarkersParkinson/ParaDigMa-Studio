@@ -163,6 +163,13 @@ class ResultFigureCanvas(ScrollableFigureCanvas):
         if isinstance(engine, ResultLayoutEngine):
             engine.invalidate()
 
+    def clear_layout_cache(self):
+        from .result_layout import ResultLayoutEngine
+
+        engine = self.figure.get_layout_engine()
+        if isinstance(engine, ResultLayoutEngine):
+            engine.clear()
+
     @staticmethod
     def _y_state(ax):
         return (

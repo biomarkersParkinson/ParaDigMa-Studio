@@ -178,6 +178,8 @@ class ResultWorkspaceController(QObject):
         self.results._plot_signature = None
         self.graphs._result_shared_axes = None
         self.graphs._result_selection_artists.clear()
+        self.graphs._result_plot_cache.clear()
+        self.view.canvas.clear_layout_cache()
         self.results._epoch_views.clear()
         self.results._epoch_presence_views.clear()
         self.results._profile_selection = None

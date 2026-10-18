@@ -205,6 +205,10 @@ class ResultGraphs(QObject):
         return previous_mode, viewport, previous_y
 
     def _retain_result_axes(self, chosen, mode, previous_mode):
+        cache = self.graphs._result_plot_cache
+        cache.bind(
+            self.results._plot_tables, mode, self.results.display_clock, reset=previous_mode is None
+        )
         self.view.result_overlay.invalidate()
         for artist in self.graphs._result_selection_artists:
             artist.remove()
@@ -214,6 +218,10 @@ class ResultGraphs(QObject):
             for ax in self.view.figure.axes
             if hasattr(ax, "_paradigma_dataset")
         }
+        if previous_mode == mode:
+            for key, axes in existing.items():
+                if key not in chosen:
+                    cache.capture(key, axes)
         # Keep already plotted arrays, paths and axes settings when adding a
         # series. A changed result or view still needs fresh scientific data.
         shared = self.graphs._result_shared_axes
@@ -282,7 +290,9 @@ class ResultGraphs(QObject):
         percentage = binary or name.startswith("preparation/")
         ax._paradigma_epoch = epochs
         ax._paradigma_profile = self.view.result_graph_view.currentIndex() == PROFILE_VIEW
-        if epochs:
+        if self.graphs._result_plot_cache.restore((name, metric), ax):
+            pass
+        elif epochs:
             self._render_epoch_series(ax, name, metric, positions, binary)
         elif len(selected) and np.isfinite(times).any():
             # Aggregated views reuse their summaries; only Detailed needs

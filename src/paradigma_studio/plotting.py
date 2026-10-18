@@ -43,7 +43,11 @@ def time_selection_line(ax, x, *, animated=False, linked=False):
 class ViewportPolyCollection(PolyCollection):
     """Render visible rectangles while retaining every original interval and value."""
 
-    def __init__(self, vertices, *, merge_presence=False, **kwargs):
+    def __init__(self, vertices, *, merge_presence=False, geometry=None, **kwargs):
+        if geometry is not None:
+            super().__init__([], **kwargs)
+            geometry.install(self)
+            return
         super().__init__(vertices, **kwargs)
         vertices = np.asarray(vertices)
         self._render_paths = self._paths
@@ -431,7 +435,7 @@ def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=Fals
     )
 
 
-def plot_bars(ax, starts, ends, values, color):
+def plot_bars(ax, starts, ends, values, color, *, geometry=None):
     """One bar per finite output: missing estimates leave real gaps."""
     from matplotlib.collections import LineCollection
 
@@ -441,11 +445,13 @@ def plot_bars(ax, starts, ends, values, color):
     left, right, heights = starts[valid], ends[valid], values[valid]
     inset = (right - left) * 0.08
     left, right = left + inset, right - inset
-    vertices = np.zeros((len(left), 4, 2))
-    vertices[:, :, 0] = np.column_stack((left, left, right, right))
-    vertices[:, :, 1] = np.column_stack(
-        (np.zeros(len(left)), heights, heights, np.zeros(len(left)))
-    )
+    vertices = []
+    if geometry is None:
+        vertices = np.zeros((len(left), 4, 2))
+        vertices[:, :, 0] = np.column_stack((left, left, right, right))
+        vertices[:, :, 1] = np.column_stack(
+            (np.zeros(len(left)), heights, heights, np.zeros(len(left)))
+        )
     collection = ViewportPolyCollection(
         vertices,
         facecolors=color,
@@ -453,6 +459,7 @@ def plot_bars(ax, starts, ends, values, color):
         alpha=0.85,
         rasterized=len(left) > 2000,
         zorder=3,
+        geometry=geometry,
     )
     # Bounds are calculated from the arrays below. Matplotlib's collection
     # scan otherwise visits every rectangle again before the first draw.

@@ -25,7 +25,7 @@ trigger and expected behavior still apply.
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
 | Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py`, `test_selection_lines.py` |
 | Automatic percentage scaling and fixed Y-axis alignment across all four graph views | `test_percentage_scaling.py`, `test_result_layout.py` |
-| Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py` |
+| Plot reuse, redraw avoidance and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py`, `test_result_plot_cache.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, exact JSON precision, bounded batches, source integrity, atomic failures and background completion | `test_result_exports.py` |
 | Complete local snapshots, reopening and unsaved-close warnings | `test_saved_results.py` |
@@ -117,6 +117,11 @@ Axis-limit fields follow zoom, pan, scrolling, history and Home, including linke
 graphs and silent limit changes. Numeric and clock fields display at most three
 decimal places while unedited bounds and user-entered values retain full precision.
 Checks also retain pending edits on unchanged redraws and release replaced axes.
+Selection checks compare reused layouts with native pixels, bound text/row caches,
+and require full layout after navigation or incompatible geometry changes.
+Recently deselected bar plots reuse every original path within four entries and
+a 128-MiB geometry budget. Tests cover eviction, context invalidation, exact
+pixels/values, garbage collection of detached axes, discarded-array release and complete exports.
 Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 

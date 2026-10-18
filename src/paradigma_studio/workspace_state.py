@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .contracts import ClockMetadata, RecordingDescription, RunRecord as RunRecord
+from .result_plot_cache import ResultPlotCache
 
 if TYPE_CHECKING:
     from threading import Event
@@ -124,6 +125,7 @@ class JobState:
 class GraphState:
     _result_selection_artists: list[Artist] = field(default_factory=list)
     _result_shared_axes: Axes | None = None
+    _result_plot_cache: ResultPlotCache = field(default_factory=ResultPlotCache)
 
 
 @dataclass
