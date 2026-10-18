@@ -1,19 +1,20 @@
 {
-  "review_date": "2026-10-16",
+  "review_date": "2026-10-18",
   "application": "ParaDigMa Studio",
-  "application_version": "0.6.0a2",
-  "reviewed_commit": "81f28876f181ecdca4e0c08d9696b7299d014410",
-  "platform": "Linux x86_64, Python 3.12.14, Qt offscreen; no current packaged executable examined",
+  "application_version": "0.6.0a3",
+  "reviewed_commit": "838bd7adfd9cad6449e197f8e06b93c34e2aa165",
+  "platform": "Linux x86_64, Python 3.12.14, Qt offscreen; current Linux portable executable verified separately from the Windows tag workflow",
   "scope": [
     "src/",
     "scripts/",
     "desktop.py",
     ".github/workflows/",
-    "installed Linux application/development dependencies"
+    "installed Linux application/development dependencies",
+    "fresh Linux portable bundle built from the reviewed source"
   ],
   "dependency_audit": {
     "tool": "pip-audit 2.10.1",
-    "installed_distributions_checked": 94,
+    "installed_distributions_checked": 96,
     "scope_note": "Installed Linux environment, including development/audit tools; excludes the application distribution. This is not a Windows release package inventory.",
     "blocking_findings": [],
     "skipped_packages": [],
@@ -40,14 +41,14 @@
           "23.0.1"
         ],
         "aliases": [
-          "CVE-2026-25087",
-          "GHSA-rgxp-2hwp-jwgg"
+          "GHSA-rgxp-2hwp-jwgg",
+          "CVE-2026-25087"
         ],
-        "description": "Use After Free vulnerability in Apache Arrow C++.  This issue affects Apache Arrow C++ from 15.0.0 through 23.0.0. It can be triggered when reading an Arrow IPC file (but not an IPC stream) with pre-buffering enabled, if the IPC file contains data with variadic buffers (such as Binary View and String View data). Depending on the number of variadic buffers in a record batch column and on the temporal sequence of multi-threaded IO, a write to a dangling pointer could occur. The value (a `std::shared_ptr<Buffer>` object) that is written to the dangling pointer is not under direct control of the attacker.  Pre-buffering is disabled by default but can be enabled using a specific C++ API call (`RecordBatchFileReader::PreBufferMetadata`). The functionality is not exposed in language bindings (Python, Ruby, C GLib), so these bindings are not vulnerable.  The most likely consequence of this issue would be random crashes or memory corruption when reading specific kinds of IPC files. If the application allows ingesting IPC files from untrusted sources, this could plausibly be exploited for denial of service. Inducing more targeted kinds of misbehavior (such as confidential data extraction from the running process) depends on memory allocation and multi-threaded IO temporal patterns that are unlikely to be easily controlled by an attacker.  Advice for users of Arrow C++:  1. check whether you enable pre-buffering on the IPC file reader (using `RecordBatchFileReader::PreBufferMetadata`)   2. if so, either disable pre-buffering (which may have adverse performance consequences), or switch to Arrow 23.0.1 which is not vulnerable",
+        "description": "Use After Free vulnerability in Apache Arrow C++.  This issue affects Apache Arrow C++ from 15.0.0 through 23.0.0. It can be triggered when reading an Arrow IPC file (but not an IPC stream) with pre-buffering enabled, if the IPC file contains data with variadic buffers (such as Binary View and String View data). Depending on the number of variadic buffers in a record batch column and on the temporal sequence of multi-threaded IO, a write to a dangling pointer could occur. The value (a `std::shared_ptr<Buffer>` object)\u00a0that is written to the dangling pointer is not under direct control of the attacker.  Pre-buffering is disabled by default but can be enabled using a specific C++ API call (`RecordBatchFileReader::PreBufferMetadata`). The functionality is not exposed in language bindings (Python, Ruby, C GLib), so these bindings are not vulnerable.  The most likely consequence of this issue would be random crashes or memory corruption when reading specific kinds of IPC files. If the application allows ingesting IPC files from untrusted sources, this could plausibly be exploited for denial of service. Inducing more targeted kinds of misbehavior (such as confidential data extraction from the running process) depends on memory allocation and multi-threaded IO temporal patterns that are unlikely to be easily controlled by an attacker.  Advice for users of Arrow C++:  1. check whether you enable pre-buffering on the IPC file reader (using\u00a0`RecordBatchFileReader::PreBufferMetadata`)   2. if so, either disable pre-buffering (which may have adverse performance consequences), or switch to Arrow 23.0.1 which is not vulnerable",
         "feed_entries": 2
       }
     ],
-    "advisory_evidence_source": "Current PyPI vulnerability response retained by pip-audit; two feed entries describe one advisory.",
+    "advisory_evidence_source": "Fresh pip-audit/PyPI vulnerability response, with a new writable cache for this review; two feed entries describe one advisory.",
     "applicability": "CVE-2026-25087 requires Arrow C++ IPC file pre-buffering via RecordBatchFileReader::PreBufferMetadata. The retrieved advisory explicitly excludes Python bindings; the wrapper uses Python Parquet loading. ParaDigMa 1.1.2 requires pyarrow<23, below the C++ fix in 23.0.1. The native library is not patched; reassess if the advisory or usage changes.",
     "official_dependency_constraint": [
       "pyarrow (>=14.0.1,<23.0.0)"
@@ -125,6 +126,10 @@
       {
         "name": "contourpy",
         "version": "1.4.0"
+      },
+      {
+        "name": "coverage",
+        "version": "7.16.2"
       },
       {
         "name": "cycler",
@@ -323,6 +328,10 @@
         "version": "9.1.1"
       },
       {
+        "name": "pytest-cov",
+        "version": "7.1.0"
+      },
+      {
         "name": "python-dateutil",
         "version": "2.9.0.post0"
       },
@@ -434,18 +443,18 @@
   },
   "source_scan": {
     "tool": "Bandit 1.9.4 (separate security-tool environment)",
-    "scanned_files": 74,
+    "scanned_files": 93,
     "errors": [],
     "metrics": {
-      "CONFIDENCE.HIGH": 22,
-      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.HIGH": 27,
+      "CONFIDENCE.LOW": 2,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 17,
-      "SEVERITY.MEDIUM": 5,
+      "SEVERITY.LOW": 22,
+      "SEVERITY.MEDIUM": 7,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 14100,
+      "loc": 17456,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -481,6 +490,46 @@
         "filename": "scripts/benchmark_desktop.py",
         "line_number": 21,
         "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_first_use.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_first_use.py",
+        "line_number": 96,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 115,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 169,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 200,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
       },
       {
         "test_id": "B404",
@@ -595,6 +644,22 @@
         "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
       },
       {
+        "test_id": "B604",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "LOW",
+        "filename": "src/paradigma_studio/app.py",
+        "line_number": 500,
+        "issue_text": "Function call with shell=True parameter identified, possible security issue."
+      },
+      {
+        "test_id": "B604",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "LOW",
+        "filename": "src/paradigma_studio/app.py",
+        "line_number": 515,
+        "issue_text": "Function call with shell=True parameter identified, possible security issue."
+      },
+      {
         "test_id": "B403",
         "issue_severity": "LOW",
         "issue_confidence": "HIGH",
@@ -630,10 +695,12 @@
     "dispositions": {
       "B301/B403": "Five pickle loads and two imports implement private single/parallel worker transfers. Parent-created TemporaryDirectory paths, validated recording identifiers and parent-owned queues constrain paths. User-selected pickle is a separate explicit-trust operation in core.load_sensor_file. These findings rely on trusted code and OS protection of the account/temporary files; executable deserialization remains a trust boundary.",
       "B404/B603": "Developer/build scripts execute explicit argument lists without shell=True. Commands are Python, build/check tooling, PowerShell signature inventory and SDK SignTool. Recording contents do not choose executables or command text.",
-      "B607": "git and pwsh resolve through PATH in developer/build/signing tooling; safe use requires a trusted executable search path."
+      "B607": "git and pwsh resolve through PATH in developer/build/signing tooling; safe use requires a trusted executable search path.",
+      "B604": "Two false positives at app.py controller construction: shell=self._shell_state passes the typed ShellState object into ExportController and ShellController. Neither call starts a command or accepts a shell boolean; subprocess execution is absent from these calls.",
+      "B101": "Three benchmark_processing.py assertions compare source/output digests in developer-only performance diagnostics. They are not application input validation or security barriers; run the documented benchmark without Python -O to retain these diagnostics."
     },
     "unresolved_high_severity_findings": [],
-    "interpretation": "0 high, 5 medium and 17 low items manually reviewed; no nosec suppressions, skipped checks or scan errors. Medium pickle findings remain subject to the stated trust assumptions, not eliminated."
+    "interpretation": "0 high, 7 medium and 22 low items reviewed; no nosec suppressions, skipped checks or scan errors. Five medium pickle findings retain the trusted private-transfer assumptions; the other two medium findings are false positives for UI ShellState keyword arguments. Benchmark assertions are developer diagnostics, not production security controls."
   },
   "regression_tests": {
     "modules": [
@@ -650,130 +717,24 @@
       "test_release.py",
       "test_error_handling.py"
     ],
-    "tests": 179,
+    "tests": 202,
     "failures": 0,
     "errors": 0,
     "skipped": 1,
-    "passed": 178,
-    "seconds": 35.324,
-    "run_started_utc": "2026-10-16T12:39:47.843762+00:00",
+    "passed": 201,
+    "seconds": 28.145,
+    "run_started_utc": "2026-10-18T19:56:34.151509+00:00",
+    "scope_note": "Selected security-related modules extracted from the completed full-suite JUnit report; not a second test run.",
     "skip_reason": "test_windows_reads_real_unsigned_assembly_and_pyd_signatures requires the Windows Authenticode API."
   },
   "frozen_bundle_probe": {
-    "status": "not_run",
-    "reason": "No current frozen Windows/Linux executable examined. Older review results were not carried forward as current evidence."
-  },
-  "remaining_limits": [
-    "Plaintext saved results, history, exports and logs rely on OS access/at-rest controls; no app encryption, authentication, authorization or tamper detection.",
-    "Explicitly trusted pickle inputs and bundled models remain executable deserialization.",
-    "Resource estimates/worker counts do not enforce input-size, memory or analysis-time caps.",
-    "Abrupt termination may leave temporary data or surviving workers; file removal is not secure erasure.",
-    "No parser fuzzing, exhaustive dependency source audit or instrumented network-isolation test.",
-    "No current packaged-artifact examination, Windows Defender scan, actual publisher signing, certificate-chain verification or Smart App Control acceptance test.",
-    "Transitive/build dependencies are not fully hash-locked; checksums do not independently authenticate the publisher."
-  ],
-  "reproduction": {
-    "dependencies": "XDG_CACHE_HOME=/tmp/paradigma-security-cache python scripts/audit_dependencies.py dependency-audit.json",
-    "dependency_consistency": "python -m pip check",
-    "source_scan": "python -m bandit -r src scripts desktop.py -f json -o source-scan.json (Bandit 1.9.4, separate tool environment)",
-    "regressions": "QT_QPA_PLATFORM=offscreen python -m pytest tests/test_security.py tests/test_signing.py tests/test_run_management.py tests/test_bulk_runs.py tests/test_saved_results.py tests/test_result_exports.py tests/test_packaging.py tests/test_branding.py tests/test_parallel_execution.py tests/test_tsdf_input.py tests/test_release.py tests/test_error_handling.py -q",
-    "full_suite": "QT_QPA_PLATFORM=offscreen python -m pytest -q",
-    "note": "Bandit exit 1 reports findings; errors/suppressions are recorded separately. Dependencies used a fresh writable cache. Native checks require Windows. The PyPI advisory description supports Arrow applicability; direct access to the CVE record endpoint returned HTTP 403."
-  },
-  "evidence_recorded_utc": "2026-10-16T12:47:37+00:00",
-  "threat_model": [
-    "Local desktop application running with the launching user permissions; no privilege separation from that account.",
-    "Recordings and result files can be malformed. Explicitly accepted pickle inputs, classifier models, application code and the toolchain must be trusted.",
-    "Run history and its output paths are trusted local metadata; there is no application-level cryptographic integrity or access policy.",
-    "Worker isolation supports cancellation and responsiveness; it is not a security sandbox."
-  ],
-  "manual_review": [
-    {
-      "area": "File loading and reopening",
-      "evidence_paths": [
-        "src/paradigma_studio/core.py",
-        "src/paradigma_studio/recordings.py",
-        "src/paradigma_studio/tsdf_input.py",
-        "src/paradigma_studio/history.py",
-        "src/paradigma_studio/app.py"
-      ],
-      "assessment": "Untrusted pickle is rejected before the official loader; GUI trust defaults to No. JSON result reopening reconstructs tables without unpickling or automatically loading sources. TSDF scale factors/channel identities are validated. Native parsers and all third-party source were not exhaustively audited or fuzz-tested."
-    },
-    {
-      "area": "Writes and deletion",
-      "evidence_paths": [
-        "src/paradigma_studio/storage.py",
-        "src/paradigma_studio/serialization.py",
-        "src/paradigma_studio/exports.py",
-        "src/paradigma_studio/history.py",
-        "src/paradigma_studio/run_controller.py"
-      ],
-      "assessment": "Same-filesystem temporary writes replace destinations only after completion. Known sources, recognized TSDF time/value companions, hard/symbolic aliases and local saved-run destinations are protected. CSV formula-like strings and headers are prefixed. Deletion requires confirmation, defaults to Cancel, and protects directories and files referenced by retained runs. Path checks do not authenticate history or harden against an adversarial same-account filesystem."
-    },
-    {
-      "area": "Local confidentiality and integrity",
-      "evidence_paths": [
-        "src/paradigma_studio/branding.py",
-        "src/paradigma_studio/history.py",
-        "src/paradigma_studio/run_controller.py"
-      ],
-      "assessment": "Complete derived results, metadata, paths and logs persist in plaintext under the user data location, with legacy fallback. Original recordings are not copied into saved runs. No app encryption, login, role policy or cryptographic integrity check. Separate OS accounts, ACLs and drive encryption are deployment controls, not application guarantees."
-    },
-    {
-      "area": "Diagnostic retention",
-      "evidence_paths": [
-        "src/paradigma_studio/jobs.py",
-        "src/paradigma_studio/previews.py",
-        "src/paradigma_studio/analysis_process.py",
-        "src/paradigma_studio/parallel_analysis.py",
-        "src/paradigma_studio/run_controller.py"
-      ],
-      "assessment": "Job/UI/toolbox error boundaries preserve full tracebacks, including process forwarding; notices and structured counts stay concise. Logs may contain filenames, absolute paths, recording/subject identifiers and diagnostic values. No automatic redaction; share logs as potentially sensitive data."
-    },
-    {
-      "area": "Workers and temporary data",
-      "evidence_paths": [
-        "src/paradigma_studio/analysis_process.py",
-        "src/paradigma_studio/parallel_analysis.py",
-        "src/paradigma_studio/analysis_limits.py"
-      ],
-      "assessment": "Single recordings use one worker; independent recordings use up to two with CPU/RAM estimates. The parent owns processes/private transfer paths, bounds dispatched work and cleans on Stop/failure/completion. Estimates are not resource caps. Abrupt parent/system termination can leave temporary data or surviving workers; deletion is not secure erasure."
-    },
-    {
-      "area": "Runtime network behavior",
-      "evidence_paths": [
-        "src/paradigma_studio/acknowledgements.py",
-        "src/paradigma_studio/ui/layout.py"
-      ],
-      "assessment": "No automatic recording upload, telemetry, elevation or service/registry installation implementation found in the wrapper. Explicit documentation links open a browser. Network isolation and every dependency runtime behavior were not instrumented."
-    },
-    {
-      "area": "Build, release and signing",
-      "evidence_paths": [
-        ".github/workflows/windows.yml",
-        ".github/workflows/windows-signed.yml",
-        "scripts/prepare_release.py",
-        "scripts/signing_bundle.py",
-        "scripts/windows_signatures.ps1",
-        "scripts/write_build_manifest.py",
-        "pyproject.toml"
-      ],
-      "assessment": "Direct runtime versions, Open Movement revision and Actions commits are pinned; transitive/build-backend dependencies are not fully hash-locked. Build/signing checkouts disable persisted credentials. Tag-only publication/status jobs have contents:write; status checkout credentials push refs/notes/paradigma-releases. Only environment-gated signing has id-token:write; application execution occurs in a separate verification job. Release checks verify tag/version/source, complete inventory, no symlinks and uploaded sizes/digests before publication. These are reviewed/tested controls, not verification of a current binary or actual publisher signature."
-    }
-  ],
-  "full_suite": {
-    "tests": 871,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 1,
-    "passed": 870,
-    "seconds": 544.626,
-    "run_started_utc": "2026-10-16T12:21:31.478755+00:00",
-    "scope_note": "Run on the same application/test source tree immediately before the reviewed commit; this security update changes documentation only."
-  },
-  "source_smoke_probe": {
-    "entrypoint": "python desktop.py --smoke-test <report>",
-    "scope_note": "Source interpreter, not a frozen executable; part of the recorded full suite.",
+    "status": "passed",
+    "source_commit": "838bd7adfd9cad6449e197f8e06b93c34e2aa165",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "application_version": "0.6.0a3",
+    "entrypoint": "python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio",
+    "run_started_utc": "2026-10-18T20:04:34.419124+00:00",
+    "seconds": 10.032,
     "report": {
       "status": "passed",
       "paradigma_version": "1.1.2",
@@ -823,6 +784,158 @@
       "physilog_excluded_samples": 10,
       "physilog_continuous_sections": 4,
       "physilog_gait_rows": 92
+    },
+    "inventory_files_checked": 1809,
+    "startup_repetitions": 5,
+    "startup_import_boundaries": "passed",
+    "scope_note": "Fresh Linux portable executable launched away from the checkout. Tests classifier assets, real pipelines, parallel recordings, plots, exports and reopening; validates clean bundle layout/notices, startup boundaries and complete SHA-256 inventory. Linux runtime symlinks are retained; the Windows release verifier separately rejects symlinks. This is not a Windows binary/signature or malware scan."
+  },
+  "remaining_limits": [
+    "Plaintext saved results, history, exports and logs rely on OS access/at-rest controls; no app encryption, authentication, authorization or tamper detection.",
+    "Explicitly trusted pickle inputs and bundled models remain executable deserialization.",
+    "Resource estimates/worker counts do not enforce input-size, memory or analysis-time caps.",
+    "Abrupt termination may leave temporary data or surviving workers; file removal is not secure erasure.",
+    "No parser fuzzing, exhaustive dependency source audit or instrumented network-isolation test.",
+    "Local packaged checks cover Linux. Tagged Windows CI separately verifies the unsigned Windows executable and published assets; no Windows Defender scan, actual publisher signing, certificate-chain verification or Smart App Control acceptance test was performed by this review.",
+    "Transitive/build dependencies are not fully hash-locked; checksums do not independently authenticate the publisher."
+  ],
+  "reproduction": {
+    "dependencies": "XDG_CACHE_HOME=/tmp/paradigma-security-cache python scripts/audit_dependencies.py dependency-audit.json",
+    "dependency_consistency": "python -m pip check",
+    "source_scan": "python -m bandit -r src scripts desktop.py -f json -o source-scan.json (Bandit 1.9.4, separate tool environment)",
+    "regressions": "QT_QPA_PLATFORM=offscreen python -m pytest tests/test_security.py tests/test_signing.py tests/test_run_management.py tests/test_bulk_runs.py tests/test_saved_results.py tests/test_result_exports.py tests/test_packaging.py tests/test_branding.py tests/test_parallel_execution.py tests/test_tsdf_input.py tests/test_release.py tests/test_error_handling.py -q",
+    "full_suite": "QT_QPA_PLATFORM=offscreen python -m pytest -q --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html",
+    "note": "Bandit exit 1 reports reviewed findings; errors/suppressions are recorded separately. Dependency audit used a fresh writable cache. The refreshed PyPI advisory description supports Arrow applicability. Native Windows/signature checks belong to Windows CI. Timings from the local portable startup probe are not Windows performance guarantees.",
+    "packaged": "python scripts/build_desktop.py; QT_QPA_PLATFORM=offscreen python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio; python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio --report build-reports/performance.json; python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json"
+  },
+  "evidence_recorded_utc": "2026-10-18T20:04:53.886153+00:00",
+  "threat_model": [
+    "Local desktop application running with the launching user permissions; no privilege separation from that account.",
+    "Recordings and result files can be malformed. Explicitly accepted pickle inputs, classifier models, application code and the toolchain must be trusted.",
+    "Run history and its output paths are trusted local metadata; there is no application-level cryptographic integrity or access policy.",
+    "Worker isolation supports cancellation and responsiveness; it is not a security sandbox."
+  ],
+  "manual_review": [
+    {
+      "area": "File loading and reopening",
+      "evidence_paths": [
+        "src/paradigma_studio/core.py",
+        "src/paradigma_studio/recordings.py",
+        "src/paradigma_studio/tsdf_input.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/data_controller.py"
+      ],
+      "assessment": "Untrusted pickle is rejected before the official loader; GUI trust defaults to No. JSON result reopening reconstructs tables without unpickling or automatically loading sources. TSDF scale factors/channel identities are validated. Native parsers and all third-party source were not exhaustively audited or fuzz-tested."
+    },
+    {
+      "area": "Writes and deletion",
+      "evidence_paths": [
+        "src/paradigma_studio/storage.py",
+        "src/paradigma_studio/serialization.py",
+        "src/paradigma_studio/exports.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/run_controller.py",
+        "src/paradigma_studio/export_controller.py"
+      ],
+      "assessment": "Same-filesystem temporary writes replace destinations only after completion. Known sources, recognized TSDF time/value companions, hard/symbolic aliases and local saved-run destinations are protected. CSV formula-like strings and headers are prefixed. Deletion requires confirmation, defaults to Cancel, and protects directories and files referenced by retained runs. Path checks do not authenticate history or harden against an adversarial same-account filesystem. The JSON batching optimization reuses fresh row dictionaries only; nested source objects are copied during normalization, with byte/precision/atomic-failure regressions."
+    },
+    {
+      "area": "Local confidentiality and integrity",
+      "evidence_paths": [
+        "src/paradigma_studio/branding.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/run_controller.py"
+      ],
+      "assessment": "Complete derived results, metadata, paths and logs persist in plaintext under the user data location, with legacy fallback. Original recordings are not copied into saved runs. No app encryption, login, role policy or cryptographic integrity check. Separate OS accounts, ACLs and drive encryption are deployment controls, not application guarantees."
+    },
+    {
+      "area": "Diagnostic retention",
+      "evidence_paths": [
+        "src/paradigma_studio/jobs.py",
+        "src/paradigma_studio/previews.py",
+        "src/paradigma_studio/analysis_process.py",
+        "src/paradigma_studio/parallel_analysis.py",
+        "src/paradigma_studio/run_controller.py",
+        "src/paradigma_studio/job_controller.py",
+        "src/paradigma_studio/export_controller.py"
+      ],
+      "assessment": "Job/UI/toolbox error boundaries preserve full tracebacks, including process forwarding; notices and structured counts stay concise. Logs may contain filenames, absolute paths, recording/subject identifiers and diagnostic values. No automatic redaction; share logs as potentially sensitive data."
+    },
+    {
+      "area": "Workers and temporary data",
+      "evidence_paths": [
+        "src/paradigma_studio/analysis_process.py",
+        "src/paradigma_studio/parallel_analysis.py",
+        "src/paradigma_studio/analysis_limits.py",
+        "src/paradigma_studio/job_controller.py",
+        "src/paradigma_studio/export_controller.py",
+        "src/paradigma_studio/previews.py",
+        "src/paradigma_studio/result_plot_cache.py"
+      ],
+      "assessment": "Single recordings use one worker; independent recordings use up to two with CPU/RAM estimates. The parent owns processes/private transfer paths, bounds dispatched work and cleans on Stop/failure/completion. Estimates are not resource caps. Abrupt parent/system termination can leave temporary data or surviving workers; deletion is not secure erasure. Controller composition preserves worker ownership and cancellation; preview/display caches are in-memory, bounded and cleared or invalidated on context changes. Cache budgets are not whole-process memory limits."
+    },
+    {
+      "area": "Runtime network behavior",
+      "evidence_paths": [
+        "src/paradigma_studio/acknowledgements.py",
+        "src/paradigma_studio/ui/layout.py"
+      ],
+      "assessment": "No automatic recording upload, telemetry, elevation or service/registry installation implementation found in the wrapper. Explicit documentation links open a browser. Network isolation and every dependency runtime behavior were not instrumented."
+    },
+    {
+      "area": "Build, release and signing",
+      "evidence_paths": [
+        ".github/workflows/windows.yml",
+        ".github/workflows/windows-signed.yml",
+        "scripts/prepare_release.py",
+        "scripts/signing_bundle.py",
+        "scripts/windows_signatures.ps1",
+        "scripts/write_build_manifest.py",
+        "pyproject.toml"
+      ],
+      "assessment": "Direct runtime versions, Open Movement revision and Actions commits are pinned; transitive/build-backend dependencies are not fully hash-locked. Build/signing checkouts disable persisted credentials. Tag-only publication/status jobs have contents:write; status checkout credentials push refs/notes/paradigma-releases. Only environment-gated signing has id-token:write; application execution occurs in a separate verification job. Release checks verify tag/version/source, complete inventory, no symlinks and uploaded sizes/digests before publication. Current Linux portable probes and complete inventory checks passed. The tagged Windows workflow separately gates Windows tests, packaged execution and release asset verification; this source review does not claim publisher signing or a Windows malware scan."
+    },
+    {
+      "area": "Composed UI and driver API",
+      "evidence_paths": [
+        "src/paradigma_studio/app.py",
+        "src/paradigma_studio/ui/compatibility.py",
+        "src/paradigma_studio/ui/component_ports.py",
+        "src/paradigma_studio/workspace_state.py"
+      ],
+      "assessment": "Production composition uses explicit component/state owners. The fixed driver port map supports tests/probes, has no user-selected dynamic module or command execution, and is guarded against growth. ShellState keyword arguments are UI state, not shell execution. Refactoring adds no authentication or privilege boundary."
     }
+  ],
+  "full_suite": {
+    "tests": 1057,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 1056,
+    "seconds": 428.834,
+    "run_started_utc": "2026-10-18T19:56:34.151509+00:00",
+    "scope_note": "Full release-preparation source tree, including scientific comparisons, security-related modules, source smoke/startup probes and branch coverage. Later changes to the tagged release are documentation only.",
+    "coverage": {
+      "line-rate": "0.9031",
+      "branch-rate": "0.7652",
+      "lines-covered": "2441",
+      "lines-valid": "2703",
+      "branches-covered": "603",
+      "branches-valid": "788",
+      "configured_floor_percent": 80,
+      "scope": "Controller and selected error-boundary modules, as configured in pyproject.toml; not whole-app coverage."
+    }
+  },
+  "source_smoke_probe": {
+    "status": "passed",
+    "entrypoint": "python desktop.py --smoke-test <report>",
+    "scope_note": "Source smoke and fresh-process startup checks executed in the full suite; detailed current packaged-probe results are recorded separately."
+  },
+  "reviewed_tree_note": "Release preparation changes version metadata and documentation only. The final security-evidence commit also changes documentation only; src/, scripts/, desktop.py, workflows and project metadata match the reviewed commit.",
+  "release_verification": {
+    "tag": "v0.6.0a3",
+    "workflow": ".github/workflows/windows.yml",
+    "method": "The tag-triggered workflow requires a fresh Windows dependency audit, full tests/coverage, build, frozen smoke/startup and layout checks before release. Publication verifies source/version, inventory and uploaded SHA-256 digests; a Git note on the tagged commit records build/publication outcomes.",
+    "scope_note": "This describes enforced release gates; completion is recorded separately by the workflow receipt, not asserted in advance by this source review."
   }
 }

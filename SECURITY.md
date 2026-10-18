@@ -1,20 +1,24 @@
 # Security review
 
-Reviewed **16 October 2026**, ParaDigMa Studio **0.6.0a2**,
-[source commit `81f2887`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/81f28876f181ecdca4e0c08d9696b7299d014410).
-Scope: Linux source, dependencies and build/release/signing workflows; no current
-packaged executable examined. [Evidence](docs/security-review.json) records details
-and limitations. This is not a security certification.
+Reviewed **18 October 2026**, ParaDigMa Studio **0.6.0a3**,
+[source commit `838bd7a`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/838bd7adfd9cad6449e197f8e06b93c34e2aa165).
+Scope: Linux source, dependencies and fresh portable executable; Windows build,
+release and signing workflows. Tagged Windows CI verifies the Windows package
+separately. [Evidence](docs/security-review.json) records scope and limitations;
+this is not a security certification.
 
 ## Verification
 
-- **Dependencies:** 94 packages audited; no skipped packages or blocking findings
+- **Dependencies:** 96 packages audited; no skipped packages or blocking findings
   under the PyArrow exception below. `pip check` passed.
-- **Bandit:** 74 files; 0 high, 5 medium and 17 low-severity items, all reviewed;
-  no scan errors/suppressions. Medium items concern private worker pickle transfers.
-- **Tests:** 178 security-focused tests passed; one Windows-only test skipped.
-  The full suite for the same source tree passed **870 tests**, with one skip,
-  including scientific comparisons, source smoke testing and startup checks.
+- **Bandit:** 93 files; 0 high, 7 medium and 22 low items reviewed; no scan
+  errors/suppressions. Five medium items concern private worker pickle transfers;
+  two are false positives for UI `ShellState` constructor arguments.
+- **Tests:** 201 security-related cases passed within the full suite;
+  **1,056 passed**, one Windows-only skip. Controller/error-boundary branch
+  coverage passed the 80% floor. Scientific comparisons and source probes passed.
+- **Portable app:** fresh Linux build passed smoke/startup probes, clean-layout,
+  notice and complete SHA-256 inventory checks. Windows checks gate publication.
 
 ## Safeguards and trust boundaries
 
@@ -25,6 +29,7 @@ and limitations. This is not a security certification.
 | Diagnostics | Worker tracebacks, paths and error details may identify recordings/subjects. Logs have no automatic redaction. |
 | Files | Atomic writes; known-input/alias protection, including TSDF time/value files; CSV formula-text protection. Deletion requires confirmation, defaults to Cancel and protects inputs, directories and shared outputs. History is trusted local metadata. |
 | Workers | At most two recording workers using CPU/RAM estimates; cleanup on Stop/normal failure. Estimates are not hard limits; workers are not a sandbox. |
+| UI and caches | Explicit controller dependencies; fixed internal driver ports. Preview/display caches stay in memory and are bounded, with context invalidation; they do not cap total app memory. |
 | Network | No automatic recording upload or telemetry in the wrapper. Documentation links open a browser. |
 
 ## Dependencies and distribution
@@ -36,15 +41,16 @@ below the fixed release. CI excludes only this issue; no C++ patch is claimed.
 
 Runtime versions and Actions commits are pinned; transitive/build dependencies lack
 full hash locking. Tag-only release/status jobs have write permission; status-job
-checkout credentials push Git notes. OIDC is confined to the environment-gated signing
-job. Ordinary builds are unsigned; [publisher signing](SIGNING.md) requires a verified
-identity. Release checks cover source, version, inventory and uploaded hashes;
-hashes alone do not establish publisher trust.
+checkout credentials push Git notes. OIDC is confined to environment-gated signing.
+Ordinary releases are unsigned; [publisher signing](SIGNING.md) needs a verified
+identity. Release gates check source/version, complete inventory, packaged execution
+and uploaded asset hashes. The [workflow receipt](docs/RELEASES.md) records the
+actual publication outcome; hashes alone do not establish publisher trust.
 
 ## Remaining limitations
 
 Malformed/large files can exhaust resources; parsers were not fuzz-tested. Abrupt
 termination may leave workers/temporary data; deletion is not secure erasure.
 Protect sensitive results/logs with OS permissions and disk encryption. Network
-isolation, Windows malware scans, publisher signing, certificate chains and Smart
-App Control acceptance were not verified.
+isolation, Windows malware scans, actual publisher signing, certificate chains and
+Smart App Control acceptance were not verified.
