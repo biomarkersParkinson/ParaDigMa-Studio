@@ -15,6 +15,8 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractButton, QApplication, QComboBox, QLineEdit, QPushButton
 
 from paradigma_studio.app import MainWindow
+from paradigma_studio.epoch_profile import parse_profile_time
+from paradigma_studio.plot_controls import _format_limit
 
 
 @pytest.fixture
@@ -359,3 +361,197 @@ def test_limit_edits_apply_on_enter_and_blur_with_reset_and_close_on_hint_row(wi
     panel.close_button.click()
     assert panel.isHidden() and not toolbar.settings_action.isChecked()
     assert toolbar._highlighted_axes is None
+
+
+def assert_limit_fields_match_axes(panel):
+    axes = panel.axes()
+    for axis, (_, lower, upper) in panel.bounds.items():
+        limits = getattr(axes, f"get_{axis}lim")()
+        parse = (
+            parse_profile_time
+            if axis == "x" and getattr(axes, "_paradigma_profile", False)
+            else float
+        )
+        assert [parse(edit.text()) for edit in (lower, upper)] == [
+            round(value, 3) for value in limits
+        ]
+
+
+@pytest.mark.parametrize("view", range(4))
+def test_limits_follow_zoom_buttons_scroll_history_and_home_on_selected_shared_graph(window, view):
+    times = np.arange(2000.0)
+    frame = pd.DataFrame({"time": times, "metric_a": times / 10, "metric_b": times / 20})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    for item in window._result_state._series_items.values():
+        item.setCheckState(0, Qt.Checked)
+    window.result_graph_view.setCurrentIndex(view)
+    toolbar = window.plot_toolbar
+    toolbar.active_axes = window.figure.axes[-1]
+    toolbar.settings_action.setChecked(True)
+    for action in ("zoom_in", "zoom_out", "zoom_in"):
+        toolbar._actions[action].trigger()
+        QApplication.instance().processEvents()
+        assert_limit_fields_match_axes(toolbar.settings)
+    bar = window.result_time_scroll
+    bar.setValue(bar.maximum() // 3)
+    QApplication.instance().processEvents()
+    assert_limit_fields_match_axes(toolbar.settings)
+    for action in (toolbar.back, toolbar.forward, toolbar.home):
+        action()
+        QApplication.instance().processEvents()
+        assert_limit_fields_match_axes(toolbar.settings)
+
+
+def test_limit_display_rounding_never_changes_unedited_axes_or_user_precision(window):
+    recording(window)
+    toolbar = window.data_toolbar
+    axes = window.data_figure.axes[0]
+    exact_x = (0.123456789, 1.876543211)
+    exact_y = (-2.987654321, 3.123456789)
+    axes.set_xlim(*exact_x)
+    axes.set_ylim(*exact_y)
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    assert [edit.text() for edit in panel.bounds["x"][1:]] == ["0.123", "1.877"]
+    assert [edit.text() for edit in panel.bounds["y"][1:]] == ["-2.988", "3.123"]
+    panel.bounds["y"][2].setText("4.123456789")
+    panel.bounds["y"][2].editingFinished.emit()
+    assert axes.get_xlim() == exact_x
+    assert axes.get_ylim() == (exact_y[0], 4.123456789)
+    assert panel.bounds["y"][2].text() == "4.123"
+    panel.apply()  # Moving focus without editing must not round the view either.
+    assert axes.get_xlim() == exact_x
+    assert axes.get_ylim() == (exact_y[0], 4.123456789)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [(1.234567, "1.235"), (1.000001, "1"), (-0.0004, "0"), (-9.9996, "-10"), (9.9996, "10")],
+)
+def test_numeric_limit_display_has_at_most_three_decimals_without_padding(value, expected):
+    assert _format_limit(value) == expected
+
+
+@pytest.mark.parametrize("clock", ["calendar", "profile"])
+def test_clock_limit_fields_round_milliseconds_without_changing_the_view(window, clock):
+    window._result_state.provenance = {
+        "display_clock": {"origin": "2026-10-14T00:00:00+05:45", "timezone": "Asia/Kathmandu"}
+    }
+    times = np.arange(0, 3 * 86400, 60.0)
+    frame = pd.DataFrame({"time": times, "metric": 2 + np.sin(times / 1000)})
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    if clock == "profile":
+        window.result_graph_view.setCurrentIndex(3)
+        exact = (59.9996, 86399.9996)
+        expected = ["00:01", "24:00"]
+    else:
+        stamps = pd.to_datetime(
+            ["2026-10-14T12:00:00.123456+05:45", "2026-10-14T12:00:01.987654+05:45"]
+        )
+        exact = tuple(dates.date2num(stamps.to_pydatetime()))
+        expected = ["2026-10-14T12:00:00.123+05:45", "2026-10-14T12:00:01.988+05:45"]
+    axes, toolbar = window.figure.axes[0], window.plot_toolbar
+    axes.set_xlim(*exact)
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    assert [edit.text() for edit in panel.bounds["x"][1:]] == expected
+    panel.bounds["y"][0].setChecked(False)
+    panel.bounds["y"][2].setText("10.123456789")
+    panel.apply()
+    assert axes.get_xlim() == exact
+    assert axes.get_ylim()[1] == 10.123456789
+    assert panel.bounds["y"][2].text() == "10.123"
+    toolbar._actions["zoom_in"].trigger()
+    QApplication.instance().processEvents()
+    parse = parse_profile_time if clock == "profile" else dates.datestr2num
+    tolerance = 0.00051 if clock == "profile" else 0.00051 / 86400
+    for edit, value in zip(panel.bounds["x"][1:], axes.get_xlim(), strict=True):
+        assert float(parse(edit.text())) == pytest.approx(value, abs=tolerance, rel=0)
+
+
+@pytest.mark.parametrize("workspace", ["data", "sensor"])
+def test_raw_limit_fields_follow_pan_zoom_and_silent_changes(window, workspace):
+    recording(window)
+    if workspace == "sensor":
+        window._sensor_state.sensor_frame = window._input_state.frame
+        window._sensor_state.sensor_times = window._input_state.frame.time.to_numpy()
+        window.populate_sensor_channels()
+        window.plot_sensor()
+        window.result_tabs.setCurrentIndex(3)
+        toolbar, canvas = window.sensor_toolbar, window.sensor_canvas
+    else:
+        toolbar, canvas = window.data_toolbar, window.data_canvas
+    toolbar.settings_action.setChecked(True)
+    axes = toolbar.settings.axes()
+    canvas.draw()
+    x, y = axes.transAxes.transform((0.5, 0.5))
+    toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
+    toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, x + 30, y + 10, buttons={1}))
+    assert_limit_fields_match_axes(toolbar.settings)
+    toolbar.release_pan(MouseEvent("button_release_event", canvas, x + 30, y + 10, button=1))
+    toolbar.zoom()
+    start, end = axes.transAxes.transform([(0.25, 0.3), (0.75, 0.7)])
+    toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
+    toolbar.release_zoom(MouseEvent("button_release_event", canvas, *end, button=1))
+    assert_limit_fields_match_axes(toolbar.settings)
+    axes.set_xlim(0.234567, 0.987654, emit=False)
+    canvas.draw()
+    assert_limit_fields_match_axes(toolbar.settings)
+
+
+def test_unchanged_redraw_preserves_pending_limit_edits_and_validation_error(window):
+    recording(window)
+    toolbar = window.data_toolbar
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    panel.bounds["y"][0].setChecked(False)
+    panel.bounds["y"][1].setText("invalid")
+    panel.apply()
+    assert not panel.error.isHidden()
+    window.data_canvas.draw()
+    assert panel.bounds["y"][1].text() == "invalid"
+    assert not panel.error.isHidden()
+    panel.axes().set_ylim(-1.123456, 5.987654)
+    assert_limit_fields_match_axes(panel)
+    assert panel.error.isHidden()
+
+
+def test_observers_release_replaced_graphs_and_reopening_reads_the_current_limits(window):
+    import gc
+    import weakref
+
+    recording(window)
+    toolbar = window.data_toolbar
+    toolbar.settings_action.setChecked(True)
+    previous = weakref.ref(toolbar.settings.axes())
+    window.set_input_channels(["gyroscope_y"])
+    QApplication.instance().processEvents()
+    gc.collect()
+    assert previous() is None
+    panel = toolbar.settings
+    assert_limit_fields_match_axes(panel)
+    toolbar.settings_action.setChecked(False)
+    panel.axes().set_xlim(0.123456, 0.987654)
+    toolbar.settings_action.setChecked(True)
+    assert_limit_fields_match_axes(panel)
+
+
+def test_tiny_rounded_limits_and_retyping_a_displayed_value_preserve_edit_intent(window):
+    recording(window)
+    axes, toolbar = window.data_figure.axes[0], window.data_toolbar
+    exact = (-0.0004, 0.0004)
+    axes.set_ylim(*exact)
+    toolbar.settings_action.setChecked(True)
+    panel = toolbar.settings
+    assert [edit.text() for edit in panel.bounds["y"][1:]] == ["0", "0"]
+    panel.apply()
+    assert axes.get_ylim() == exact
+    axes.set_ylim(-0.123456, 1.123456)
+    lower = panel.bounds["y"][1]
+    lower.setFocus()
+    lower.selectAll()
+    QTest.keyClicks(lower, "-0.123")
+    QTest.keyClick(lower, Qt.Key_Return)
+    assert axes.get_ylim() == (-0.123, 1.123456)

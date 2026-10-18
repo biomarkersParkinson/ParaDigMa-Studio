@@ -29,6 +29,16 @@ def _calendar_axis(axes, name):
     return bool(calendar), timezone
 
 
+def _format_limit(value, *, profile=False, calendar=False, timezone=None):
+    if profile:
+        return format_profile_time(round(value, 3))
+    if calendar:
+        value = round(value * 86400, 3) / 86400
+        return dates.num2date(value, tz=timezone).isoformat(timespec="milliseconds")
+    text = f"{value:.3f}".rstrip("0").rstrip(".")
+    return "0" if text == "-0" else text
+
+
 class GraphToolbar(NavigationToolbar2QT):
     # Subplot spacing and the generic figure editor overlap and inherit the
     # system dialog palette. Constrained layout already handles subplot spacing.
@@ -107,6 +117,7 @@ class GraphToolbar(NavigationToolbar2QT):
         if visible:
             self.settings.read_axes()
         else:
+            self.settings.stop_observing()
             self.highlight_axes(None)
         self.settings.setVisible(visible)
 
@@ -248,6 +259,15 @@ class GraphSettings(QFrame):
         layout.setColumnStretch(2, 1)
         layout.setColumnStretch(4, 1)
         self.hide()
+        self._initialize_synchronization()
+
+    def _initialize_synchronization(self):
+        self._observed_axes = None
+        self._axis_callbacks = []
+        self._axes_snapshot = None
+        self._updating = False
+        self._displayed_text = {}
+        self.canvas.mpl_connect("draw_event", self.synchronize)
 
     def axes(self):
         if self.toolbar.active_axes in self.canvas.figure.axes:
@@ -255,11 +275,53 @@ class GraphSettings(QFrame):
         return self.canvas.figure.axes[0] if self.canvas.figure.axes else None
 
     def read_axes(self):
-        ax = self.axes()
-        self.toolbar.highlight_axes(ax if self.toolbar.settings_action.isChecked() else None)
-        self.setEnabled(ax is not None)
-        if ax is None:
+        if self._updating:
             return
+        self._updating = True
+        try:
+            ax = self.axes()
+            self._watch_axes(ax if self.toolbar.settings_action.isChecked() else None)
+            self.toolbar.highlight_axes(ax if self.toolbar.settings_action.isChecked() else None)
+            self.setEnabled(ax is not None)
+            if ax is not None:
+                self._read_bounds(ax)
+                self._axes_snapshot = self._axis_state(ax)
+                self.error.hide()
+        finally:
+            self._updating = False
+
+    @staticmethod
+    def _axis_state(ax):
+        return ax.get_xlim(), ax.get_ylim(), ax.get_autoscalex_on(), ax.get_autoscaley_on()
+
+    def _watch_axes(self, ax):
+        if ax is self._observed_axes:
+            return
+        for connection in self._axis_callbacks:
+            self._observed_axes.callbacks.disconnect(connection)
+        self._observed_axes, self._axis_callbacks = ax, []
+        self._axes_snapshot = None
+        if ax is not None:
+            self._axis_callbacks = [
+                ax.callbacks.connect(name, self.synchronize)
+                for name in ("xlim_changed", "ylim_changed")
+            ]
+
+    def stop_observing(self):
+        self._watch_axes(None)
+
+    def synchronize(self, *_):
+        if self._updating or not self.toolbar.settings_action.isChecked():
+            return
+        ax = self.axes()
+        if (
+            ax is not self._observed_axes
+            or ax is not None
+            and self._axis_state(ax) != self._axes_snapshot
+        ):
+            self.read_axes()
+
+    def _read_bounds(self, ax):
         self.graph_hint.setText(
             "Click a graph to set its limits. Time limits apply to linked graphs."
         )
@@ -280,16 +342,24 @@ class GraphSettings(QFrame):
             upper.setToolTip(lower.toolTip())
             values = getattr(ax, f"get_{axis}lim")()
             for edit, value in zip((lower, upper), values, strict=False):
-                edit.setText(
-                    format_profile_time(value)
-                    if profile
-                    else dates.num2date(value, tz=timezone).isoformat()
-                    if is_date
-                    else f"{value:.12g}"
-                )
-        self.error.hide()
+                text = _format_limit(value, profile=profile, calendar=is_date, timezone=timezone)
+                edit.setText(text)
+                self._displayed_text[edit] = text
+
+    def _edited_bounds(self, ax, axis, lower, upper, parse):
+        # Rounded display text must never quantize an untouched limit. Still
+        # honor an explicit user edit, even when it matches the displayed text.
+        current = getattr(ax, f"get_{axis}lim")()
+        return tuple(
+            value
+            if not edit.isModified() and edit.text().strip() == self._displayed_text.get(edit)
+            else float(parse(edit.text().strip()))
+            for edit, value in zip((lower, upper), current, strict=True)
+        )
 
     def apply(self):
+        if self._updating:
+            return
         ax = self.axes()
         if ax is None:
             return
@@ -308,7 +378,7 @@ class GraphSettings(QFrame):
                     if is_date
                     else float
                 )
-                values = tuple(float(parse(edit.text().strip())) for edit in (lower, upper))
+                values = self._edited_bounds(ax, axis, lower, upper, parse)
                 if not all(math.isfinite(value) for value in values) or values[0] >= values[1]:
                     raise ValueError
                 limits[axis] = values
@@ -316,6 +386,15 @@ class GraphSettings(QFrame):
             self.error.setText("Enter valid limits with minimum less than maximum.")
             self.error.show()
             return
+        self._updating = True
+        try:
+            self._apply_limits(ax, limits)
+        finally:
+            self._updating = False
+        self.read_axes()
+        self.canvas.draw_idle()
+
+    def _apply_limits(self, ax, limits):
         self.toolbar.push_current()
         for axis, bounds in limits.items():
             if bounds is None:
@@ -330,8 +409,6 @@ class GraphSettings(QFrame):
             else:
                 getattr(ax, f"set_{axis}lim")(*bounds)
         self.toolbar.push_current()
-        self.read_axes()
-        self.canvas.draw_idle()
 
     def reset(self):
         ax = self.axes()

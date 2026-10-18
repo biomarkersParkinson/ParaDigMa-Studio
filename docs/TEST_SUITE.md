@@ -113,6 +113,10 @@ Selector layout checks cover Detailed, 30-minute epochs, Day and 24-hour profile
 views. The linked time marker is compared with a single native dashed stroke
 through plots and their gaps at both display scales, after resizing and panning,
 and in 600-DPI export. Value points remain above the line.
+Axis-limit fields follow zoom, pan, scrolling, history and Home, including linked
+graphs and silent limit changes. Numeric and clock fields display at most three
+decimal places while unedited bounds and user-entered values retain full precision.
+Checks also retain pending edits on unchanged redraws and release replaced axes.
 Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 
