@@ -729,7 +729,6 @@ class WorkspaceLayout:
             mapping=self.mapping,
             pages=self.pages,
             status=self.status,
-            time=self.time,
             time_table=self.time_table,
             data_graphics=self.data_graphics,
         )

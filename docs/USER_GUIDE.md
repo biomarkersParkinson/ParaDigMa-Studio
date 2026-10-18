@@ -106,8 +106,10 @@ Data **Overview** separates sensor and time statistics:
 - Estimated sampling rate is the inverse median positive time interval. Gaps
   are intervals longer than 1.5 times that median. Invalid timestamps are not
   bridged. Zero-length and backward intervals are reported separately.
-- Numeric time units on Data affect inspection only. Set analysis units separately
-  on Analyze. Native datetime values carry their own time representation.
+- The numeric time format on Data applies to all loaded recordings and affects
+  inspection only. Switching recordings keeps the selected format for statistics
+  and graphs. Set analysis units separately on Analyze. Native datetime values
+  carry their own time representation.
 
 Data **Graphs** overlays checked channels of the same modality with stable colors
 and a legend. Each modality has its own value axis and shares the time axis.

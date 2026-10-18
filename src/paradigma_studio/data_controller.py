@@ -78,7 +78,6 @@ class DataView:
     mapping: QPlainTextEdit
     pages: QStackedWidget
     status: QLabel
-    time: QComboBox
     time_table: ReadableTable
     data_graphics: Callable[[], ChannelCanvasView]
 
@@ -164,7 +163,7 @@ class DataController(QObject):
             allow_pickle = True
         self.callbacks.show_notice("")
         self.view.status.setText("Loading recordings…")
-        unit = self.view.time.currentText()
+        unit = self.view.data_time_unit.currentText()
 
         def load(logger: logging.Logger) -> RecordingsLoadPayload:
             sources, frames = self.services.load_recordings(
@@ -232,7 +231,9 @@ class DataController(QObject):
         description = (
             payload[2]
             if len(payload) > 2
-            else self.services.inspect_recording(self.inputs.frame, self.view.time.currentText())
+            else self.services.inspect_recording(
+                self.inputs.frame, self.view.data_time_unit.currentText()
+            )
         )
         self.display_input_recording(description, new_selection=True)
         self.callbacks.modules_changed()
@@ -282,16 +283,19 @@ class DataController(QObject):
             self.view.data_time_channel.findData(description["time_column"])
         )
         self.view.data_time_channel.blockSignals(False)
-        self.view.data_time_unit.blockSignals(True)
-        self.view.data_time_unit.setCurrentText(description["time_unit"])
-        self.view.data_time_unit.blockSignals(False)
+        # The Data format is shared by the batch; cached descriptions retain
+        # their load-time format and must never overwrite the user's selection.
         self.view.channel_table.setModel(FrameModel(description["sensors"], compact=True))
         self.view.time_table.setModel(
             FrameModel(description["time"], compact=True)
             if description["time"] is not None
+            and description["time_unit"] == self.view.data_time_unit.currentText()
             else None
         )
-        self.update_time_unit_control()
+        if description["time_unit"] != self.view.data_time_unit.currentText():
+            self.update_time_statistics()
+        else:
+            self.update_time_unit_control()
         self.populate_input_channels(channels)
         if new_selection or self.view.data_tabs.currentIndex() == 1:
             self.plot_input()

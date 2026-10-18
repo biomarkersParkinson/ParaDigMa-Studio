@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Share the Data time format across all loaded recordings. Preserve the selection
+  when switching files and refresh time statistics in the background as needed;
+  retain original samples and separate Analyze parameters.
+
 - Keep dense Results plots consistent during horizontal scrolling and after
   release, so narrow gait bars remain visible. Preserve original values,
   per-interval detail when zoomed in, missing gaps and full export geometry.

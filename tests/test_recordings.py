@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication
 from paradigma_studio import app as desktop, core
 from paradigma_studio.app import MainWindow
 from paradigma_studio.history import load_result_export, new_run
-from paradigma_studio.inspection import inspect_recording
+from paradigma_studio.inspection import inspect_recording, time_descriptives
 from paradigma_studio.recordings import align_recordings, load_recordings
 
 
@@ -152,6 +152,41 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
     assert all(path not in window.run_summary.text() for path in sources.values())
     saved, issues = window.history.load()
     assert not issues and saved[0]["sources"] == sources
+
+
+@pytest.mark.parametrize("count", [1, 2], ids=["single", "multiple-recordings"])
+def test_open_recordings_uses_shared_data_time_format_for_initial_descriptives(
+    window, tmp_path, monkeypatch, count
+):
+    frame = pd.DataFrame({"time": [0, 10, 20, 10], "gyroscope_x": [1.0, 2.0, 3.0, 4.0]})
+    paths = [tmp_path / f"sensor-{index}.csv" for index in range(count)]
+    for path in paths:
+        frame.to_csv(path, index=False)
+    monkeypatch.setattr(
+        desktop.QFileDialog, "getOpenFileNames", lambda *args: ([str(path) for path in paths], "")
+    )
+    window.data_time_unit.setCurrentText("difference_ms")
+    window.open_file()
+    wait_for_worker(window)
+    wait_for_previews(window)
+    assert window.data_time_unit.currentText() == "difference_ms"
+    assert window.time.currentText() == "relative_s"
+    assert set(window._input_state.sources.values()) == {str(path) for path in paths}
+    pd.testing.assert_frame_equal(
+        window.time_table.model().frame, time_descriptives(frame.time, "difference_ms")
+    )
+    for description in window._data_state._input_descriptions.values():
+        assert description["time_unit"] == "difference_ms"
+        pd.testing.assert_frame_equal(
+            description["time"], time_descriptives(frame.time, "difference_ms")
+        )
+    window.set_input_channels(["gyroscope_x"])
+    window.data_tabs.setCurrentIndex(1)
+    np.testing.assert_allclose(
+        window.data_figure.axes[0].lines[0].get_xdata(), [0.0, 0.01, 0.03, 0.04]
+    )
+    for path in paths:
+        pd.testing.assert_frame_equal(pd.read_csv(path), frame, check_exact=True)
 
 
 def test_inspection_switch_reuses_descriptions_and_preserves_batch_clock_view_and_channels(

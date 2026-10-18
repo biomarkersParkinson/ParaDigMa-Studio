@@ -99,7 +99,8 @@ class DataPage:
         )
         self.data_time_unit.setToolTip(
             tooltip_text(
-                "Units for inspecting the raw time column. Analysis parameters are set on Analyze."
+                "Time format for inspecting all loaded recordings. "
+                "Analysis parameters are set on Analyze."
             )
         )
         time_controls.addWidget(self.data_time_unit)

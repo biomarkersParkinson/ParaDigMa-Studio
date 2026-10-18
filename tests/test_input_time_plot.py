@@ -3,8 +3,10 @@
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import wait_for_previews
 
-from paradigma_studio.inspection import input_plot_time
+from paradigma_studio import app as desktop
+from paradigma_studio.inspection import input_plot_time, inspect_recording, time_descriptives
 
 
 @pytest.mark.parametrize("unit", ["difference_s", "difference_ms"])
@@ -64,6 +66,87 @@ def test_data_time_selection_refreshes_visible_and_hidden_graphs(window, unit):
         np.testing.assert_allclose(axes.lines[0].get_xdata(), [0.0, 0.01, 0.04, 0.05])
     pd.testing.assert_frame_equal(frame, original)
     pd.testing.assert_frame_equal(window.input_table.model().frame, original)
+
+
+@pytest.mark.parametrize(
+    "unit, raw, elapsed",
+    [
+        ("relative_s", [0, 0.01, 0.02, 0.03], None),
+        ("relative_ms", [0, 10, 20, 30], None),
+        ("absolute_s", [1600000000 + i / 100 for i in range(4)], None),
+        ("absolute_ms", [1600000000000 + i * 10 for i in range(4)], None),
+        ("difference_s", [0, 0.01, 0.02, 0.01], [0, 0.01, 0.03, 0.04]),
+        ("difference_ms", [0, 10, 20, 10], [0, 0.01, 0.03, 0.04]),
+    ],
+)
+def test_data_time_format_is_shared_by_all_loaded_recordings(window, unit, raw, elapsed):
+    raw = np.array(raw, dtype=float)
+    frames = {
+        key: pd.DataFrame(
+            {"time": raw[0] + factor * (raw - raw[0]), "gyroscope_x": np.arange(4) + factor}
+        )
+        for key, factor in (("first", 1), ("second", 2))
+    }
+    originals = {key: frame.copy(deep=True) for key, frame in frames.items()}
+    descriptions = {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}
+    window.loaded_recordings(({key: f"{key}.csv" for key in frames}, frames, descriptions))
+    window.set_input_channels(["gyroscope_x"])
+    window.data_time_unit.setCurrentText(unit)
+    for index, tab in ((0, 1), (1, 0), (0, 1)):
+        window.data_tabs.setCurrentIndex(tab)
+        window.input_recording.setCurrentIndex(index)
+        assert window.data_time_unit.currentText() == unit
+        wait_for_previews(window)
+        key = window.input_recording.currentData()
+        stats = window.time_table.model().frame
+        pd.testing.assert_frame_equal(stats, time_descriptives(originals[key].time, unit))
+        rate = stats.set_index("Statistic").loc["Estimated sampling rate (Hz)", "Value"]
+        assert rate == pytest.approx(100 / (index + 1), rel=1e-5)
+        window.data_tabs.setCurrentIndex(1)
+        expected = (
+            originals[key].time.to_numpy() if elapsed is None else np.array(elapsed) * (index + 1)
+        )
+        line = window.data_figure.axes[0].lines[0]
+        np.testing.assert_allclose(line.get_xdata(), expected)
+        np.testing.assert_array_equal(line.get_ydata(), originals[key].gyroscope_x)
+    assert window.time.currentText() == "relative_s"
+    for key in frames:
+        pd.testing.assert_frame_equal(frames[key], originals[key], check_exact=True)
+        pd.testing.assert_frame_equal(
+            descriptions[key]["time"], time_descriptives(originals[key].time, "relative_s")
+        )
+
+
+def test_shared_time_format_only_refreshes_viewed_recordings_and_reuses_cached_statistics(
+    window, monkeypatch
+):
+    frames = {
+        key: pd.DataFrame({"time": [0, step, step, step], "gyroscope_x": [1.0, 2.0, 3.0, 4.0]})
+        for key, step in (("first", 10), ("second", 20), ("unviewed", 30))
+    }
+    descriptions = {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}
+    window.loaded_recordings(({key: f"{key}.csv" for key in frames}, frames, descriptions))
+    wait_for_previews(window)
+    calls = []
+
+    def observed(series, unit):
+        calls.append((series.iloc[1], unit))
+        return time_descriptives(series, unit)
+
+    monkeypatch.setattr(desktop, "time_descriptives", observed)
+    window.data_time_unit.setCurrentText("difference_ms")
+    wait_for_previews(window)
+    assert calls == [(10, "difference_ms")]
+    window.input_recording.setCurrentIndex(1)
+    assert window.time_table.model() is None and not window.time_table.isEnabled()
+    wait_for_previews(window)
+    assert calls == [(10, "difference_ms"), (20, "difference_ms")]
+    window.input_recording.setCurrentIndex(0)
+    assert not window._time_preview.pending and window.time_table.isEnabled()
+    pd.testing.assert_frame_equal(
+        window.time_table.model().frame, time_descriptives(frames["first"].time, "difference_ms")
+    )
+    assert calls == [(10, "difference_ms"), (20, "difference_ms")]
 
 
 def test_elapsed_times_accumulate_all_increments_before_plot_downsampling(window):
