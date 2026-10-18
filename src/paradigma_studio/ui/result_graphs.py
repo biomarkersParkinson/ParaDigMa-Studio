@@ -543,7 +543,7 @@ class ResultGraphs(QObject):
             MidnightBridges(self.view.figure, locator.timezone, calendar=locator.calendar)
         self.view.plot_toolbar.refresh()
         self.view.result_time_scroll.bind(first_axes)
-        self.view.time_axis.bind(first_axes)
+        self.view.time_axis.bind(first_axes, defer=True)
         if viewport is not None and first_axes is not None:
             # Keep Home as the full extent, while coverage toggles retain the
             # user's current view instead of making outcomes appear to change.

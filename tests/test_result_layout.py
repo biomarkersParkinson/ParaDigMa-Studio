@@ -148,3 +148,55 @@ def test_layout_recalculates_for_changed_geometry_and_exports(change, monkeypatc
     if change != "export":
         canvas.draw()
     assert solves
+
+
+@pytest.mark.parametrize("view", range(4))
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+def test_compatible_bar_rows_keep_native_pixels_when_different_metrics_are_selected(
+    window, view, pixel_ratio
+):
+    times = np.arange(0, 3 * 86400, 60.0)
+    frame = pd.DataFrame(
+        {"time": times, **{f"metric_{i}": (2 + np.sin(times / 2000)) * (i + 1) for i in range(6)}}
+    )
+    window.analyzed({"quantifications": {"tremor": frame}})
+    window.result_tabs.setCurrentIndex(1)
+    window.result_graph_view.setCurrentIndex(view)
+    window.canvas._set_device_pixel_ratio(pixel_ratio)
+    engine = window.figure.get_layout_engine()
+    items = list(window._result_state._series_items.values())
+    for selected in ((0, 1), (2, 3), (4, 5), (0, 5)):
+        window.result_series.blockSignals(True)
+        for index, item in enumerate(items):
+            item.setCheckState(0, Qt.Checked if index in selected else Qt.Unchecked)
+        window.result_series.blockSignals(False)
+        window.plot()
+        QApplication.instance().processEvents()
+        actual = np.asarray(window.canvas.buffer_rgba()).copy()
+        window.figure.set_layout_engine(ResultLayoutEngine())
+        window.canvas.draw()
+        np.testing.assert_array_equal(window.canvas.buffer_rgba(), actual)
+        window.figure.set_layout_engine(engine)
+
+
+def test_layout_and_text_caches_evict_old_geometry_and_release_all_entries():
+    engine = ResultLayoutEngine()
+    engine.MAX_LAYOUTS = 3
+    engine.MAX_TEXT_SIZES = 16
+    figure = Figure(figsize=(7, 4), layout=engine)
+    canvas = FigureCanvasAgg(figure)
+    axes = style_axes(figure)
+    axes.plot([0, 1], [0, 1])
+    for index in range(10):
+        figure.set_size_inches(7 + index / 10, 4)
+        axes.set_title(f"Heading {index}")
+        canvas.draw()
+        assert len(engine._positions) <= 3
+        assert len(engine._text_sizes) <= 16
+    engine.clear()
+    assert not engine._positions and not engine._text_sizes
+    canvas.draw()
+    pixels = np.asarray(canvas.buffer_rgba()).copy()
+    figure.set_layout_engine(ResultLayoutEngine())
+    canvas.draw()
+    np.testing.assert_array_equal(canvas.buffer_rgba(), pixels)

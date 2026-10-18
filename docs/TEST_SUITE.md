@@ -122,6 +122,8 @@ and require full layout after navigation or incompatible geometry changes.
 Recently deselected bar plots reuse every original path within four entries and
 a 128-MiB geometry budget. Tests cover eviction, context invalidation, exact
 pixels/values, garbage collection of detached axes, discarded-array release and complete exports.
+Rapid selection changes preserve synchronous signal delivery while sharing a
+final graph/ruler paint and retaining compatible ruler formatters.
 Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 

@@ -275,6 +275,39 @@ def test_repeated_axis_sync_and_selection_do_not_repaint_unchanged_ruler(window,
     assert ruler.axes.get_xlim() == pytest.approx((10.0, 20.0)) and redraws
 
 
+def test_rapid_series_toggles_share_one_final_graph_and_ruler_paint(window):
+    times = np.arange(2000.0)
+    window.analyzed(
+        {
+            "quantifications": {
+                "tremor": pd.DataFrame(
+                    {"time": times, **{f"metric_{i}": 2 + times / (100 + i) for i in range(4)}}
+                )
+            }
+        }
+    )
+    window.result_tabs.setCurrentIndex(1)
+    items = list(window._result_state._series_items.values())
+    for item in items:
+        item.setCheckState(0, Qt.Checked)
+    app = QApplication.instance()
+    for _ in range(3):
+        app.processEvents()
+    main, ruler = [], []
+    window.canvas.mpl_connect("draw_event", lambda event: main.append(event))
+    window.time_axis.mpl_connect("draw_event", lambda event: ruler.append(event))
+    locator = window.time_axis.axes.xaxis.get_major_locator()
+    items[-1].setCheckState(0, Qt.Unchecked)
+    items[-2].setCheckState(0, Qt.Unchecked)
+    items[-1].setCheckState(0, Qt.Checked)
+    assert len(window.figure.axes) == 3  # Signal delivery remains synchronous.
+    for _ in range(3):
+        app.processEvents()
+    assert len(main) == 1 and len(ruler) <= 1
+    assert window.time_axis.axes.xaxis.get_major_locator() is locator
+    assert window.time_axis.axes.get_xlim() == window.figure.axes[0].get_xlim()
+
+
 @pytest.mark.parametrize("mode", [0, 1])
 def test_adding_series_reuses_existing_paths_settings_and_shared_clock(window, mode):
     tremor = pd.DataFrame({"time": np.arange(2000.0), "metric": np.arange(2000.0) + 2.0})

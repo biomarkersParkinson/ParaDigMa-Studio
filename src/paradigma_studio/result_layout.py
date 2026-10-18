@@ -13,6 +13,7 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
     LEFT_MARGIN_INCHES = 1.1
     RIGHT_MARGIN_INCHES = 0.15
     MAX_LAYOUTS = 32
+    MAX_TEXT_SIZES = 2048
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -51,6 +52,7 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
             spec.num2,
             ax.get_visible(),
             ax.get_in_layout(),
+            None if self._positive_bars(ax) else (ax.get_xlim(), ax.get_ylim()),
             ax.get_xscale(),
             ax.get_yscale(),
             tuple(self._text_key(label) for label in (*labels, *ax.texts)),
@@ -70,6 +72,10 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
             text.get_visible(),
             str(text.get_fontproperties()),
             text.get_rotation(),
+            text.get_rotation_mode(),
+            text.get_math_fontfamily(),
+            text.get_usetex(),
+            text.get_parse_math(),
             text.get_horizontalalignment(),
             text.get_verticalalignment(),
             # Matplotlib exposes a setter but no getter for line spacing.
@@ -84,7 +90,7 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
         if key not in self._text_sizes:
             box = text.get_window_extent(figure.canvas.get_renderer())
             self._text_sizes[key] = round(box.width, 6), round(box.height, 6)
-            while len(self._text_sizes) > 2048:
+            while len(self._text_sizes) > self.MAX_TEXT_SIZES:
                 self._text_sizes.popitem(last=False)
         else:
             self._text_sizes.move_to_end(key)
@@ -103,6 +109,14 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
             sizes.append(self._text_key(text))
         return tuple(sizes)
 
+    @staticmethod
+    def _positive_bars(axes):
+        return (
+            getattr(axes, "_paradigma_bars", False)
+            and axes.get_autoscaley_on()
+            and axes.get_ylim()[0] == 0
+        )
+
     def _axis_key(self, axis):
         if not axis.get_visible():
             return None
@@ -120,9 +134,17 @@ class ResultLayoutEngine(ConstrainedLayoutEngine):
                 continue
             formatter = getattr(axis, f"get_{which}_formatter")()
             locations = getattr(axis, f"get_{which}_locator")()()
+            sizes = self._tick_sizes(labels, formatter.format_ticks(locations))
+            if axis is axis.axes.yaxis and self._positive_bars(axis.axes):
+                # Every automatic nonnegative bar row starts at zero. Its
+                # vertical padding depends on tick height; tick widths cannot
+                # move the fixed Results label column.
+                sizes = tuple(
+                    sorted({(size[0][1], size[1]) for size in sizes if size is not None}, key=repr)
+                )
             groups.append(
                 (
-                    self._tick_sizes(labels, formatter.format_ticks(locations)),
+                    sizes,
                     tuple(sorted({str(label.get_fontproperties()) for label in labels})),
                     formatter.get_offset(),
                 )

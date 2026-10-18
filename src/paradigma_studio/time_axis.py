@@ -118,6 +118,8 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self._label_text = ""
         self._source = None
         self._source_connection = None
+        self._format_state = None
+        self._defer_source_draw = False
         self._sync_state = None
         self._selection_state = None
         self._deferred_draw = False
@@ -146,9 +148,27 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         )
         self._selected_x = None
         self.set_selection(None)
-        source_canvas.mpl_connect("draw_event", self.synchronize)
+        source_canvas.mpl_connect("draw_event", self._source_drawn)
 
-    def bind(self, source):
+    @staticmethod
+    def _source_format(source):
+        locator = source.xaxis.get_major_locator()
+        return (
+            bool(getattr(source, "_paradigma_profile", False)),
+            bool(getattr(source, "_paradigma_day_groups", False)),
+            isinstance(locator, RecordingDayLocator),
+            isinstance(locator, dates.DateLocator),
+            str(getattr(locator, "timezone", getattr(locator, "tz", None))),
+            getattr(locator, "calendar", None),
+            getattr(locator, "split_year", None),
+        )
+
+    def bind(self, source, *, defer=False):
+        self._defer_source_draw = defer
+        state = self._source_format(source) if source is not None else None
+        if source is not None and source is self._source and state == self._format_state:
+            self.synchronize()
+            return
         if self._source is not None and self._source_connection is not None:
             self._source.callbacks.disconnect(self._source_connection)
         self._source = source
@@ -158,54 +178,68 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.axes.set_visible(source is not None)
         if source is not None:
             self._source_connection = source.callbacks.connect("xlim_changed", self.synchronize)
-            self.axes.xaxis.set_minor_locator(ticker.NullLocator())
-            self.axes.xaxis.set_minor_formatter(ticker.NullFormatter())
-            self.axes.xaxis.remove_overlapping_locs = True
-            self.axes.tick_params(axis="x", which="major", colors="#60728A", length=3, pad=6)
-            locator = source.xaxis.get_major_locator()
-            if getattr(source, "_paradigma_profile", False):
-                self._date_timezone = None
-                style_profile_axis(self.axes, labels=True)
-                self.setFixedHeight(42)
-            elif getattr(source, "_paradigma_day_groups", False):
-                self._date_timezone = locator.timezone if locator.calendar else None
-                style_epoch_axis(
-                    self.axes,
-                    locator.timezone,
-                    calendar=locator.calendar,
-                    clock_formatter=RecordingTimeFormatter(locator.timezone, show_date=False),
-                    labels=True,
-                )
-                self.setFixedHeight(62)
-            elif isinstance(locator, RecordingDayLocator):
-                self._date_timezone = locator.timezone if locator.calendar else None
-                self.axes.xaxis.set_major_locator(
-                    RecordingDayLocator(
-                        locator.timezone, calendar=locator.calendar, split_year=locator.split_year
-                    )
-                )
-                self.axes.xaxis.set_major_formatter(
-                    RecordingDayFormatter(
-                        locator.timezone, calendar=locator.calendar, split_year=locator.split_year
-                    )
-                )
-                self.setFixedHeight(62 if locator.calendar else 42)
-            elif isinstance(locator, dates.DateLocator):
-                self._date_timezone = locator.tz
-                locator = RecordingDateLocator(tz=locator.tz, minticks=3, maxticks=7)
-                self.axes.xaxis.set_major_locator(locator)
-                self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
-                self.setFixedHeight(62)
-            else:
-                self._date_timezone = None
-                self.setFixedHeight(42)
-                self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
-                self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
+            if state != self._format_state:
+                self._configure_source(source)
         else:
             self._label_text = ""
             self.label_changed.emit("")
             self.draw_idle()
+        self._format_state = state
         self.synchronize()
+
+    def _configure_source(self, source):
+        self.axes.xaxis.set_minor_locator(ticker.NullLocator())
+        self.axes.xaxis.set_minor_formatter(ticker.NullFormatter())
+        self.axes.xaxis.remove_overlapping_locs = True
+        self.axes.tick_params(axis="x", which="major", colors="#60728A", length=3, pad=6)
+        locator = source.xaxis.get_major_locator()
+        if getattr(source, "_paradigma_profile", False):
+            self._date_timezone = None
+            style_profile_axis(self.axes, labels=True)
+            self.setFixedHeight(42)
+        elif getattr(source, "_paradigma_day_groups", False):
+            self._date_timezone = locator.timezone if locator.calendar else None
+            style_epoch_axis(
+                self.axes,
+                locator.timezone,
+                calendar=locator.calendar,
+                clock_formatter=RecordingTimeFormatter(locator.timezone, show_date=False),
+                labels=True,
+            )
+            self.setFixedHeight(62)
+        elif isinstance(locator, RecordingDayLocator):
+            self._date_timezone = locator.timezone if locator.calendar else None
+            self.axes.xaxis.set_major_locator(
+                RecordingDayLocator(
+                    locator.timezone, calendar=locator.calendar, split_year=locator.split_year
+                )
+            )
+            self.axes.xaxis.set_major_formatter(
+                RecordingDayFormatter(
+                    locator.timezone, calendar=locator.calendar, split_year=locator.split_year
+                )
+            )
+            self.setFixedHeight(62 if locator.calendar else 42)
+        elif isinstance(locator, dates.DateLocator):
+            self._date_timezone = locator.tz
+            locator = RecordingDateLocator(tz=locator.tz, minticks=3, maxticks=7)
+            self.axes.xaxis.set_major_locator(locator)
+            self.axes.xaxis.set_major_formatter(RecordingTimeFormatter(locator.tz))
+            self.setFixedHeight(62)
+        else:
+            self._date_timezone = None
+            self.setFixedHeight(42)
+            self.axes.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+            self.axes.xaxis.set_major_formatter(ticker.ScalarFormatter(useOffset=False))
+
+    def _source_drawn(self, *_):
+        if self.source_canvas.exporting_time_axis:
+            return
+        pending = self._defer_source_draw
+        self._defer_source_draw = False
+        self.synchronize()
+        if pending:
+            self.draw_idle()
 
     def set_selection(self, x, label=""):
         state = x, label, self._source is not None
@@ -266,16 +300,24 @@ class PinnedTimeAxis(FigureCanvasQTAgg):
         self.draw_idle()
 
     def draw_idle(self):
+        if self._defer_source_draw:
+            return
         if not self.isVisible():
             self._deferred_draw = True
             return
         super().draw_idle()
 
+    def draw(self):
+        # A timer queued before a selection batch must not paint its temporary
+        # ruler geometry. The source draw schedules the final ruler afterward.
+        if not self._defer_source_draw or self.is_saving():
+            return super().draw()
+
     def showEvent(self, event):
         super().showEvent(event)
         if self._deferred_draw:
             self._deferred_draw = False
-            super().draw_idle()
+            self.draw_idle()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
