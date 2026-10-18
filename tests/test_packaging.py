@@ -104,7 +104,7 @@ def test_invalid_output_paths_are_rejected_before_deleting_any_outputs(tmp_path)
 def test_ci_benchmarks_write_outside_the_application_download(workflow):
     text = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / workflow).read_text()
     commands = [line for line in text.splitlines() if "run: python scripts/benchmark_" in line]
-    assert len(commands) == 4
+    assert len(commands) == 5
     assert all("--report build-reports/" in command for command in commands)
     assert "name: ParaDigMaStudio-build-reports\n          path: build-reports/" in text
     assert "path: dist/ParaDigMaStudio/" in text

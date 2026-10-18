@@ -72,6 +72,10 @@ jobs:
         run: python scripts/benchmark_sensor_context.py --report build-reports/sensor-context-performance.json
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Measure dense graph selection at double display scale
+        run: python scripts/benchmark_pan.py --selection-only --rows 150000 --pixel-ratio 2 --with-controls --report build-reports/selection-performance.json
+        env:
+          QT_QPA_PLATFORM: offscreen
       - name: Record package versions, audit and bundle checksums
         run: python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json
       - name: Save benchmark reports separately

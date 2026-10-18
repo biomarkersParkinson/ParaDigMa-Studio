@@ -22,6 +22,12 @@
   statistic still finishes before a recording is displayed.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
+  Compatible selections reuse bounded layout/text measurements. Recently removed
+  bar plots retain original geometry in a four-entry, 128 MiB cache, cleared on
+  result, view or display-clock changes. The cache owns no detached axes. Exports
+  always solve their complete layout, and unsupported screen layouts fall back
+  to the native solver. Rapid toggles coalesce paints without delaying selection
+  signals; the pinned time ruler paints after the final graph draw.
   Removing the shared time-axis owner retains the remaining axes, paths and
   per-graph settings. Results scrollbar drags and horizontal trackpad gestures
   reuse settled axes, tick positions and measured date-label widths. Ordered
@@ -70,6 +76,46 @@ These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## Plot-series selection check — 18 October 2026
+
+Paired processes compared `d9ca122` with validated layout reuse, bounded original
+bar-geometry reuse and coalesced ruler painting. Linux/Fusion/offscreen at
+1450×920, the same Python 3.12/dependencies, alternating process order, three
+real label-click repetitions per view and no concurrent tests/builds. Timings
+include queued paints; fixture preparation, imports and source-hash checks are
+outside the timer. Each row reports median deselection / re-selection latency.
+
+| Workload | View | Before | After |
+| --- | --- | ---: | ---: |
+| Six graphs × 30,000 values | Detailed | 240 / 302 ms | 116 / 140 ms |
+| Same | 30-minute epochs | 200 / 228 ms | 93 / 116 ms |
+| Same | Day | 173 / 202 ms | 79 / 88 ms |
+| Same | 24-hour profile | 208 / 233 ms | 84 / 98 ms |
+| Six graphs × 150,000 values | Detailed | 380 / 581 ms | 141 / 168 ms |
+| Twelve graphs × 30,000 values | Detailed | 357 / 474 ms | 133 / 154 ms |
+| Six graphs, double display scale, limits and timepoint visible | Detailed | 258 / 377 ms | 148 / 177 ms |
+| Recorded fixture, official gait outputs | Detailed | 218 / 233 ms | 164 / 135 ms |
+
+The synthetic cases reduced repeated-toggle medians by 38–71% across all four
+views. First creation still constructs complete geometry and may require a full
+layout: Detailed first selection was 339→318 ms for six graphs, 736→757 ms for
+150,000 values and 459→596 ms for twelve graphs. The short recorded gait fixture
+has missing aggregates; annotated rows retain native layout. Its aggregate-view
+changes ranged from 8% slower to 16% faster across both display scales, so these
+cases do not establish a consistent gain. Windows measurements remain separate
+and no platform-wide timing guarantee follows from these small samples.
+
+Repeated synthetic selections avoided full layout solves after compatible row
+templates were available. Every measured click painted the main canvas and ruler
+once; rapid-click regression tests also require a single final paint. The largest
+measured deselected-geometry accounting was 79.8 MiB for one 150,000-value plot;
+the cache evicts to both its byte and entry limits. Layout and text caches retain
+at most 32 layouts and 2,048 text measurements, containing no result arrays.
+Source-frame hashes matched throughout. Tests compare native/cached pixels at
+both display scales, original path identity, complete 600-DPI PNG/PDF/SVG exports,
+navigation, cache invalidation and release of discarded axes/arrays. Dense gait
+appearance while moving and at rest remains covered by the checks below.
 
 ## Detailed gait density correction — 18 October 2026
 
@@ -122,8 +168,8 @@ all offscreen graphs on release with pixel equivalence and complete-export check
 
 The pan benchmark now measures removal and re-addition of the actual shared-axis
 owner in all four views; it does not assume the first tree item remains the owner.
-A cache of deselected plot objects is deferred to avoid retaining large arrays and
-adding another invalidation policy before further measurements justify it.
+At that stage deselected-plot caching was deferred. The 18 October selection
+check above measures the subsequent bounded geometry cache and its tradeoffs.
 
 ## JSON saving check — 17 October 2026
 
@@ -282,12 +328,16 @@ use `--selection-only`; `--rows 150000 --graphs 12` changes the synthetic load,
 the limits panel and a selected timepoint. Run identical settings before and
 after an optimization. First-selection timings are reported separately from
 repeated clicks; hardware timings remain diagnostic, not strict CI limits.
+`--results path/to/saved-run.json --selection-only` measures actual exported or
+saved results, including gait metrics without individual timestamps. Reports
+also include the bounded cache's retained-geometry accounting after each click.
 
 | Report | Measures |
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
 | `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
 | `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw toolbar drags and queued painting |
+| `selection-performance.json` | Dense Plot series label clicks at double display scale, first/repeated latency, layout/paint counts and retained geometry |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 
 Both Windows workflows publish these files in the separate
