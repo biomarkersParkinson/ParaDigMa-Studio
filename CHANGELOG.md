@@ -2,82 +2,52 @@
 
 ## Unreleased
 
-- Share the Data time format across all loaded recordings. Preserve the selection
-  when switching files and refresh time statistics in the background as needed;
-  retain original samples and separate Analyze parameters.
+## 0.6.0a3 — 2026-10-18
 
-- Keep dense Results plots consistent during horizontal scrolling and after
-  release, so narrow gait bars remain visible. Preserve original values,
-  per-interval detail when zoomed in, missing gaps and full export geometry.
+Third preview of **ParaDigMa Studio**, focused on responsiveness, maintainability
+and regression coverage. Scientific processing continues to use the official
+ParaDigMa 1.1.2 toolbox; original output values and export formats are preserved.
 
-- Reuse surviving Results plots when their shared time-axis owner is deselected.
-  Paint only visible graphs after selection and horizontal scrolling; vertical
-  scrolling reuses the existing bounded image and renders newly exposed graphs.
-  Preserve original paths, manual limits, navigation, markers and full exports.
+### Data and results
 
-- Strengthen graph-settings tests against restored or renamed controls, avoid
-  unrelated navigation fixtures and duplicate setup renders, and consolidate
-  first-date checks while retaining partial-day, bounds and timezone coverage.
-- Require complete mypy annotations for data and analysis controllers, with typed
-  single/batch loading payloads, inspection caches, callbacks and analysis inputs;
-  preserve deferred imports, source frames and job/cancellation behavior.
-- Split analysis launch, sensor plotting and run-history refresh into named
-  workflow helpers, preserving state/signal order and queued cancellation inputs.
-- Add gradual mypy body checks for the entire UI package, with typed component
-  contracts, explicit optional graphics caches and read-only clock inputs;
-  retain deferred imports and the stricter service/controller checks.
-- Extract Data page construction and responsive layout from the shared workspace
-  builder, retaining widget order, shortcuts, callbacks and deferred graphs.
-- Reduce temporary row containers during JSON saving, retaining exact numeric
-  encoding, the saved-file format, bounded batches and atomic writes.
-- Compose MainWindow widgets and callbacks through their owning components,
-  preserving Qt wiring and keeping internal driver ports for tests and automation.
-  Document the driver API's scope and unchanged shrink-only guard; add regression
-  coverage for workflows with those ports disabled.
-- Strengthen UI regression checks after component extraction, isolate worker RAM
-  and configuration fallbacks, and verify complete daily calendar boundaries.
-- Continue retiring legacy window aliases onto existing state and UI components.
-  Startup, smoke checks, benchmarks and tests use their existing owners directly;
-  retire each exhausted adapter and lower the compatibility budget.
-- Retire 79 unused or low-use legacy window aliases, moving state callers to their
-  owning state APIs. Keep widely used UI/callback adapters for later migration;
-  integrations using retired aliases need the state/controller or service APIs.
-  Add a CI guard for the remaining alias names and compatibility-file line budget.
-- Align development/release guidance with the current lint, typing and coverage
-  gates; complete the module map and consolidate repeated workspace instructions.
-- Enforce Ruff limits of 60 statements and 12 branches per function alongside
-  the existing complexity limit of 10. Extract sidebar and Data recording-header
-  construction into named helpers, preserving widget creation and signal order.
-- Extend mypy checks to job, result, export and shell controllers, shared workspace
-  state, result preparation, previews and export/file-writing services. Require
-  complete function annotations in these nine additional modules.
-- Add branch-coverage reports and an 80% floor for controllers and error
-  boundaries in both Windows workflows. Add direct worker-boundary tests for
-  terminal signals, traceback forwarding and logger cleanup.
-- Enforce a 900-line limit for every Python module under `src/` in both Windows
-  workflows. Extract Analyze page construction and result-summary preparation
-  from the existing oversized modules, preserving their public view interfaces.
-- Defer sensor-context table construction and column sizing while Graphs is
-  selected. Opening Tables shows the latest window with every original sample;
-  revisiting an unchanged table preserves its model and selection.
-- Record a baseline/current performance review of the component extraction,
-  including frozen startup, graph interactions, processing and saved runs.
-  Add reproducible first-use and processing benchmarks with data checks.
-- Replace window layout/graph mixins with composed components and frozen views.
-  Move data, analysis, jobs, result workspace, exports and shell behavior into
-  explicit controllers; preserve ordered Qt wiring and deferred graph creation.
-- Refresh the security review for current worker, diagnostic and release boundaries,
-  with new dependency/static scans and security regression evidence.
-- Narrow expected file/timezone error handling and preserve full tracebacks at
-  job, preview, export and pipeline boundaries, including recording workers.
-- Reduce startup work by loading Matplotlib and constructing Data, Results and
-  sensor-context graph workspaces on first use. Later visits reuse the same
-  canvases and controls. Startup checks also guard this plotting boundary.
-- Show the empty Data graph and recording prompt immediately on opening Graphs,
-  matching the empty Results graph without loading data or analysis libraries.
-- Update workflow benchmarks and selector-layout tests for all four graph views
-  and visible table controls. Share duplicate test window fixtures and refresh
-  the test coverage guide.
+- Share the Data time format across all loaded recordings. Switching files keeps
+  the selected format for graphs and statistics; cached background previews avoid
+  scanning every recording when the format changes. Analyze keeps its own settings.
+- Defer graph initialization until first use and show the empty Data graph
+  immediately. Reuse workspaces on later visits, preserving fast startup and
+  keeping plotting and scientific imports out of empty non-graph pages.
+- Make Results selection and horizontal scrolling more responsive by reusing
+  surviving plots, bounded original geometry, exact time coordinates and compatible
+  layouts. Paint visible graphs and coalesce repeated graph/ruler paints.
+- Keep dense gait bars equally visible during and after scrolling. Peaks, signed
+  values, gaps and long intervals remain visible; zooming resolves individual
+  outputs and figure exports retain the original geometry.
+- Draw the selected-time dotted line continuously across Results graphs and gaps.
+  Keep axis-limit fields synchronized with zoom and navigation, displaying at most
+  three decimal places without rounding the underlying unedited limits.
+- Skip hidden sensor-context table updates until Tables is opened. Speed up JSON
+  saving by reducing temporary row containers, retaining exact numeric encoding,
+  bounded batches, source protection and atomic replacement.
+
+### Maintenance and verification
+
+- Replace window mixins with composed UI and workflow controllers, explicit
+  dependencies and frozen views. Keep MainWindow focused on composition and Qt
+  wiring, preserving job lifetimes, signal order and cancellation.
+- Separate the internal test/probe driver API from production composition and
+  remove unused adapters while retaining the shrink-only guard.
+- Extend mypy to key controllers, services and the entire UI package. Enforce
+  module-size, function complexity, statement and branch limits in CI, plus an
+  80% branch-coverage floor for controllers and error boundaries.
+- Strengthen scientific, rendering, source-integrity, worker-policy and failure
+  regressions; streamline redundant test setup. Expand first-graph and interaction
+  benchmarks, with reports kept outside the portable application download.
+- Refresh the user/developer documentation and security review, including current
+  dependency/static scans and source, workflow and packaged-app verification.
+
+The portable Windows preview remains unsigned. Keep the complete extracted folder
+and use the supplied SHA-256 inventory to check its contents. See
+[Security](SECURITY.md), [signing](SIGNING.md) and the [user guide](docs/USER_GUIDE.md).
 
 ## 0.6.0a2 — 2026-10-15
 

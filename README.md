@@ -6,8 +6,8 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-1. Open the [latest preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a2).
-2. Under **Assets**, download **ParaDigMaStudio-0.6.0a2-Windows-x64.zip**.
+1. Open the [latest preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a3).
+2. Under **Assets**, download **ParaDigMaStudio-0.6.0a3-Windows-x64.zip**.
 3. Extract the **entire ZIP** into a new folder.
 4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
 

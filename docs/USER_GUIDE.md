@@ -307,9 +307,9 @@ full time range while keeping the window duration. Its handle indicates how much
 time is visible; it disappears when the full range is shown. Two-finger horizontal
 trackpad gestures also scroll time over the graphs and time axis. Vertical gestures
 still scroll through the graph list. Zoom never extends beyond the full X range.
-Dense graphs use a temporary preview while scrolling, preserving peaks and gaps
-at the display's pixel resolution. Full bars return when movement stops; tables
-and exports always retain the original values.
+Dense graphs preserve peaks, gaps and visual density at the display's pixel
+resolution, both while scrolling and after release. Zooming resolves individual
+bars; tables and exports retain every original value and interval.
 The drag shades the selected interval continuously across all graphs and their
 gaps. **Zoom in** and **Zoom out** buttons change the visible duration by a factor
 of two. Home, Back and Forward include these navigation changes. Choose Select
@@ -322,6 +322,8 @@ to adjust, uncheck **Automatic** for X or Y, enter the minimum and maximum,
 and press Enter or leave the field to update the graph. Calendar limits accept
 ISO date/time with a time zone.
 X limits apply to linked plots; Y limits apply to the clicked plot.
+The fields follow navigation and zoom changes and show at most three decimal
+places; unedited limits retain their full precision.
 The selected graph is shaded while editing. **Reset limits** restores automatic
 ranges. In sensor context it returns to the original context window, like Home.
 **Close** dismisses the panel. Home, Back, Forward and figure

@@ -16,7 +16,7 @@ trigger and expected behavior still apply.
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
 | Spawned recording workers, CPU/RAM policy, CPU affinity, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Data-page statistics and recording previews | `test_inspection.py`, `test_previews.py` |
-| Raw-graph time encodings, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
+| Shared Data time formats, cached multi-recording statistics, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |
