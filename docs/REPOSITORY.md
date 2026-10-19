@@ -49,7 +49,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Recording loading, TSDF scaling, preparation and official ParaDigMa orchestration | `core.py`, `empatica.py`, `tsdf_input.py`, `recordings.py` |
 | Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py` |
 | Ordered recording-output merging and official pooled aggregation | `recording_results.py` |
-| Read-only, replaceable recording previews | `previews.py`, `inspection.py` |
+| Read-only, replaceable recording previews and bounded initial batch statistics | `previews.py`, `inspection.py`; resource policy in `analysis_limits.py` |
 | Prepared coverage, gait presence and overview charts | `availability.py`, `gait_presence.py`, `gait_overview.py`, `overview.py` |
 | Half-hour, day and 24-hour-profile summaries | `epochs.py`, `daily.py`, `epoch_profile.py` |
 | Export selection, encoding and safe file writes | `exports.py`, `serialization.py`, `storage.py` |

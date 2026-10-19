@@ -105,6 +105,7 @@ files = [
     "src/paradigma_studio/contracts.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/recordings.py",
+    "src/paradigma_studio/inspection.py",
     "src/paradigma_studio/history.py",
     "src/paradigma_studio/jobs.py",
     "src/paradigma_studio/analysis_process.py",

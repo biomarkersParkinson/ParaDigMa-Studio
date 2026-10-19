@@ -1,10 +1,140 @@
 """Descriptives from known raw observations; independent of scientific pipelines."""
 
+from threading import Barrier, Event, enumerate as active_threads, get_ident
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from paradigma_studio.inspection import inspect_recording, sensor_descriptives, time_descriptives
+from paradigma_studio import analysis_limits, inspection
+from paradigma_studio.inspection import (
+    inspect_recording,
+    inspect_recordings,
+    sensor_descriptives,
+    time_descriptives,
+)
+
+
+@pytest.mark.parametrize(
+    "count,rows,cpus,available_gib,expected",
+    [
+        (7, 8_640_000, 4, 32, 2),
+        (1, 8_640_000, 4, 32, 1),
+        (7, 100, 4, 32, 1),
+        (7, 8_640_000, 1, 32, 1),
+        (7, 8_640_000, 2, 32, 1),
+        (7, 8_640_000, 4, 1, 1),
+        (7, 8_640_000, 4, None, 1),
+        (7, 100_000_000, 4, 8, 1),
+    ],
+)
+def test_inspection_workers_reserve_cpu_and_temporary_array_ram(
+    monkeypatch, count, rows, cpus, available_gib, expected
+):
+    monkeypatch.setattr(analysis_limits, "_available_cpu_count", lambda: cpus)
+    monkeypatch.setattr(
+        analysis_limits,
+        "available_memory",
+        lambda: available_gib * analysis_limits.GIB if available_gib is not None else None,
+    )
+    # RangeIndex represents the real row count without allocating sensor arrays.
+    frames = {str(index): pd.DataFrame(index=pd.RangeIndex(rows)) for index in range(count)}
+    assert analysis_limits.inspection_worker_count(frames) == expected
+    assert analysis_limits.inspection_worker_count({}) == 1
+
+
+@pytest.mark.parametrize(
+    "unit",
+    ["relative_s", "relative_ms", "absolute_s", "absolute_ms", "difference_s", "difference_ms"],
+)
+def test_batch_statistics_are_exact_and_keep_read_only_recordings_unchanged(monkeypatch, unit):
+    frames = {}
+    for index, key in enumerate(("third", "first", "second")):
+        frame = pd.DataFrame(
+            {
+                "time": [0.0, 10.0, 20.0, np.nan, 10.0, 0.0],
+                "sensor": [np.nextafter(1.0, 2.0), -0.0, 1e-200, np.inf, np.nan, index],
+                "quality": pd.Series([1, 0, pd.NA, 1, 1, 0], dtype="Int64"),
+                "label": pd.Series(["a", None, "b", "a", "b", "a"], dtype="string"),
+            }
+        )
+        frame.attrs["desktop_recording_start"] = "2026-10-19T00:00:00+02:00"
+        frames[key] = frame
+    originals = {key: frame.copy(deep=True) for key, frame in frames.items()}
+    expected = {key: inspect_recording(frame, unit) for key, frame in frames.items()}
+    for frame in frames.values():
+        for column in ("time", "sensor"):
+            frame[column].to_numpy().flags.writeable = False
+    monkeypatch.setattr(inspection, "inspection_worker_count", lambda _: 2)
+    actual = inspect_recordings(frames, unit)
+    assert list(actual) == list(frames)
+    for key, report in actual.items():
+        for name in ("missing", "time_column", "time_unit"):
+            assert report[name] == expected[key][name]
+        for name in ("sensors", "time"):
+            pd.testing.assert_frame_equal(report[name], expected[key][name], check_exact=True)
+        pd.testing.assert_frame_equal(frames[key], originals[key], check_exact=True)
+        for column in ("time", "sensor"):
+            np.testing.assert_array_equal(
+                frames[key][column].to_numpy().view(np.uint64),
+                originals[key][column].to_numpy().view(np.uint64),
+            )
+        assert frames[key].attrs == originals[key].attrs
+
+
+def test_single_worker_statistics_use_the_calling_worker_without_a_pool(monkeypatch):
+    monkeypatch.setattr(inspection, "inspection_worker_count", lambda _: 1)
+    monkeypatch.setattr(
+        inspection,
+        "ThreadPoolExecutor",
+        lambda **kwargs: pytest.fail("A single-worker batch created an additional pool"),
+    )
+    frames = {"only": pd.DataFrame({"time": [0, 10], "sensor": [0.0, 1.0]})}
+    reports = inspect_recordings(frames, "difference_ms")
+    expected = inspect_recording(frames["only"], "difference_ms")
+    pd.testing.assert_frame_equal(reports["only"]["sensors"], expected["sensors"], check_exact=True)
+    pd.testing.assert_frame_equal(reports["only"]["time"], expected["time"], check_exact=True)
+
+
+def test_two_inspection_workers_overlap_and_retain_file_order(monkeypatch):
+    frames = {str(i): pd.DataFrame({"time": [0, 1], "sensor": [i, i + 1]}) for i in range(3)}
+    monkeypatch.setattr(inspection, "inspection_worker_count", lambda _: 2)
+    gate, second_finished = Barrier(2), Event()
+    threads, completions = set(), []
+    caller = get_ident()
+
+    def describe(frame, unit):
+        number = int(frame.sensor.iloc[0])
+        threads.add(get_ident())
+        if number < 2:
+            gate.wait(timeout=5)
+        report = inspect_recording(frame, unit)
+        if number == 0:
+            assert second_finished.wait(5)
+        completions.append(number)
+        if number == 1:
+            second_finished.set()
+        return report
+
+    reports = inspect_recordings(frames, "relative_s", describe=describe)
+    assert len(threads) == 2 and caller not in threads
+    assert completions[0] == 1
+    assert list(reports) == list(frames)
+    assert [report["sensors"].Median.iloc[0] for report in reports.values()] == [0.5, 1.5, 2.5]
+    assert not any(thread.name.startswith("paradigma-inspection") for thread in active_threads())
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_failed_batch_inspection_raises_and_releases_its_workers(monkeypatch, workers):
+    monkeypatch.setattr(inspection, "inspection_worker_count", lambda _: workers)
+    frames = {str(i): pd.DataFrame({"time": [0, 1]}) for i in range(2)}
+
+    def describe(frame, unit):
+        raise ValueError("Cannot inspect the selected recording")
+
+    with pytest.raises(ValueError, match="Cannot inspect the selected recording"):
+        inspect_recordings(frames, "relative_s", describe=describe)
+    assert not any(thread.name.startswith("paradigma-inspection") for thread in active_threads())
 
 
 def values(series, unit="relative_s"):

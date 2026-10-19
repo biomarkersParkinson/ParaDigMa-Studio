@@ -2,17 +2,52 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import tzinfo
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .analysis_limits import inspection_worker_count
+
 if TYPE_CHECKING:
+    import logging
+
     import pandas as pd
 
     from .contracts import RecordingDescription
 
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
+
+
+def inspect_recordings(
+    frames: dict[str, pd.DataFrame],
+    time_unit: str,
+    *,
+    describe: Callable[[pd.DataFrame, str], RecordingDescription] | None = None,
+    logger: logging.Logger | None = None,
+) -> dict[str, RecordingDescription]:
+    """Finish exact initial statistics for every recording before publishing any."""
+    describe = describe or inspect_recording
+    workers = inspection_worker_count(frames)
+    if logger is not None:
+        logger.info(
+            "Preparing initial statistics for %s recordings using %s worker%s.",
+            len(frames),
+            workers,
+            "s" if workers != 1 else "",
+        )
+    if workers == 1:
+        return {key: describe(frame, time_unit) for key, frame in frames.items()}
+
+    def inspect(frame: pd.DataFrame) -> RecordingDescription:
+        return describe(frame, time_unit)
+
+    # NumPy's exact quantiles release the GIL. Share read-only frames between
+    # two threads instead of copying large recordings to separate processes.
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="paradigma-inspection") as pool:
+        return dict(zip(frames, pool.map(inspect, frames.values()), strict=True))
 
 
 def input_plot_time(

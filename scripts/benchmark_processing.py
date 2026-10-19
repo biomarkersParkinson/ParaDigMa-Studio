@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import platform
+import shutil
 import statistics
 import tempfile
 import time
@@ -27,7 +28,8 @@ from paradigma_studio.analysis_limits import parallel_worker_count
 from paradigma_studio.analysis_process import run_isolated_analysis
 from paradigma_studio.core import load_sensor_file
 from paradigma_studio.history import RunHistory, load_result_export, new_run
-from paradigma_studio.inspection import inspect_recording
+from paradigma_studio.inspection import inspect_recording, inspect_recordings
+from paradigma_studio.recordings import load_recordings
 from paradigma_studio.serialization import json_value
 
 
@@ -99,7 +101,7 @@ def _write_tsdf(directory, samples):
     return path
 
 
-def _benchmark_loading(directory, measurements, repeats, samples, fixture):
+def _benchmark_loading(directory, measurements, repeats, samples, fixture, recordings=1):
     tsdf = _write_tsdf(directory, samples)
     paths = [tsdf, tsdf.with_name("IMU_time.bin"), tsdf.with_name("IMU_values.bin")]
     original = [_file_digest(path) for path in paths]
@@ -114,6 +116,8 @@ def _benchmark_loading(directory, measurements, repeats, samples, fixture):
     )
     assert original == [_file_digest(path) for path in paths], "Source TSDF files changed"
     del frame
+    if recordings > 1:
+        _benchmark_batch_loading(directory, measurements, repeats, recordings, paths)
     recorded = pd.read_parquet(fixture)
     raw = pd.concat([recorded] * 4, ignore_index=True)
     for extension in ("csv", "parquet"):
@@ -137,6 +141,67 @@ def _benchmark_loading(directory, measurements, repeats, samples, fixture):
             repeats,
         )
     return recorded
+
+
+def _batch_digest(frames):
+    digest = hashlib.sha256()
+    for key, frame in frames.items():
+        digest.update(key.encode())
+        digest.update(_digest(frame).encode())
+    return digest.hexdigest()
+
+
+def _benchmark_batch_loading(directory, measurements, repeats, count, original_paths):
+    paths = []
+    for index in range(count):
+        target = directory / f"recording-{index:03d}"
+        target.mkdir()
+        for path in original_paths:
+            shutil.copyfile(path, target / path.name)
+        paths.append(target / original_paths[0].name)
+    source_digests = [_file_digest(path) for path in original_paths]
+    _, frames = _measure(
+        measurements,
+        "LOAD TSDF BATCH",
+        lambda: load_recordings(paths),
+        repeats,
+        verify=lambda payload: _batch_digest(payload[1]),
+    )
+    original = _batch_digest(frames)
+    sequential = _measure(
+        measurements,
+        "INSPECT TSDF BATCH SEQUENTIAL",
+        lambda frames=frames: {
+            key: inspect_recording(frame, "difference_ms") for key, frame in frames.items()
+        },
+        repeats,
+    )
+    concurrent = _measure(
+        measurements,
+        "INSPECT TSDF BATCH",
+        lambda frames=frames: inspect_recordings(frames, "difference_ms"),
+        repeats,
+    )
+    assert _digest(sequential) == _digest(concurrent), "Batch statistics changed"
+    assert _batch_digest(frames) == original, "Inspected raw samples changed"
+    del frames
+
+    def load_and_inspect():
+        _, frames = load_recordings(paths)
+        descriptions = inspect_recordings(frames, "difference_ms")
+        return frames, descriptions
+
+    _measure(
+        measurements,
+        "LOAD AND INSPECT TSDF BATCH",
+        load_and_inspect,
+        repeats,
+        verify=lambda payload: _digest((_batch_digest(payload[0]), _digest(payload[1]))),
+    )
+    for path in paths:
+        assert [
+            _file_digest(path.parent / original.name) for original in original_paths
+        ] == source_digests, "Source TSDF files changed"
 
 
 def _file_digest(path):
@@ -201,21 +266,35 @@ def _benchmark_saving(directory, measurements, repeats):
     return {"saved_rows": rows * 2, "saved_bytes": path.stat().st_size}
 
 
-def benchmark(report_path: Path, fixture: Path, repeats: int = 3, samples: int = 8_640_000) -> None:
-    if repeats < 1 or samples < 1:
-        raise ValueError("repeats and samples must be positive")
+def benchmark(
+    report_path: Path,
+    fixture: Path,
+    repeats: int = 3,
+    samples: int = 8_640_000,
+    *,
+    recordings: int = 1,
+    loading_only: bool = False,
+) -> None:
+    if repeats < 1 or samples < 1 or recordings < 1:
+        raise ValueError("repeats, samples and recordings must be positive")
     measurements = {}
+    analysis, saving = {}, {}
     with tempfile.TemporaryDirectory(prefix="paradigma-processing-benchmark-") as temporary:
         directory = Path(temporary)
-        recorded = _benchmark_loading(directory, measurements, repeats, samples, fixture)
-        analysis = _benchmark_analysis(recorded, measurements, repeats)
-        saving = _benchmark_saving(directory, measurements, repeats)
+        recorded = _benchmark_loading(
+            directory, measurements, repeats, samples, fixture, recordings
+        )
+        if not loading_only:
+            analysis = _benchmark_analysis(recorded, measurements, repeats)
+            saving = _benchmark_saving(directory, measurements, repeats)
     report = {
         "platform": platform.platform(),
         "python": platform.python_version(),
         "versions": {name: version(name) for name in ("paradigma", "numpy", "pandas", "pyarrow")},
         "conditions": "Warm imports/file caches; temporary synthetic inputs and recorded IMU fixture. Timings include process startup and complete file writes/reads, exclude fixture construction and SHA-256 checks. Native thread limits must be identical for baseline and candidate.",
         "tsdf_samples": samples,
+        "tsdf_recordings": recordings,
+        "loading_only": loading_only,
         "tsdf_random_seed": 20261016,
         "fixture_sha256": _file_digest(fixture),
         **analysis,
@@ -231,10 +310,19 @@ if __name__ == "__main__":
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--samples", type=int, default=8_640_000)
+    parser.add_argument("--recordings", type=int, default=1)
+    parser.add_argument("--loading-only", action="store_true")
     parser.add_argument(
         "--fixture",
         type=Path,
         default=Path(__file__).resolve().parents[1] / "tests/data/paradigma/prepared_imu.parquet",
     )
     args = parser.parse_args()
-    benchmark(args.report, args.fixture, args.repeats, args.samples)
+    benchmark(
+        args.report,
+        args.fixture,
+        args.repeats,
+        args.samples,
+        recordings=args.recordings,
+        loading_only=args.loading_only,
+    )

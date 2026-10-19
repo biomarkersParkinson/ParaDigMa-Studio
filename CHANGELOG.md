@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Speed up initial statistics for multiple long recordings with at most two
+  background threads when CPU and available RAM permit. Preserve exact
+  statistics, loaded samples and completion before displaying recordings.
+
 - Keep saved-run reopening responsive: prepare result views in the worker,
   isolate large JSON decoding in an owned process, and defer hidden Results
   graphs until Graphs is opened. Preserve saved formats, values and source inputs.

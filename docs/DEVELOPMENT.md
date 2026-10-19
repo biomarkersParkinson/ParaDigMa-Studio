@@ -171,6 +171,9 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 - `workspace_state`, `result_data`, `result_preparation`, `result_reopening`,
   `previews`, `storage` and `exports`.
 
+`inspection` is also checked at the lenient service level; its batch-inspection
+interface is fully annotated.
+
 The entire `ui/` directory is checked recursively, including new modules. The
 `paradigma_studio.ui.*` override checks function bodies (`check_untyped_defs`)
 while allowing unannotated functions (`disallow_untyped_defs = false`). Callback,

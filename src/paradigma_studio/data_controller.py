@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from .core import (
     validate_column_mapping,
 )
+from .inspection import inspect_recordings
 from .sensor_controller import ChannelServices
 from .ui.graph_views import ChannelCanvasView
 from .widgets import FrameModel, ReadableTable
@@ -169,9 +170,9 @@ class DataController(QObject):
             sources, frames = self.services.load_recordings(
                 paths, allow_pickle=allow_pickle, logger=logger
             )
-            descriptions = {
-                key: self.services.inspect_recording(frame, unit) for key, frame in frames.items()
-            }
+            descriptions = inspect_recordings(
+                frames, unit, describe=self.services.inspect_recording, logger=logger
+            )
             return sources, frames, descriptions
 
         self.callbacks.start_job(load, self.loaded_recordings)

@@ -1,4 +1,4 @@
-"""Conservative process limits without importing the scientific stack at startup."""
+"""Conservative worker limits without importing the scientific stack at startup."""
 
 from __future__ import annotations
 
@@ -14,6 +14,18 @@ if TYPE_CHECKING:
     import pandas as pd
 
 GIB = 1024**3
+
+
+def inspection_worker_count(frames: dict[str, pd.DataFrame]) -> int:
+    """Bound read-only batch statistics, reserving a CPU and temporary-array RAM."""
+    largest_rows = max((len(frame) for frame in frames.values()), default=0)
+    if len(frames) < 2 or largest_rows < 100_000 or _available_cpu_count() < 3:
+        return 1
+    available = available_memory()
+    # Statistics scan one channel at a time. Allow eight double-precision
+    # work arrays per recording, plus a GiB for the interface and other work.
+    per_worker = max(64 * 1024**2, largest_rows * 8 * 8)
+    return 2 if available is not None and available >= GIB + 2 * per_worker else 1
 
 
 def parallel_worker_count(
