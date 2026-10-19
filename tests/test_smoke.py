@@ -35,6 +35,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["paradigma_acknowledgement_verified"]
     assert data["studio_licence_verified"]
     assert data["local_results_saved_verified"]
+    assert data["isolated_result_reader_verified"]
     assert data["aggregate_overview_verified"]
     assert data["original_output_tables_verified"]
     assert data["tremor_power_log_scale_verified"]

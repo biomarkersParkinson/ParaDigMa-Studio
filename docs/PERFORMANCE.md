@@ -20,6 +20,12 @@
   scaling casts and multiplies into one double-precision output array through
   NumPy, retaining the official reader and metadata validation. Every initial
   statistic still finishes before a recording is displayed.
+- Saved runs decode and prepare clocks, timing and coverage in the background.
+  JSON files of at least 8 MiB use one owned spawned reader process, avoiding
+  long JSON-decoder calls holding the GUI interpreter lock. Small files and
+  in-memory snapshots use the existing worker directly. Only parent-created
+  private transfer files use pickle; user files remain JSON. Opening installs
+  Overview first and leaves full graph construction until Graphs is selected.
 - Results reuse prepared graph data and existing plots where possible. Hidden
   graphs defer painting, and rendering excludes bars outside the visible range.
   Compatible selections reuse bounded layout/text measurements. Recently removed
@@ -83,6 +89,25 @@ These native dependencies account for most of its size. Collection hooks retain
 models, readers, package metadata, licences and required DLLs while excluding
 redundant loose Python source copies and unused Arrow development components.
 Builds clear their app output and work directories before packaging.
+
+## Saved-run reopening check
+
+Three alternating pairs compared preview commit `d0b9282` with background
+preparation and isolated large-JSON reading. Each sample used a fresh Linux
+source process, Fusion/offscreen at 1450×920, warm OS/font caches, and one
+47,108,098-byte saved JSON containing 300,000 rows in each of two result tables.
+Timing covered Open results through worker completion and queued Qt paints,
+without a profiler or coverage. Median total time fell from 4.11 s to 3.13 s;
+the median longest interval between 10-ms GUI timer events fell from 2.91 s to
+0.10 s. All six restored scientific-table digests matched. These synthetic Linux
+measurements do not predict Windows, cold-storage or larger-file timings.
+
+Regressions block preparation deliberately to check continuing GUI events and
+worker ownership, rather than imposing a hardware timing limit. They retain
+exact values, large integers and float bits, original source bytes, previous
+results after failures, and graph creation on opening Graphs. Reader tests cover
+malformed/unsafe inputs, tracebacks, process/pipe failures and private-file cleanup.
+The source and packaged smoke probes also force the spawned-reader path.
 
 ## First graph creation check — 18 October 2026
 

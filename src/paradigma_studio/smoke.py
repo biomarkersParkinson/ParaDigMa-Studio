@@ -604,6 +604,7 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     # metadata persistence and safe JSON restoration.
     from .history import new_run, now
 
+    _verify_isolated_result_reader(export, quantified)
     record = new_run(str(source), {"pipelines": ["tremor"]})
     record.update(
         status="Completed",
@@ -668,6 +669,21 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
         raise RuntimeError("Local saved results did not reopen correctly")
 
 
+def _verify_isolated_result_reader(export, quantified):
+    import logging
+
+    import pandas as pd
+
+    from .result_reopening import load_saved_results
+
+    # Exercise the same spawned reader used for large runs even with the small
+    # public smoke fixture; this also checks PyInstaller child-process imports.
+    _, results = load_saved_results(export, logging.getLogger(__name__), isolate_bytes=0)
+    pd.testing.assert_frame_equal(
+        results["quantifications"]["tremor"], quantified, check_dtype=False
+    )
+
+
 def _successful_smoke_report(
     models, quantified, cwa_frame, cwa_quantified, avro_frame, details, physilog_gait
 ):
@@ -684,6 +700,7 @@ def _successful_smoke_report(
         "paradigma_acknowledgement_verified": True,
         "studio_licence_verified": True,
         "local_results_saved_verified": True,
+        "isolated_result_reader_verified": True,
         "aggregate_overview_verified": True,
         "original_output_tables_verified": True,
         "tremor_power_log_scale_verified": True,

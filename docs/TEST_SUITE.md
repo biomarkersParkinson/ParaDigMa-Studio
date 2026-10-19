@@ -28,7 +28,7 @@ trigger and expected behavior still apply.
 | Plot reuse, redraw avoidance, exact shared time coordinates and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py`, `test_result_plot_cache.py`, `test_result_coordinates.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, exact JSON precision, bounded batches, source integrity, atomic failures and background completion | `test_result_exports.py` |
-| Complete local snapshots, reopening and unsaved-close warnings | `test_saved_results.py` |
+| Complete local snapshots, responsive background reopening, isolated-reader cleanup/failure, exact restored values, deferred graphs and unsaved-close warnings | `test_saved_results.py` |
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |

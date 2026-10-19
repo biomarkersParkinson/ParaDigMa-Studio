@@ -353,6 +353,8 @@ tables or metadata groups to include:
 `%LOCALAPPDATA%\ParaDigMaStudio\runs\results` on new Windows installations. Use
 **Open results** in Runs to restore them after restarting. Saving runs in the
 background; original recordings are not copied. The button appears on every Results tab.
+Opening also runs in the background and returns to Overview. Graphs are prepared
+when you open the Graphs tab.
 
 **Runs** stores status, parameters, separate warnings and errors, logs and saved
 result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.

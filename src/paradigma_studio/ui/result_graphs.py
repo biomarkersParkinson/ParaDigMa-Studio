@@ -117,6 +117,8 @@ class ResultGraphs(QObject):
         return self.data.epoch_metric_presence(name)
 
     def plot(self, *_):
+        if self.results._installing_results:
+            return
         chosen = self.callbacks.selected_result_series()
         if not chosen and not self.view.graph_view.initialized:
             return

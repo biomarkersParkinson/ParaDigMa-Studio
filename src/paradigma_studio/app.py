@@ -254,6 +254,8 @@ class MainWindow(QMainWindow):
             ),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
             analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
+            prepare_results=lambda *args: self._result_controller.prepare(*args),
+            install_prepared=lambda prepared: self._result_controller.install_prepared(prepared),
             selected_export_table=lambda *args, **kwargs: (
                 self._workspace_controller.selected_export_table(*args, **kwargs)
             ),

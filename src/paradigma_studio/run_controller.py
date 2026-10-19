@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QMessageBox
 
+from .contracts import AnalysisResults, Provenance, SensorInput
 from .history import (
     RunHistory,
-    load_result_export,
     merge_errors,
     now,
     run_exports,
@@ -22,6 +22,8 @@ from .history import (
     run_status,
     saved_result_output,
 )
+from .result_preparation import PreparedResults
+from .result_reopening import load_saved_results
 from .theme import STYLESHEET, light_palette
 from .widgets import RecordModel
 from .workspace_state import InputState, ResultState, RunState
@@ -59,6 +61,8 @@ class RunCallbacks:
     clear_results: Callable[[], None]
     start_job: Callable[..., None]
     analyzed: Callable[[dict], None]
+    prepare_results: Callable[[AnalysisResults, Provenance, SensorInput | None], PreparedResults]
+    install_prepared: Callable[[PreparedResults], None]
     selected_export_table: Callable[[], tuple[str, Any]]
     is_busy: Callable[[], bool]
     select_run: Callable[[QModelIndex, QModelIndex | None], None]
@@ -431,15 +435,37 @@ class RunController:
         record = self.state.selected_run
         if record is None or self.callbacks.is_busy():
             return
-        if "_results" in record:
-            self.restore_run((record["id"], record.get("_provenance", {}), record["_results"]))
+        cached = record.get("_results")
+        output = None if cached is not None else self.reopen_output(record)
+        if cached is None and output is None:
             return
-        output = self.reopen_output(record)
-        if output:
-            self.view.status.setText("Opening exported results…")
-            self.callbacks.start_job(
-                lambda logger: (record["id"], *load_result_export(output["path"])), self.restore_run
-            )
+        run_id, source_frame = record["id"], record.get("_frame")
+        provenance = dict(record.get("_provenance") or self._run_provenance(record))
+        self.view.status.setText("Opening saved results…")
+
+        def read(logger):
+            values, origin = cached, provenance
+            if values is None:
+                origin, values = load_saved_results(output["path"], logger)
+                origin = origin or provenance
+            return run_id, self.callbacks.prepare_results(values, origin, source_frame)
+
+        self.callbacks.start_job(read, self._restore_prepared_run)
+
+    @staticmethod
+    def _run_provenance(record):
+        return {
+            "source": record["source"],
+            "settings": record["settings"],
+            "paradigma_version": record["paradigma_version"],
+            "sources": record.get("sources", {}),
+        }
+
+    def _restore_prepared_run(self, payload):
+        run_id, prepared = payload
+        self._restore_record(run_id, prepared.provenance, prepared.results)
+        self.callbacks.install_prepared(prepared)
+        self.update_run_actions()
 
     @staticmethod
     def reopen_output(record):
@@ -458,21 +484,19 @@ class RunController:
 
     def restore_run(self, payload):
         run_id, provenance, results = payload
+        self._restore_record(run_id, provenance, results)
+        self.callbacks.analyzed(results)
+        self.update_run_actions()
+
+    def _restore_record(self, run_id, provenance, results):
         record = next(record for record in self.state.runs if record["id"] == run_id)
         self.state.current_run = record
-        self.results.provenance = provenance or {
-            "source": record["source"],
-            "settings": record["settings"],
-            "paradigma_version": record["paradigma_version"],
-            "sources": record.get("sources", {}),
-        }
+        self.results.provenance = provenance or self._run_provenance(record)
         self.results.result_source_frame = record.get("_frame")
         self.results.result_timeline = None
         record["_results"], record["_provenance"] = results, self.results.provenance
         record.setdefault("_unsaved_results", not run_is_saved(record))
         self.callbacks.show_notice("")
-        self.callbacks.analyzed(results)
-        self.update_run_actions()
 
     def record_output(self, path, kind):
         if self.state.current_run is not None:

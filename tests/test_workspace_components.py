@@ -193,6 +193,8 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
         clear_results=Mock(),
         start_job=Mock(),
         analyzed=Mock(),
+        prepare_results=Mock(),
+        install_prepared=Mock(),
         selected_export_table=Mock(),
         is_busy=lambda: False,
         select_run=lambda *args: controller.select_run(*args),

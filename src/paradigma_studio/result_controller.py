@@ -5,23 +5,23 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .contracts import (
     AnalysisResults,
     AnalysisSettings,
-    ClockMetadata,
     FinishRunCallback,
     FloatArray,
     NoticeCallback,
+    Provenance,
     RecordingAlignment,
+    SensorInput,
     TimeOffsets,
 )
 from .history import merge_errors
-from .overview import recording_extent
-from .result_data import prepare_result_data
-from .results_view import normalise_clock, recording_clock
+from .result_preparation import PreparedResults, prepare_results
 from .workspace_state import InputState, ResultState, RunState, SensorState
 
 if TYPE_CHECKING:
@@ -86,15 +86,55 @@ class ResultController:
             self.state.result_source_frame = (
                 self.inputs.recordings if self.inputs.recordings else self.inputs.frame
             )
-        settings = self.state.provenance.get("settings", {})
-        batch_clock = self._align_sources(settings, results)
-        self._resolve_clock(settings, batch_clock)
+        prepared = self.prepare(results, self.state.provenance, self.state.result_source_frame)
+        self._install(prepared)
+
+    def prepare(
+        self, results: AnalysisResults, provenance: Provenance, source_frame: SensorInput | None
+    ) -> PreparedResults:
+        """Worker-safe preparation through the same explicit scientific services."""
+        prepared = prepare_results(
+            results,
+            provenance,
+            source_frame,
+            align_recordings=self.callbacks.align_recordings,
+            analysis_alignment=self.callbacks.analysis_alignment,
+        )
+        if any(
+            "gait" in results.get(stage, {})
+            for stage in ("aggregations", "metadata", "classifications", "quantifications")
+        ):
+            # Import chart classes in the worker; actual Qt widgets and canvases
+            # are created only by the overview renderer on the UI thread.
+            import_module(".gait_overview", __package__)
+        return prepared
+
+    def install_prepared(self, prepared: PreparedResults) -> None:
+        """Install a completed background snapshot; defer its hidden graph build."""
+        self._invalidate_views()
+        self.state.results = prepared.results
+        self.state.result_source_frame = prepared.source_frame
+        self.state._installing_results = True
+        try:
+            self._install(prepared)
+        finally:
+            self.state._installing_results = False
+
+    def _install(self, prepared: PreparedResults) -> None:
+        results, data = prepared.results, prepared.data
+        self.state.provenance = prepared.provenance
+        self.state.result_timeline = prepared.timeline
+        self.state._source_timelines = prepared.source_timelines
+        self.state._display_offsets = prepared.offsets
+        self.state._recording_bases = prepared.recording_bases
+        self.state.display_clock = prepared.clock
+        for notice in prepared.notices:
+            self.callbacks.append_log(notice)
         if self.runs.active_run is not None:
             self.runs.active_run["_results"] = results
             self.runs.active_run["_provenance"] = dict(self.state.provenance)
             self.runs.active_run["_unsaved_results"] = True
         self.state._detail_selections = {}
-        data = prepare_result_data(results, self.state._display_offsets)
         self._install_data(data)
         self._show_outputs(data)
         self._finish_analysis(results)
@@ -110,63 +150,6 @@ class ResultController:
         self.state._gait_presence_cache = self.state._gait_epoch_cache = None
         self.state._table_views.clear()
         self.state._table_output_names = None
-
-    def _align_sources(
-        self, settings: AnalysisSettings, results: AnalysisResults
-    ) -> ClockMetadata | None:
-        batch_clock = None
-        self.state._recording_bases = {}
-        if isinstance(self.state.result_source_frame, dict):
-            (
-                self.state.result_timeline,
-                self.state._source_timelines,
-                self.state._display_offsets,
-                batch_clock,
-                self.state._recording_bases,
-            ) = self.callbacks.align_recordings(self.state.result_source_frame, settings, results)
-        else:
-            (
-                self.state.result_timeline,
-                self.state._source_timelines,
-                self.state._display_offsets,
-            ) = self.callbacks.analysis_alignment(
-                self.state.result_source_frame,
-                settings,
-                results,
-                self.state.provenance.get("display_offsets"),
-            )
-        if self.state._display_offsets:
-            self.state.provenance["display_offsets"] = dict(self.state._display_offsets)
-        extent = recording_extent(self.state.result_timeline, self.state._recording_bases)
-        if extent is not None:
-            self.state.provenance["recording_extent"] = extent
-        return batch_clock
-
-    def _resolve_clock(self, settings: AnalysisSettings, batch_clock: ClockMetadata | None) -> None:
-        self.state.display_clock = None
-        if self.state.provenance.get("display_clock"):
-            try:
-                self.state.display_clock = normalise_clock(self.state.provenance["display_clock"])
-            except (ValueError, TypeError, KeyError, OverflowError):
-                self.callbacks.append_log(
-                    "Stored recording clock is invalid; using available recording timing."
-                )
-                self.state.provenance.pop("display_clock", None)
-        if self.state.display_clock is None:
-            self.state.display_clock = (
-                batch_clock
-                if isinstance(self.state.result_source_frame, dict)
-                else recording_clock(
-                    self.state.result_source_frame, settings, self.state.result_timeline
-                )
-            )
-        origin = settings.get("plot_time_origin", {})
-        if not self.state.provenance.get("display_clock") and origin.get("mode") == "custom":
-            self.state.display_clock = normalise_clock(origin["clock"])
-        elif origin.get("mode") == "elapsed":
-            self.state.display_clock = None
-        if self.state.display_clock is not None:
-            self.state.provenance["display_clock"] = dict(self.state.display_clock)
 
     def _install_data(self, data: ResultData) -> None:
         self.state.tables, self.state.aggregation_tables = data.tables, data.aggregates

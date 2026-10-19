@@ -1,18 +1,26 @@
 """Complete local snapshots, reopening, deletion and safe unsaved-run closing."""
 
 import json
+import logging
+import multiprocessing
+import pickle
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.exports import ExportDialog, export_items
 from paradigma_studio.history import load_result_export, new_run
+from paradigma_studio.result_reopening import load_saved_results
 
 
 def analyzed_run(window, results, tmp_path, name="sensor.csv"):
@@ -38,9 +46,225 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
 def finish_job(window):
     deadline = time.monotonic() + 10
     while window._job_state.worker is not None and time.monotonic() < deadline:
-        QTest.qWait(10)
+        QApplication.processEvents()
+        time.sleep(0.005)  # Let background Python imports acquire the GIL.
     assert window._job_state.worker is None
     QTest.qWait(20)  # Deliver any requested close after the successful save.
+
+
+def test_isolated_result_reader_retains_exact_values_and_cleans_private_files(
+    tmp_path, tremor_outputs, monkeypatch
+):
+    from paradigma_studio import result_reopening
+    from paradigma_studio.serialization import export_results
+
+    frame = tremor_outputs["quantifications"]["tremor"]
+    frame["precision"] = [np.nextafter(1.0, 2.0), -0.0, 1e-200]
+    path = tmp_path / "saved.json"
+    provenance = {"source": "missing.pkl", "settings": {"pipelines": ["tremor"]}}
+    export_results(path, tremor_outputs, provenance)
+    original = path.read_bytes()
+    expected_provenance, expected = load_result_export(path)
+    temporary = result_reopening.tempfile.TemporaryDirectory
+    monkeypatch.setattr(
+        result_reopening.tempfile,
+        "TemporaryDirectory",
+        lambda **kwargs: temporary(dir=tmp_path, **kwargs),
+    )
+    children = {child.pid for child in multiprocessing.active_children()}
+    restored_provenance, restored = load_saved_results(
+        path, logging.getLogger(__name__), isolate_bytes=0
+    )
+    assert restored_provenance == expected_provenance
+    for stage in ("classifications", "quantifications"):
+        pd.testing.assert_frame_equal(restored[stage]["tremor"], expected[stage]["tremor"])
+    np.testing.assert_array_equal(
+        restored["quantifications"]["tremor"].precision.to_numpy().view(np.uint64),
+        expected["quantifications"]["tremor"].precision.to_numpy().view(np.uint64),
+    )
+    assert restored["aggregations"] == expected["aggregations"]
+    assert path.read_bytes() == original
+    assert not list(tmp_path.glob("paradigma-result-open-*"))
+    assert {child.pid for child in multiprocessing.active_children()} == children
+
+
+@pytest.mark.parametrize("kind", ["json", "pickle"])
+def test_isolated_result_reader_rejects_unsafe_input_and_retains_child_traceback(
+    tmp_path, caplog, kind
+):
+    path = tmp_path / "malformed.json"
+    marker = tmp_path / "unpickle-executed"
+    if kind == "json":
+        path.write_text('{"analysis":{},"results":')
+    else:
+
+        class Payload:
+            def __reduce__(self):
+                return Path.touch, (marker,)
+
+        path.write_bytes(pickle.dumps(Payload()))
+    children = {child.pid for child in multiprocessing.active_children()}
+    with caplog.at_level(logging.INFO), pytest.raises(ValueError):
+        load_saved_results(path, logging.getLogger(__name__), isolate_bytes=0)
+    assert "Traceback (most recent call last)" in caplog.text
+    assert ("JSONDecodeError" if kind == "json" else "UnicodeDecodeError") in caplog.text
+    assert not marker.exists()
+    assert {child.pid for child in multiprocessing.active_children()} == children
+
+
+@pytest.mark.parametrize("failure", ["start", "exit", "eof"])
+def test_result_reader_recovers_from_child_start_exit_and_pipe_failure(
+    tmp_path, monkeypatch, failure
+):
+    from paradigma_studio import result_reopening
+
+    path = tmp_path / "saved.json"
+    path.write_text('{"analysis":{},"results":{}}')
+    receiver, sender = Mock(), Mock()
+    receiver.poll.return_value = failure == "eof"
+    receiver.recv.side_effect = EOFError
+    process = SimpleNamespace(
+        pid=None if failure == "start" else 123,
+        exitcode=9,
+        start=Mock(side_effect=OSError("Start failed") if failure == "start" else None),
+        is_alive=Mock(return_value=False),
+        join=Mock(),
+        close=Mock(),
+    )
+    context = SimpleNamespace(
+        Pipe=Mock(return_value=(receiver, sender)), Process=Mock(return_value=process)
+    )
+    monkeypatch.setattr(result_reopening.multiprocessing, "get_context", lambda method: context)
+    with pytest.raises((OSError, RuntimeError)):
+        load_saved_results(path, logging.getLogger(__name__), isolate_bytes=0)
+    receiver.close.assert_called()
+    sender.close.assert_called()
+    if failure != "start":
+        process.close.assert_called_once()
+    output = Path(context.Process.call_args.kwargs["args"][1])
+    assert not output.parent.exists()
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["disk", "memory"])
+def test_reopening_prepares_off_thread_keeps_events_running_and_defers_graphs(
+    window, tremor_outputs, tmp_path, monkeypatch, cached
+):
+    from paradigma_studio.serialization import export_results
+
+    record = new_run("missing-sensor.pkl", {"pipelines": ["tremor"]})
+    record["status"] = "Completed"
+    provenance = {"source": record["source"], "settings": record["settings"]}
+    original = tremor_outputs["quantifications"]["tremor"].copy(deep=True)
+    if cached:
+        record.update(_results=tremor_outputs, _provenance=provenance)
+    else:
+        path = tmp_path / "saved.json"
+        export_results(path, tremor_outputs, provenance)
+        record["outputs"] = [{"kind": "JSON", "path": str(path), "local": True}]
+    window._run_state.runs = [record]
+    window.refresh_runs()
+    window.navigate(3)
+    entered, release = threading.Event(), threading.Event()
+    prepare = window._result_controller.prepare
+    ui_thread, beats, rendered = threading.get_ident(), [], []
+
+    def slow_prepare(*args):
+        assert threading.get_ident() != ui_thread
+        entered.set()
+        assert release.wait(10)
+        return prepare(*args)
+
+    render = window._graph_controller._render_result_series
+    monkeypatch.setattr(window._result_controller, "prepare", slow_prepare)
+    monkeypatch.setattr(
+        window._graph_controller,
+        "_render_result_series",
+        lambda *args: (rendered.append(threading.get_ident()), render(*args))[1],
+    )
+    timer = QTimer(window)
+    timer.setInterval(5)
+    timer.timeout.connect(lambda: beats.append(True))
+    try:
+        window.open_run()
+        deadline = time.monotonic() + 10
+        while not entered.is_set() and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert entered.is_set() and window._job_state.worker is not None
+        timer.start()
+        QTest.qWait(50)
+        assert len(beats) >= 2 and window.pages.currentIndex() == 3
+        assert window._result_state.results is None and not rendered
+        release.set()
+        finish_job(window)
+        assert window.pages.currentIndex() == 2 and window.result_tabs.currentIndex() == 0
+        assert not rendered and not window._layout.graph_view.initialized
+        pd.testing.assert_frame_equal(
+            window._result_state.tables["quantifications/tremor"], original
+        )
+        pd.testing.assert_frame_equal(tremor_outputs["quantifications"]["tremor"], original)
+        window.result_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert rendered and all(thread == ui_thread for thread in rendered)
+        assert window.figure.axes and not window._result_state._installing_results
+    finally:
+        release.set()
+        timer.stop()
+        finish_job(window)
+
+
+def test_reopen_preparation_failure_keeps_previous_results_and_restores_controls(
+    window, tremor_outputs
+):
+    window.analyzed(tremor_outputs)
+    previous = window._result_state.results
+    record = new_run("missing.csv", {"pipelines": ["tremor"]})
+    record.update(
+        status="Completed",
+        _results=tremor_outputs,
+        _provenance={"settings": {"plot_time_origin": {"mode": "custom", "clock": {}}}},
+    )
+    window._run_state.runs = [record]
+    window.refresh_runs()
+    window.navigate(3)
+    window.open_run()
+    finish_job(window)
+    assert window._result_state.results is previous
+    assert window._run_state.current_run is None and record["status"] == "Completed"
+    assert window.open_button.isEnabled() and window.open_run_button.isEnabled()
+    assert "Traceback (most recent call last)" in window.log.toPlainText()
+    assert "Operation failed" in window.status.text()
+    assert not window._result_state._installing_results
+
+
+def test_reopen_replaces_existing_graphs_when_graphs_are_shown(window, monkeypatch):
+    first = {"quantifications": {"test": pd.DataFrame({"time": [0.0, 1.0], "metric": [1, 2]})}}
+    second = {"quantifications": {"test": pd.DataFrame({"time": [10.0, 20.0], "metric": [7, 9]})}}
+    window.analyzed(first)
+    window.result_tabs.setCurrentIndex(1)
+    old = window.figure.axes[0]
+    record = new_run("second.csv", {})
+    record.update(status="Completed", _results=second)
+    window._run_state.runs = [record]
+    window.refresh_runs()
+    window.navigate(3)
+    rendered = []
+    render = window._graph_controller._render_result_series
+    monkeypatch.setattr(
+        window._graph_controller,
+        "_render_result_series",
+        lambda *args: (rendered.append(True), render(*args))[1],
+    )
+    window.open_run()
+    finish_job(window)
+    assert not rendered and window.result_tabs.currentIndex() == 0
+    window.result_tabs.setCurrentIndex(1)
+    QApplication.processEvents()
+    assert rendered and window.figure.axes[0] is not old
+    assert window.figure.axes[0].get_xlim()[0] <= 10
+    assert window.figure.axes[0].get_xlim()[1] >= 20
+    pd.testing.assert_frame_equal(
+        window._result_state.tables["quantifications/test"], second["quantifications"]["test"]
+    )
 
 
 def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tabs(

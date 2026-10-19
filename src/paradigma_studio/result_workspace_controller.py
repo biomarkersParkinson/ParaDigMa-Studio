@@ -225,6 +225,8 @@ class ResultWorkspaceController(QObject):
 
     def results_tab_changed(self, index):
         set_results_tab(self.results, self.view, self.callbacks.update_context_action, index)
+        if index == 1 and self.results._plot_signature is None:
+            self.callbacks.plot()
 
     def sync_table_outputs(self, force_detail=False):
         names = [*self.results.tables, *self.results.aggregation_tables]

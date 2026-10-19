@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep saved-run reopening responsive: prepare result views in the worker,
+  isolate large JSON decoding in an owned process, and defer hidden Results
+  graphs until Graphs is opened. Preserve saved formats, values and source inputs.
+
 ## 0.6.0a3 — 2026-10-18
 
 Third preview of **ParaDigMa Studio**, focused on responsiveness, maintainability

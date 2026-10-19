@@ -37,7 +37,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Exports, save actions and unsaved-close handling | `export_controller.py` |
 | Navigation, notices and About dialog | `shell_controller.py` |
 | Public service contracts and shared payload types; no startup scientific imports | `contracts.py`, `py.typed` |
-| Result installation, source alignment, clock selection and completion status | `result_controller.py` |
+| Result installation, source alignment, clock selection and completion status | `result_controller.py`; worker-safe snapshots in `result_preparation.py`, isolated large-JSON decoding in `result_reopening.py` |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
 | Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` |

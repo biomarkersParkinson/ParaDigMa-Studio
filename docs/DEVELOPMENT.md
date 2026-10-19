@@ -168,7 +168,8 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 
 - `analysis_controller`, `data_controller`, `job_controller`, `result_controller`,
   `export_controller` and `shell_controller`;
-- `workspace_state`, `result_data`, `previews`, `storage` and `exports`.
+- `workspace_state`, `result_data`, `result_preparation`, `result_reopening`,
+  `previews`, `storage` and `exports`.
 
 The entire `ui/` directory is checked recursively, including new modules. The
 `paradigma_studio.ui.*` override checks function bodies (`check_untyped_defs`)
@@ -252,7 +253,8 @@ Both Windows workflows run the full suite with pinned `pytest-cov` and coverage.
 The initial floor is **80%**, using coverage.py's combined percentage of executed
 statements and branch outcomes. The report includes all `*_controller.py` modules
 and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analysis`,
-`previews`, `recording_results` and `storage`. New controllers automatically join
+`previews`, `recording_results`, `storage`, `result_preparation` and
+`result_reopening`. New controllers automatically join
 the gate, including modules with no tests. Other Studio modules and the upstream
 toolbox are outside this initial reporting scope; this is not whole-app coverage.
 The source scope, branch mode and floor live in `pyproject.toml`.

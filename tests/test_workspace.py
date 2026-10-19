@@ -828,6 +828,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     assert window.settings_panel.isEnabled() and window.analysis_controls.isEnabled()
     window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
     window.open_run()
+    wait_for_job(window)
     assert window._run_state.current_run is first
     assert window._result_state.provenance["source"] == "first.csv"
     assert window._input_state.source == "second.csv"  # Exploring history does not replace input.
