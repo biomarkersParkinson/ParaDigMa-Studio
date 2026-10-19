@@ -1,17 +1,56 @@
 """Measure context opening and raw plotting with a long synthetic recording."""
 
 import argparse
+import hashlib
 import json
 import platform
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 from PySide6.QtWidgets import QApplication
 
 from paradigma_studio.app import MainWindow
+
+
+def _benchmark_raw_detail(window, app, report, times):
+    """Include actual source-rate zooms and a full retained-input checksum."""
+    from matplotlib.lines import Line2D
+
+    source = window._input_state.frame
+    checksum = hashlib.sha256(pd.util.hash_pandas_object(source, index=True).to_numpy().tobytes())
+    report["raw_input_sha256"] = checksum.hexdigest()
+    report["raw_zoom_seconds"], report["raw_visible_samples"] = [], []
+    drawn = []
+    original = Line2D.draw
+
+    def capture(line, renderer):
+        if line.get_label() == "gyroscope_x":
+            drawn.append(line.get_xydata().copy())
+        return original(line, renderer)
+
+    axes = window.data_figure.axes[0]
+    radius = min(1000, max(1, len(times) // 8))
+    with patch.object(Line2D, "draw", capture):
+        for fraction in (0.25, 0.5, 0.75):
+            center = int((len(times) - 1) * fraction)
+            begin, end = max(0, center - radius), min(len(times) - 1, center + radius)
+            low, high = times[begin], times[end]
+            started = time.perf_counter()
+            axes.set_xlim(low, high)
+            window.data_canvas.draw()
+            app.processEvents()
+            report["raw_zoom_seconds"].append(time.perf_counter() - started)
+            actual = drawn[-1]
+            visible = actual[(actual[:, 0] >= low) & (actual[:, 0] <= high)]
+            np.testing.assert_array_equal(visible[:, 0], times[begin : end + 1])
+            np.testing.assert_array_equal(visible[:, 1], source.gyroscope_x.iloc[begin : end + 1])
+            report["raw_visible_samples"].append(len(visible))
+    checksum = hashlib.sha256(pd.util.hash_pandas_object(source, index=True).to_numpy().tobytes())
+    assert checksum.hexdigest() == report["raw_input_sha256"], "Raw plotting changed source samples"
 
 
 def benchmark(report_path, samples=3_000_000):
@@ -65,7 +104,10 @@ def benchmark(report_path, samples=3_000_000):
             window.inspect_sensor_context()
             app.processEvents()
             report["context_seconds"].append(time.perf_counter() - started)
+        blocked = window.data_time_channel.blockSignals(True)
         window.data_time_channel.addItem("time", "time")
+        window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("time"))
+        window.data_time_channel.blockSignals(blocked)
         window.populate_input_channels()
         window.navigate(0)
         window.data_tabs.setCurrentIndex(1)
@@ -75,6 +117,7 @@ def benchmark(report_path, samples=3_000_000):
             window.plot_input()
             app.processEvents()
             report["data_seconds"].append(time.perf_counter() - started)
+        _benchmark_raw_detail(window, app, report, times)
         window.close()
         app.processEvents()
     report_path = Path(report_path)

@@ -170,19 +170,19 @@ class SensorController:
         self.update_sensor_samples(positions, limits)
 
     def update_sensor_samples(self, positions, limits):
+        from .raw_signals import RawSignalTime, update_raw_signal
+
         navigator = self.state._sensor_navigator
         self.state.sensor_frame = navigator.context.frame.iloc[positions]
         self.state.sensor_times = navigator.context.display_times[positions]
         self.refresh_sensor_table()
         xs = navigator.coordinates_at(self.state.sensor_times)
-        step = max(1, int(np.ceil(len(xs) / 20000)))
+        time_index = RawSignalTime(xs)
         channels = self.selected_sensor_channels()
         for ax in self.view.sensor_figure.axes:
             for line in ax.lines:
                 if line.get_label() in channels and line.get_gid() is None:
-                    line.set_data(
-                        xs[::step], self.state.sensor_frame[line.get_label()].iloc[::step]
-                    )
+                    update_raw_signal(line, time_index, self.state.sensor_frame[line.get_label()])
                 elif line.get_gid() is not None:
                     line.set_visible(limits[0] <= navigator.anchor <= limits[1])
             for collection in ax.collections:

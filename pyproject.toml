@@ -62,6 +62,7 @@ include = [
     "src/paradigma_studio/storage.py",
     "src/paradigma_studio/result_preparation.py",
     "src/paradigma_studio/result_reopening.py",
+    "src/paradigma_studio/raw_signals.py",
 ]
 fail_under = 80
 precision = 1
@@ -106,6 +107,7 @@ files = [
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/recordings.py",
     "src/paradigma_studio/inspection.py",
+    "src/paradigma_studio/raw_signals.py",
     "src/paradigma_studio/history.py",
     "src/paradigma_studio/jobs.py",
     "src/paradigma_studio/analysis_process.py",

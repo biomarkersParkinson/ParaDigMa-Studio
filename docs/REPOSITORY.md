@@ -44,7 +44,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
 | Results rendering and linked graph selection | `ui/result_graphs.py`; cached summaries and display transforms in `ui/result_plot_data.py` |
-| Shared channel selection and original sensor plotting | `channels.py` |
+| Shared channel selection and original sensor plotting | `channels.py`; viewport rendering and bounded peak summaries in `raw_signals.py` |
 | Original output tables, presentation timing and optional table columns | `result_data.py`, `results_view.py` |
 | Recording loading, TSDF scaling, preparation and official ParaDigMa orchestration | `core.py`, `empatica.py`, `tsdf_input.py`, `recordings.py` |
 | Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py` |

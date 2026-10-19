@@ -178,7 +178,12 @@ def plot_channel_signals(
             color="#60728A",
         )
     else:
+        from .raw_signals import RawSignalTime
+
         groups, flags = _sensor_plot_groups(frame, channels, column_mapping, empty_schema)
+        time_index = (
+            RawSignalTime(xs) if any(channel not in flags for channel in channels) else None
+        )
         first_axes = None
         grid = figure.add_gridspec(
             len(groups), 1, height_ratios=[0.55 if group[0] in flags else 1 for _, group in groups]
@@ -198,6 +203,7 @@ def plot_channel_signals(
                     colors,
                     xs,
                     (sensor_units or {}).get(modality),
+                    time_index,
                 )
             _style_sensor_group(ax, group, time_label, calendar, timezone, index == len(groups) - 1)
 
@@ -229,7 +235,7 @@ def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
     return groups, flags
 
 
-def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs, unit):
+def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs, unit, time_index):
     from .plotting import plot_signal, plot_states
 
     if channel in flags:
@@ -249,13 +255,13 @@ def _plot_sensor_channel(ax, frame, channel, group, modality, flags, colors, xs,
             pad=12,
         )
     else:
-        step = max(1, int(np.ceil(len(frame) / 20000)))
         plot_signal(
             ax,
-            xs.iloc[::step] if hasattr(xs, "iloc") else xs[::step],
-            frame[channel].iloc[::step],
+            xs,
+            frame[channel],
             colors[channel],
             label=str(channel),
+            time_index=time_index,
         )
         title = str(group[0]) if len(group) == 1 else modality
         ylabel = (

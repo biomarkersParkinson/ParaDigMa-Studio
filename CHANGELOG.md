@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Restore source-rate detail when zooming into raw Data graphs and sensor
+  context. Replace fixed recording-wide sample skipping with visible-range
+  rendering that retains peaks, missing-data breaks and original export samples.
+
 - Speed up initial statistics for multiple long recordings with at most two
   background threads when CPU and available RAM permit. Preserve exact
   statistics, loaded samples and completion before displaying recordings.

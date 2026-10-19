@@ -418,10 +418,16 @@ def plot_states(ax, xs, ys, color, *, label=None, ends=None):
     ax.margins(x=0.025)
 
 
-def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=False):
-    return ax.plot(
+def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=False, time_index=None):
+    from .raw_signals import RawSignalLine
+
+    # A sample identifies units/timezone without boxing a full dated recording.
+    ax.xaxis.update_units(xs.iloc[:1] if hasattr(xs, "iloc") else xs[:1])
+    ax.yaxis.update_units(ys.iloc[:1] if hasattr(ys, "iloc") else ys[:1])
+    line = RawSignalLine(
         xs,
         ys,
+        time_index=time_index,
         color=color,
         label=label,
         linewidth=0 if points_only else 1.35,
@@ -433,6 +439,9 @@ def plot_signal(ax, xs, ys, color, *, label=None, points_only=False, sparse=Fals
         solid_joinstyle="round",
         zorder=3,
     )
+    ax.add_line(line)
+    ax.autoscale_view()
+    return [line]
 
 
 def plot_bars(ax, starts, ends, values, color, *, geometry=None):

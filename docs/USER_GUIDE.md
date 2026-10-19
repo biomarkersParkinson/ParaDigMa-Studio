@@ -114,6 +114,8 @@ Data **Overview** separates sensor and time statistics:
 Data **Graphs** overlays checked channels of the same modality with stable colors
 and a legend. Each modality has its own value axis and shares the time axis.
 Values retain their file units. Data **Tables** shows original samples.
+Zoom in to inspect individual samples at their original timestamps. Wide views
+retain signal peaks; zooming restores the full detail in the visible time range.
 
 ### Results overview
 

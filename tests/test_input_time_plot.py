@@ -156,8 +156,8 @@ def test_elapsed_times_accumulate_all_increments_before_plot_downsampling(window
     window.data_time_unit.setCurrentText("difference_ms")
     window.set_input_channels(["gyroscope_x"])
     line = window.data_figure.axes[0].lines[0]
-    np.testing.assert_array_equal(line.get_xdata(), np.cumsum(increments)[::4] / 1000)
-    np.testing.assert_array_equal(line.get_ydata(), frame.gyroscope_x.iloc[::4])
+    np.testing.assert_array_equal(line.get_xdata(), np.cumsum(increments) / 1000)
+    np.testing.assert_array_equal(line.get_ydata(), frame.gyroscope_x)
 
 
 @pytest.mark.parametrize("invalid", [np.nan, np.inf, pd.NA])

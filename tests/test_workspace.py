@@ -466,16 +466,39 @@ def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_
     pd.testing.assert_frame_equal(frame, original)
 
 
-def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(window):
+def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(window, monkeypatch):
+    from matplotlib.lines import Line2D
+
     t = np.arange(60001, dtype=float) / 100
     frame = pd.DataFrame({"time": t, "accelerometer_x": np.sin(t), "gyroscope_x": np.cos(t)})
+    rendered = {}
+    original = Line2D.draw
+
+    def record(line, renderer):
+        if line.get_label() in frame.columns:
+            samples = line.get_xydata().copy()
+            assert len(samples) <= 20000
+            positions = np.searchsorted(t, samples[:, 0])
+            np.testing.assert_array_equal(samples[:, 0], t[positions])
+            np.testing.assert_array_equal(samples[:, 1], frame[line.get_label()].iloc[positions])
+            rendered[line.get_label()] = samples
+        return original(line, renderer)
+
+    monkeypatch.setattr(Line2D, "draw", record)
     window.loaded(("long.csv", frame))
     window.set_input_channels(["accelerometer_x", "gyroscope_x"])
-    step = 4
+    window.data_canvas.draw()
     assert len(window.data_figure.axes) == 2
     for line in (line for ax in window.data_figure.axes for line in ax.lines):
-        assert len(line.get_ydata()) <= 20000
-        np.testing.assert_array_equal(line.get_ydata(), frame[line.get_label()].iloc[::step])
+        assert len(rendered[line.get_label()]) <= 20000
+        np.testing.assert_array_equal(line.get_xdata(), t)
+        np.testing.assert_array_equal(line.get_ydata(), frame[line.get_label()])
+    window.data_figure.axes[0].set_xlim(10, 30)
+    window.data_canvas.draw()
+    for label, samples in rendered.items():
+        visible = samples[(samples[:, 0] >= 10) & (samples[:, 0] <= 30)]
+        np.testing.assert_array_equal(visible[:, 0], t[1000:3001])
+        np.testing.assert_array_equal(visible[:, 1], frame[label].iloc[1000:3001])
     assert window.input_table.model().rowCount() == 60001
 
 
