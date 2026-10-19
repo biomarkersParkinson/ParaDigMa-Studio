@@ -387,6 +387,8 @@ def test_dense_horizontal_navigation_keeps_display_density_and_exports_original_
         )
         QApplication.sendEvent(canvas, event)
         assert event.isAccepted()
+        # Keep this manually ended gesture active while rendering its images.
+        bar._wheel_timer.stop()
     QApplication.instance().processEvents()
     assert canvas.time_scrolling and counts and max(counts) <= np.ceil(axes.bbox.width)
     assert len(collection.get_paths()) == len(frame)
@@ -464,6 +466,9 @@ def test_detailed_gait_density_is_identical_during_and_after_horizontal_scrollin
         )
         QApplication.sendEvent(canvas, event)
         assert event.isAccepted()
+        # This pixel comparison ends the gesture explicitly below. Prevent
+        # the inactivity timer racing its captures on instrumented runners.
+        bar._wheel_timer.stop()
     QApplication.instance().processEvents()
     assert canvas.time_scrolling
     limits = axes.get_xlim()
