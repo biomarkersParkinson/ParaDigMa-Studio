@@ -65,15 +65,21 @@ def _quantification_plot_labels(tables):
             ):
                 if metric in frame:
                     labels[(name, metric)] = f"{title} ({branch} gait)"
+    module_labels = {
+        "tremor": (
+            ("pred_tremor_checked", "Tremor presence (prediction)"),
+            ("pred_arm_at_rest", "Arm at rest (prediction)"),
+            ("tremor_power", "Tremor power"),
+        ),
+        "pulse_rate": (
+            ("pulse_rate", "Pulse rate"),
+            ("pred_sqa_proba", "High-quality PPG (probability)"),
+        ),
+    }
     for name, frame in tables.items():
-        if name.split("/")[1] == "tremor":
-            for metric, title in (
-                ("pred_tremor_checked", "Tremor presence (prediction)"),
-                ("pred_arm_at_rest", "Arm at rest (prediction)"),
-                ("tremor_power", "Tremor power"),
-            ):
-                if metric in frame:
-                    labels[name, metric] = title
+        for metric, title in module_labels.get(name.split("/")[1], ()):
+            if metric in frame:
+                labels[name, metric] = title
     return labels
 
 

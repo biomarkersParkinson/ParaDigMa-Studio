@@ -2,11 +2,50 @@
 
 import json
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .availability import availability_views
 from .results_view import MODULE_NAMES, clock_origin, clock_times, flat_values, readable_key
+
+if TYPE_CHECKING:
+    from .contracts import AnalysisResults, Provenance
+
+
+def _pulse_estimate_count(results: "AnalysisResults") -> int | None:
+    value = results.get("metadata", {}).get("pulse_rate", {}).get("nr_pr_est")
+    if value is None:
+        import pandas as pd
+
+        frame = results.get("quantifications", {}).get("pulse_rate")
+        if isinstance(frame, pd.DataFrame) and "pulse_rate" in frame:
+            return int(frame.pulse_rate.notna().sum())
+        return None
+    try:
+        count = float(value)
+        if math.isfinite(count) and count >= 0 and count.is_integer():
+            return int(count)
+    except (ValueError, TypeError, OverflowError):
+        pass
+    return None
+
+
+def pulse_estimate_availability(
+    results: "AnalysisResults", provenance: "Provenance"
+) -> tuple[int | None, int | None, float | None]:
+    """Returned estimates per complete 2-second epoch of the full source extent.
+
+    Retain gaps and excluded edges in the denominator. Never infer the original
+    duration from the returned estimates or change official result metadata.
+    """
+    count = _pulse_estimate_count(results)
+    bounds = _bounds(provenance)
+    periods = (bounds[1] - bounds[0]) / 2 if bounds is not None else math.nan
+    # Source timestamps can leave tiny roundoff at an exact epoch boundary.
+    epochs = math.floor(periods + 1e-9) if math.isfinite(periods) else None
+    percentage = count / epochs * 100 if count is not None and epochs else None
+    return count, epochs, percentage
 
 
 def recording_extent(timelines, bases=None):

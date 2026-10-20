@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Replace the Pulse rate overview count with **Pulse-rate estimate availability (%)**,
+  based on complete 2-second epochs in the full recording timespan. Show the
+  measures directly under Pulse rate and use clearer pulse-rate plot labels;
+  original metadata, tables and exports remain unchanged.
+
 - Accept raw PPG-only recordings for pulse-rate analysis without requiring
   accelerometer channels. Preserve time conversion, missing-sample checks and
   official analytical steps; align the input guidance and clock previews.

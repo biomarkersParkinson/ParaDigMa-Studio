@@ -8,7 +8,7 @@ import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QWidget
 
-from ..overview import recording_summary
+from ..overview import pulse_estimate_availability, recording_summary
 from ..results_view import MODULE_NAMES, flat_values, readable_key, tremor_overview_entries
 from ..theme import tooltip_text
 from ..widgets import card, label, precision_tooltip
@@ -48,7 +48,7 @@ class ResultOverview:
         if not modules:
             self.layout.addWidget(label("Run an analysis to see module aggregates.", "muted"))
         for module in modules:
-            self._module_card(module, results)
+            self._module_card(module, results, provenance)
         self.layout.addStretch()
         return self.overview_values, self.overview_module_cards, self.overview_gait_charts
 
@@ -119,7 +119,7 @@ class ResultOverview:
             )
         ]
 
-    def _module_card(self, module, results):
+    def _module_card(self, module, results, provenance):
         panel, content = card()
         panel.setProperty("analysisModule", module)
         self.overview_module_cards[module] = panel
@@ -133,6 +133,8 @@ class ResultOverview:
                 content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
         if module == "tremor":
             self._tremor_cards(content, results)
+        elif module == "pulse_rate":
+            self._pulse_cards(content, results, provenance)
         else:
             aggregate_entries = list(flat_values(results.get("aggregations", {}).get(module, {})))
             if module == "gait":
@@ -141,6 +143,45 @@ class ResultOverview:
             metadata = results.get("metadata", {}).get(module, {})
             self._metric_cards(content, module, "Metadata", list(flat_values(metadata)))
         self.layout.addWidget(panel)
+
+    def _pulse_cards(self, content, results, provenance):
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        grid.addWidget(self._pulse_availability_card(results, provenance), 0, 0)
+        entries = [
+            (group, path, value)
+            for group, category in (("Aggregates", "aggregations"), ("Metadata", "metadata"))
+            for path, value in flat_values(results.get(category, {}).get("pulse_rate", {}))
+            if group != "Metadata" or path != ("nr_pr_est",)
+        ]
+        for index, (group, path, value) in enumerate(entries, start=1):
+            grid.addWidget(
+                self._metric_card("pulse_rate", group, path, value), index // 3, index % 3
+            )
+        content.addLayout(grid)
+
+    def _pulse_availability_card(self, results, provenance):
+        count, epochs, percentage = pulse_estimate_availability(results, provenance)
+        box, inside = card()
+        inside.addWidget(label("Pulse-rate estimate availability (%)", "muted"))
+        display = label(f"{percentage:.2f}" if percentage is not None else "—", "metricValue")
+        returned = f"{count:,}" if count is not None else "unavailable"
+        possible = f"{epochs:,}" if epochs is not None else "unavailable"
+        explanation = (
+            "Returned pulse-rate estimates ÷ complete 2-second epochs in the full recording timespan × 100.\n"
+            f"Returned estimates: {returned}. Complete 2-second epochs: {possible}.\n"
+            "The timespan includes gaps and excluded edges. No deductions for signal quality or pipeline boundaries; "
+            "a final partial epoch is not counted. This measures estimate availability, not PPG quality."
+        )
+        if percentage is None:
+            explanation += (
+                "\nPercentage unavailable without both counts and at least one complete epoch."
+            )
+        display.setToolTip(tooltip_text(explanation))
+        box.setToolTip(tooltip_text(explanation))
+        inside.addWidget(display)
+        self.overview_values["pulse_rate", "Metadata", ("estimate_availability",)] = display
+        return box
 
     def _tremor_cards(self, content, results):
         grid = QGridLayout()
@@ -184,18 +225,21 @@ class ResultOverview:
         grid = QGridLayout()
         grid.setSpacing(10)
         for index, (path, value) in enumerate(entries):
-            box, inside = card()
-            title = " · ".join(readable_key(part) for part in path) or "Value"
-            inside.addWidget(label(title, "muted"))
-            if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
-                text = "—"
-            elif isinstance(value, (float, np.floating)):
-                text = f"{value:.5g}"
-            else:
-                text = str(value)
-            display = label(text, "metricValue")
-            display.setToolTip(precision_tooltip(value, text))
-            inside.addWidget(display)
-            self.overview_values[(module, heading, path)] = display
-            grid.addWidget(box, index // 3, index % 3)
+            grid.addWidget(self._metric_card(module, heading, path, value), index // 3, index % 3)
         content.addLayout(grid)
+
+    def _metric_card(self, module, group, path, value):
+        box, inside = card()
+        title = " · ".join(readable_key(part) for part in path) or "Value"
+        inside.addWidget(label(title, "muted"))
+        if value is None or isinstance(value, (float, np.floating)) and not np.isfinite(value):
+            text = "—"
+        elif isinstance(value, (float, np.floating)):
+            text = f"{value:.5g}"
+        else:
+            text = str(value)
+        display = label(text, "metricValue")
+        display.setToolTip(precision_tooltip(value, text))
+        inside.addWidget(display)
+        self.overview_values[(module, group, path)] = display
+        return box

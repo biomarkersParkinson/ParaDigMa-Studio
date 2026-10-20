@@ -136,6 +136,18 @@ unfiltered segment durations, with 20 seconds in the ≥20-second bin. Other bar
 labels use one decimal, except CV ratios, which use two. Individual segment records
 remain in the metadata export; display rounding does not change official values.
 
+Pulse rate places its individual measures directly beneath the module heading,
+without Aggregates/Metadata subheadings. **Pulse-rate estimate availability (%)**
+replaces the raw `nr_pr_est` count in Overview. It is the number of returned
+estimates divided by the number of complete 2-second epochs in the full
+**Recording timespan**, multiplied by 100. The timespan includes gaps and
+excluded edges, including between-file gaps; no quality or pipeline-boundary
+deductions are made. A final partial epoch is not counted. Hover over the value
+for both counts. This measures estimate availability, not the proportion of
+high-quality PPG samples. Unknown timing/counts or a timespan under two seconds
+show an unavailable value. The original metadata count remains in saved results
+and exports, and the overview percentage survives reopening without sensor files.
+
 ### Results graphs
 
 Results **Graphs** compares classifications and quantifications across modules.
@@ -147,6 +159,8 @@ in Analyze provides a calendar and clock for overriding analysis time zero;
 **Default** restores the derived value. Uncheck it to show elapsed seconds.
 This setting affects presentation only and is saved with run parameters. Known
 timezones, clock precision and daylight-saving offsets are retained.
+Pulse-rate series use **Pulse rate** and **High-quality PPG (probability)**;
+original column names remain unchanged in tables and exports.
 
 Multiple recordings use actual clock offsets when all clocks are comparable.
 Otherwise plots use a labeled **File-order timeline**, without inventing dates or
