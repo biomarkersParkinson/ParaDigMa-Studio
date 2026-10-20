@@ -155,13 +155,17 @@ def _timeline_valid_samples(mapped, settings):
     import pandas as pd
 
     required = {"time"}
-    for pipeline in settings.get("pipelines", []):
+    pipelines = settings.get("pipelines", [])
+    for pipeline in pipelines:
         if pipeline in ("gait", "tremor"):
             required.update(f"gyroscope_{axis}" for axis in "xyz")
-        if pipeline in ("gait", "pulse_rate"):
+        if pipeline == "gait":
             required.update(f"accelerometer_{axis}" for axis in "xyz")
         if pipeline == "pulse_rate":
             required.add("green")
+    accelerometer_columns = {f"accelerometer_{axis}" for axis in "xyz"}
+    if "pulse_rate" in pipelines and accelerometer_columns <= set(mapped.columns):
+        required.update(accelerometer_columns)
     excluded = False
     valid = np.ones(len(mapped), dtype=bool)
     if settings.get("drop_missing_samples", False) and required <= set(mapped.columns):

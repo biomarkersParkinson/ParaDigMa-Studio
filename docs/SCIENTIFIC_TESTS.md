@@ -149,6 +149,15 @@ aggregations without bypassing quality classification or changing its threshold.
 This exercises the wrapper's configuration API; it does not change the GUI
 defaults or imply that the same recording produces estimates in the default GUI.
 
+Raw PPG-only regressions use all six numeric time formats and mapped text
+columns. They compare every real pulse stage, quality probability, estimate and
+aggregate with an independent official workflow. Studio validates required
+PPG/time values before using official preparation with its IMU-specific generic
+validator disabled when no complete IMU stream is present. No accelerometer
+channels are synthesized; the analytical functions and quality thresholds are
+unchanged. Additional checks preserve missing-sample clock alignment and the
+IMU requirements for gait and tremor.
+
 ## Running and maintaining the tests
 
 ```bash

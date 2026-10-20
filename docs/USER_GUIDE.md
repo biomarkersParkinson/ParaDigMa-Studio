@@ -60,6 +60,13 @@ official orchestrator twice in the background and combines their returned output
 The workflows retain independent sensor requirements and missing-sample exclusions.
 If one fails, the other workflow's successful outputs remain available, and failed workflows appear under **Errors** in Runs.
 
+Pulse rate accepts `time` and `green` (raw PPG), with or without accelerometer
+channels. Keep preparation enabled to convert raw timestamps. In ParaDigMa 1.1.2,
+the high-level pulse-rate pipeline assesses quality using PPG features only;
+its `pred_sqa_proba` does not include an accelerometer motion assessment.
+Complete optional accelerometer channels retain their existing unit conversion
+and missing-sample checks during preparation.
+
 - Check acceleration units, gyroscope units and time representation against the
   recording. Numeric time supports relative, absolute or difference-based values
   in seconds or milliseconds. CSV date strings need conversion to a supported
@@ -411,9 +418,8 @@ and `metadata.desktop_preparation`.
 **Empty or partial results:** Empty quantified output is distinct from a failure.
 Review warnings and errors in Runs. Some short recordings have too few detected
 tremor windows for ParaDigMa's modal aggregation; available window outputs are
-retained. Raw pulse-rate preparation requires accelerometer channels even though
-prepared PPG-only input can be analyzed. The default PPG quality classifier may
-reject a recording's windows, producing no estimates.
+retained. Pulse rate accepts raw or prepared PPG-only input. The default PPG
+quality classifier may reject a recording's windows, producing no estimates.
 
 Device compatibility, sample rate, recording duration and scientific interpretation
 follow the [official documentation](https://biomarkersparkinson.github.io/paradigma/).

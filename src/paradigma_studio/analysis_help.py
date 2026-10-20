@@ -19,8 +19,9 @@ FIELD_HELP = {
     ),
     "Analysis modules": (
         "Select any combination. Gait needs time, accelerometer_x/y/z and gyroscope_x/y/z; "
-        "tremor needs time and gyroscope_x/y/z. Raw pulse-rate analysis needs time, green (raw PPG) "
-        "and accelerometer_x/y/z. A device's exported heart-rate values are not raw PPG. "
+        "tremor needs time and gyroscope_x/y/z. Pulse-rate analysis needs time and green (raw PPG); "
+        "accelerometer channels are optional. ParaDigMa 1.1.2's high-level pulse-rate pipeline "
+        "assesses quality from PPG only. A device's exported heart-rate values are not raw PPG. "
         "The desktop runs IMU and pulse-rate workflows separately when selected together.",
         "orchestrator.py",
     ),

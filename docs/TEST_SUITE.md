@@ -17,6 +17,7 @@ trigger and expected behavior still apply.
 | Spawned recording workers, CPU/RAM policy, CPU affinity, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Exact Data-page statistics, bounded batch concurrency, CPU/RAM fallbacks, recording order, worker cleanup and recording previews | `test_inspection.py`, `test_previews.py` |
 | Shared Data time formats, cached multi-recording statistics, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
+| Raw PPG-only preparation, official pulse equivalence across numeric time formats, required-value checks and source-clock alignment | `test_pulse_input.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |

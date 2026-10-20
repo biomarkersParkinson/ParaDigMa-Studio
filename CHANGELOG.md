@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Accept raw PPG-only recordings for pulse-rate analysis without requiring
+  accelerometer channels. Preserve time conversion, missing-sample checks and
+  official analytical steps; align the input guidance and clock previews.
+
 - Restore source-rate detail when zooming into raw Data graphs and sensor
   context. Replace fixed recording-wide sample skipping with visible-range
   rendering that retains peaks, missing-data breaks and original export samples.

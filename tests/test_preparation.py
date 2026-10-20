@@ -76,14 +76,18 @@ def test_preparation_preserves_selected_units_and_orientation(monkeypatch):
     assert captured[1]["accelerometer_y"].iloc[0] == 1.0
 
 
-def test_minimum_gap_segment_duration_uses_recording_rate(monkeypatch):
+@pytest.mark.parametrize("accelerometer", [False, True])
+def test_minimum_gap_segment_duration_uses_recording_rate(monkeypatch, accelerometer):
     captured = []
     monkeypatch.setattr(
         core, "run_paradigma", lambda **kwargs: captured.append(kwargs["dfs"]) or {"errors": []}
     )
     time = np.arange(180) / 30
     time[90:] += 10
-    pulse = pd.DataFrame({"time": time, "green": 1.0, **{f"accelerometer_{a}": 1.0 for a in "xyz"}})
+    pulse = pd.DataFrame({"time": time, "green": 1.0})
+    if accelerometer:
+        for axis in "xyz":
+            pulse[f"accelerometer_{axis}"] = 1.0
     core.analyze(pulse, pipelines=["pulse_rate"], split_by_gaps=True)
     assert [len(frame) for frame in captured[0].values()] == [90, 90]
 

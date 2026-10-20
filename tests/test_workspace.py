@@ -386,7 +386,7 @@ def test_module_cards_allow_every_combination(window):
     window.set_modules(["tremor", "pulse_rate"])
     assert window.selected_modules() == ["tremor", "pulse_rate"]
     window.set_modules(["pulse_rate"])
-    assert "Accelerometer" in window.module_requirements.text()
+    assert window.module_requirements.text() == "Raw green PPG required."
     window.prepared.setChecked(True)
     assert window.module_requirements.text() == "Raw green PPG required."
     window.set_modules(["gait", "pulse_rate"])

@@ -190,7 +190,7 @@ class AnalysisController(QObject):
         selected = self.selected_modules()
         self.view.side.set_relevant("gait" in selected)
         requirements = []
-        if "gait" in selected or ("pulse_rate" in selected and not self.view.prepared.isChecked()):
+        if "gait" in selected:
             requirements.append("Accelerometer")
         if "gait" in selected or "tremor" in selected:
             requirements.append("gyroscope")

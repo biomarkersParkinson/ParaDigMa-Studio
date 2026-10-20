@@ -516,7 +516,7 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
 def _validate_required_channels(mapped, pipelines, settings):
     import pandas as pd
 
-    required = _required_sensor_channels(mapped, pipelines, settings)
+    required = _required_sensor_channels(mapped, pipelines)
     _validate_present_channels(mapped, required)
     if len(mapped) < 2:
         raise ValueError("At least two samples are required.")
@@ -536,7 +536,7 @@ def _validate_required_channels(mapped, pipelines, settings):
     return required, time_unit
 
 
-def _required_sensor_channels(mapped, pipelines, settings):
+def _required_sensor_channels(mapped, pipelines):
     required = {"time"}
     for pipeline in pipelines:
         if pipeline in ("gait", "tremor"):
@@ -546,9 +546,7 @@ def _required_sensor_channels(mapped, pipelines, settings):
         if pipeline == "pulse_rate":
             required.add("green")
     accelerometer_columns = {f"accelerometer_{axis}" for axis in "xyz"}
-    if "pulse_rate" in pipelines and (
-        not settings.get("skip_preparation", False) or accelerometer_columns <= set(mapped.columns)
-    ):
+    if "pulse_rate" in pipelines and accelerometer_columns <= set(mapped.columns):
         required.update(accelerometer_columns)
     return required
 
@@ -666,12 +664,19 @@ def _convert_recording(mapped, axes, time_unit, settings):
     # Preparation is explicit because the pinned orchestrator ignores
     # accelerometer/orientation settings for some pipelines and passes None
     # as gap defaults. Continue to use the official preparation functions.
+    # Required channels and time are already validated above. The upstream
+    # generic validator requires IMU data, which PPG-only analysis does not use.
+    has_imu = any(
+        all(f"{sensor}_{axis}" in mapped for axis in "xyz")
+        for sensor in ("accelerometer", "gyroscope")
+    )
     prepared = prepare_raw_data(
         df=mapped,
         accelerometer_units=settings.get("accelerometer_units", "g"),
         gyroscope_units=settings.get("gyroscope_units", "deg/s"),
         time_input_unit=time_unit,
         device_orientation=None,
+        validate=has_imu,
     )
     for sensor in ("accelerometer", "gyroscope"):
         if all(f"{sensor}_{axis}" in prepared for axis in "xyz"):

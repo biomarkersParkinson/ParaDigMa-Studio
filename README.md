@@ -65,7 +65,7 @@ Pickle files can execute code: open only trusted files.
 | --- | --- |
 | Tremor | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z` |
 | Gait | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z`, `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
-| Pulse rate | `time`, `green`; raw PPG preparation also requires accelerometer channels |
+| Pulse rate | `time`, `green` (raw PPG); accelerometer channels are optional |
 
 ## More information
 
