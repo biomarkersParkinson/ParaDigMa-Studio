@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replace the Analyze column-mapping JSON field with signal dropdowns, exact-name
+  recognition, unambiguous auto-match suggestions and validation across every
+  loaded recording. Preserve choices across module/recording switches and restore
+  saved mappings in their existing format; optional signals and file details can
+  be expanded without scanning source samples.
+
 - Replace the Pulse rate overview count with **Pulse-rate estimate availability (%)**,
   based on complete 2-second epochs in the full recording timespan. Show the
   measures directly under Pulse rate and use clearer pulse-rate plot labels;

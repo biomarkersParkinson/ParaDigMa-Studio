@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,18 +15,15 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QStackedWidget,
     QTabWidget,
     QWidget,
 )
 
-from .core import (
-    validate_column_mapping,
-)
 from .inspection import inspect_recordings
 from .sensor_controller import ChannelServices
+from .ui.column_mapping import ColumnMappingEditor
 from .ui.graph_views import ChannelCanvasView
 from .widgets import FrameModel, ReadableTable
 from .workspace_state import AnalysisState, DataState, InputState, JobState, PreviewServices
@@ -76,7 +72,7 @@ class DataView:
     file_label: QLabel
     input_recording: QComboBox
     input_table: ReadableTable
-    mapping: QPlainTextEdit
+    mapping: ColumnMappingEditor
     pages: QStackedWidget
     status: QLabel
     time_table: ReadableTable
@@ -195,6 +191,7 @@ class DataController(QObject):
             )
         self.view.input_recording.blockSignals(False)
         self.inputs.sources, self.inputs.recordings = sources, recordings
+        self._supply_mapping_schemas()
         self.state._input_descriptions = descriptions
         self.analysis._origin_override = False
         self.inspect_input_recording(new_selection=True)
@@ -227,6 +224,7 @@ class DataController(QObject):
         self.inputs.source, self.inputs.frame = payload[:2]
         self.analysis._origin_override = False
         self.inputs.sources, self.inputs.recordings = {"recording_001": self.inputs.source}, {}
+        self._supply_mapping_schemas()
         self.state._input_descriptions = {}
         self.view.input_recording.hide()
         description = (
@@ -252,6 +250,18 @@ class DataController(QObject):
             self.callbacks.append_log(message)
         else:
             self.view.status.setText("Recording loaded.")
+
+    def _supply_mapping_schemas(self) -> None:
+        frames = self.inputs.recordings or {
+            "recording_001": cast("pd.DataFrame", self.inputs.frame)
+        }
+        self.view.mapping.set_recordings(
+            {
+                key: [column for column in frame.columns if isinstance(column, str)]
+                for key, frame in frames.items()
+            },
+            {key: f"{key} · {Path(source).name}" for key, source in self.inputs.sources.items()},
+        )
 
     def display_input_recording(
         self, description: RecordingDescription, *, new_selection: bool
@@ -388,9 +398,9 @@ class DataController(QObject):
     def plot_input(self, *_: object) -> None:
         self.state._data_plot_dirty = False
         try:
-            mapping = validate_column_mapping(json.loads(self.view.mapping.toPlainText()))
+            mapping = self.view.mapping.mapping()
         except (ValueError, TypeError):
-            # An incomplete Analyze mapping must not prevent original-data inspection.
+            # Conflicting Analyze choices must not prevent original-data inspection.
             mapping = {}
         channels = self.selected_input_channels()
         times, time_label, timezone = None, "Time (file units)", None

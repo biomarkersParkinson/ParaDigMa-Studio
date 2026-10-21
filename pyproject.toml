@@ -55,6 +55,7 @@ include = [
     "src/paradigma_studio/**/*_controller.py",
     "src/paradigma_studio/analysis_process.py",
     "src/paradigma_studio/core.py",
+    "src/paradigma_studio/column_mapping.py",
     "src/paradigma_studio/jobs.py",
     "src/paradigma_studio/parallel_analysis.py",
     "src/paradigma_studio/previews.py",
@@ -105,6 +106,7 @@ python_version = "3.11"
 files = [
     "src/paradigma_studio/contracts.py",
     "src/paradigma_studio/core.py",
+    "src/paradigma_studio/column_mapping.py",
     "src/paradigma_studio/recordings.py",
     "src/paradigma_studio/inspection.py",
     "src/paradigma_studio/raw_signals.py",

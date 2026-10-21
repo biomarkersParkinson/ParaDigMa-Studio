@@ -174,6 +174,11 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 `inspection` is also checked at the lenient service level; its batch-inspection
 interface is fully annotated.
 The deferred `raw_signals` renderer is checked at the same lenient level.
+The header-only `column_mapping` model is also checked; its Qt editor is covered
+by the recursive UI target. Controllers supply column-name schemas once per
+loaded batch and use the editor's explicit mapping/module APIs and `changed`
+signal. Mapping validation never scans sensor samples. Run settings retain the
+existing source-to-target dictionary, including additional legacy entries.
 
 The entire `ui/` directory is checked recursively, including new modules. The
 `paradigma_studio.ui.*` override checks function bodies (`check_untyped_defs`)
@@ -258,7 +263,8 @@ The initial floor is **80%**, using coverage.py's combined percentage of execute
 statements and branch outcomes. The report includes all `*_controller.py` modules
 and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analysis`,
 `previews`, `recording_results`, `storage`, `result_preparation` and
-`result_reopening`. The `raw_signals` renderer is also included. New controllers
+`result_reopening`. The `raw_signals` renderer and header-only `column_mapping`
+model are also included. New controllers
 automatically join
 the gate, including modules with no tests. Other Studio modules and the upstream
 toolbox are outside this initial reporting scope; this is not whole-app coverage.

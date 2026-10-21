@@ -1,6 +1,5 @@
 """Raw plots separate physical modalities while retaining original values and timing."""
 
-import json
 import warnings
 
 import numpy as np
@@ -167,7 +166,7 @@ def test_axis_aliases_optical_channels_and_unknown_streams_do_not_mix(window):
     assert not states.get_yticks().size
 
 
-def test_custom_mapping_groups_original_names_and_does_not_block_on_incomplete_json(window):
+def test_custom_mapping_groups_original_names_and_does_not_block_on_conflicting_choices(window):
     frame = pd.DataFrame(
         {"time": [0.0, 1.0, 2.0], "a": [2.0, 3.0, 4.0], "b": [4.0, 5.0, 6.0], "c": [7.0, 8.0, 9.0]}
     )
@@ -176,14 +175,15 @@ def test_custom_mapping_groups_original_names_and_does_not_block_on_incomplete_j
     assert len(window.data_figure.axes) == 3
     mapping = {"a": "accelerometer_x", "b": "accelerometer_y", "c": "gyroscope_x"}
     window.navigate(1)
-    window.mapping.setPlainText(json.dumps(mapping))
+    window.mapping.set_mapping(mapping)
     window.navigate(0)
     window.data_tabs.setCurrentIndex(1)
     assert [[line.get_label() for line in signals(ax)] for ax in window.data_figure.axes] == [
         ["a", "b"],
         ["c"],
     ]
-    window.mapping.setPlainText('{"a":')
+    window.mapping.set_mapping({"a": "time", "b": "green"})
+    window.mapping._combos["green"].setCurrentIndex(window.mapping._combos["green"].findData("a"))
     assert len(window.data_figure.axes) == 3
     window._result_state.provenance = {
         "source": "sensor.csv",

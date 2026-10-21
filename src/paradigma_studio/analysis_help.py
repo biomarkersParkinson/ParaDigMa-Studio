@@ -92,13 +92,15 @@ FIELD_HELP = {
         "Individual algorithms may require longer windows and can return no measurements for short sections.",
         "prepare_data.py",
     ),
-    "Column mapping (JSON)": (
-        'Map names as {"column_in_your_file": "ParaDigMa_column"}, not the reverse. Example: '
-        '{"timestamp": "time", "ax": "accelerometer_x", "ay": "accelerometer_y", '
-        '"az": "accelerometer_z", "gx": "gyroscope_x", "gy": "gyroscope_y", '
-        '"gz": "gyroscope_z", "ppg": "green"}. Use {} when names already match. '
-        "Map all channels your modules require, using the exact source names shown on Data. "
-        "This only renames columns; set units and axis directions in their separate fields.",
+    "Signal columns": (
+        "Choose the column in your files for each required signal. Standard names are recognized "
+        "automatically. Auto-match fills unambiguous suggestions such as timestamp, ax, gyr_x or ppg; "
+        "existing choices are preserved. Show optional signals exposes other channels. "
+        "One mapping applies to all loaded recordings; Show details identifies missing signals and "
+        "conflicting names. Reset restores standard-name matching. Saved mappings are retained even "
+        "when their source column is unavailable. Column choices only rename signals; set units and "
+        "axis directions in their separate fields. Missing signals remain subject to the existing "
+        "per-recording and per-module analysis validation.",
         "prepare_data.py",
     ),
 }

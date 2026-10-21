@@ -67,9 +67,9 @@ class ColumnMapping:
         for target in SIGNALS.keys() - self._explicit:
             self.choices[target] = target if target in available - used else None
 
-    def set_mapping(self, mapping: Mapping[str, str]) -> None:
+    def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
         self.reset()
-        for source, target in mapping.items():
+        for source, target in (mapping or {}).items():
             if target in SIGNALS and target not in self._explicit:
                 self.choices[target] = source
                 self._explicit.add(target)
@@ -136,9 +136,11 @@ class ColumnMapping:
                 used.add(matches[0])
         return suggested
 
-    def auto_match(self) -> None:
+    def auto_match(self, targets: Iterable[str] = SIGNALS) -> None:
+        allowed = set(targets)
         for target, source in self.suggestions().items():
-            self.choose(target, source)
+            if target in allowed:
+                self.choose(target, source)
 
     def target_conflicts(self) -> dict[str, list[str]]:
         if self.source_conflicts():

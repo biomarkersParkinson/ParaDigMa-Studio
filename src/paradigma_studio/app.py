@@ -573,8 +573,8 @@ class MainWindow(QMainWindow):
             self._workspace_controller.select_plot_series
         )
         self._layout.clock_input.valueEdited.connect(self._analysis_controller.origin_edited)
-        self._layout.mapping.textChanged.connect(self._analysis_controller.update_origin_default)
-        self._layout.mapping.textChanged.connect(self._data_controller.input_plot_changed)
+        self._layout.mapping.changed.connect(self._analysis_controller.update_origin_default)
+        self._layout.mapping.changed.connect(self._data_controller.input_plot_changed)
         for control in (self._layout.time,):
             control.currentTextChanged.connect(self._analysis_controller.update_origin_default)
         for control in (self._layout.prepared, self._layout.drop_missing):

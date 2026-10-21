@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 
 from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..column_mapping import SIGNALS, ColumnMapping, required_signals
+from ..theme import light_palette
 from ..widgets import button, combo, label
 
 
@@ -38,9 +40,28 @@ class ColumnMappingEditor(QWidget):
         content = QVBoxLayout(self)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(6)
+        self._build_table()
+        content.addWidget(self.table)
+        self.summary = label("Open recordings to select signal columns.", "muted")
+        self.summary.setWordWrap(True)
+        self.summary.setTextFormat(Qt.TextFormat.PlainText)
+        content.addWidget(self.summary)
+        actions = self._build_actions()
+        content.addLayout(actions)
+        self.details = QLabel()
+        self.details.setWordWrap(True)
+        self.details.setTextFormat(Qt.TextFormat.PlainText)
+        self.details.hide()
+        content.addWidget(self.details)
+        self._refresh()
+
+    def _build_table(self) -> None:
         self.table = QTableWidget(len(SIGNALS), 3)
         self.table.setHorizontalHeaderLabels(["Signal", "Column in your files", "Status"])
         self.table.verticalHeader().hide()
+        self.table.setPalette(light_palette())
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(True)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -64,11 +85,8 @@ class ColumnMappingEditor(QWidget):
             self.table.setCellWidget(row, 1, source)
             self._statuses[target] = QTableWidgetItem()
             self.table.setItem(row, 2, self._statuses[target])
-        content.addWidget(self.table)
-        self.summary = label("Open recordings to select signal columns.", "muted")
-        self.summary.setWordWrap(True)
-        self.summary.setTextFormat(Qt.TextFormat.PlainText)
-        content.addWidget(self.summary)
+
+    def _build_actions(self) -> QHBoxLayout:
         actions = QHBoxLayout()
         self.auto_button = button("Auto-match", self.auto_match)
         self.reset_button = button("Reset", self.reset)
@@ -83,18 +101,12 @@ class ColumnMappingEditor(QWidget):
         ):
             actions.addWidget(control)
         actions.addStretch()
-        content.addLayout(actions)
-        self.details = QLabel()
-        self.details.setWordWrap(True)
-        self.details.setTextFormat(Qt.TextFormat.PlainText)
-        self.details.hide()
-        content.addWidget(self.details)
-        self._refresh()
+        return actions
 
     def mapping(self) -> dict[str, str]:
         return self.model.mapping()
 
-    def set_mapping(self, mapping: Mapping[str, str]) -> None:
+    def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
         self.model.set_mapping(mapping)
         self._refresh()
         self.changed.emit()
@@ -111,7 +123,7 @@ class ColumnMappingEditor(QWidget):
         self._refresh_status()
 
     def auto_match(self) -> None:
-        self.model.auto_match()
+        self.model.auto_match(SIGNALS if self._expanded else required_signals(self._modules))
         self._refresh()
         self.changed.emit()
 
@@ -131,7 +143,7 @@ class ColumnMappingEditor(QWidget):
             selected = self.model.choices[target]
             source.blockSignals(True)
             source.clear()
-            standard = target if target in columns else None
+            standard = target if target in columns and selected is not None else None
             source.addItem(
                 f"Standard name ({target})" if standard else "Select a column…", standard
             )
@@ -159,6 +171,13 @@ class ColumnMappingEditor(QWidget):
             status, tooltip = self._status(target, selected, total, conflicts, suggestions)
             self._statuses[target].setText(status)
             self._statuses[target].setToolTip(tooltip)
+            self._statuses[target].setForeground(
+                QColor(
+                    "#962d37"
+                    if status in {"Assigned twice", "Name conflict"} or status.startswith("Missing")
+                    else "#68778c"
+                )
+            )
         validation = self.model.validate(self._modules)
         self.summary.setText(
             f"Compatible with {validation.compatible} of {total} recordings. One mapping applies to all."
@@ -172,7 +191,8 @@ class ColumnMappingEditor(QWidget):
         self.details.setText("\n".join(lines))
         self.details_button.setVisible(bool(lines))
         self.details.setVisible(bool(lines) and self.details_button.isChecked())
-        self.auto_button.setEnabled(bool(suggestions))
+        visible = set(SIGNALS) if self._expanded else required
+        self.auto_button.setEnabled(bool(suggestions.keys() & visible))
         self.optional_button.setVisible(len(required) < len(SIGNALS))
         self._fit_table()
 

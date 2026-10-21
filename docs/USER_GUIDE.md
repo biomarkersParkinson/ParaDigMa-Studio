@@ -49,8 +49,7 @@ guidance below the parameters with a reference to the official ParaDigMa documen
 Only one explanation is shown at a time; opening another replaces it without
 moving the fields.
 Device axes includes ParaDigMa's original reference figure and a direct link to its
-Coordinate System guide. The example explains each signed mapping; column-mapping
-examples rename your file's columns to the required toolbox names.
+Coordinate System guide. The example explains each signed axis mapping.
 The page preserves comfortable spacing. Parameters fit together at normal window
 sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
 visible below the settings.
@@ -74,9 +73,21 @@ and missing-sample checks during preparation.
 - Set the actual wrist as watch side. Device axes are signed source axes in the
   order of toolbox X, Y, Z: `-y,x,z` gives X = −sensor Y, Y = sensor X, Z = sensor Z.
   Watch-side inversion happens separately in official pipeline preprocessing.
-- Map alternate names to official channel names, for example
-  `{"timestamp": "time", "gyr_x": "gyroscope_x", "ppg": "green"}`.
-  Map every required channel.
+- In **Signal columns**, choose a source column from the dropdown for each
+  required signal. Standard names are recognized automatically. **Auto-match**
+  fills visible signals with unambiguous familiar names shared by every loaded recording, such as
+  `timestamp`, `gyr_x` and `ppg`, while retaining existing choices. Ambiguous
+  names need a manual selection. **Show optional signals** exposes other channels;
+  selecting another module preserves all choices. The table scrolls when needed.
+  The compatibility summary covers every loaded recording. **Show details**
+  identifies missing signals and conflicting names; row statuses identify reused
+  source columns and files missing a selected column. Existing per-recording and
+  per-module analysis validation still determines which workflows can run.
+  **Reset** clears custom choices and restores standard-name matching. A new
+  load retains explicit choices and shows unavailable columns so they can be
+  corrected. **Use parameters** restores saved mappings, including additional
+  legacy mappings shown in Details. Saved runs and exports retain the existing
+  source-to-toolbox mapping dictionary; no JSON editing is needed in the app.
 - Keep preparation enabled for raw data. Use **Already prepared** only for data
   already converted to ParaDigMa's units, orientation and sampling requirements.
   Mapping still applies in prepared mode.

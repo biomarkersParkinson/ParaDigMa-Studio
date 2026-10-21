@@ -79,7 +79,7 @@ def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(wi
     heading = next(
         label
         for label in window.settings_panel.findChildren(QLabel)
-        if label.text() == "Column mapping (JSON)"
+        if label.text() == "Signal columns"
     )
 
     def positions():
@@ -89,8 +89,8 @@ def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(wi
         ).y()
 
     initial = positions()
-    for name in ("Device axes", "Minimum section duration", "Column mapping (JSON)"):
+    for name in ("Device axes", "Minimum section duration", "Signal columns"):
         window.analysis_help[name][0].click()
         label_y, editor_y = positions()
-        assert abs(editor_y - label_y) <= 6
+        assert 0 <= editor_y - label_y - heading.height() <= 8
         assert editor_y - initial[1] == pytest.approx(label_y - initial[0], abs=2)

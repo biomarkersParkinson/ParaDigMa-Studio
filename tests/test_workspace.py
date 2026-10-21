@@ -72,6 +72,7 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
         window.acc,
         window.gyro,
         window.time,
+        *window.mapping.findChildren(QComboBox),
     }
     window.gyro.setCurrentText("rad/s")
     inspect_input = next(
@@ -245,7 +246,10 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     window.set_modules(["gait", "tremor", "pulse_rate"])
     _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls)
     window.navigate(1)
-    window.resize(1200, 900)
+    # The mapping table adds rows; larger native labels/buttons need more height
+    # for this all-visible check, within the 1080-pixel offscreen desktop.
+    # Compact-window reachability is checked below.
+    window.resize(1200, 1050 if larger_surrounding_controls else 900)
     window.show()
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
@@ -300,7 +304,7 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
     assert window.analysis_help_panel.isHidden()
-    window.resize(1200, 900)
+    window.resize(1200, 1050 if larger_surrounding_controls else 900)
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
 
@@ -411,7 +415,7 @@ def test_inline_analysis_help_does_not_change_configuration(window):
             window.drop_missing.isChecked(),
             window.max_gap.value(),
             window.min_segment.value(),
-            window.mapping.toPlainText(),
+            window.mapping.mapping(),
         )
 
     before = configuration()
@@ -428,7 +432,7 @@ def test_inline_analysis_help_does_not_change_configuration(window):
         assert description.isHidden()
     assert configuration() == before
     assert "toolbox X = minus sensor Y" in window.analysis_help["Device axes"][1].text()
-    assert "column_in_your_file" in window.analysis_help["Column mapping (JSON)"][1].text()
+    assert "Choose the column in your files" in window.analysis_help["Signal columns"][1].text()
 
 
 def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_and_legend(window):
@@ -573,7 +577,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     window.gyro.setCurrentText("rad/s")
     window.time.setCurrentText("relative_ms")
     window.orientation.setText("-y,x,z")
-    window.mapping.setPlainText('{"device_time": "time"}')
+    window.mapping.set_mapping({"device_time": "time"})
     window.gaps.setChecked(True)
     window.max_gap.setValue(2.5)
     window.min_segment.setValue(4)
@@ -620,7 +624,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     assert window.gyro.currentText() == "rad/s"
     assert window.max_gap.value() == 2.5
     assert window.orientation.text() == "-y,x,z"
-    assert json.loads(window.mapping.toPlainText()) == {"device_time": "time"}
+    assert window.mapping.mapping() == {"device_time": "time"}
 
 
 def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):

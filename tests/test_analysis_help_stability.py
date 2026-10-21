@@ -403,15 +403,15 @@ def _configure_native_analysis_fields(window, native_height, native_width, font_
     return fields
 
 
-@pytest.mark.parametrize("grid_width", [0, 314, 404])
+@pytest.mark.parametrize("grid_width", [0, 314, 570])
 def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_reachable(
     tmp_path, grid_width
 ):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
-    if grid_width == 404:
-        # Windows' larger-font case required a 404-pixel editor and widened
-        # the whole form beyond the viewport while horizontal scroll was off.
+    if grid_width == 570:
+        # Stress a wide mapping table under larger Windows font metrics.
+        # The shorter header now sits above the table rather than beside it.
         window.setStyleSheet(window.styleSheet() + "\nQWidget { font-size: 18px; }")
     for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
         control.setMinimumWidth(280)
@@ -432,7 +432,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
             assert (
                 window.analysis_scroll.widget().width() <= window.analysis_scroll.viewport().width()
             )
-            if grid_width == 404:
+            if grid_width == 570:
                 form = window.analysis_parameter_fields
                 first_end = window.orientation.mapTo(form, QPoint(0, window.orientation.height()))
                 second_start = window.drop_missing.mapTo(form, QPoint(0, 0))

@@ -33,6 +33,7 @@ from .results_view import (
     normalise_clock,
 )
 from .time_controls import TimeField
+from .ui.column_mapping import ColumnMappingEditor
 from .widgets import (
     ContextComboBox,
     WrappedForm,
@@ -76,7 +77,7 @@ class AnalysisView:
     gaps: QCheckBox
     gyro: QComboBox
     log: QPlainTextEdit
-    mapping: QPlainTextEdit
+    mapping: ColumnMappingEditor
     max_gap: QDoubleSpinBox
     min_segment: QDoubleSpinBox
     module_buttons: dict[str, QPushButton]
@@ -188,6 +189,7 @@ class AnalysisController(QObject):
 
     def modules_changed(self, changed: str | None = None, checked: bool = False) -> None:
         selected = self.selected_modules()
+        self.view.mapping.set_modules(selected)
         self.view.side.set_relevant("gait" in selected)
         requirements = []
         if "gait" in selected:
@@ -236,9 +238,7 @@ class AnalysisController(QObject):
             settings: AnalysisSettings = {
                 "time_input_unit": self.view.time.currentText(),
                 "skip_preparation": self.view.prepared.isChecked(),
-                "column_mapping": validate_column_mapping(
-                    json.loads(self.view.mapping.toPlainText())
-                ),
+                "column_mapping": validate_column_mapping(self.view.mapping.mapping()),
                 "pipelines": self.selected_modules(),
                 "drop_missing_samples": self.view.drop_missing.isChecked(),
             }
@@ -312,7 +312,7 @@ class AnalysisController(QObject):
         self._start_analysis_job(frame, settings)
 
     def _analysis_settings(self, pipelines: list[str]) -> AnalysisSettings:
-        mapping = validate_column_mapping(json.loads(self.view.mapping.toPlainText()))
+        mapping = validate_column_mapping(self.view.mapping.mapping())
         axes = (
             ["x", "y", "z"]
             if self.view.prepared.isChecked()
@@ -401,7 +401,7 @@ class AnalysisController(QObject):
         self.view.orientation.setText(
             ",".join(settings.get("device_orientation") or ["x", "y", "z"])
         )
-        self.view.mapping.setPlainText(json.dumps(settings.get("column_mapping", {})))
+        self.view.mapping.set_mapping(settings.get("column_mapping", {}))
         self.view.prepared.setChecked(settings.get("skip_preparation", False))
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))
         self.view.drop_missing.setChecked(settings.get("drop_missing_samples", False))

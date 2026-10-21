@@ -89,6 +89,13 @@ def test_reset_discards_explicit_and_other_saved_mappings(model):
     assert model.choices == {signal: signal for signal in SIGNALS}
 
 
+def test_legacy_null_mapping_restores_standard_matching(model):
+    model.set_mapping({"device_time": "time"})
+    model.set_mapping(None)
+    assert model.mapping() == {}
+    assert model.choices == {signal: signal for signal in SIGNALS}
+
+
 def test_batch_compatibility_names_missing_signals_and_affected_files():
     value = ColumnMapping()
     value.set_recordings(
@@ -190,3 +197,166 @@ def test_auto_match_reset_and_inline_conflicts(editor):
     editor._combos["green"].setCurrentIndex(editor._combos["green"].findData("ppg"))
     assert editor._statuses["time"].text() == "Assigned twice"
     assert editor._statuses["green"].text() == "Assigned twice"
+
+
+def test_auto_match_only_changes_visible_signals_and_reports_headers_as_plain_text(editor):
+    editor.set_recordings({"one": ["timestamp", "ppg", "ax"]}, {"one": "<b>sensor.csv</b>"})
+    editor.set_modules(["pulse_rate"])
+    editor.auto_button.click()
+    assert editor.mapping() == {"timestamp": "time", "ppg": "green"}
+    assert not editor.auto_button.isEnabled()
+    editor.optional_button.click()
+    assert editor.auto_button.isEnabled()
+    editor.auto_button.click()
+    assert editor.mapping() == {"timestamp": "time", "ppg": "green", "ax": "accelerometer_x"}
+    editor.set_modules(["gait"])
+    assert "<b>sensor.csv</b>" in editor.details.text()
+    from PySide6.QtCore import Qt
+
+    assert editor.details.textFormat() == Qt.TextFormat.PlainText
+
+
+def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(window, tmp_path):
+    from paradigma_studio.history import load_result_export, new_run
+    from paradigma_studio.serialization import export_results
+
+    saved = {"clock": "time", "ppg": "green", "auxiliary": "temperature_c"}
+    path = tmp_path / "saved.json"
+    export_results(
+        path, {"errors": []}, {"settings": {"pipelines": ["pulse_rate"], "column_mapping": saved}}
+    )
+    original_bytes = path.read_bytes()
+    provenance, _results = load_result_export(path)
+    record = new_run("sensor.csv", provenance["settings"])
+    window._run_state.selected_run = record
+    window.use_run_parameters()
+    assert window.mapping.mapping() == saved
+    assert window.mapping._combos["time"].currentData() == "clock"
+    assert window.mapping._combos["green"].currentData() == "ppg"
+    assert "auxiliary → temperature_c" in window.mapping.details.text()
+    assert window._analysis_controller._analysis_settings(["pulse_rate"])["column_mapping"] == saved
+    assert path.read_bytes() == original_bytes
+
+
+def test_batch_schema_installation_never_reads_or_counts_samples(window):
+    class HeadersOnly:
+        columns = ["time", "green"]
+
+        def __getitem__(self, key):
+            raise AssertionError("Mapping must not access samples")
+
+        def __len__(self):
+            raise AssertionError("Mapping must not count samples")
+
+    inputs = window._input_state
+    inputs.recordings = {f"recording_{index}": HeadersOnly() for index in range(7)}
+    inputs.sources = {key: f"{key}.bin" for key in inputs.recordings}
+    window._data_controller._supply_mapping_schemas()
+    window.mapping.set_modules(["pulse_rate"])
+    assert window.mapping.mapping() == {}
+    assert window.mapping.summary.text().startswith("Compatible with 7 of 7")
+    inputs.recordings = {}
+
+
+def test_batch_choices_survive_inspection_module_changes_and_new_loads(window, monkeypatch):
+    import pandas as pd
+    from conftest import wait_for_previews
+
+    from paradigma_studio.inspection import inspect_recording
+
+    frames = {
+        f"recording_{index:03}": pd.DataFrame({"clock": [0.0, 1.0], "optical": [2.0, 3.0]})
+        for index in (1, 2)
+    }
+    originals = {key: frame.copy(deep=True) for key, frame in frames.items()}
+    sources = {key: f"{key}.csv" for key in frames}
+    descriptions = {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}
+    window.set_modules(["pulse_rate"])
+    window.loaded_recordings((sources, frames, descriptions))
+    for target, column in (("time", "clock"), ("green", "optical")):
+        selector = window.mapping._combos[target]
+        selector.setCurrentIndex(selector.findData(column))
+    selected = {"clock": "time", "optical": "green"}
+    assert window.mapping.mapping() == selected
+    assert window.mapping.summary.text().startswith("Compatible with 2 of 2")
+    with monkeypatch.context() as patch:
+
+        def unexpected(*args):
+            raise AssertionError("Inspecting a recording must reuse the installed batch schemas")
+
+        patch.setattr(window.mapping, "set_recordings", unexpected)
+        window.input_recording.setCurrentIndex(1)
+        window.set_modules(["gait"])
+        window.set_modules(["pulse_rate"])
+        assert window.mapping.mapping() == selected
+    for key, frame in frames.items():
+        pd.testing.assert_frame_equal(frame, originals[key], check_exact=True)
+    window.loaded(("other.csv", pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0]})))
+    wait_for_previews(window)
+    assert window.mapping.mapping() == selected
+    assert window.mapping._combos["time"].currentText() == "clock (not available)"
+    window.mapping.reset_button.click()
+    assert window.mapping.mapping() == {}
+    assert window.mapping.summary.text().startswith("Compatible with 1 of 1")
+
+
+def test_reused_dropdown_source_reports_a_failure_before_a_job_starts(window):
+    from dataclasses import replace
+
+    import pandas as pd
+
+    window.loaded(("sensor.csv", pd.DataFrame({"clock": [0.0, 1.0], "optical": [1.0, 2.0]})))
+    window.set_modules(["pulse_rate"])
+    failures = []
+    controller = window._analysis_controller
+    controller.callbacks = replace(controller.callbacks, failure=failures.append)
+    for target in ("time", "green"):
+        selector = window.mapping._combos[target]
+        selector.setCurrentIndex(selector.findData("clock"))
+    window.run_analysis()
+    assert failures == ["Columns assigned to multiple signals: clock"]
+    assert window._job_state.worker is None
+    assert window._run_state.runs == []
+
+
+@pytest.mark.scientific
+@pytest.mark.parametrize("pipeline", ["gait", "tremor", "pulse_rate"])
+def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
+    window, tmp_path, pipeline
+):
+    import pandas as pd
+    from paradigma.config import PulseRateConfig
+    from paradigma.prepare_data import prepare_time_column
+    from test_scientific_equivalence import DATA, compare_workflows, official_preparation
+
+    recorded = pd.read_parquet(
+        DATA / ("prepared_ppg.parquet" if pipeline == "pulse_rate" else "prepared_imu.parquet")
+    )
+    names = {column: f"sensor_{column}" for column in recorded}
+    frame = recorded.rename(columns=names)
+    expected_mapping = {source: target for target, source in names.items()}
+    window.set_modules([pipeline])
+    window.loaded(("sensor.csv", frame))
+    for target, source in names.items():
+        selector = window.mapping._combos[target]
+        selector.setCurrentIndex(selector.findData(source))
+    settings = window._analysis_controller._analysis_settings([pipeline])
+    assert settings["column_mapping"] == expected_mapping
+    extra = {"watch_side": settings["watch_side"]}
+    if pipeline == "pulse_rate":
+        reference = prepare_time_column(
+            frame.rename(columns=expected_mapping), input_unit_type="relative_s"
+        )
+        extra["pulse_rate_config"] = PulseRateConfig(
+            ppg_sampling_frequency=100, min_window_length_s=10
+        )
+    else:
+        reference = official_preparation(frame, column_mapping=expected_mapping)
+    actual, expected, _stages = compare_workflows(
+        frame, reference, [pipeline], tmp_path, column_mapping=settings["column_mapping"], **extra
+    )
+    classified = actual["classifications"][pipeline]
+    if pipeline == "gait":
+        classified = classified["detection"]
+    assert not classified.empty
+    assert actual["aggregations"] == expected["aggregations"]

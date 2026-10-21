@@ -29,6 +29,7 @@ from ..assets import DATA_DIRECTORY
 from ..theme import LINK_COLOR, light_palette
 from ..time_controls import TimeField
 from ..widgets import AdaptiveFormColumns, ContextComboBox, WrappedForm, button, card, combo, label
+from .column_mapping import ColumnMappingEditor
 from .workspace_callbacks import WorkspaceCallbacks
 
 
@@ -191,16 +192,16 @@ class AnalysisPage:
             self.analysis_field(title, widget, form=left)
         sections = self._build_analysis_segmentation(right)
         parameters.addLayout(columns)
-        self.mapping = QPlainTextEdit("{}")
-        self.mapping.setPlaceholderText('{"timestamp": "time", "ppg": "green"}')
-        self.mapping.setFixedHeight(60)
+        self.mapping = ColumnMappingEditor()
         # Each column flows independently, so short fields use available space.
         self.analysis_field("Device axes", self.orientation, form=left)
-        self.analysis_field("Column mapping (JSON)", self.mapping, form=sections)
+        sections.addWidget(
+            self.analysis_field("Signal columns", self.mapping), sections.rowCount(), 0, 1, 2
+        )
         left.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         right.setFormAlignment(Qt.AlignmentFlag.AlignTop)
-        sections.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._build_analysis_origin(parameters)
+        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
 
     def _build_analysis_segmentation(self, right):
         self.prepared = QCheckBox("Already prepared (skip conversion)")
@@ -218,6 +219,7 @@ class AnalysisPage:
         sections.setColumnStretch(1, 1)
         sections.setHorizontalSpacing(10)
         sections.setVerticalSpacing(12)
+        sections.setAlignment(Qt.AlignmentFlag.AlignTop)
         sections.addWidget(
             self.analysis_field("Split recordings at time gaps", self.gaps, inline=True), 0, 0, 1, 2
         )
@@ -264,7 +266,6 @@ class AnalysisPage:
         origin_form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self.analysis_field("Time origin", origin_row, form=origin_form)
         parameters.addLayout(origin_form)
-        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
 
     def _build_analysis_help(self):
         # Help belongs below the complete parameter card. Expanding a field's row changes

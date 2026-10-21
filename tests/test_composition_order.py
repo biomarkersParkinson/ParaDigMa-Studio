@@ -246,7 +246,7 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
         window.data_time_unit.setCurrentText("relative_ms")
         assert events == ["update_time_statistics", "input_plot_changed"]
         events.clear()
-        window.mapping.setPlainText('{"time": "time"}')
+        window.mapping.set_mapping({"time": "time"})
         assert events == ["update_origin_default", "input_plot_changed"]
     finally:
         window.close()
