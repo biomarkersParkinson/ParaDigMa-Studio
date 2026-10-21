@@ -89,8 +89,10 @@ def window(tmp_path):
 
 def test_analysis_help_is_clickable_without_parameter_hover_text(window):
     for child in window.pages.widget(1).findChildren(QWidget):
-        assert not child.toolTip()
-    info, explanation = window.analysis_help["Device axes"]
+        if not window.mapping.isAncestorOf(child):
+            assert not child.toolTip()
+    assert all(checkbox.toolTip() for checkbox in window.mapping._inversions.values())
+    info, explanation = window.analysis_help["Signal columns"]
     info.click()
     assert not explanation.isHidden()
 

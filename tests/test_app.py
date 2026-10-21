@@ -100,19 +100,23 @@ def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypat
     window.set_modules(["tremor"])
     window.time.setCurrentText("relative_ms")
     window.gyro.setCurrentText("rad/s")
-    window.orientation.setText("--x,y,z")
+    checkbox = window.mapping._inversions["gyroscope_y"]
+    checkbox.setChecked(True)
     window.prepared.setChecked(True)
     assert not window.time.isEnabled()
     assert not window.gyro.isEnabled()
-    assert not window.orientation.isEnabled()
+    assert not checkbox.isEnabled()
+    assert window.mapping._combos["gyroscope_y"].isEnabled()
     monkeypatch.setattr(window, "start_job", lambda *args: None)
     window.run_analysis()
     settings = window._result_state.provenance["settings"]
     assert settings["time_input_unit"] == "relative_s"
     assert settings["gyroscope_units"] == "deg/s"
     assert settings["device_orientation"] == ["x", "y", "z"]
+    assert settings["axis_inversions"] == []
     window.prepared.setChecked(False)
     assert window.time.isEnabled()
+    assert checkbox.isEnabled() and checkbox.isChecked()
     window.close()
 
 

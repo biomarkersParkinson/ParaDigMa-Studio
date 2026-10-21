@@ -224,7 +224,7 @@ def _verify_analysis_controls(window):
     window.set_modules(["gait", "tremor", "pulse_rate"])
     if window.selected_modules() != ["gait", "tremor", "pulse_rate"]:
         raise RuntimeError("All three modules cannot be selected together")
-    help_button, help_text = window.analysis_help["Device axes"]
+    help_button, help_text = window.analysis_help["Signal columns"]
     help_button.click()
     if help_text.isHidden() or "toolbox X = minus sensor Y" not in help_text.text():
         raise RuntimeError("Documented inline axis guidance is unavailable")

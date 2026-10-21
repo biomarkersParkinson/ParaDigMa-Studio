@@ -49,16 +49,6 @@ FIELD_HELP = {
         "These options require numeric values, not date strings. ParaDigMa converts time to relative seconds.",
         "util.py",
     ),
-    "Device axes": (
-        "Compare your device manual's X/Y/Z arrows with ParaDigMa's reference figure below. "
-        "Enter the sensor axis that should become ParaDigMa X first, then Y, then Z; "
-        "add a minus sign when an arrow points in the opposite direction. "
-        "x,y,z is correct only when all three directions already match. "
-        "Example -y,x,z: toolbox X = minus sensor Y; toolbox Y = sensor X; toolbox Z = sensor Z. "
-        "Use each source axis once. The same mapping applies to acceleration and gyroscope after column renaming. "
-        "Correct orientation is especially important for gait. Set Watch side separately.",
-        "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html",
-    ),
     "Already prepared": (
         "Skip the wrapper's unit and device-axis conversions only when data already uses relative seconds, "
         "acceleration in g and gyroscope values in deg/s, with axes in ParaDigMa orientation. "
@@ -96,11 +86,16 @@ FIELD_HELP = {
         "Choose the column in your files for each required signal. Standard names are recognized "
         "automatically. Auto-match fills unambiguous suggestions such as timestamp, ax, gyr_x or ppg; "
         "existing choices are preserved. Show optional signals exposes other channels. "
-        "One mapping applies to all loaded recordings; Show details identifies missing signals and "
-        "conflicting names. Reset restores standard-name matching. Saved mappings are retained even "
-        "when their source column is unavailable. Column choices only rename signals; set units and "
-        "axis directions in their separate fields. Missing signals remain subject to the existing "
-        "per-recording and per-module analysis validation.",
-        "prepare_data.py",
+        "Compare your device manual's X/Y/Z arrows with ParaDigMa's reference figure below. "
+        "Select the source column that should become each ParaDigMa axis; tick Invert axis when "
+        "its arrow points in the opposite direction. For example, choose sensor Y for Accelerometer X "
+        "and tick Invert axis: toolbox X = minus sensor Y. Set accelerometer and gyroscope directions "
+        "independently; use each source column once. Set Watch side separately. "
+        "One mapping and set of inversions applies to all loaded recordings. Warning icons and "
+        "Show details identify missing signals and conflicting names. Reset restores standard-name "
+        "matching and clears inversions. Saved choices remain even when a source column is unavailable. "
+        "Already prepared skips inversions, while column mapping still applies. Missing signals remain "
+        "subject to the existing per-recording and per-module analysis validation.",
+        "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html",
     ),
 }

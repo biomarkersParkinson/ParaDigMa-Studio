@@ -60,7 +60,7 @@ def test_help_geometry_is_ready_before_painting_resumes(tmp_path, style, wide_co
     window = MainWindow(tmp_path)
     if wide_controls:
         window.setStyleSheet(window.styleSheet() + "\nQWidget { font-size: 18px; }")
-        for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+        for control in (window.side, window.acc, window.gyro, window.time):
             control.setMinimumWidth(280)
             control.setMinimumHeight(44)
         for label in window.analysis_parameter_fields.findChildren(QLabel):
@@ -100,13 +100,13 @@ def test_help_geometry_is_ready_before_painting_resumes(tmp_path, style, wide_co
         for pause in (True, False):
             for name in (
                 "Watch side",
-                "Device axes",
+                "Signal columns",
                 "Maximum gap",
                 "Time origin",
                 "Analysis modules",
                 "Analysis modules",
-                "Device axes",
-                "Device axes",
+                "Signal columns",
+                "Signal columns",
             ):
                 window.analysis_help[name][0].click()
                 if pause:
@@ -172,7 +172,13 @@ def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path,
     ):
         widget.installEventFilter(watcher)
     try:
-        for name in ("Watch side", "Device axes", "Maximum gap", "Time origin", "Analysis modules"):
+        for name in (
+            "Watch side",
+            "Signal columns",
+            "Maximum gap",
+            "Time origin",
+            "Analysis modules",
+        ):
             window.analysis_help[name][0].click()
             QTest.qWait(20)
             assert window.analysis_scroll.widget().updatesEnabled()
@@ -181,7 +187,7 @@ def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path,
         # Help is below the viewport in a smaller window. Scroll it into view
         # so the test checks an actual paint there too, rather than expecting
         # Qt to paint an offscreen widget.
-        window.analysis_help["Device axes"][0].click()
+        window.analysis_help["Signal columns"][0].click()
         QTest.qWait(20)
         window.analysis_scroll.ensureWidgetVisible(window.analysis_help_panel)
         QTest.qWait(20)
@@ -218,7 +224,7 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
     window.setStyleSheet(window.styleSheet() + "\nQWidget { font-size: 18px; }")
-    for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+    for control in (window.side, window.acc, window.gyro, window.time):
         control.setMinimumWidth(280)
         control.setMinimumHeight(44)
     for label in window.analysis_parameter_fields.findChildren(QLabel):
@@ -266,7 +272,7 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(
                 ]
 
             baseline = positions()
-            for title in ("Time origin", "Device axes", "Watch side"):
+            for title in ("Time origin", "Signal columns", "Watch side"):
                 window.analysis_help[title][0].click()
                 QTest.qWait(20)
                 assert positions() == baseline
@@ -383,7 +389,6 @@ def _configure_native_analysis_fields(window, native_height, native_width, font_
         window.acc,
         window.gyro,
         window.time,
-        window.orientation,
         window.mapping,
         window.max_gap,
         window.min_segment,
@@ -393,7 +398,7 @@ def _configure_native_analysis_fields(window, native_height, native_width, font_
         window.drop_missing,
         *window.module_buttons.values(),
     ]
-    for control in fields[:5]:
+    for control in fields[:4]:
         control.setMinimumHeight(native_height)
         if native_width:
             control.setMinimumWidth(native_width)
@@ -413,7 +418,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
         # Stress a wide mapping table under larger Windows font metrics.
         # The shorter header now sits above the table rather than beside it.
         window.setStyleSheet(window.styleSheet() + "\nQWidget { font-size: 18px; }")
-    for control in (window.side, window.acc, window.gyro, window.time, window.orientation):
+    for control in (window.side, window.acc, window.gyro, window.time):
         control.setMinimumWidth(280)
         control.setMinimumHeight(30)
     for label in window.analysis_parameter_fields.findChildren(QLabel):
@@ -434,14 +439,14 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
             )
             if grid_width == 570:
                 form = window.analysis_parameter_fields
-                first_end = window.orientation.mapTo(form, QPoint(0, window.orientation.height()))
-                second_start = window.drop_missing.mapTo(form, QPoint(0, 0))
+                first_end = window.prepared.mapTo(form, QPoint(0, window.prepared.height()))
+                second_start = window.mapping.mapTo(form, QPoint(0, 0))
                 if size[0] == 960:
                     assert second_start.y() >= first_end.y() + 20
                 else:
                     assert second_start.x() > first_end.x()
                     assert second_start.y() < first_end.y()
-            for help_name in ("Watch side", "Device axes", "Minimum section duration"):
+            for help_name in ("Watch side", "Signal columns", "Minimum section duration"):
                 _assert_nested_analysis_controls_fit(window)
                 center = window.mapping.mapTo(
                     window.analysis_scroll.widget(), window.mapping.rect().center()

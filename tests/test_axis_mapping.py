@@ -12,6 +12,7 @@ from paradigma_studio.axis_mapping import (
     IMU_COLUMNS,
     migrate_legacy_orientation,
     preparation_orientations,
+    sensor_orientation,
     validate_axis_inversions,
 )
 
@@ -58,6 +59,22 @@ def test_migration_retains_unrelated_names_identities_and_invalid_name_collision
     assert translated["ax"] == translated["accelerometer_x"] == "accelerometer_y"
 
 
+def test_legacy_orientation_composes_with_existing_cross_axis_column_mapping():
+    source = pd.DataFrame({name: [index + 1.0] for index, name in enumerate(IMU_COLUMNS)})
+    mapping = {
+        "accelerometer_x": "accelerometer_y",
+        "accelerometer_y": "accelerometer_x",
+        "gyroscope_z": "gyroscope_x",
+        "gyroscope_x": "gyroscope_z",
+    }
+    expected = correct_watch_orientation(source.rename(columns=mapping), ["-z", "x", "-y"])
+    translated, inversions = migrate_legacy_orientation(mapping, ["-z", "x", "-y"])
+    actual = source.rename(columns=translated)
+    for sensor, axes in preparation_orientations({"axis_inversions": inversions}).items():
+        actual = correct_watch_orientation(actual, axes, sensor=sensor)
+    pd.testing.assert_frame_equal(actual, expected, check_like=True, check_exact=True)
+
+
 @pytest.mark.parametrize("invalid", ["x", ["x"], ["green"], [None], ["gyroscope_x"] * 2, {}])
 def test_invalid_axis_inversions_are_rejected(invalid):
     with pytest.raises(ValueError, match="Axis inversions"):
@@ -75,6 +92,29 @@ def test_new_axis_settings_require_mapping_for_swaps_and_keep_sensor_signs_indep
         "accelerometer": None,
         "gyroscope": None,
     }
+    with pytest.raises(ValueError, match="Select accelerometer or gyroscope"):
+        sensor_orientation("green", [])
+
+
+@pytest.mark.parametrize(
+    "inversions,valid",
+    [([], True), (["accelerometer_x"], True), (["green"], False), (["gyroscope_x"] * 2, False)],
+)
+def test_history_accepts_valid_axis_settings_and_reports_corrupt_settings(
+    tmp_path, inversions, valid
+):
+    from paradigma_studio.history import RunHistory, new_run
+
+    history = RunHistory(tmp_path)
+    record = new_run("sensor.csv", {"axis_inversions": inversions})
+    record["status"] = "Completed"
+    history.save(record)
+    records, issues = history.load()
+    if valid:
+        assert records == [record] and issues == []
+    else:
+        assert records == [] and len(issues) == 1
+        assert "Axis inversions" in issues[0]
 
 
 @pytest.mark.parametrize("modules", [["gait"], ["gait", "pulse_rate"]])

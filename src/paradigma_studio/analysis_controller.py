@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QLabel,
     QLayout,
-    QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -24,10 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
-from .core import (
-    validate_column_mapping,
-    validate_orientation,
-)
+from .axis_mapping import migrate_legacy_orientation
+from .core import validate_column_mapping
 from .history import new_run
 from .results_view import (
     normalise_clock,
@@ -82,7 +79,6 @@ class AnalysisView:
     min_segment: QDoubleSpinBox
     module_buttons: dict[str, QPushButton]
     module_requirements: QLabel
-    orientation: QLineEdit
     prepared: QCheckBox
     run_button: QPushButton
     side: ContextComboBox
@@ -214,10 +210,10 @@ class AnalysisController(QObject):
             self.view.acc,
             self.view.gyro,
             self.view.time,
-            self.view.orientation,
             self.view.gaps,
         ):
             widget.setEnabled(not prepared)
+        self.view.mapping.set_preparation_enabled(not prepared)
         for widget in (self.view.max_gap, self.view.min_segment):
             widget.setEnabled(not prepared and self.view.gaps.isChecked())
         self.modules_changed()
@@ -313,18 +309,16 @@ class AnalysisController(QObject):
 
     def _analysis_settings(self, pipelines: list[str]) -> AnalysisSettings:
         mapping = validate_column_mapping(self.view.mapping.mapping())
-        axes = (
-            ["x", "y", "z"]
-            if self.view.prepared.isChecked()
-            else validate_orientation([v.strip() for v in self.view.orientation.text().split(",")])
-        )
         settings: AnalysisSettings = {
             "pipelines": pipelines,
             "watch_side": self.view.side.currentText(),
             "accelerometer_units": self.view.acc.currentText(),
             "gyroscope_units": self.view.gyro.currentText(),
             "time_input_unit": self.view.time.currentText(),
-            "device_orientation": axes,
+            "device_orientation": ["x", "y", "z"],
+            "axis_inversions": []
+            if self.view.prepared.isChecked()
+            else self.view.mapping.axis_inversions(),
             "column_mapping": mapping,
             "skip_preparation": self.view.prepared.isChecked(),
             "split_by_gaps": self.view.gaps.isChecked(),
@@ -398,10 +392,7 @@ class AnalysisController(QObject):
         ):
             if key in settings:
                 widget.setCurrentText(str(settings[key]))
-        self.view.orientation.setText(
-            ",".join(settings.get("device_orientation") or ["x", "y", "z"])
-        )
-        self.view.mapping.set_mapping(settings.get("column_mapping", {}))
+        self._restore_signal_columns(settings)
         self.view.prepared.setChecked(settings.get("skip_preparation", False))
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))
         self.view.drop_missing.setChecked(settings.get("drop_missing_samples", False))
@@ -428,3 +419,15 @@ class AnalysisController(QObject):
         self.view.status.setText(
             "Run parameters restored. Check the selected input before running."
         )
+
+    def _restore_signal_columns(self, settings: AnalysisSettings) -> None:
+        mapping = settings.get("column_mapping")
+        inversions = settings.get("axis_inversions")
+        if inversions is None:
+            # Prepared runs never applied legacy orientation. Renaming still did.
+            orientation = (
+                None if settings.get("skip_preparation") else settings.get("device_orientation")
+            )
+            mapping, inversions = migrate_legacy_orientation(mapping, orientation)
+        self.view.mapping.set_mapping(mapping)
+        self.view.mapping.set_axis_inversions(inversions)

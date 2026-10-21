@@ -5,22 +5,24 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QSizePolicy,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from ..axis_mapping import IMU_COLUMNS
 from ..column_mapping import SIGNALS, ColumnMapping, required_signals
-from ..theme import light_palette
+from ..theme import light_palette, tooltip_text
 from ..widgets import button, combo, label
 
 
@@ -36,7 +38,8 @@ class ColumnMappingEditor(QWidget):
         self._expanded = False
         self._combos: dict[str, QComboBox] = {}
         self._labels: dict[str, QTableWidgetItem] = {}
-        self._statuses: dict[str, QTableWidgetItem] = {}
+        self._warnings: dict[str, QLabel] = {}
+        self._inversions: dict[str, QCheckBox] = {}
         content = QVBoxLayout(self)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(6)
@@ -57,7 +60,7 @@ class ColumnMappingEditor(QWidget):
 
     def _build_table(self) -> None:
         self.table = QTableWidget(len(SIGNALS), 3)
-        self.table.setHorizontalHeaderLabels(["Signal", "Column in your files", "Status"])
+        self.table.setHorizontalHeaderLabels(["Signal", "Column in your files", "Invert axis"])
         self.table.verticalHeader().hide()
         self.table.setPalette(light_palette())
         self.table.setShowGrid(False)
@@ -82,9 +85,44 @@ class ColumnMappingEditor(QWidget):
             source.setAccessibleName(f"Column for {title}")
             source.currentIndexChanged.connect(lambda _index, target=target: self._choose(target))
             self._combos[target] = source
-            self.table.setCellWidget(row, 1, source)
-            self._statuses[target] = QTableWidgetItem()
-            self.table.setItem(row, 2, self._statuses[target])
+            self.table.setCellWidget(row, 1, self._source_field(target, source))
+            self._axis_field(row, target)
+
+    def _source_field(self, target: str, source: QComboBox) -> QWidget:
+        field = QWidget()
+        layout = QHBoxLayout(field)
+        layout.setContentsMargins(0, 0, 4, 0)
+        layout.setSpacing(4)
+        layout.addWidget(source, 1)
+        warning = QLabel()
+        warning.setPixmap(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning).pixmap(16, 16)
+        )
+        warning.setAccessibleName(f"Column warning: {SIGNALS[target]}")
+        warning.hide()
+        self._warnings[target] = warning
+        layout.addWidget(warning)
+        return field
+
+    def _axis_field(self, row: int, target: str) -> None:
+        if target not in IMU_COLUMNS:
+            item = QTableWidgetItem("—")
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row, 2, item)
+            return
+        field = QWidget()
+        layout = QHBoxLayout(field)
+        layout.setContentsMargins(0, 0, 0, 0)
+        checkbox = QCheckBox()
+        checkbox.setPalette(light_palette())
+        checkbox.setAccessibleName(f"Invert {SIGNALS[target]}")
+        checkbox.setToolTip(
+            tooltip_text("Reverse this signal's direction (multiply by −1) during preparation.")
+        )
+        checkbox.toggled.connect(lambda checked: self.model.invert(target, checked))
+        self._inversions[target] = checkbox
+        layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.table.setCellWidget(row, 2, field)
 
     def _build_actions(self) -> QHBoxLayout:
         actions = QHBoxLayout()
@@ -105,6 +143,23 @@ class ColumnMappingEditor(QWidget):
 
     def mapping(self) -> dict[str, str]:
         return self.model.mapping()
+
+    def axis_inversions(self) -> list[str]:
+        return self.model.axis_inversions()
+
+    def set_axis_inversions(self, inversions: object) -> None:
+        self.model.set_axis_inversions(inversions)
+        self._refresh_inversions()
+
+    def set_preparation_enabled(self, enabled: bool) -> None:
+        for checkbox in self._inversions.values():
+            checkbox.setEnabled(enabled)
+
+    def _refresh_inversions(self) -> None:
+        for target, checkbox in self._inversions.items():
+            blocked = checkbox.blockSignals(True)
+            checkbox.setChecked(target in self.model.inversions)
+            checkbox.blockSignals(blocked)
 
     def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
         self.model.set_mapping(mapping)
@@ -138,6 +193,7 @@ class ColumnMappingEditor(QWidget):
         self.changed.emit()
 
     def _refresh(self) -> None:
+        self._refresh_inversions()
         columns = self.model.columns
         for target, source in self._combos.items():
             selected = self.model.choices[target]
@@ -169,15 +225,18 @@ class ColumnMappingEditor(QWidget):
             )
             selected = self.model.choices[target]
             status, tooltip = self._status(target, selected, total, conflicts, suggestions)
-            self._statuses[target].setText(status)
-            self._statuses[target].setToolTip(tooltip)
-            self._statuses[target].setForeground(
-                QColor(
-                    "#962d37"
-                    if status in {"Assigned twice", "Name conflict"} or status.startswith("Missing")
-                    else "#68778c"
+            warning = self._warnings[target]
+            text = tooltip_text(f"{status}\n{tooltip}")
+            warning.setToolTip(text)
+            warning.setVisible(
+                bool(total)
+                and (
+                    status in {"Assigned twice", "Name conflict"}
+                    or status.startswith("Missing")
+                    or (selected is None and target in required)
                 )
             )
+            self._combos[target].setToolTip(text)
         validation = self.model.validate(self._modules)
         self.summary.setText(
             f"Compatible with {validation.compatible} of {total} recordings. One mapping applies to all."
@@ -240,16 +299,21 @@ class ColumnMappingEditor(QWidget):
         )
 
     def _fit_table(self) -> None:
+        controls = (*self._combos.values(), *self._inversions.values())
         row_height = max(
-            30, max(source.sizeHint().height() for source in self._combos.values()) + 4
+            30,
+            max(max(control.sizeHint().height(), control.minimumHeight()) for control in controls)
+            + 4,
         )
         self.table.verticalHeader().setDefaultSectionSize(row_height)
         count = sum(not self.table.isRowHidden(row) for row in range(self.table.rowCount()))
         self.table.setFixedHeight(
             self.table.horizontalHeader().sizeHint().height()
-            + min(4, count) * row_height
+            + count * row_height
             + 2 * self.table.frameWidth()
         )
+        header = self.table.horizontalHeader()
+        self.table.setMinimumWidth(max(470, header.sectionSize(0) + header.sectionSize(2) + 128))
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)

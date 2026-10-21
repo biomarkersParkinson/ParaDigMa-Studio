@@ -1,5 +1,5 @@
 {
-  "max_lines": 168,
+  "max_lines": 167,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
@@ -75,7 +75,6 @@
     "open_file",
     "open_run",
     "open_run_button",
-    "orientation",
     "origin_edited",
     "origin_reset",
     "origin_setting",

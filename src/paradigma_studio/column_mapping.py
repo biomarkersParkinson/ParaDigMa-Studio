@@ -6,6 +6,8 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from .axis_mapping import IMU_COLUMNS, validate_axis_inversions
+
 SIGNALS = {
     "time": "Time",
     **{f"accelerometer_{axis}": f"Accelerometer {axis.upper()}" for axis in "xyz"},
@@ -47,6 +49,7 @@ class ColumnMapping:
         self.names: dict[str, str] = {}
         self.choices: dict[str, str | None] = dict.fromkeys(SIGNALS)
         self.extra: dict[str, str] = {}
+        self.inversions: set[str] = set()
         self._explicit: set[str] = set()
         self._identities: set[str] = set()
 
@@ -68,7 +71,9 @@ class ColumnMapping:
             self.choices[target] = target if target in available - used else None
 
     def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
+        inversions = self.inversions.copy()
         self.reset()
+        self.inversions = inversions
         for source, target in (mapping or {}).items():
             if target in SIGNALS and target not in self._explicit:
                 self.choices[target] = source
@@ -94,11 +99,26 @@ class ColumnMapping:
         self._refresh_defaults()
 
     def reset(self) -> None:
+        self.inversions.clear()
         self.extra.clear()
         self._explicit.clear()
         self._identities.clear()
         available = set(self.columns)
         self.choices = {target: target if target in available else None for target in SIGNALS}
+
+    def set_axis_inversions(self, inversions: object) -> None:
+        self.inversions = set(validate_axis_inversions(inversions) or [])
+
+    def invert(self, target: str, checked: bool) -> None:
+        if target not in IMU_COLUMNS:
+            raise ValueError(f"Signal has no axis direction: {target}")
+        if checked:
+            self.inversions.add(target)
+        else:
+            self.inversions.discard(target)
+
+    def axis_inversions(self) -> list[str]:
+        return [target for target in IMU_COLUMNS if target in self.inversions]
 
     def source_conflicts(self) -> set[str]:
         sources = [source for source in self.choices.values() if source is not None]

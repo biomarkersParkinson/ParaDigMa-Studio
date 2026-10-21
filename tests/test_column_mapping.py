@@ -39,6 +39,65 @@ def test_standard_names_need_no_renames(model):
     assert model.validate(["gait", "pulse_rate"]).compatible == 1
 
 
+def test_axis_choices_are_independent_and_survive_mapping_and_batch_changes(model):
+    model.invert("gyroscope_y", True)
+    model.invert("accelerometer_x", True)
+    assert model.axis_inversions() == ["accelerometer_x", "gyroscope_y"]
+    model.set_mapping({"clock": "time"})
+    model.auto_match()
+    model.set_recordings({"two": ["clock", "green"]}, {})
+    assert model.axis_inversions() == ["accelerometer_x", "gyroscope_y"]
+    model.invert("gyroscope_y", False)
+    assert model.axis_inversions() == ["accelerometer_x"]
+    with pytest.raises(ValueError, match="no axis direction"):
+        model.invert("time", True)
+    model.reset()
+    assert model.axis_inversions() == []
+
+
+def test_inversion_checkboxes_never_trigger_clock_or_raw_plot_mapping_refreshes(editor):
+    from paradigma_studio.axis_mapping import IMU_COLUMNS
+
+    changes = QSignalSpy(editor.changed)
+    assert set(editor._inversions) == set(IMU_COLUMNS)
+    assert [editor.table.horizontalHeaderItem(i).text() for i in range(3)] == [
+        "Signal",
+        "Column in your files",
+        "Invert axis",
+    ]
+    editor.set_recordings({"one": list(SIGNALS)}, {})
+    assert all(warning.isHidden() for warning in editor._warnings.values())
+    for target in IMU_COLUMNS:
+        editor._inversions[target].setChecked(True)
+    assert editor.axis_inversions() == list(IMU_COLUMNS)
+    editor.set_modules(["pulse_rate"])
+    editor.auto_match()
+    assert changes.count() == 1
+    assert editor.axis_inversions() == list(IMU_COLUMNS)
+    editor.set_preparation_enabled(False)
+    assert all(not checkbox.isEnabled() for checkbox in editor._inversions.values())
+    assert all(source.isEnabled() for source in editor._combos.values())
+    editor.set_preparation_enabled(True)
+    assert all(
+        checkbox.isEnabled() and checkbox.isChecked() for checkbox in editor._inversions.values()
+    )
+    editor.reset()
+    assert editor.axis_inversions() == []
+    assert not any(checkbox.isChecked() for checkbox in editor._inversions.values())
+    assert changes.count() == 2
+
+
+def test_inline_warnings_name_affected_files_and_escape_untrusted_headers(editor):
+    editor.set_recordings({"one": ["time", "optical"]}, {"one": "<b>sensor.csv</b>"})
+    editor.set_modules(["pulse_rate"])
+    assert not editor._warnings["green"].isHidden()
+    assert editor._warnings["accelerometer_x"].isHidden()
+    editor.set_mapping({"<bad>": "green"})
+    assert "&lt;b&gt;sensor.csv&lt;/b&gt;" in editor._warnings["green"].toolTip()
+    editor.set_mapping({"optical": "green"})
+    assert all(warning.isHidden() for warning in editor._warnings.values())
+
+
 def test_suggestions_use_unambiguous_names_shared_by_every_file():
     value = ColumnMapping()
     value.set_recordings(
@@ -172,8 +231,9 @@ def test_missing_saved_columns_remain_selectable_and_batch_details_are_visible(e
         {"one": "first.csv", "two": "second.csv"},
     )
     assert editor.mapping() == {"clock": "time", "ppg": "green", "skin": "temperature"}
-    assert editor._statuses["green"].text() == "Missing in 1/2"
-    assert "second.csv" in editor._statuses["green"].toolTip()
+    assert not editor._warnings["green"].isHidden()
+    assert "Missing in 1/2" in editor._warnings["green"].toolTip()
+    assert "second.csv" in editor._warnings["green"].toolTip()
     assert editor.summary.text().startswith("Compatible with 1 of 2")
     editor.details_button.click()
     assert not editor.details.isHidden()
@@ -188,15 +248,17 @@ def test_auto_match_reset_and_inline_conflicts(editor):
     editor.auto_button.click()
     assert editor.mapping() == {"ax": "accelerometer_x"}
     editor.set_mapping({"ppg": "green"})
-    assert editor._statuses["green"].text() == "Name conflict"
+    assert not editor._warnings["green"].isHidden()
+    assert "Name conflict" in editor._warnings["green"].toolTip()
     assert editor.summary.text().startswith("Compatible with 0 of 1")
     editor.reset_button.click()
     assert editor.mapping() == {}
     assert editor._combos["green"].currentData() == "green"
     editor._combos["time"].setCurrentIndex(editor._combos["time"].findData("ppg"))
     editor._combos["green"].setCurrentIndex(editor._combos["green"].findData("ppg"))
-    assert editor._statuses["time"].text() == "Assigned twice"
-    assert editor._statuses["green"].text() == "Assigned twice"
+    for target in ("time", "green"):
+        assert not editor._warnings[target].isHidden()
+        assert "Assigned twice" in editor._warnings[target].toolTip()
 
 
 def test_auto_match_only_changes_visible_signals_and_reports_headers_as_plain_text(editor):
@@ -223,7 +285,16 @@ def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(
     saved = {"clock": "time", "ppg": "green", "auxiliary": "temperature_c"}
     path = tmp_path / "saved.json"
     export_results(
-        path, {"errors": []}, {"settings": {"pipelines": ["pulse_rate"], "column_mapping": saved}}
+        path,
+        {"errors": []},
+        {
+            "settings": {
+                "pipelines": ["pulse_rate"],
+                "column_mapping": saved,
+                "axis_inversions": ["accelerometer_x", "gyroscope_z"],
+                "device_orientation": ["x", "y", "z"],
+            }
+        },
     )
     original_bytes = path.read_bytes()
     provenance, _results = load_result_export(path)
@@ -233,9 +304,65 @@ def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(
     assert window.mapping.mapping() == saved
     assert window.mapping._combos["time"].currentData() == "clock"
     assert window.mapping._combos["green"].currentData() == "ppg"
+    assert window.mapping.axis_inversions() == ["accelerometer_x", "gyroscope_z"]
     assert "auxiliary → temperature_c" in window.mapping.details.text()
     assert window._analysis_controller._analysis_settings(["pulse_rate"])["column_mapping"] == saved
     assert path.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("prepared", [False, True])
+@pytest.mark.parametrize("aliased", [False, True])
+def test_restoring_legacy_signed_run_preserves_official_sensor_values(
+    window, tmp_path, prepared, aliased
+):
+    import numpy as np
+    import pandas as pd
+    from paradigma.prepare_data import correct_watch_orientation
+
+    from paradigma_studio import core
+    from paradigma_studio.axis_mapping import IMU_COLUMNS
+    from paradigma_studio.history import load_result_export, new_run
+    from paradigma_studio.serialization import export_results
+
+    source = pd.DataFrame(
+        {
+            "time": np.arange(200) / 100,
+            **{
+                channel: np.arange(200, dtype=float) + index
+                for index, channel in enumerate(IMU_COLUMNS)
+            },
+        }
+    )
+    names = {column: f"sensor_{column}" for column in source if aliased}
+    source = source.rename(columns=names)
+    mapping = {renamed: column for column, renamed in names.items()}
+    legacy_settings = {
+        "pipelines": ["gait"],
+        "column_mapping": mapping,
+        "device_orientation": ["-y", "z", "-x"],
+        "skip_preparation": prepared,
+    }
+    path = tmp_path / "legacy.json"
+    export_results(path, {"errors": []}, {"settings": legacy_settings})
+    before = path.read_bytes()
+    window.loaded(("sensor.csv", source))
+    provenance, _ = load_result_export(path)
+    window._run_state.selected_run = new_run("sensor.csv", provenance["settings"])
+    window.use_run_parameters()
+    settings = window._analysis_controller._analysis_settings(["gait"])
+    assert settings["device_orientation"] == ["x", "y", "z"]
+    assert settings["axis_inversions"] == (
+        [] if prepared else ["accelerometer_x", "accelerometer_z", "gyroscope_x", "gyroscope_z"]
+    )
+    actual, exclusion, count = core._prepare_recording(
+        source, ["gait"], settings["column_mapping"], None, False, settings
+    )
+    expected = source.rename(columns=mapping)
+    if not prepared:
+        expected = correct_watch_orientation(expected, ["-y", "z", "-x"])
+    pd.testing.assert_frame_equal(actual, expected, check_like=True, check_exact=True)
+    assert exclusion is None and count == len(source)
+    assert path.read_bytes() == before
 
 
 def test_batch_schema_installation_never_reads_or_counts_samples(window):
@@ -326,23 +453,37 @@ def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
 ):
     import pandas as pd
     from paradigma.config import PulseRateConfig
-    from paradigma.prepare_data import prepare_time_column
+    from paradigma.prepare_data import correct_watch_orientation, prepare_time_column
     from test_scientific_equivalence import DATA, compare_workflows, official_preparation
 
     recorded = pd.read_parquet(
         DATA / ("prepared_ppg.parquet" if pipeline == "pulse_rate" else "prepared_imu.parquet")
     )
     names = {column: f"sensor_{column}" for column in recorded}
+    if pipeline != "pulse_rate":
+        names["accelerometer_x"], names["accelerometer_y"] = (
+            names["accelerometer_y"],
+            names["accelerometer_x"],
+        )
     frame = recorded.rename(columns=names)
+    inversions = (
+        ["accelerometer_x", "gyroscope_y"] if pipeline != "pulse_rate" else ["accelerometer_z"]
+    )
+    for target in inversions:
+        if target in names:
+            frame[names[target]] *= -1
     expected_mapping = {source: target for target, source in names.items()}
     window.set_modules([pipeline])
     window.loaded(("sensor.csv", frame))
     for target, source in names.items():
         selector = window.mapping._combos[target]
         selector.setCurrentIndex(selector.findData(source))
+    window.mapping.set_axis_inversions(inversions)
     settings = window._analysis_controller._analysis_settings([pipeline])
     assert settings["column_mapping"] == expected_mapping
-    extra = {"watch_side": settings["watch_side"]}
+    assert settings["device_orientation"] == ["x", "y", "z"]
+    assert settings["axis_inversions"] == inversions
+    extra = {"watch_side": settings["watch_side"], "axis_inversions": inversions}
     if pipeline == "pulse_rate":
         reference = prepare_time_column(
             frame.rename(columns=expected_mapping), input_unit_type="relative_s"
@@ -352,6 +493,10 @@ def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
         )
     else:
         reference = official_preparation(frame, column_mapping=expected_mapping)
+    for sensor in ("accelerometer", "gyroscope"):
+        if all(f"{sensor}_{axis}" in reference for axis in "xyz"):
+            axes = [("-" if f"{sensor}_{axis}" in inversions else "") + axis for axis in "xyz"]
+            reference = correct_watch_orientation(reference, axes, sensor=sensor)
     actual, expected, _stages = compare_workflows(
         frame, reference, [pipeline], tmp_path, column_mapping=settings["column_mapping"], **extra
     )

@@ -13,19 +13,20 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
     window.navigate(1)
     window.resize(1450, 920)
     QTest.qWait(30)
-    fields = [window.side, window.acc, window.gyro, window.time, window.orientation]
+    fields = [window.side, window.acc, window.gyro, window.time]
     assert len({field.mapTo(window, field.rect().topLeft()).x() for field in fields}) == 1
-    assert (
-        window.orientation.mapTo(window, window.orientation.rect().topLeft()).y()
-        > window.time.mapTo(window, window.time.rect().bottomLeft()).y()
+    assert window.mapping.mapTo(window, window.mapping.rect().topLeft()).x() > max(
+        field.mapTo(window, field.rect().topRight()).x() for field in fields
     )
-    assert (
-        window.mapping.mapTo(window, window.mapping.rect().topLeft()).y()
-        > window.min_segment.mapTo(window, window.min_segment.rect().bottomLeft()).y()
+    assert window.drop_missing.mapTo(window, window.drop_missing.rect().topLeft()).y() > (
+        window.time.mapTo(window, window.time.rect().bottomLeft()).y()
+    )
+    assert window.clock_input.mapTo(window, window.clock_input.rect().topLeft()).x() < (
+        window.mapping.mapTo(window, window.mapping.rect().topLeft()).x()
     )
     for _info, description in window.analysis_help.values():
         assert f"color: {LINK_COLOR}" in description.text()
-    info, description = window.analysis_help["Device axes"]
+    info, description = window.analysis_help["Signal columns"]
     info.click()
     assert '<img src="' in description.text() and "directions_axes.png" in description.text()
     assert (
@@ -89,7 +90,7 @@ def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(wi
         ).y()
 
     initial = positions()
-    for name in ("Device axes", "Minimum section duration", "Signal columns"):
+    for name in ("Watch side", "Minimum section duration", "Signal columns"):
         window.analysis_help[name][0].click()
         label_y, editor_y = positions()
         assert 0 <= editor_y - label_y - heading.height() <= 8

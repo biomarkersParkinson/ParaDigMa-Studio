@@ -59,7 +59,6 @@ _PORTS = {
     "notice": component_attribute("_layout"),
     "open_button": component_attribute("_layout"),
     "open_run_button": component_attribute("_layout"),
-    "orientation": component_attribute("_layout"),
     "origin_reset": component_attribute("_layout"),
     "pages": component_attribute("_layout"),
     "plot_toolbar": component_attribute("_layout"),

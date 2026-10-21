@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
-    QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -159,14 +158,27 @@ class AnalysisPage:
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
         parameters.addLayout(parameter_header)
-        left = QFormLayout()
-        right = QFormLayout()
+        left, right = QVBoxLayout(), QVBoxLayout()
         columns = AdaptiveFormColumns(left, right)
-        for form in (left, right):
-            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-            form.setHorizontalSpacing(10)
-            form.setVerticalSpacing(12)
+        for column in (left, right):
+            column.setSpacing(12)
+            column.setAlignment(Qt.AlignmentFlag.AlignTop)
+        units = QFormLayout()
+        units.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        units.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        units.setHorizontalSpacing(10)
+        units.setVerticalSpacing(12)
+        units.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+        self._build_analysis_units(units)
+        left.addLayout(units)
+        self._build_analysis_segmentation(units)
+        self._build_analysis_origin(left)
+        left.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
+        self.mapping = ColumnMappingEditor()
+        right.addWidget(self.analysis_field("Signal columns", self.mapping))
+        parameters.addLayout(columns)
+
+    def _build_analysis_units(self, form):
         self.side = self.combo(["left", "right"], combo_type=ContextComboBox)
         self.acc = self.combo(["g", "m/s^2"])
         self.gyro = self.combo(["deg/s", "rad/s"])
@@ -182,35 +194,22 @@ class AnalysisPage:
         )
         for widget in (self.side, self.acc, self.gyro, self.time):
             widget.setMinimumWidth(160)
-        self.orientation = QLineEdit("x,y,z")
         for title, widget in (
             ("Watch side", self.side),
             ("Acceleration units", self.acc),
             ("Gyroscope units", self.gyro),
             ("Time units", self.time),
         ):
-            self.analysis_field(title, widget, form=left)
-        sections = self._build_analysis_segmentation(right)
-        parameters.addLayout(columns)
-        self.mapping = ColumnMappingEditor()
-        # Each column flows independently, so short fields use available space.
-        self.analysis_field("Device axes", self.orientation, form=left)
-        sections.addWidget(
-            self.analysis_field("Signal columns", self.mapping), sections.rowCount(), 0, 1, 2
-        )
-        left.setFormAlignment(Qt.AlignmentFlag.AlignTop)
-        right.setFormAlignment(Qt.AlignmentFlag.AlignTop)
-        self._build_analysis_origin(parameters)
-        parameters.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
+            self.analysis_field(title, widget, form=form)
 
-    def _build_analysis_segmentation(self, right):
+    def _build_analysis_segmentation(self, form):
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(True)
         for checkbox in (self.prepared, self.gaps, self.drop_missing):
             checkbox.setPalette(light_palette())
-        right.addRow(
+        form.addRow(
             self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True)
         )
         self.segmentation_controls = WrappedForm()
@@ -245,8 +244,7 @@ class AnalysisPage:
             row_layout.addWidget(widget, 1)
             row_layout.addWidget(reset)
             self.analysis_field(title, row, form=sections)
-        right.addRow(self.segmentation_controls)
-        return sections
+        form.addRow(self.segmentation_controls)
 
     def _build_analysis_origin(self, parameters):
         self.clock_input = TimeField("Time origin", origin=True)
@@ -316,7 +314,7 @@ class AnalysisPage:
         url = reference if reference.startswith("https://") else SOURCE + reference
         visual = ""
         link_title = "ParaDigMa documentation"
-        if title == "Device axes":
+        if title == "Signal columns":
             image = QUrl.fromLocalFile(str(DATA_DIRECTORY / "directions_axes.png")).toString()
             visual = (
                 f'<p><img src="{image}" width="260" height="247"></p>'
@@ -386,7 +384,6 @@ class AnalysisPage:
             min_segment=self.min_segment,
             module_buttons=self.module_buttons,
             module_requirements=self.module_requirements,
-            orientation=self.orientation,
             prepared=self.prepared,
             run_button=self.run_button,
             side=self.side,

@@ -78,7 +78,6 @@ class WorkspaceLayout:
     min_segment = component_attribute("_analysis_page")
     module_buttons = component_attribute("_analysis_page")
     module_requirements = component_attribute("_analysis_page")
-    orientation = component_attribute("_analysis_page")
     origin_reset = component_attribute("_analysis_page")
     prepared = component_attribute("_analysis_page")
     run_button = component_attribute("_analysis_page")

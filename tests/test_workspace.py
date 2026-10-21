@@ -149,7 +149,7 @@ def test_segmentation_defaults_match_official_package_and_resets_remain_availabl
         window.time.currentText() == signature(run_paradigma).parameters["time_input_unit"].default
     )
     assert (
-        window.orientation.text().split(",")
+        window._analysis_controller._analysis_settings(["gait"])["device_orientation"]
         == signature(run_paradigma).parameters["device_orientation"].default
     )
     assert (
@@ -180,11 +180,14 @@ def test_segmentation_defaults_match_official_package_and_resets_remain_availabl
             window.gaps,
             window.max_gap,
             window.min_segment,
-            window.mapping,
+            window.clock_input,
             window.prepared,
         )
     ]
     assert ys == sorted(ys)
+    mapping_start = window.mapping.mapTo(window.settings_panel, QPoint(0, 0))
+    gap_start = window.gaps.mapTo(window.settings_panel, QPoint(0, 0))
+    assert mapping_start.x() > gap_start.x() and mapping_start.y() < gap_start.y()
 
 
 def test_run_button_remains_visible_in_compact_analysis_workspace(window):
@@ -258,7 +261,6 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         window.acc,
         window.gyro,
         window.time,
-        window.orientation,
         window.drop_missing,
         window.gaps,
         window.max_gap,
@@ -317,7 +319,6 @@ def _configure_native_analysis_sizes(window, control_minimum_height, larger_surr
         window.acc,
         window.gyro,
         window.time,
-        window.orientation,
         window.max_gap,
         window.min_segment,
     ):
@@ -409,7 +410,7 @@ def test_inline_analysis_help_does_not_change_configuration(window):
             window.acc.currentText(),
             window.gyro.currentText(),
             window.time.currentText(),
-            window.orientation.text(),
+            window.mapping.axis_inversions(),
             window.prepared.isChecked(),
             window.gaps.isChecked(),
             window.drop_missing.isChecked(),
@@ -431,7 +432,7 @@ def test_inline_analysis_help_does_not_change_configuration(window):
         info.click()
         assert description.isHidden()
     assert configuration() == before
-    assert "toolbox X = minus sensor Y" in window.analysis_help["Device axes"][1].text()
+    assert "toolbox X = minus sensor Y" in window.analysis_help["Signal columns"][1].text()
     assert "Choose the column in your files" in window.analysis_help["Signal columns"][1].text()
 
 
@@ -576,8 +577,14 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     window.acc.setCurrentText("m/s^2")
     window.gyro.setCurrentText("rad/s")
     window.time.setCurrentText("relative_ms")
-    window.orientation.setText("-y,x,z")
-    window.mapping.set_mapping({"device_time": "time"})
+    window.mapping.set_mapping(
+        {
+            "device_time": "time",
+            "accelerometer_y": "accelerometer_x",
+            "accelerometer_x": "accelerometer_y",
+        }
+    )
+    window.mapping.set_axis_inversions(["accelerometer_x", "gyroscope_y"])
     window.gaps.setChecked(True)
     window.max_gap.setValue(2.5)
     window.min_segment.setValue(4)
@@ -603,8 +610,13 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
         "accelerometer_units": "m/s^2",
         "gyroscope_units": "rad/s",
         "time_input_unit": "relative_ms",
-        "device_orientation": ["-y", "x", "z"],
-        "column_mapping": {"device_time": "time"},
+        "device_orientation": ["x", "y", "z"],
+        "axis_inversions": ["accelerometer_x", "gyroscope_y"],
+        "column_mapping": {
+            "device_time": "time",
+            "accelerometer_y": "accelerometer_x",
+            "accelerometer_x": "accelerometer_y",
+        },
         "skip_preparation": False,
         "split_by_gaps": True,
         "drop_missing_samples": False,
@@ -623,8 +635,8 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     assert window.selected_modules() == ["gait", "tremor"]
     assert window.gyro.currentText() == "rad/s"
     assert window.max_gap.value() == 2.5
-    assert window.orientation.text() == "-y,x,z"
-    assert window.mapping.mapping() == {"device_time": "time"}
+    assert window.mapping.axis_inversions() == ["accelerometer_x", "gyroscope_y"]
+    assert window.mapping.mapping() == expected["column_mapping"]
 
 
 def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
