@@ -32,6 +32,13 @@ The actual path calls the real desktop `analyze` function. Both paths receive
 fresh configuration objects because upstream preprocessing updates sampling
 frequency settings during a run. Inputs must remain unchanged.
 
+The Signal columns UI tests also compare real gait, tremor and pulse-rate outputs
+with independent official preparation after source renaming, axis swaps and
+independent accelerometer/gyroscope inversions. The reference calls the official
+orientation function directly for each sensor. Separate migration checks exercise
+all 48 legacy signed permutations with canonical, aliased and mixed headers, and
+saved-run restoration checks distinguish raw from already prepared inputs.
+
 TSDF import tests use real binary streams and an independent reference multiplication
 of each channel by its metadata `scale_factors`, following the
 [TSDF pandas tutorial](https://biomarkersparkinson.github.io/tsdf/basic_reading_and_writing_pandas.html).

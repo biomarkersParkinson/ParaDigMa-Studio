@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Integrate axis direction into Signal columns with independent accelerometer and
+  gyroscope inversion checkboxes; select axis swaps through the source dropdowns.
+  Put other Analyze parameters on the left and signal columns on the right,
+  stacking in narrow windows. Replace row statuses with inline warning icons and
+  preserve the transformations from older saved global axis settings.
+
 - Replace the Analyze column-mapping JSON field with signal dropdowns, exact-name
   recognition, unambiguous auto-match suggestions and validation across every
   loaded recording. Preserve choices across module/recording switches and restore

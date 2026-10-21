@@ -174,11 +174,20 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 `inspection` is also checked at the lenient service level; its batch-inspection
 interface is fully annotated.
 The deferred `raw_signals` renderer is checked at the same lenient level.
-The header-only `column_mapping` model is also checked; its Qt editor is covered
+The header-only `column_mapping` model and pure `axis_mapping` service are also checked; the Qt editor is covered
 by the recursive UI target. Controllers supply column-name schemas once per
 loaded batch and use the editor's explicit mapping/module APIs and `changed`
 signal. Mapping validation never scans sensor samples. Run settings retain the
 existing source-to-target dictionary, including additional legacy entries.
+`axis_inversions` stores inverted canonical IMU target channels separately. The
+preparation service passes independent signed `x,y,z` lists to the official
+accelerometer and gyroscope orientation calls after renaming; permutations belong
+only in column mapping. This desktop setting is removed before calling the official
+orchestrator. The old Python `device_orientation` API remains supported when
+`axis_inversions` is absent. Restoring old raw-run settings composes the legacy
+permutation into the mapping and signs; prepared runs retain renaming alone.
+Inversion edits do not emit the mapping `changed` signal because they affect
+neither clock previews nor original raw plots.
 
 The entire `ui/` directory is checked recursively, including new modules. The
 `paradigma_studio.ui.*` override checks function bodies (`check_untyped_defs`)
@@ -264,7 +273,7 @@ statements and branch outcomes. The report includes all `*_controller.py` module
 and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analysis`,
 `previews`, `recording_results`, `storage`, `result_preparation` and
 `result_reopening`. The `raw_signals` renderer and header-only `column_mapping`
-model are also included. New controllers
+model and `axis_mapping` service are also included. New controllers
 automatically join
 the gate, including modules with no tests. Other Studio modules and the upstream
 toolbox are outside this initial reporting scope; this is not whole-app coverage.

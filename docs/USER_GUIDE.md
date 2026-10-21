@@ -48,8 +48,10 @@ Set processing options in **Analysis parameters**. Each field's **i** button ope
 guidance below the parameters with a reference to the official ParaDigMa documentation.
 Only one explanation is shown at a time; opening another replaces it without
 moving the fields.
-Device axes includes ParaDigMa's original reference figure and a direct link to its
-Coordinate System guide. The example explains each signed axis mapping.
+Signal columns includes ParaDigMa's original reference figure and a direct link to its
+Coordinate System guide. The example explains source-axis selection and inversion.
+Parameter settings appear on the left and signal columns on the right; narrow
+windows stack the two sections.
 The page preserves comfortable spacing. Parameters fit together at normal window
 sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
 visible below the settings.
@@ -70,27 +72,36 @@ and missing-sample checks during preparation.
   recording. Numeric time supports relative, absolute or difference-based values
   in seconds or milliseconds. CSV date strings need conversion to a supported
   numeric representation before analysis.
-- Set the actual wrist as watch side. Device axes are signed source axes in the
-  order of toolbox X, Y, Z: `-y,x,z` gives X = −sensor Y, Y = sensor X, Z = sensor Z.
+- Set the actual wrist as watch side.
   Watch-side inversion happens separately in official pipeline preprocessing.
 - In **Signal columns**, choose a source column from the dropdown for each
   required signal. Standard names are recognized automatically. **Auto-match**
   fills visible signals with unambiguous familiar names shared by every loaded recording, such as
   `timestamp`, `gyr_x` and `ppg`, while retaining existing choices. Ambiguous
   names need a manual selection. **Show optional signals** exposes other channels;
-  selecting another module preserves all choices. The table scrolls when needed.
+  selecting another module preserves all choices.
+  For axis swaps, choose the source column that should become each toolbox axis.
+  For example, select the device's Y column for **Accelerometer X** and its X column
+  for **Accelerometer Y**. Tick **Invert axis** to reverse the selected signal's
+  direction (multiply by −1). Accelerometer and gyroscope directions can be set
+  independently. There is no separate Device axes field.
+  One mapping and set of inversions applies to every loaded recording.
   The compatibility summary covers every loaded recording. **Show details**
-  identifies missing signals and conflicting names; row statuses identify reused
-  source columns and files missing a selected column. Existing per-recording and
+  identifies missing signals and conflicting names; warning icons beside affected
+  dropdowns explain reused source columns and files missing a selected column.
+  Valid rows need no status indicator. Existing per-recording and
   per-module analysis validation still determines which workflows can run.
-  **Reset** clears custom choices and restores standard-name matching. A new
+  **Reset** clears custom choices and inversions and restores standard-name matching. A new
   load retains explicit choices and shows unavailable columns so they can be
   corrected. **Use parameters** restores saved mappings, including additional
-  legacy mappings shown in Details. Saved runs and exports retain the existing
-  source-to-toolbox mapping dictionary; no JSON editing is needed in the app.
+  legacy mappings shown in Details. Older saved global axis permutations are
+  translated into equivalent column choices and inversions. Saved runs and exports
+  retain the source-to-toolbox mapping dictionary and record inverted target channels
+  separately; no JSON editing is needed in the app.
 - Keep preparation enabled for raw data. Use **Already prepared** only for data
   already converted to ParaDigMa's units, orientation and sampling requirements.
-  Mapping still applies in prepared mode.
+  Mapping still applies in prepared mode. Inversion controls are disabled and
+  inversions are skipped; unchecking Already prepared restores your selections.
 - **Exclude missing sensor samples** removes rows with non-finite required sensor
   values from analysis. Counts are logged and recorded in exported metadata.
   Uncheck it for strict rejection. Non-finite relative or absolute timestamps
