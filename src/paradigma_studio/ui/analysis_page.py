@@ -180,7 +180,9 @@ class AnalysisPage:
 
     def _build_analysis_units(self, form):
         self.side = self.combo(["left", "right"], combo_type=ContextComboBox)
-        self.acc = self.combo(["g", "m/s^2"])
+        self.acc = self.combo(["g", "m/s²"])
+        for index, unit in enumerate(("g", "m/s^2")):
+            self.acc.setItemData(index, unit)
         self.gyro = self.combo(["deg/s", "rad/s"])
         self.time = self.combo(
             [

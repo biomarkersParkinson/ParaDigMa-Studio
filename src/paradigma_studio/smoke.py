@@ -90,8 +90,9 @@ def _verify_bundled_ui(window, app):
 
     if window.windowIcon().isNull() or window.windowIcon().pixmap(32, 32).isNull():
         raise RuntimeError("Bundled application icon could not be rendered")
-    if QPixmap(str(files("paradigma_studio") / "data" / "chevron-down.svg")).isNull():
-        raise RuntimeError("Bundled dropdown indicator could not be rendered")
+    for direction in ("up", "down"):
+        if QPixmap(str(files("paradigma_studio") / "data" / f"chevron-{direction}.svg")).isNull():
+            raise RuntimeError(f"Bundled {direction} chevron could not be rendered")
     if QPixmap(str(files("paradigma_studio") / "data" / "checkmark.svg")).isNull():
         raise RuntimeError("Bundled checkbox indicator could not be rendered")
     if QPixmap(str(files("paradigma_studio") / "data" / "directions_axes.png")).isNull():

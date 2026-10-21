@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Make Analyze's gap/duration step buttons wider with clear scalable chevrons,
+  and display acceleration units as m/s² while preserving saved and pipeline
+  unit identifiers.
+
 - Correct Detailed pulse-rate estimate bars to use the official 2-second update
   cadence, while keeping PPG quality bars at 1 second. Preserve missing-output
   gaps, recording boundaries and original result values, including saved results.

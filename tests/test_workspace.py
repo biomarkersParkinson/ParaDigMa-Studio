@@ -574,7 +574,7 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
     window.loaded(("sensor.csv", frame))
     window.module_buttons["Tremor"].click()
     window.side.setCurrentText("right")
-    window.acc.setCurrentText("m/s^2")
+    window.acc.setCurrentText("m/s²")
     window.gyro.setCurrentText("rad/s")
     window.time.setCurrentText("relative_ms")
     window.mapping.set_mapping(
@@ -629,10 +629,13 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
         "plot_time_origin": {"mode": "automatic"},
     }
     window.set_modules(["pulse_rate"])
+    window.acc.setCurrentText("g")
     window.gyro.setCurrentText("deg/s")
     window.use_run_parameters()
     assert window.pages.currentIndex() == 1
     assert window.selected_modules() == ["gait", "tremor"]
+    assert window.acc.currentText() == "m/s²"
+    assert window.acc.currentData() == "m/s^2"
     assert window.gyro.currentText() == "rad/s"
     assert window.max_gap.value() == 2.5
     assert window.mapping.axis_inversions() == ["accelerometer_x", "gyroscope_y"]

@@ -686,7 +686,8 @@ def test_context_uses_saved_analysis_units_for_single_and_multiple_channels(
         accelerometer_units=accelerometer_unit, gyroscope_units=gyroscope_unit
     )
     # Current form changes must not relabel an earlier run's original samples.
-    window.acc.setCurrentText("m/s^2" if accelerometer_unit == "g" else "g")
+    window.acc.setCurrentText("m/s²" if accelerometer_unit == "g" else "g")
+    assert window.acc.currentData() != accelerometer_unit
     window.gyro.setCurrentText("rad/s" if gyroscope_unit == "deg/s" else "deg/s")
     original = window._sensor_state.sensor_frame.copy(deep=True)
     window.set_sensor_channels(["accelerometer_x", "gyroscope_x", "gyroscope_z"])

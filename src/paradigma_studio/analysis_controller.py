@@ -312,7 +312,7 @@ class AnalysisController(QObject):
         settings: AnalysisSettings = {
             "pipelines": pipelines,
             "watch_side": self.view.side.currentText(),
-            "accelerometer_units": self.view.acc.currentText(),
+            "accelerometer_units": self.view.acc.currentData(),
             "gyroscope_units": self.view.gyro.currentText(),
             "time_input_unit": self.view.time.currentText(),
             "device_orientation": ["x", "y", "z"],
@@ -391,7 +391,12 @@ class AnalysisController(QObject):
             (self.view.time, "time_input_unit"),
         ):
             if key in settings:
-                widget.setCurrentText(str(settings[key]))
+                value = str(settings[key])
+                index = widget.findData(value)
+                if index >= 0:
+                    widget.setCurrentIndex(index)
+                else:
+                    widget.setCurrentText(value)
         self._restore_signal_columns(settings)
         self.view.prepared.setChecked(settings.get("skip_preparation", False))
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))

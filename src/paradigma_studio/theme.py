@@ -122,6 +122,20 @@ QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border-color: #2563a5; 
 QComboBox::drop-down, QDateTimeEdit::drop-down { subcontrol-origin: padding; subcontrol-position: top right;
     width: 24px; border: none; }
 QComboBox::down-arrow, QDateTimeEdit::down-arrow { image: url("__DROPDOWN_ICON__"); width: 12px; height: 8px; }
+QWidget#analysisBody QDoubleSpinBox { min-height: 22px; padding: 5px 36px 5px 10px; }
+QWidget#analysisBody QDoubleSpinBox:focus { border-color: #2563a5; }
+QWidget#analysisBody QDoubleSpinBox::up-button, QWidget#analysisBody QDoubleSpinBox::down-button {
+    subcontrol-origin: border; width: 28px; background: #f0f5fb; border-left: 1px solid #d7dfe9; }
+QWidget#analysisBody QDoubleSpinBox::up-button { subcontrol-position: top right;
+    border-top-right-radius: 5px; border-bottom: 1px solid #d7dfe9; }
+QWidget#analysisBody QDoubleSpinBox::down-button { subcontrol-position: bottom right;
+    border-bottom-right-radius: 5px; }
+QWidget#analysisBody QDoubleSpinBox::up-arrow { image: url("__UP_ICON__"); width: 12px; height: 8px; }
+QWidget#analysisBody QDoubleSpinBox::down-arrow { image: url("__DROPDOWN_ICON__"); width: 12px; height: 8px; }
+QWidget#analysisBody QDoubleSpinBox::up-button:hover, QWidget#analysisBody QDoubleSpinBox::down-button:hover { background: #dfeaf6; }
+QWidget#analysisBody QDoubleSpinBox::up-button:pressed, QWidget#analysisBody QDoubleSpinBox::down-button:pressed { background: #cddff1; }
+QWidget#analysisBody QDoubleSpinBox::up-button:disabled, QWidget#analysisBody QDoubleSpinBox::down-button:disabled {
+    background: #f4f6f9; border-color: #e5e9ef; }
 QLineEdit:disabled, QComboBox:disabled, QDoubleSpinBox:disabled, QDateTimeEdit:disabled { background: #f4f6f9; color: #68778c; }
 QCalendarWidget QWidget { background: white; color: #22324a; }
 QCalendarWidget QWidget#qt_calendar_navigationbar { background: #edf3fa; }
@@ -182,6 +196,9 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: t
 """.replace("__DROPDOWN_ICON__", (Path(__file__).with_name("data") / "chevron-down.svg").as_posix())
 STYLESHEET = STYLESHEET.replace(
     "__CHECKMARK_ICON__", (Path(__file__).with_name("data") / "checkmark.svg").as_posix()
+)
+STYLESHEET = STYLESHEET.replace(
+    "__UP_ICON__", (Path(__file__).with_name("data") / "chevron-up.svg").as_posix()
 )
 for module, colors in MODULE_PALETTE.items():
     STYLESHEET += f'''

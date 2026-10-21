@@ -32,9 +32,9 @@ FIELD_HELP = {
         "preprocessing.py#L364",
     ),
     "Acceleration units": (
-        "Choose the units in the input file: g (gravitational acceleration) or m/s^2. "
-        "ParaDigMa converts m/s^2 to g during preparation. A stationary gravity axis is typically "
-        "about 1 g or 9.81 m/s^2. Use the device's documentation to confirm.",
+        "Choose the units in the input file: g (gravitational acceleration) or m/s². "
+        "ParaDigMa converts m/s² to g during preparation. A stationary gravity axis is typically "
+        "about 1 g or 9.81 m/s². Use the device's documentation to confirm.",
         "prepare_data.py",
     ),
     "Gyroscope units": (

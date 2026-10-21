@@ -69,7 +69,8 @@ Complete optional accelerometer channels retain their existing unit conversion
 and missing-sample checks during preparation.
 
 - Check acceleration units, gyroscope units and time representation against the
-  recording. Numeric time supports relative, absolute or difference-based values
+  recording. Acceleration is displayed as **g** or **m/s²**. Numeric time supports
+  relative, absolute or difference-based values
   in seconds or milliseconds. CSV date strings need conversion to a supported
   numeric representation before analysis.
 - Set the actual wrist as watch side.
