@@ -183,6 +183,8 @@ This setting affects presentation only and is saved with run parameters. Known
 timezones, clock precision and daylight-saving offsets are retained.
 Pulse-rate series use **Pulse rate** and **High-quality PPG (probability)**;
 original column names remain unchanged in tables and exports.
+In Detailed view, pulse-rate estimates occupy 2-second intervals, while PPG
+quality probabilities occupy 1-second intervals. Missing outputs remain blank.
 
 Multiple recordings use actual clock offsets when all clocks are comparable.
 Otherwise plots use a labeled **File-order timeline**, without inventing dates or

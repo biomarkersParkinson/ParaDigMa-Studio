@@ -135,23 +135,91 @@ def test_legacy_overview_shows_unavailable_percentage_with_original_count_in_too
     assert "277" in display.toolTip() and "unavailable" in display.toolTip().lower()
 
 
-def test_pulse_plot_series_and_titles_use_readable_labels_without_renaming_columns(window):
+@pytest.mark.parametrize("calendar", [False, True], ids=["elapsed", "calendar"])
+def test_pulse_bars_follow_each_output_cadence_and_reopen_without_changing_values(
+    window, tmp_path, calendar
+):
     results = {
         "quantifications": {
-            "pulse_rate": pd.DataFrame({"time": [2.0, 4.0], "pulse_rate": [72.0, 73.0]})
+            "pulse_rate": pd.DataFrame(
+                {"time": [2.0, 4.0, 6.0, 20.0], "pulse_rate": [72.0, 73.0, np.nan, 71.0]}
+            )
         },
         "classifications": {
-            "pulse_rate": pd.DataFrame({"time": [0.0, 1.0], "pred_sqa_proba": [0.8, 0.9]})
+            "pulse_rate": pd.DataFrame(
+                {"time": [0.0, 1.0, 2.0, 20.0], "pred_sqa_proba": [0.8, 0.9, np.nan, 0.7]}
+            )
         },
     }
     original = deepcopy(results)
-    window.analyzed(results)
-    for stage, metric, title in (
-        ("quantifications", "pulse_rate", "Pulse rate"),
-        ("classifications", "pred_sqa_proba", "High-quality PPG (probability)"),
-    ):
-        name = f"{stage}/pulse_rate"
-        assert window._result_state._series_items[name, metric].text(0) == title
-        select_plot_metric(window, name, metric)
-        assert window.figure.axes[0].get_title(loc="left") == title
-        pd.testing.assert_frame_equal(results[stage]["pulse_rate"], original[stage]["pulse_rate"])
+    window._result_state.provenance = {"settings": {"pipelines": ["pulse_rate"]}}
+    if calendar:
+        window._result_state.provenance["display_clock"] = {
+            "origin": "2026-10-22T08:00:00+02:00",
+            "timezone": "Europe/Amsterdam",
+        }
+    path = tmp_path / "pulse.json"
+    for reopened in (False, True):
+        window.analyzed(results)
+        for stage, metric, title, cadence in (
+            ("quantifications", "pulse_rate", "Pulse rate", 2.0),
+            ("classifications", "pred_sqa_proba", "High-quality PPG (probability)", 1.0),
+        ):
+            name = f"{stage}/pulse_rate"
+            assert window._result_state._series_items[name, metric].text(0) == title
+            select_plot_metric(window, name, metric)
+            axes = next(ax for ax in window.figure.axes if ax._paradigma_dataset == name)
+            assert axes.get_title(loc="left") == title
+            starts, ends = window._result_state._bar_bounds[name]
+            np.testing.assert_array_equal(ends - starts, cadence)
+            paths = axes.collections[0].get_paths()
+            assert len(paths) == 3  # The missing measurement and long gap remain blank.
+            seconds = 86400 if calendar else 1
+            np.testing.assert_allclose(
+                [np.ptp(bar.vertices[:, 0]) * seconds for bar in paths],
+                cadence * 0.84,
+                atol=1e-6,
+                rtol=0,
+            )
+            pd.testing.assert_frame_equal(
+                results[stage]["pulse_rate"], original[stage]["pulse_rate"]
+            )
+        if not reopened:
+            export_results(path, results, window._result_state.provenance)
+            saved_bytes = path.read_bytes()
+            window._result_state.provenance, results = load_result_export(path)
+        else:
+            assert path.read_bytes() == saved_bytes
+
+
+@pytest.mark.parametrize("stage,cadence", [("quantifications", 2.0), ("classifications", 1.0)])
+def test_pulse_intervals_keep_long_gaps_and_isolated_recordings_at_their_own_cadence(
+    stage, cadence
+):
+    from paradigma.config import PulseRateConfig
+
+    from paradigma_studio.result_data import prepare_result_data
+
+    config = PulseRateConfig()
+    expected = (
+        config.pr_est_samples / config.ppg_sampling_frequency
+        if stage == "quantifications"
+        else config.window_step_length_s
+    )
+    assert expected == cadence
+    metric = "pulse_rate" if stage == "quantifications" else "pred_sqa_proba"
+    frame = pd.DataFrame(
+        {
+            "time": [0.0, cadence, 20.0, 21.0, 1_000_000.0],
+            metric: 0.8,
+            "file_key": ["a", "a", "a", "b", "c"],
+        }
+    )
+    original = frame.copy(deep=True)
+    data = prepare_result_data({stage: {"pulse_rate": frame}}, {})
+    name = f"{stage}/pulse_rate"
+    np.testing.assert_array_equal(data.interval_ends[name], frame.time + cadence)
+    starts, ends = data.bar_bounds[name]
+    np.testing.assert_array_equal(starts, frame.time)
+    np.testing.assert_array_equal(ends, frame.time + cadence)
+    pd.testing.assert_frame_equal(frame, original, check_exact=True)

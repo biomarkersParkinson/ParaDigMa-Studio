@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Correct Detailed pulse-rate estimate bars to use the official 2-second update
+  cadence, while keeping PPG quality bars at 1 second. Preserve missing-output
+  gaps, recording boundaries and original result values, including saved results.
+  Count each returned estimate's 2 seconds when checking Day-view data availability.
+
 - Integrate axis direction into Signal columns with independent accelerometer and
   gyroscope inversion checkboxes; select axis swaps through the source dropdowns.
   Put other Analyze parameters on the left and signal columns on the right,

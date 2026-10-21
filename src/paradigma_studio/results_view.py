@@ -99,7 +99,14 @@ def binary_interval_ends(name, frame, times):
         step = "arm_activity" if name.endswith("/arm_activity") else "gait"
         default_step = GaitConfig(step=step).window_step_length_s
     elif module == "pulse_rate":
-        default_step = PulseRateConfig().window_step_length_s
+        config = PulseRateConfig()
+        # Quality predictions update every second; quantified estimates use
+        # the separate two-second pulse estimation interval.
+        default_step = (
+            config.pr_est_samples / config.ppg_sampling_frequency
+            if name.startswith("quantifications/")
+            else config.window_step_length_s
+        )
     else:
         default_step = None
     times = np.asarray(times, dtype=float)

@@ -134,6 +134,21 @@ def test_daily_empty_outputs_and_unknown_cadence_do_not_invent_available_data():
     assert frame.data_s.eq(0).all() and frame.value.isna().all()
 
 
+@pytest.mark.parametrize("count", [431, 432])
+def test_daily_pulse_coverage_counts_two_seconds_per_returned_estimate(count):
+    from paradigma_studio.result_data import prepare_result_data
+
+    pulse = pd.DataFrame({"time": np.arange(count) * 2.0, "pulse_rate": 72.0})
+    data = prepare_result_data({"quantifications": {"pulse_rate": pulse}}, {})
+    starts, ends = data.bar_bounds["quantifications/pulse_rate"]
+    summary = daily_summary(pulse.time, pulse.pulse_rate, starts, ends, None)
+    assert summary.data_s.tolist() == [count * 2]
+    if count == 432:
+        assert summary.value.tolist() == [72.0]  # 864 s meets the 1% daily requirement.
+    else:
+        assert summary.value.isna().all()
+
+
 def _series_axis(window, name, metric):
     return next(
         ax
