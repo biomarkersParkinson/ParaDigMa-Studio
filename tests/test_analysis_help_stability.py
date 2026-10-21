@@ -172,6 +172,10 @@ def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path,
     ):
         widget.installEventFilter(watcher)
     try:
+        # In a stacked layout the editor starts below the viewport. Expose it
+        # while observed so the mapping assertions exercise a real paint.
+        window.analysis_scroll.ensureWidgetVisible(window.mapping)
+        QTest.qWait(20)
         for name in (
             "Watch side",
             "Signal columns",
@@ -298,6 +302,10 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
     window.navigate(1)
     window.show()
     app.processEvents()
+    # Native font/layout requests can still move the stacked editor and grow
+    # the scroll range after that first event pass. Settle before measuring
+    # the baseline and scrolling; all help transitions below remain checked.
+    QTest.qWait(40)
     body = window.analysis_scroll.widget()
     labels = [
         widget
