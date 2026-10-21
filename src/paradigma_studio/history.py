@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from .axis_mapping import preparation_orientations
 from .contracts import (
     AnalysisError,
     AnalysisResults,
@@ -19,7 +20,7 @@ from .contracts import (
     RunOutput,
     RunRecord,
 )
-from .core import validate_column_mapping, validate_orientation
+from .core import validate_column_mapping
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
 
@@ -163,7 +164,7 @@ def _read_run_record(path: Path) -> RunRecord:
     _validate_run_outputs(record, settings)
     migrate_problems(record)
     validate_column_mapping(settings.get("column_mapping"))
-    validate_orientation(settings.get("device_orientation"))
+    preparation_orientations(settings)
     _validate_preparation_settings(settings)
     return record
 

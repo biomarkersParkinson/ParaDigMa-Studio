@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from .availability import prepared_availability
+from .axis_mapping import preparation_orientations, validate_orientation as validate_orientation
 from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
 from .empatica import load_empatica_imu
 from .serialization import (
@@ -81,24 +82,6 @@ def validate_column_mapping(mapping: object) -> dict[str, str]:
     ):
         raise ValueError("Column mapping must be a JSON object of source-to-target names.")
     return mapping
-
-
-def validate_orientation(axes: object) -> list[str] | None:
-    if axes is None:
-        return None
-    if (
-        not isinstance(axes, (list, tuple))
-        or len(axes) != 3
-        or any(
-            not isinstance(axis, str) or axis not in {"x", "y", "z", "-x", "-y", "-z"}
-            for axis in axes
-        )
-        or sorted(axis[-1] for axis in axes) != ["x", "y", "z"]
-    ):
-        raise ValueError(
-            "Device axes must contain x, y and z once each, optionally prefixed with '-'."
-        )
-    return list(axes)
 
 
 class _PipelineFailures(logging.Handler):
@@ -358,7 +341,7 @@ def _run_prepared_analysis(
             return_intermediate=["classification", "quantification"],
             custom_logger=active_logger,
             **{
-                **settings,
+                **{key: value for key, value in settings.items() if key != "axis_inversions"},
                 "output_dir": run_directory,
                 "skip_preparation": True,
                 "split_by_gaps": False,
@@ -481,7 +464,7 @@ def result_tables(value: Any, path: str = "") -> dict[str, pd.DataFrame]:
 
 def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
     mapping = validate_column_mapping(column_mapping)
-    axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
+    axes = preparation_orientations(settings)
     mapped = frame.rename(columns=mapping).copy().reset_index(drop=True)
     if not mapped.columns.is_unique:
         raise ValueError("Column mapping produces duplicate column names.")
@@ -680,7 +663,9 @@ def _convert_recording(mapped, axes, time_unit, settings):
     )
     for sensor in ("accelerometer", "gyroscope"):
         if all(f"{sensor}_{axis}" in prepared for axis in "xyz"):
-            prepared = correct_watch_orientation(prepared, device_orientation=axes, sensor=sensor)
+            prepared = correct_watch_orientation(
+                prepared, device_orientation=axes[sensor], sensor=sensor
+            )
     if settings.get("split_by_gaps", False):
         prepared = _split_recording_gaps(prepared, settings)
     return prepared
