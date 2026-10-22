@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep Analyze's scroll range synchronized when nested forms shrink or change
+  between stacked and side-by-side layouts, avoiding stale excess scrolling on
+  Windows. Settle active layout items without activating hidden popup layouts.
+
 - Reserve updated native control sizes before laying out Analyze's nested forms,
   preventing clipped checkboxes when Windows controls grow after initial layout.
 

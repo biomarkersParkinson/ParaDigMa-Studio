@@ -39,6 +39,22 @@ def window(tmp_path):
     app.processEvents()
 
 
+@pytest.fixture(params=[None, "Windows"], ids=["native-style", "Windows-style"])
+def native_analysis_window(tmp_path, request):
+    app = QApplication.instance() or QApplication([])
+    original_style = app.style().objectName()
+    if request.param is not None:
+        app.setStyle(request.param)
+    widget = MainWindow(history_dir=tmp_path / "runs")
+    try:
+        yield widget
+    finally:
+        wait_for_job(widget)
+        widget.close()
+        app.processEvents()
+        app.setStyle(original_style)
+
+
 def wait_for_job(window):
     deadline = time.monotonic() + 10
     while window._job_state.worker is not None and time.monotonic() < deadline:
@@ -243,8 +259,9 @@ def test_page_actions_share_the_status_row_and_navigation_only_shows_relevant_ac
     [(0, False), (40, False), (44, False), (44, True)],
 )
 def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes(
-    window, control_minimum_height, larger_surrounding_controls
+    native_analysis_window, control_minimum_height, larger_surrounding_controls
 ):
+    window = native_analysis_window
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
     _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls)
@@ -255,7 +272,13 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     window.resize(1200, 1050 if larger_surrounding_controls else 900)
     window.show()
     QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+    assert window.analysis_scroll.verticalScrollBar().maximum() == 0, (
+        window.analysis_scroll.viewport().size(),
+        window.analysis_scroll.widget().size(),
+        window.analysis_scroll.widget().minimumSize(),
+        window.analysis_controls.size(),
+        window.analysis_controls.heightForWidth(window.analysis_controls.width()),
+    )
     controls = (
         window.side,
         window.acc,

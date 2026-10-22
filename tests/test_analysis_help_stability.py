@@ -11,6 +11,38 @@ from paradigma_studio.widgets import AdaptiveFormColumns, WrappedForm
 
 
 @pytest.mark.parametrize("style", ["Fusion", "Windows"])
+def test_analyze_scroll_extent_shrinks_with_the_form_before_queued_parent_requests(tmp_path, style):
+    app = QApplication.instance() or QApplication([])
+    original_style = app.style().objectName()
+    app.setStyle(style)
+    window = MainWindow(tmp_path)
+    window.navigate(1)
+    window.set_modules(["gait", "tremor", "pulse_rate"])
+    window.resize(1450, 1050)
+    window.prepared.setMinimumHeight(900)
+    window.show()
+    QTest.qWait(40)
+    try:
+        bar = window.analysis_scroll.verticalScrollBar()
+        assert bar.maximum() > 0
+        window.prepared.setMinimumHeight(36)
+        # The child form can settle before Qt delivers the scroll area's
+        # queued parent notification. Its old extent must be corrected too.
+        QApplication.sendEvent(window.analysis_controls, QEvent(QEvent.Type.LayoutRequest))
+        assert window.analysis_controls.height() < window.analysis_scroll.viewport().height()
+        assert bar.maximum() == 0
+        assert (
+            window.analysis_scroll.widget().height() == window.analysis_scroll.viewport().height()
+        )
+        for field in (window.prepared, window.mapping):
+            assert field.visibleRegion().boundingRect().contains(field.rect())
+    finally:
+        window.close()
+        app.processEvents()
+        app.setStyle(original_style)
+
+
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
 def test_nested_native_control_growth_fits_before_queued_child_layout_requests(style):
     app = QApplication.instance() or QApplication([])
     original_style = app.style().objectName()

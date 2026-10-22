@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import escape
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
@@ -64,6 +64,7 @@ class AnalysisPage:
         self.status_row, self.status_layout = footer.status_row, footer.status_layout
         self.continue_button = footer.continue_button
         self.modules, self.callbacks = modules, callbacks
+        self._syncing_scroll_extent = False
         self._build_analyze()
 
     def _build_analyze(self):
@@ -74,7 +75,7 @@ class AnalysisPage:
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         body.setObjectName("analysisBody")
-        content = QVBoxLayout(body)
+        self._scroll_content = content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 4, 0)
         content.setSpacing(16)
         content.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
@@ -108,9 +109,22 @@ class AnalysisPage:
         )
         bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
         scroll.setWidget(body)
+        self.analysis_controls.height_changed.connect(self._sync_scroll_extent)
         for field in body.findChildren(ReadableComboBox):
             field.wheel_scroll_target = scroll
         layout.addWidget(scroll, 1)
+
+    def _sync_scroll_extent(self):
+        if self._syncing_scroll_extent:
+            return
+        self._syncing_scroll_extent = True
+        try:
+            self._scroll_content.activate()
+            # The content minimum may shrink without resizing its widget.
+            # Deliver that change now so the scrollbar cannot keep its old range.
+            QCoreApplication.sendEvent(self.analysis_scroll, QEvent(QEvent.Type.LayoutRequest))
+        finally:
+            self._syncing_scroll_extent = False
 
     def _build_analysis_input(self, content):
         panel, input_layout = card()

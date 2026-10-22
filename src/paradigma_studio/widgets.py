@@ -53,6 +53,8 @@ class WrappedForm(QWidget):
     Help lives outside this widget, so it cannot alter the reserved form height.
     """
 
+    height_changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._fitting_height = False
@@ -61,16 +63,34 @@ class WrappedForm(QWidget):
     def _fit_height(self):
         if self._fitting_height:
             return
+        previous = self.minimumHeight()
         self._fitting_height = True
         try:
-            # Child controls can acquire larger native minima before their
-            # wrappers deliver LayoutRequest. Settle those wrappers first so
-            # our fixed height never reserves their stale, smaller hints.
-            for nested in reversed(self.findChildren(QLayout)):
-                nested.activate()
+            layout = self.layout()
+            if layout is not None:
+                self._settle_layout(layout)
+                layout.activate()
             self._reserve_height()
         finally:
             self._fitting_height = False
+        if self.minimumHeight() != previous:
+            self.height_changed.emit()
+
+    def _settle_layout(self, layout):
+        # Follow active layout items, not QObject descendants such as hidden
+        # popups. Fit nested fixed-height forms before measuring their parents.
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            if item.isEmpty():
+                continue
+            if (nested := item.layout()) is not None:
+                self._settle_layout(nested)
+            elif (widget := item.widget()) is not None:
+                if isinstance(widget, WrappedForm):
+                    widget._fit_height()
+                elif (nested := widget.layout()) is not None:
+                    self._settle_layout(nested)
+                    nested.activate()
 
     def _reserve_height(self):
         height = self.heightForWidth(self.width())
