@@ -74,6 +74,7 @@ class AnalysisView:
     clock_input: TimeField
     drop_missing: QCheckBox
     file_badges: dict[str, QLabel]
+    file_default_buttons: dict[str, QPushButton]
     gaps: QCheckBox
     gyro: QComboBox
     log: QPlainTextEdit
@@ -144,10 +145,10 @@ class AnalysisController(QObject):
         self.file_defaults = FileDefaults(
             {"Acceleration units": view.acc, "Gyroscope units": view.gyro, "Time units": view.time},
             view.file_badges,
+            view.file_default_buttons,
             view.analysis_help,
             view.metadata_notice,
             self.update_origin_default,
-            self.reset_origin,
         )
 
     def toggle_analysis_help(self, title: str, checked: bool) -> None:
@@ -266,6 +267,7 @@ class AnalysisController(QObject):
             self.view.acc,
             self.view.gyro,
             self.view.time,
+            *self.view.file_default_buttons.values(),
             self.view.gaps,
         ):
             widget.setEnabled(not prepared)

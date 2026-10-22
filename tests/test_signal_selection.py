@@ -76,9 +76,9 @@ def test_explicit_not_included_survives_loads_and_auto_match_can_restore_it(wind
     assert window.mapping.signal_columns()["green"] is None
     assert window.mapping.model.validate(["pulse_rate"]).compatible == 0
     assert not window.mapping._warnings["green"].isHidden()
-    assert window.mapping.auto_button.isEnabled()
+    assert window.mapping.default_button.isEnabled()
     assert changes.count() == 1
-    window.mapping.auto_button.click()
+    window.mapping.default_button.click()
     assert selector.currentData() == "green"
     assert window.mapping.model.validate(["pulse_rate"]).compatible == 1
     assert window.mapping._warnings["green"].isHidden()

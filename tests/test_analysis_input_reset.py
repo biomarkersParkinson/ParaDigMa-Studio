@@ -41,6 +41,35 @@ def load_batch(window, frames):
     window.loaded_recordings((sources, frames, inspect_recordings(frames, "relative_ms")))
 
 
+@pytest.mark.parametrize("batch", [False, True])
+def test_new_inputs_automatically_match_aliases_and_prefill_their_metadata(window, batch):
+    window.loaded(("previous.json", recording()))
+    edit_all_settings(window)
+    aliases = dict(
+        zip(SIGNALS, ("timestamp", "ax", "ay", "az", "gx", "gy", "gz", "ppg"), strict=True)
+    )
+    frame = recording(start="2026-10-23T08:00:00+00:00").rename(columns=aliases)
+    frame.attrs[METADATA_KEY]["units"] = {
+        aliases[column]: unit for column, unit in frame.attrs[METADATA_KEY]["units"].items()
+    }
+    if batch:
+        load_batch(window, {"one": frame, "two": frame.copy(deep=True)})
+    else:
+        window.loaded(("new.json", frame))
+    wait_for_previews(window)
+    assert window.mapping.signal_columns() == aliases
+    assert all(not badge.isHidden() for badge in window.mapping._file_badges.values())
+    assert window.acc.currentData() == "m/s^2"
+    assert window.gyro.currentText() == "rad/s"
+    assert window.time.currentText() == "relative_ms"
+    assert window.mapping.axis_inversions() == []
+    assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-23T08:00:00Z")
+    assert all(
+        not reset.isHidden() and reset.isEnabled()
+        for reset in window._analysis_controller.view.file_default_buttons.values()
+    )
+
+
 def edit_all_settings(window):
     window.set_modules(["tremor", "pulse_rate"])
     window.side.setCurrentText("right")

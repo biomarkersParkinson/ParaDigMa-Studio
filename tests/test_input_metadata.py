@@ -193,6 +193,9 @@ def test_plain_tabular_formats_keep_defaults_without_claiming_metadata(
         badge(window, title).isHidden()
         for title in ("Acceleration units", "Gyroscope units", "Time units")
     )
+    assert all(
+        reset.isHidden() for reset in window._analysis_controller.view.file_default_buttons.values()
+    )
     assert "App default" in window.analysis_help["Time units"][1].text()
 
 
@@ -206,8 +209,8 @@ def test_manual_units_and_not_included_apply_within_input_and_can_be_restored(wi
     assert badge(window, "Acceleration units").isHidden()
     assert window.mapping.signal_columns()["green"] is None
     description = window.analysis_help["Acceleration units"][1]
-    assert "Selected manually" in description.text() and "Use file value" in description.text()
-    description.linkActivated.emit("use-file-value")
+    assert "Selected manually" in description.text()
+    window._analysis_controller.view.file_default_buttons["Acceleration units"].click()
     assert window.acc.currentData() == "m/s^2"
     assert not badge(window, "Acceleration units").isHidden()
     assert window.mapping.signal_columns()["green"] is None
@@ -301,7 +304,7 @@ def test_manual_origin_applies_within_input_and_new_load_restores_automatic_orig
     wait_for_previews(window)
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2020-01-01T00:00:00Z")
     assert badge(window, "Time origin").isHidden()
-    window.analysis_help["Time origin"][1].linkActivated.emit("use-file-value")
+    window.origin_reset.click()
     wait_for_previews(window)
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-22T08:00:00Z")
     window.clock_input.setText("2020-01-01T00:00:00Z")
@@ -362,7 +365,11 @@ def test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes(
             QTest.qWait(30)
             assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
             fields = (window.acc, window.gyro, window.time, window.clock_input, window.prepared)
-            for field in (*fields, *window._analysis_controller.view.file_badges.values()):
+            for field in (
+                *fields,
+                *window._analysis_controller.view.file_badges.values(),
+                *window._analysis_controller.view.file_default_buttons.values(),
+            ):
                 window.analysis_scroll.ensureWidgetVisible(field)
                 app.processEvents()
                 assert field.visibleRegion().boundingRect().contains(field.rect())
@@ -375,12 +382,12 @@ def test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes(
 
 def test_column_details_distinguish_matching_manual_and_explicit_selections(window, sensor_frame):
     load(window, sensor_frame)
-    assert "Time: time (Exact column name)" in window.mapping.details.text()
+    assert "Time: time (From file: exact column name)" in window.mapping.details.text()
     selector = window.mapping._combos["green"]
     selector.setCurrentIndex(selector.findData(None))
     assert "Green PPG: Not included (Selected manually)" in window.mapping.details.text()
-    window.mapping.auto_button.click()
-    assert "Green PPG: green (Auto-match: exact column name)" in window.mapping.details.text()
+    window.mapping.default_button.click()
+    assert "Green PPG: green (From file: exact column name)" in window.mapping.details.text()
     window.mapping.set_mapping({}, signal_columns=dict.fromkeys(SIGNALS))
     assert "Time: Not included (Explicit mapping)" in window.mapping.details.text()
     window.mapping.reset()
@@ -389,18 +396,13 @@ def test_column_details_distinguish_matching_manual_and_explicit_selections(wind
     assert "Time: Not included (Not assigned)" in window.mapping.details.text()
 
 
-def test_file_value_links_restore_locally_and_documentation_links_still_open(
-    window, sensor_frame, monkeypatch
-):
-    from PySide6.QtGui import QDesktopServices
-
+def test_default_buttons_restore_locally_and_documentation_links_stay_enabled(window, sensor_frame):
     load(window, sensor_frame)
-    opened = []
-    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
-    url = "https://example.org/documentation"
-    window.analysis_help["Time units"][1].linkActivated.emit(url)
-    assert opened == [url]
+    description = window.analysis_help["Time units"][1]
+    assert description.openExternalLinks()
+    assert 'href="https://' in description.text()
     window.time.setCurrentText("relative_s")
-    window.analysis_help["Time units"][1].linkActivated.emit("use-file-value")
+    window._analysis_controller.view.file_default_buttons["Time units"].click()
     assert window.time.currentText() == "relative_ms"
-    assert opened == [url]
+    assert description.openExternalLinks()
+    assert "use-file-value" not in description.text()

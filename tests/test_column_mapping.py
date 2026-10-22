@@ -142,6 +142,10 @@ def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_align
                 if target in editor._inversions:
                     checkbox = editor._inversions[target]
                     assert checkbox.parentWidget().rect().contains(checkbox.geometry())
+                badge = editor._file_badges[target]
+                if not badge.isHidden():
+                    assert cell.rect().contains(badge.geometry())
+                    assert badge.width() >= badge.sizeHint().width()
             assert len({selector.width() for selector in editor._combos.values()}) == 1
             assert changes.count() == count  # Geometry changes do not change mapping choices.
     finally:
@@ -188,23 +192,100 @@ def test_warning_activation_opens_current_plain_text_message_without_changing_ma
     assert editor.mapping() == {"<missing>": "green"}
 
 
-def test_column_names_and_auto_match_availability_explain_current_choices(editor):
-    assert not editor.auto_button.isEnabled()
-    assert "Open recordings" in editor.auto_button.toolTip()
+def test_column_names_and_default_button_explain_current_choices(editor):
+    assert not editor.default_button.isEnabled()
+    assert "Open recordings" in editor.default_button.toolTip()
     editor.set_recordings({"one": ["time", "green"]}, {})
     editor.set_modules(["pulse_rate"])
     assert editor._combos["time"].currentText() == "time"
     assert editor._combos["green"].currentText() == "green"
-    assert not editor.auto_button.isEnabled()
-    assert "already matches" in editor.auto_button.toolTip()
+    assert editor.default_button.isEnabled()
+    assert "Restore all signal columns" in editor.default_button.toolTip()
     editor.optional_button.click()
-    assert not editor.auto_button.isEnabled()
-    assert "already matches" in editor.auto_button.toolTip()
+    assert editor.default_button.isEnabled()
+    assert "Axis inversion choices are kept" in editor.default_button.toolTip()
     editor.set_recordings({"one": ["time", "green", "ax"]}, {})
-    assert editor.auto_button.isEnabled()
-    assert "Replace manual selections" in editor.auto_button.toolTip()
-    editor.auto_button.click()
+    assert editor.default_button.isEnabled()
+    assert "Replace manual selections" in editor.default_button.toolTip()
+    editor.default_button.click()
     assert editor.mapping() == {"ax": "accelerometer_x"}
+
+
+def test_file_labels_follow_automatic_manual_and_saved_choices_and_one_default_restores_all(editor):
+    from PySide6.QtWidgets import QPushButton
+
+    changes = QSignalSpy(editor.changed)
+    editor.set_recordings({"one": ["time", "ax", "ppg"], "two": ["time", "ax", "ppg"]}, {})
+    assert changes.count() == 0
+    automatic = {"time": "time", "accelerometer_x": "ax", "green": "ppg"}
+    assert editor.model.choices == {target: automatic.get(target) for target in SIGNALS}
+    assert {target for target, badge in editor._file_badges.items() if not badge.isHidden()} == set(
+        automatic
+    )
+    assert "recognized alias" in editor._file_badges["green"].toolTip()
+    assert "exact column name" in editor._file_badges["time"].toolTip()
+    assert {control.text() for control in editor.findChildren(QPushButton)} == {
+        "Default",
+        "Show optional signals",
+        "Show details",
+    }
+    editor.set_mapping({"skin": "temperature"}, signal_columns=dict.fromkeys(SIGNALS))
+    editor.set_axis_inversions(["accelerometer_x", "gyroscope_z"])
+    assert all(badge.isHidden() for badge in editor._file_badges.values())
+    count = changes.count()
+    editor.default_button.click()
+    assert changes.count() == count + 1
+    assert editor.model.choices == {target: automatic.get(target) for target in SIGNALS}
+    assert editor.mapping() == {"skin": "temperature", "ax": "accelerometer_x", "ppg": "green"}
+    assert editor.axis_inversions() == ["accelerometer_x", "gyroscope_z"]
+    assert not editor._file_badges["green"].isHidden()
+    selector = editor._combos["green"]
+    selector.setCurrentIndex(selector.findData(None))
+    assert editor._file_badges["green"].isHidden()
+    assert not editor._file_badges["time"].isHidden()
+    editor.set_modules(["pulse_rate"])
+    assert selector.currentData() is None
+    editor.default_button.click()
+    assert selector.currentData() == "ppg"
+    assert not editor._file_badges["green"].isHidden()
+
+
+def test_selecting_the_existing_file_column_marks_it_manual_until_default(editor):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    editor.set_recordings({"one": ["time", "ppg"]}, {})
+    editor.set_modules(["pulse_rate"])
+    editor.show()
+    changes = QSignalSpy(editor.changed)
+    selector = editor._combos["green"]
+    selector.showPopup()
+    QTest.keyClick(selector.view(), Qt.Key.Key_Return)
+    assert selector.currentData() == "ppg"
+    assert changes.count() == 1
+    assert editor._file_badges["green"].isHidden()
+    assert "Selected manually" in editor.details.text()
+    editor.default_button.click()
+    assert changes.count() == 2
+    assert not editor._file_badges["green"].isHidden()
+
+
+def test_file_labels_require_unambiguous_headers_shared_by_all_recordings(editor):
+    editor.set_recordings(
+        {
+            "one": ["time", "ppg", "timestamp", "device_time", "ax"],
+            "two": ["timestamp", "device_time", "ax"],
+        },
+        {},
+    )
+    assert editor.model.choices == {
+        target: "ax" if target == "accelerometer_x" else None for target in SIGNALS
+    }
+    assert {target for target, badge in editor._file_badges.items() if not badge.isHidden()} == {
+        "accelerometer_x"
+    }
+    assert editor.default_button.isEnabled()
+    assert "No unambiguous match" in editor.details.text()
 
 
 def test_suggestions_use_unambiguous_names_shared_by_every_file():
@@ -264,11 +345,11 @@ def test_auto_match_clears_manual_choices_without_guessing_ambiguous_or_file_spe
         {},
     )
     editor.set_mapping({"timestamp": "time", "optical": "green"})
-    assert editor.auto_button.isEnabled()
-    editor.auto_button.click()
+    assert editor.default_button.isEnabled()
+    editor.default_button.click()
     assert editor.model.choices == dict.fromkeys(SIGNALS)
     assert editor.mapping() == {}
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     assert not editor._warnings["time"].isHidden()
     assert not editor._warnings["accelerometer_x"].isHidden()
 
@@ -373,7 +454,7 @@ def test_identical_batch_mapping_issues_appear_once_without_recording_names(edit
     assert editor.summary.text().startswith("Compatible with 0 of 7 recordings")
     issues, provenance = editor.details.text().split("\n\nColumn selections:\n")
     assert issues == expected
-    assert "Time: time (Exact column name)" in provenance
+    assert "Time: time (From file: exact column name)" in provenance
     assert "recording_" not in editor.details.text()
     assert editor.details.isHidden()
     editor.details_button.click()
@@ -385,7 +466,7 @@ def test_identical_batch_mapping_issues_appear_once_without_recording_names(edit
     editor.set_modules(["pulse_rate"])
     assert editor.summary.text().startswith("Compatible with 7 of 7 recordings")
     assert "Missing" not in editor.details.text()
-    assert "Green PPG: green (Exact column name)" in editor.details.text()
+    assert "Green PPG: green (From file: exact column name)" in editor.details.text()
     assert not editor.details_button.isHidden()
 
 
@@ -417,6 +498,7 @@ def test_dropdowns_emit_one_change_and_module_changes_preserve_choices(editor):
     editor.set_recordings({"one": ["timestamp", "optical"]}, {})
     assert changes.count() == 0
     editor._combos["time"].setCurrentIndex(editor._combos["time"].findData("timestamp"))
+    editor._combos["time"].activated.emit(editor._combos["time"].currentIndex())
     assert changes.count() == 1
     editor._combos["green"].setCurrentIndex(editor._combos["green"].findData("optical"))
     assert changes.count() == 2
@@ -452,7 +534,7 @@ def test_not_included_clears_a_mistaken_ppg_assignment_and_restores_the_source_s
     assert editor.model.validate(["gait"]).compatible == 2
     assert editor.model.validate(["pulse_rate"]).compatible == 0
     assert not editor._warnings["green"].isHidden()
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     assert changes.count() == 2
     editor.set_modules(["gait"])
     assert editor._warnings["green"].isHidden()
@@ -477,13 +559,13 @@ def test_not_included_clears_a_missing_saved_assignment_and_auto_match_can_resto
     assert selector.currentText() == "Not included"
     assert editor.mapping() == {"skin": "temperature"}
     assert "missing_optical" not in editor._warnings["green"].accessibleDescription()
-    assert editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     assert changes.count() == 1
-    editor.auto_button.click()
+    editor.default_button.click()
     assert selector.currentData() == "ppg"
     assert editor.mapping() == {"skin": "temperature", "ppg": "green"}
     assert editor._warnings["green"].isHidden()
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     assert changes.count() == 2
 
 
@@ -551,9 +633,9 @@ def test_dropdowns_offer_real_columns_and_an_explicit_not_included_option(editor
     assert editor.mapping() == {"missing_clock": "time", "missing_ppg": "green"}
 
 
-def test_auto_match_reset_and_inline_conflicts(editor):
+def test_default_restores_file_matches_and_clears_inline_conflicts(editor):
     editor.set_recordings({"one": ["time", "ppg", "green", "ax"]}, {})
-    editor.auto_button.click()
+    editor.default_button.click()
     assert editor.mapping() == {"ax": "accelerometer_x"}
     editor.set_mapping({"ppg": "green", "green": "green"})
     assert not editor._warnings["green"].isHidden()
@@ -562,8 +644,8 @@ def test_auto_match_reset_and_inline_conflicts(editor):
         editor._warnings["green"].accessibleDescription()
     )
     assert editor.summary.text().startswith("Compatible with 0 of 1")
-    editor.reset_button.click()
-    assert editor.mapping() == {}
+    editor.default_button.click()
+    assert editor.mapping() == {"ax": "accelerometer_x"}
     assert editor._combos["green"].currentData() == "green"
     editor._combos["time"].setCurrentIndex(editor._combos["time"].findData("ppg"))
     editor._combos["green"].setCurrentIndex(editor._combos["green"].findData("ppg"))
@@ -575,26 +657,26 @@ def test_auto_match_reset_and_inline_conflicts(editor):
 def test_auto_match_includes_optional_signals_and_reports_headers_as_plain_text(editor):
     editor.set_recordings({"one": ["timestamp", "ppg", "ax"]}, {"one": "<b>sensor.csv</b>"})
     editor.set_modules(["pulse_rate"])
-    editor.auto_button.click()
+    editor.default_button.click()
     automatic = {"timestamp": "time", "ppg": "green", "ax": "accelerometer_x"}
     assert editor.mapping() == automatic
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     editor.optional_button.click()
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     selector = editor._combos["time"]
     selector.setCurrentIndex(selector.findData("ppg"))
-    assert editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     changes = QSignalSpy(editor.changed)
-    editor.auto_button.click()
+    editor.default_button.click()
     assert editor.mapping() == automatic
     assert changes.count() == 1
-    assert not editor.auto_button.isEnabled()
+    assert editor.default_button.isEnabled()
     editor.set_modules(["gait"])
     issues, provenance = editor.details.text().split("\n\nColumn selections:\n")
     assert issues == (
         "Missing Accelerometer Y, Accelerometer Z, Gyroscope X, Gyroscope Y, Gyroscope Z"
     )
-    assert "Auto-match: recognized alias" in provenance
+    assert "From file: recognized alias" in provenance
     from PySide6.QtCore import Qt
 
     assert editor.details.textFormat() == Qt.TextFormat.PlainText

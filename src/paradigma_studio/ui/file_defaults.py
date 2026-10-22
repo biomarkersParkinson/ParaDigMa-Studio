@@ -6,12 +6,10 @@ from collections.abc import Callable, Iterable, Mapping
 from html import escape
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QComboBox, QLabel, QPushButton
 
 from ..input_metadata import UnitDefault, unit_defaults
-from ..theme import LINK_COLOR, tooltip_text
+from ..theme import tooltip_text
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -26,13 +24,14 @@ class FileDefaults:
         self,
         controls: dict[str, QComboBox],
         badges: dict[str, QLabel],
+        buttons: dict[str, QPushButton],
         help_fields: dict[str, tuple[QPushButton, QLabel]],
         notice: QLabel,
         changed: Callable[[], None],
-        reset_origin: Callable[[], None],
     ) -> None:
         self.controls, self.badges, self.notice = controls, badges, notice
-        self.changed, self.reset_origin = changed, reset_origin
+        self.buttons = buttons
+        self.changed = changed
         self.applying = False
         self.manual: dict[str, str] = {}
         self.detected: dict[str, UnitDefault] = {}
@@ -47,9 +46,8 @@ class FileDefaults:
         for title, control in controls.items():
             control.currentTextChanged.connect(lambda _value, title=title: self.edited(title))
             control.activated.connect(lambda _index, title=title: self.edited(title))
-        for title, description in self.descriptions.items():
-            description.setOpenExternalLinks(False)
-            description.linkActivated.connect(lambda url, title=title: self.follow_link(title, url))
+        for title, reset in buttons.items():
+            reset.clicked.connect(lambda _checked=False, title=title: self.restore(title))
         self.render()
 
     def edited(self, title: str) -> None:
@@ -104,9 +102,6 @@ class FileDefaults:
         self.render()
 
     def restore(self, title: str) -> None:
-        if title == "Time origin":
-            self.reset_origin()
-            return
         detected = self.detected.get(title)
         if detected is None or detected.value is None:
             return
@@ -124,12 +119,6 @@ class FileDefaults:
         index = control.findData(value)
         control.setCurrentIndex(index if index >= 0 else control.findText(value))
 
-    def follow_link(self, title: str, url: str) -> None:
-        if url == "use-file-value":
-            self.restore(title)
-        else:
-            QDesktopServices.openUrl(QUrl(url))
-
     def render(self) -> None:
         for title, badge in self.badges.items():
             detected = self.detected.get(title)
@@ -140,10 +129,14 @@ class FileDefaults:
             badge.setToolTip(tooltip_text(detail) if from_file else "")
             badge.setAccessibleDescription(detail)
             source = f"<p><b>Current value source:</b> {escape(detail)}</p>"
-            if manual and ((detected and detected.value is not None) or title == "Time origin"):
-                source += (
-                    f'<p><a style="color: {LINK_COLOR}; text-decoration: underline;" '
-                    'href="use-file-value">Use file value</a></p>'
+            if title in self.buttons:
+                reset = self.buttons[title]
+                available = bool(detected and detected.value is not None)
+                reset.setVisible(available)
+                reset.setToolTip(
+                    tooltip_text(f"Restore the file value. {detected.detail}")
+                    if available and detected
+                    else ""
                 )
             self.descriptions[title].setText(self.base_help[title] + source)
             if title in self.controls:

@@ -93,6 +93,7 @@ class AnalysisPage:
         self.analysis_help = {}
         self.analysis_help_sections = {}
         self.file_badges: dict[str, QLabel] = {}
+        self.file_default_buttons: dict[str, QPushButton] = {}
         self._build_analysis_modules(controls)
         self._build_analysis_parameters()
         self._build_analysis_help()
@@ -234,7 +235,19 @@ class AnalysisPage:
             ("Gyroscope units", self.gyro),
             ("Time units", self.time),
         ):
-            self.analysis_field(title, widget, form=form)
+            control: QWidget = widget
+            if title != "Watch side":
+                control = QWidget()
+                row = QHBoxLayout(control)
+                row.setContentsMargins(0, 0, 0, 0)
+                row.addWidget(widget, 1)
+                reset = button("Default")
+                reset.setAccessibleName(f"Restore {title.lower()} from file")
+                reset.hide()
+                self.file_default_buttons[title] = reset
+                row.addWidget(reset)
+            self.analysis_field(title, control, form=form)
+            widget.setAccessibleName(title)
 
     def _build_analysis_segmentation(self, form):
         self.prepared = QCheckBox("Already prepared (skip conversion)")
@@ -421,6 +434,7 @@ class AnalysisPage:
             clock_input=self.clock_input,
             drop_missing=self.drop_missing,
             file_badges=self.file_badges,
+            file_default_buttons=self.file_default_buttons,
             gaps=self.gaps,
             gyro=self.gyro,
             log=log,

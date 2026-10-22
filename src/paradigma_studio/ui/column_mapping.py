@@ -55,6 +55,7 @@ class ColumnMappingEditor(QWidget):
         self._combos: dict[str, QComboBox] = {}
         self._labels: dict[str, QTableWidgetItem] = {}
         self._warnings: dict[str, QToolButton] = {}
+        self._file_badges: dict[str, QLabel] = {}
         self._inversions: dict[str, QCheckBox] = {}
         self._choice_sources: dict[str, tuple[str | None, str]] = {}
         self._fitting_table = False
@@ -109,6 +110,7 @@ class ColumnMappingEditor(QWidget):
             )
             source.setAccessibleName(f"Column for {title}")
             source.currentIndexChanged.connect(lambda _index, target=target: self._choose(target))
+            source.activated.connect(lambda _index, target=target: self._confirm_choice(target))
             self._combos[target] = source
             self.table.setCellWidget(row, 1, self._source_field(target, source))
             self._axis_field(row, target)
@@ -119,6 +121,15 @@ class ColumnMappingEditor(QWidget):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(4)
         layout.addWidget(source, 1)
+        badge = label("From file", "muted")
+        badge.setObjectName("fileDefaultBadge")
+        badge.setAccessibleName(f"{SIGNALS[target]}: from file")
+        policy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        policy.setRetainSizeWhenHidden(True)
+        badge.setSizePolicy(policy)
+        badge.hide()
+        self._file_badges[target] = badge
+        layout.addWidget(badge)
         warning = QToolButton()
         warning.setAutoRaise(True)
         warning.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning))
@@ -167,14 +178,13 @@ class ColumnMappingEditor(QWidget):
 
     def _build_actions(self) -> QHBoxLayout:
         actions = QHBoxLayout()
-        self.auto_button = button("Auto-match", self.auto_match)
-        self.reset_button = button("Reset", self.reset)
+        self.default_button = button("Default", self.auto_match)
+        self.default_button.setAccessibleName("Restore signal columns from file")
         self.optional_button = button("Show optional signals", self._toggle_optional)
         self.details_button = button("Show details", self._toggle_details)
         self.details_button.setCheckable(True)
         for control in (
-            self.auto_button,
-            self.reset_button,
+            self.default_button,
             self.optional_button,
             self.details_button,
         ):
@@ -224,7 +234,11 @@ class ColumnMappingEditor(QWidget):
         self, schemas: Mapping[str, Sequence[str]], names: Mapping[str, str]
     ) -> None:
         # Loading already refreshes origin and raw plots in their existing order.
+        initial = not self.model.schemas and not self._choice_sources
         self.model.set_recordings(schemas, names)
+        if initial:
+            self.model.auto_match()
+            self._record_file_sources()
         self._refresh()
 
     def set_modules(self, modules: Iterable[str]) -> None:
@@ -233,21 +247,24 @@ class ColumnMappingEditor(QWidget):
 
     def auto_match(self) -> None:
         self.model.auto_match()
+        self._record_file_sources()
+        self._refresh()
+        self.changed.emit()
+
+    def _record_file_sources(self) -> None:
         self._choice_sources = {
             target: (
                 source,
                 (
-                    "Auto-match: exact column name"
+                    "From file: exact column name"
                     if source == target
-                    else "Auto-match: recognized alias"
+                    else "From file: recognized alias"
                 )
                 if source is not None
-                else "Auto-match: no unambiguous match",
+                else "No unambiguous match",
             )
             for target, source in self.model.choices.items()
         }
-        self._refresh()
-        self.changed.emit()
 
     def reset(self) -> None:
         self.model.reset()
@@ -260,13 +277,19 @@ class ColumnMappingEditor(QWidget):
         self.optional_button.setText("Show optional signals")
         self.details_button.setChecked(False)
         self.details_button.setText("Show details")
-        self.reset()
+        self.model.reset()
+        self.auto_match()
 
     def _choose(self, target: str) -> None:
         self.model.choose(target, self._combos[target].currentData())
         self._choice_sources[target] = (self.model.choices[target], "Selected manually")
         self._refresh()
         self.changed.emit()
+
+    def _confirm_choice(self, target: str) -> None:
+        # Selecting the existing file value is still an explicit manual choice.
+        if self._selection_source(target, self.model.choices[target]) != "Selected manually":
+            self._choose(target)
 
     def _refresh(self) -> None:
         self._refresh_inversions()
@@ -293,6 +316,7 @@ class ColumnMappingEditor(QWidget):
         conflicts = self.model.source_conflicts()
         self._target_conflicts = self.model.target_conflicts()
         total = len(self.model.schemas)
+        automatic = self.model.automatic_choices()
         for row, target in enumerate(SIGNALS):
             self.table.setRowHidden(row, target not in required and not self._expanded)
             self._labels[target].setText(SIGNALS[target])
@@ -302,6 +326,17 @@ class ColumnMappingEditor(QWidget):
                 else "Optional for the selected modules."
             )
             selected = self.model.choices[target]
+            reason = self._selection_source(target, selected)
+            from_file = (
+                selected is not None
+                and selected == automatic[target]
+                and reason.startswith("From file:")
+            )
+            badge = self._file_badges[target]
+            badge.setVisible(from_file)
+            detail = f"{reason}. Column: {selected}. Shared by all {total} recording(s)."
+            badge.setToolTip(tooltip_text(detail) if from_file else "")
+            badge.setAccessibleDescription(detail if from_file else "")
             status, tooltip = self._status(target, selected, total, conflicts, suggestions)
             warning = self._warnings[target]
             text = tooltip_text(f"{status}\n{tooltip}")
@@ -333,8 +368,16 @@ class ColumnMappingEditor(QWidget):
         self.details.setText("\n".join(lines))
         self.details_button.setVisible(bool(lines))
         self.details.setVisible(bool(lines) and self.details_button.isChecked())
-        self.auto_button.setEnabled(not self.model.matches_automatic())
-        self.auto_button.setToolTip(tooltip_text(self._auto_match_help()))
+        self.default_button.setEnabled(bool(total))
+        self.default_button.setToolTip(
+            tooltip_text(
+                "Restore all signal columns from names shared by every recording, including optional signals. "
+                "Replace manual selections and clear fields without an unambiguous match. "
+                "Axis inversion choices are kept."
+                if total
+                else "Open recordings to read their signal columns."
+            )
+        )
         self.optional_button.setVisible(len(required) < len(SIGNALS))
         self._fit_table()
 
@@ -346,20 +389,9 @@ class ColumnMappingEditor(QWidget):
         ]
 
     def _selection_source(self, target: str, source: str | None) -> str:
-        fallback = "Exact column name" if source == target else "Not assigned"
+        fallback = "From file: exact column name" if source == target else "Not assigned"
         previous, reason = self._choice_sources.get(target, (source, fallback))
         return reason if previous == source else fallback
-
-    def _auto_match_help(self) -> str:
-        if not self.auto_button.isEnabled():
-            return "Every signal already matches the automatic result." + (
-                " Open recordings to match their columns." if not self.model.schemas else ""
-            )
-        return (
-            "Match all signals, including optional ones, using column names shared by every recording. "
-            "Replace manual selections and clear fields without an unambiguous match. "
-            "Axis inversion choices are kept."
-        )
 
     def _status(
         self,
@@ -379,7 +411,7 @@ class ColumnMappingEditor(QWidget):
         if source is None:
             suggestion = suggestions.get(target)
             return (
-                ("Suggested", f"Auto-match can select {suggestion}.")
+                ("Suggested", f"Default can restore {suggestion} from the file columns.")
                 if suggestion
                 else ("Not mapped", "Select a column from the loaded recordings.")
             )
@@ -440,7 +472,10 @@ class ColumnMappingEditor(QWidget):
             + 2 * self.table.frameWidth()
         )
         header = self.table.horizontalHeader()
-        self.table.setMinimumWidth(max(470, header.sectionSize(0) + header.sectionSize(2) + 128))
+        source_width = max(cell.minimumSizeHint().width() for cell in controls)
+        self.table.setMinimumWidth(
+            max(470, header.sectionSize(0) + header.sectionSize(2) + source_width)
+        )
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.LayoutRequest and hasattr(self, "summary"):
