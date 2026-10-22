@@ -83,6 +83,9 @@ class ColumnMappingEditor(QWidget):
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        # Focus belongs to the embedded controls, not to the table's current cell.
+        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.table.setTabKeyNavigation(False)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
