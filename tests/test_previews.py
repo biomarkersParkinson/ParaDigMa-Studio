@@ -185,8 +185,8 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
         return clock_preview(*args, **kwargs)
 
     monkeypatch.setattr(desktop, "recording_clock", observed_clock_preview)
-    window.set_modules(["tremor"])
     window.loaded(("sensor.csv", frame))
+    window.set_modules(["tremor"])
     wait_for_previews(window)
     count, origin = len(calls), window.clock_input.text()
     for _ in range(5):
@@ -224,9 +224,9 @@ def test_module_clock_refresh_remains_editable_and_cannot_overwrite_a_user_origi
             **{f"accelerometer_{axis}": [np.nan, 2.0, 3.0] for axis in "xyz"},
         }
     )
+    window.loaded(("sensor.csv", frame))
     window.time.setCurrentText("absolute_s")
     window.set_modules(["tremor"])
-    window.loaded(("sensor.csv", frame))
     wait_for_previews(window)
     entered, release = Event(), Event()
     original = desktop.recording_clock

@@ -96,6 +96,7 @@ class DataCallbacks:
     append_log: Callable[[str], None]
     modules_changed: Callable[[], None]
     navigate: Callable[[int], None]
+    reset_analysis: Callable[[], None]
     show_notice: NoticeCallback
     start_job: StartJobCallback
 
@@ -194,6 +195,7 @@ class DataController(QObject):
         self._supply_mapping_schemas()
         self.state._input_descriptions = descriptions
         self.inspect_input_recording(new_selection=True)
+        self.callbacks.reset_analysis()
         self.callbacks.modules_changed()
         self.view.status.setText(f"{len(recordings)} recordings loaded for one subject.")
 
@@ -233,6 +235,7 @@ class DataController(QObject):
             )
         )
         self.display_input_recording(description, new_selection=True)
+        self.callbacks.reset_analysis()
         self.callbacks.modules_changed()
         self.callbacks.show_notice("")
         self.callbacks.navigate(0)

@@ -62,8 +62,8 @@ seconds alone does not distinguish relative, absolute or difference-based time.
 
 A small **From file** label identifies detected units and automatic time origins.
 Hover over it, or open the field's existing **i** explanation, to see the source.
-Defaults remain unmarked. Editing a value removes its label and preserves the
-manual choice across subsequent loads; **Use file value** in the explanation
+Defaults remain unmarked. Editing a value removes its label and keeps the manual
+choice for the current loaded recording or batch; **Use file value** in the explanation
 restores the detected value. Time origin's **Default** button also restores its
 automatic value. **Use parameters** keeps restored units explicit, including
 values equal to the current defaults. Unit detection follows the selected source
@@ -71,6 +71,13 @@ columns. A single message summarizes conflicting or incomplete unit declarations
 across recordings, without listing filenames; normalize differing inputs or
 analyze them separately. Watch side, axis directions, Already prepared and gap
 and missing-sample policies remain user choices.
+Successfully loading a new recording or batch resets Analyze to its initial
+settings, including the default Gait module, standard-name column matching,
+axis directions, preparation options, thresholds and automatic time origin.
+The new input's supported metadata then fills the relevant fields. Help and
+mapping details collapse. Switching the inspected recording within an already
+loaded batch preserves the shared settings. Cancelling a file selection or a
+failed load preserves the current input and settings.
 The page preserves comfortable spacing. Parameters fit together at normal window
 sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
 visible below the settings.
@@ -103,8 +110,9 @@ and missing-sample checks during preparation.
   selections determine the signal inputs used in processing. Selecting a different
   source replaces the standard-name source; an unselected standard-name column
   does not fill a missing selection. Select **Not included** to leave any signal
-  unassigned, even if its standard-name column exists. This choice persists across
-  loads until you select a source, use Auto-match or Reset. Missing signals required
+  unassigned, even if its standard-name column exists. This choice persists within
+  the current loaded recording or batch until you select a source, use Auto-match
+  or Reset. Loading new files starts a fresh mapping. Missing signals required
   by a selected module still show a warning. **Auto-match**
   recomputes all signal assignments, including optional signals, from names shared
   by every loaded recording. Exact ParaDigMa names take precedence, followed by
@@ -131,8 +139,8 @@ and missing-sample checks during preparation.
   Click a warning icon to read its full message, or focus it and press Space.
   Valid rows need no status indicator. Existing per-recording and
   per-module analysis validation still determines which workflows can run.
-  **Reset** clears custom choices and inversions and restores standard-name matching. A new
-  load retains explicit choices. Source-column options list only columns present
+  **Reset** clears custom choices and inversions and restores standard-name matching.
+  Source-column options list only columns present
   in the loaded recordings; a missing saved choice shows the selection prompt and its warning
   names the missing column so it can be corrected. **Use parameters** restores
   saved mappings, including additional legacy mappings shown in Details.

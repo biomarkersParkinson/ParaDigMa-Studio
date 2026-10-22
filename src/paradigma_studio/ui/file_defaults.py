@@ -60,6 +60,17 @@ class FileDefaults:
         self.manual.update(dict.fromkeys(titles, source))
         self.render()
 
+    def reset(self) -> None:
+        """Clear provenance and edits while the owner blocks reset signals."""
+        self.manual.clear()
+        self.detected.clear()
+        for title, value in self.defaults.items():
+            self._set_value(title, value)
+        self.notice.clear()
+        self.notice.setToolTip("")
+        self.notice.hide()
+        self.render()
+
     def refresh(
         self, recordings: Mapping[str, pd.DataFrame], choices: Mapping[str, str | None]
     ) -> None:

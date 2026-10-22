@@ -47,8 +47,8 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
             **{f"gyroscope_{axis}": [1.0, 2.0, 3.0] for axis in "xyz"},
         }
     )
-    window.set_modules(["tremor"])
     window.loaded(("sensor.csv", original))
+    window.set_modules(["tremor"])
     wait_for_previews(window)
     derived_origin = window.clock_input.text()
     assert pd.Timestamp(derived_origin) == original.time_dt.iloc[0]

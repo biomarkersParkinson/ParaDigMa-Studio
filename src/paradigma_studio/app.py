@@ -354,6 +354,7 @@ class MainWindow(QMainWindow):
                 *args, **kwargs
             ),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
+            reset_analysis=lambda: self._analysis_controller.reset_for_input(),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )

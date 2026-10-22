@@ -709,7 +709,9 @@ def test_batch_schema_installation_never_reads_or_counts_samples(window):
     inputs.recordings = {}
 
 
-def test_batch_choices_survive_inspection_module_changes_and_new_loads(window, monkeypatch):
+def test_batch_choices_survive_inspection_and_module_changes_but_reset_for_new_load(
+    window, monkeypatch
+):
     import pandas as pd
     from conftest import wait_for_previews
 
@@ -722,8 +724,8 @@ def test_batch_choices_survive_inspection_module_changes_and_new_loads(window, m
     originals = {key: frame.copy(deep=True) for key, frame in frames.items()}
     sources = {key: f"{key}.csv" for key in frames}
     descriptions = {key: inspect_recording(frame, "relative_s") for key, frame in frames.items()}
-    window.set_modules(["pulse_rate"])
     window.loaded_recordings((sources, frames, descriptions))
+    window.set_modules(["pulse_rate"])
     for target, column in (("time", "clock"), ("green", "optical")):
         selector = window.mapping._combos[target]
         selector.setCurrentIndex(selector.findData(column))
@@ -744,12 +746,12 @@ def test_batch_choices_survive_inspection_module_changes_and_new_loads(window, m
         pd.testing.assert_frame_equal(frame, originals[key], check_exact=True)
     window.loaded(("other.csv", pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0]})))
     wait_for_previews(window)
-    assert window.mapping.mapping() == selected
-    assert window.mapping._combos["time"].currentIndex() == -1
-    assert window.mapping._combos["time"].findData("clock") == -1
-    assert "Selected column: clock" in window.mapping._warnings["time"].accessibleDescription()
-    window.mapping.reset_button.click()
     assert window.mapping.mapping() == {}
+    assert window.mapping._combos["time"].currentData() == "time"
+    assert window.mapping._combos["time"].findData("clock") == -1
+    assert window.mapping._warnings["time"].isHidden()
+    assert window.selected_modules() == ["gait"]
+    window.set_modules(["pulse_rate"])
     assert window.mapping.summary.text().startswith("Compatible with 1 of 1")
 
 
@@ -804,8 +806,8 @@ def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
     # These invalid decoys would fail preparation or change the scientific output.
     frame = frame.assign(**dict.fromkeys(SIGNALS, np.nan))
     expected_mapping = {source: target for target, source in names.items()}
-    window.set_modules([pipeline])
     window.loaded(("sensor.csv", frame))
+    window.set_modules([pipeline])
     assert window.mapping.model.choices["time"] == "time"
     for target in SIGNALS.keys() - names.keys():
         selector = window.mapping._combos[target]

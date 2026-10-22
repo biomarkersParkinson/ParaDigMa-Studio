@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterable
+from contextlib import ExitStack
 from dataclasses import dataclass
 from importlib.metadata import version
 from threading import Event
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QSignalBlocker
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -185,6 +186,50 @@ class AnalysisController(QObject):
             for name, item in self.view.module_buttons.items()
             if item.isChecked()
         ]
+
+    def reset_for_input(self) -> None:
+        """Start a new input with fresh controls, then apply only its metadata."""
+        self.previews._origin_preview.clear()
+        controls = (
+            self.view.side,
+            self.view.acc,
+            self.view.gyro,
+            self.view.time,
+            self.view.prepared,
+            self.view.gaps,
+            self.view.drop_missing,
+            self.view.max_gap,
+            self.view.min_segment,
+            self.view.clock_input,
+            self.view.mapping,
+            *self.view.module_buttons.values(),
+            *(info for info, _description in self.view.analysis_help.values()),
+        )
+        self.file_defaults.applying = True
+        try:
+            with ExitStack() as stack:
+                for control in controls:
+                    stack.enter_context(QSignalBlocker(control))
+                self.analysis._origin_override = False
+                self.file_defaults.reset()
+                self.view.side.setCurrentText("left")
+                self.view.prepared.setChecked(False)
+                self.view.gaps.setChecked(False)
+                self.view.drop_missing.setChecked(True)
+                self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
+                self.view.min_segment.setValue(DEFAULT_MIN_SECTION_SECONDS)
+                self.view.clock_input.set_clock(None)
+                self.view.clock_input.clear()
+                self.view.mapping.reset_for_input()
+                for name, item in self.view.module_buttons.items():
+                    item.setChecked(self.modules[name] == "gait")
+                for info, _description in self.view.analysis_help.values():
+                    info.setChecked(False)
+        finally:
+            self.file_defaults.applying = False
+        self.toggle_analysis_help("", False)
+        self.preparation_changed()
+        self.view.analysis_scroll.verticalScrollBar().setValue(0)
 
     def set_modules(self, pipelines: Iterable[str]) -> None:
         selected = set(pipelines)

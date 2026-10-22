@@ -255,6 +255,13 @@ class ColumnMappingEditor(QWidget):
         self._refresh()
         self.changed.emit()
 
+    def reset_for_input(self) -> None:
+        self._expanded = False
+        self.optional_button.setText("Show optional signals")
+        self.details_button.setChecked(False)
+        self.details_button.setText("Show details")
+        self.reset()
+
     def _choose(self, target: str) -> None:
         self.model.choose(target, self._combos[target].currentData())
         self._choice_sources[target] = (self.model.choices[target], "Selected manually")

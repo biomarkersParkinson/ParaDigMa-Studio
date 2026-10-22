@@ -41,8 +41,8 @@ def units(frame):
 
 
 def load(window, frame):
-    window.set_modules(["gait", "pulse_rate"])
     window.loaded(("sensor.json", frame))
+    window.set_modules(["gait", "pulse_rate"])
 
 
 def badge(window, title):
@@ -150,8 +150,8 @@ def test_real_tsdf_units_are_preserved_after_scaling_and_prefilled(tsdf_writer, 
         stream["units"] = ["relative_ms"] if stream["channels"] == ["time"] else ["rad/s"] * 3
     path.write_text(json.dumps(metadata))
     frame = load_sensor_file(path)
-    window.set_modules(["tremor"])
     window.loaded((str(path), frame))
+    window.set_modules(["tremor"])
     assert frame.time.tolist() == [0, 10, 20]
     assert frame.gyroscope_x.tolist() == [1.0, 2.0, 3.0]
     assert units(frame)["gyroscope_x"] == "rad/s"
@@ -166,8 +166,8 @@ def test_real_tsdf_units_are_preserved_after_scaling_and_prefilled(tsdf_writer, 
 @pytest.mark.parametrize("name", ["test_data.CWA", "test_data.avro"])
 def test_real_device_imports_provide_units_even_when_equal_to_app_defaults(window, name):
     frame = load_sensor_file(files("paradigma_studio") / "data" / name)
-    window.set_modules(["pulse_rate"])
     window.loaded((name, frame))
+    window.set_modules(["pulse_rate"])
     assert window.acc.currentData() == "g"
     assert window.time.currentText() == "relative_s"
     assert not badge(window, "Acceleration units").isHidden()
@@ -196,12 +196,12 @@ def test_plain_tabular_formats_keep_defaults_without_claiming_metadata(
     assert "App default" in window.analysis_help["Time units"][1].text()
 
 
-def test_manual_units_and_not_included_survive_reload_and_can_be_restored(window, sensor_frame):
+def test_manual_units_and_not_included_apply_within_input_and_can_be_restored(window, sensor_frame):
     load(window, sensor_frame)
     window.acc.setCurrentIndex(window.acc.findData("g"))
     selector = window.mapping._combos["green"]
     selector.setCurrentIndex(selector.findData(None))
-    window.loaded(("second.json", sensor_frame.copy(deep=True)))
+    window.set_modules(["pulse_rate"])
     assert window.acc.currentData() == "g"
     assert badge(window, "Acceleration units").isHidden()
     assert window.mapping.signal_columns()["green"] is None
@@ -211,6 +211,11 @@ def test_manual_units_and_not_included_survive_reload_and_can_be_restored(window
     assert window.acc.currentData() == "m/s^2"
     assert not badge(window, "Acceleration units").isHidden()
     assert window.mapping.signal_columns()["green"] is None
+    window.acc.setCurrentIndex(window.acc.findData("g"))
+    window.loaded(("second.json", sensor_frame.copy(deep=True)))
+    assert window.acc.currentData() == "m/s^2"
+    assert not badge(window, "Acceleration units").isHidden()
+    assert window.mapping.signal_columns()["green"] == "green"
 
 
 def test_selecting_the_existing_value_is_still_an_explicit_choice(window, sensor_frame):
@@ -220,10 +225,14 @@ def test_selecting_the_existing_value_is_still_an_explicit_choice(window, sensor
     window.acc.showPopup()
     QTest.keyClick(window.acc.view(), Qt.Key.Key_Return)
     assert badge(window, "Acceleration units").isHidden()
+    window.set_modules(["tremor"])
+    assert window.acc.currentData() == "m/s^2"
+    assert badge(window, "Acceleration units").isHidden()
     second = sensor_frame.copy(deep=True)
     units(second).update(dict.fromkeys((f"accelerometer_{axis}" for axis in "xyz"), "g"))
     window.loaded(("next.json", second))
-    assert window.acc.currentData() == "m/s^2"
+    assert window.acc.currentData() == "g"
+    assert not badge(window, "Acceleration units").isHidden()
 
 
 def test_mapping_changes_use_selected_column_units_and_remove_stale_tags(window, sensor_frame):
@@ -246,8 +255,8 @@ def test_conflicting_batch_metadata_is_summarized_once_without_source_names(wind
     sources = {"first": "private-first.json", "second": "private-second.json"}
     from paradigma_studio.inspection import inspect_recordings
 
-    window.set_modules(["pulse_rate"])
     window.loaded_recordings((sources, recordings, inspect_recordings(recordings, "relative_ms")))
+    window.set_modules(["pulse_rate"])
     notice = window._analysis_controller.view.metadata_notice
     assert not notice.isHidden()
     assert notice.text().count("Time units differ") == 1
@@ -256,7 +265,7 @@ def test_conflicting_batch_metadata_is_summarized_once_without_source_names(wind
     assert not badge(window, "Acceleration units").isHidden()
 
 
-def test_saved_parameters_remain_explicit_even_when_equal_to_detected_values(window, sensor_frame):
+def test_saved_parameters_remain_explicit_within_input_and_reset_on_new_load(window, sensor_frame):
     load(window, sensor_frame)
     window._run_state.selected_run = {
         "settings": {
@@ -267,31 +276,43 @@ def test_saved_parameters_remain_explicit_even_when_equal_to_detected_values(win
         }
     }
     window.use_run_parameters()
-    second = sensor_frame.copy(deep=True)
-    units(second)["time"] = "absolute_s"
-    window.loaded(("next.json", second))
+    window.set_modules(["pulse_rate"])
     assert window.time.currentText() == "relative_s"
     assert badge(window, "Time units").isHidden()
     assert "Restored from saved run" in window.analysis_help["Time units"][1].text()
+    second = sensor_frame.copy(deep=True)
+    units(second)["time"] = "absolute_s"
+    window.loaded(("next.json", second))
+    assert window.time.currentText() == "absolute_s"
+    assert not badge(window, "Time units").isHidden()
+    assert "Restored from saved run" not in window.analysis_help["Time units"][1].text()
 
 
-def test_automatic_origin_has_source_and_manual_origin_survives_reload(window, sensor_frame):
+def test_manual_origin_applies_within_input_and_new_load_restores_automatic_origin(
+    window, sensor_frame
+):
     load(window, sensor_frame)
     wait_for_previews(window)
     assert not badge(window, "Time origin").isHidden()
     assert "Recording metadata" in window.analysis_help["Time origin"][1].text()
     window.clock_input.setText("2020-01-01T00:00:00+00:00")
     window.origin_edited()
-    second = sensor_frame.copy(deep=True)
-    second.attrs["desktop_recording_start"] = "2026-10-23T08:00:00+00:00"
-    window.loaded(("next.json", second))
+    window.set_modules(["tremor"])
     wait_for_previews(window)
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2020-01-01T00:00:00Z")
     assert badge(window, "Time origin").isHidden()
     window.analysis_help["Time origin"][1].linkActivated.emit("use-file-value")
     wait_for_previews(window)
+    assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-22T08:00:00Z")
+    window.clock_input.setText("2020-01-01T00:00:00Z")
+    window.origin_edited()
+    second = sensor_frame.copy(deep=True)
+    second.attrs["desktop_recording_start"] = "2026-10-23T08:00:00+00:00"
+    window.loaded(("next.json", second))
+    wait_for_previews(window)
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-23T08:00:00Z")
     assert not badge(window, "Time origin").isHidden()
+    assert window.origin_setting() == {"mode": "automatic"}
 
 
 def test_detected_units_are_passed_to_analysis_and_original_samples_stay_unchanged(
