@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reserve updated native control sizes before laying out Analyze's nested forms,
+  preventing clipped checkboxes when Windows controls grow after initial layout.
+
 - Scroll the Analyze page when the mouse wheel or trackpad is over a closed
   dropdown, keeping its selected value. Open dropdown lists retain normal scrolling.
 

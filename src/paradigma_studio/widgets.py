@@ -55,9 +55,24 @@ class WrappedForm(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._fitting_height = False
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
     def _fit_height(self):
+        if self._fitting_height:
+            return
+        self._fitting_height = True
+        try:
+            # Child controls can acquire larger native minima before their
+            # wrappers deliver LayoutRequest. Settle those wrappers first so
+            # our fixed height never reserves their stale, smaller hints.
+            for nested in reversed(self.findChildren(QLayout)):
+                nested.activate()
+            self._reserve_height()
+        finally:
+            self._fitting_height = False
+
+    def _reserve_height(self):
         height = self.heightForWidth(self.width())
         if height >= 0 and (self.minimumHeight() != height or self.maximumHeight() != height):
             self.setFixedHeight(height)

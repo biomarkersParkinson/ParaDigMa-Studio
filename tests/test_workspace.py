@@ -270,7 +270,12 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         *window.section_reset_buttons.values(),
     )
     for control in controls:
-        assert control.visibleRegion().boundingRect().contains(control.rect())
+        assert control.visibleRegion().boundingRect().contains(control.rect()), (
+            control.accessibleName(),
+            control.geometry(),
+            control.parentWidget().rect(),
+            control.visibleRegion().boundingRect(),
+        )
     for previous, following in zip(
         (window.side, window.acc, window.gyro), (window.acc, window.gyro, window.time), strict=False
     ):

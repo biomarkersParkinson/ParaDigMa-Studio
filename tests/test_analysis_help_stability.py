@@ -4,10 +4,56 @@ import pytest
 from PySide6.QtCore import QEvent, QObject, QPoint
 from PySide6.QtGui import QPixmap
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.widgets import WrappedForm
+from paradigma_studio.widgets import AdaptiveFormColumns, WrappedForm
+
+
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+def test_nested_native_control_growth_fits_before_queued_child_layout_requests(style):
+    app = QApplication.instance() or QApplication([])
+    original_style = app.style().objectName()
+    app.setStyle(style)
+    stack = WrappedForm()
+    content = QVBoxLayout(stack)
+    content.setContentsMargins(0, 0, 0, 0)
+    left, right = QVBoxLayout(), QVBoxLayout()
+    content.addLayout(AdaptiveFormColumns(left, right))
+    fields = []
+    for _ in range(5):
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        checkbox = QCheckBox("Native control")
+        layout.addWidget(checkbox)
+        left.addWidget(wrapper)
+        fields.append(checkbox)
+    other_column = QWidget()
+    other_column.setMinimumSize(200, 200)
+    right.addWidget(other_column)
+    stack.resize(600, 300)
+    stack.show()
+    app.processEvents()
+    try:
+        for minimum in (36, 20, 44):
+            for field in fields:
+                field.setMinimumHeight(minimum)
+            # Native hints can change after initial layout. A parent request
+            # can arrive before child wrappers propagate their larger minima.
+            QApplication.sendEvent(stack, QEvent(QEvent.Type.LayoutRequest))
+            for width in (600, 240, 600):
+                stack.resize(width, stack.height())
+                for field in fields:
+                    wrapper = field.parentWidget()
+                    assert wrapper.rect().contains(field.geometry())
+                    assert stack.rect().contains(wrapper.geometry())
+                    assert field.height() >= minimum
+                assert stack.rect().contains(other_column.geometry())
+    finally:
+        stack.close()
+        app.processEvents()
+        app.setStyle(original_style)
 
 
 def test_growing_wrapped_stack_updates_its_layout_bounds_without_compressing_spacing():
@@ -472,7 +518,14 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
 
 
 def _assert_nested_analysis_controls_fit(window):
-    for control in (window.mapping, window.max_gap, window.min_segment):
+    for control in (
+        window.mapping,
+        window.max_gap,
+        window.min_segment,
+        window.prepared,
+        window.gaps,
+        window.drop_missing,
+    ):
         # Inspect every ancestor: children must fit horizontally
         # as well as vertically, including after a width change.
         child = control
