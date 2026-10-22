@@ -193,10 +193,12 @@ def test_segmentation_defaults_match_official_package_and_resets_remain_availabl
     ys = [
         item.mapTo(window.settings_panel, QPoint(0, 0)).y()
         for item in (
+            window.time,
+            window.clock_input,
+            window.drop_missing,
             window.gaps,
             window.max_gap,
             window.min_segment,
-            window.clock_input,
             window.prepared,
         )
     ]

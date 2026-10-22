@@ -204,8 +204,8 @@ class AnalysisPage:
         units.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self._build_analysis_units(units)
         left.addLayout(units)
-        self._build_analysis_segmentation(units)
         self._build_analysis_origin(left)
+        self._build_analysis_segmentation(left)
         left.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         self.mapping = ColumnMappingEditor()
         right.addWidget(self.analysis_field("Signal columns", self.mapping))
@@ -249,7 +249,10 @@ class AnalysisPage:
             self.analysis_field(title, control, form=form)
             widget.setAccessibleName(title)
 
-    def _build_analysis_segmentation(self, form):
+    def _build_analysis_segmentation(self, parameters):
+        form = QFormLayout()
+        form.setVerticalSpacing(12)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
@@ -295,6 +298,7 @@ class AnalysisPage:
             row_layout.addWidget(reset)
             self.analysis_field(title, row, form=sections)
         form.addRow(self.segmentation_controls)
+        parameters.addLayout(form)
 
     def _build_analysis_origin(self, parameters):
         self.clock_input = TimeField("Time origin", origin=True)
