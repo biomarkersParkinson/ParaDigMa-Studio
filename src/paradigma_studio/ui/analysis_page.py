@@ -27,7 +27,16 @@ from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from ..assets import DATA_DIRECTORY
 from ..theme import LINK_COLOR, light_palette
 from ..time_controls import TimeField
-from ..widgets import AdaptiveFormColumns, ContextComboBox, WrappedForm, button, card, combo, label
+from ..widgets import (
+    AdaptiveFormColumns,
+    ContextComboBox,
+    ReadableComboBox,
+    WrappedForm,
+    button,
+    card,
+    combo,
+    label,
+)
 from .column_mapping import ColumnMappingEditor
 from .workspace_callbacks import WorkspaceCallbacks
 
@@ -99,6 +108,8 @@ class AnalysisPage:
         )
         bar.setStyleSheet("QScrollBar::handle:vertical { background: transparent; }")
         scroll.setWidget(body)
+        for field in body.findChildren(ReadableComboBox):
+            field.wheel_scroll_target = scroll
         layout.addWidget(scroll, 1)
 
     def _build_analysis_input(self, content):

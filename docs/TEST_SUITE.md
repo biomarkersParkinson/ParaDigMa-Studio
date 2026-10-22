@@ -22,6 +22,7 @@ trigger and expected behavior still apply.
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
+| Analyze wheel/trackpad page scrolling, unchanged focused dropdowns, open-list scrolling and keyboard selection | `test_analysis_scrolling.py` |
 | Signal-column dropdowns, header-only batch validation, ambiguity/conflicts, persisted choices and independent official pipeline equivalence | `test_column_mapping.py` |
 | Per-sensor inversion, fixed-order official preparation, all legacy signed permutations, saved-setting validation and migration | `test_axis_mapping.py`, `test_column_mapping.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |

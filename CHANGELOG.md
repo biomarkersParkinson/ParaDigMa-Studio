@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Scroll the Analyze page when the mouse wheel or trackpad is over a closed
+  dropdown, keeping its selected value. Open dropdown lists retain normal scrolling.
+
 - Keep Signal columns dropdowns fully inside their rows and aligned when warnings
   appear. Make warning icons clickable, show actual column names and explain
   Auto-match availability. Auto-match now recomputes all assignments, including

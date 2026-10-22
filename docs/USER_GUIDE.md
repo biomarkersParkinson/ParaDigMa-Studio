@@ -75,6 +75,9 @@ and missing-sample checks during preparation.
   numeric representation before analysis.
 - Set the actual wrist as watch side.
   Watch-side inversion happens separately in official pipeline preprocessing.
+- Scrolling over a closed Analyze dropdown moves the page without changing the
+  selected value. Open the dropdown to select a value or scroll its list; keyboard
+  selection still works.
 - In **Signal columns**, choose a source column from the dropdown for each
   required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
   are recognized automatically and shown by their actual names. **Auto-match**
@@ -102,8 +105,9 @@ and missing-sample checks during preparation.
   **Reset** clears custom choices and inversions and restores standard-name matching. A new
   load retains explicit choices. Dropdowns list only columns present in the loaded
   recordings; a missing saved choice shows the selection prompt and its warning
-  names the missing column so it can be corrected. **Use parameters** restores saved mappings, including additional
-  legacy mappings shown in Details. Older saved global axis permutations are
+  names the missing column so it can be corrected. **Use parameters** restores
+  saved mappings, including additional legacy mappings shown in Details.
+  Older saved global axis permutations are
   translated into equivalent column choices and inversions. Saved runs and exports
   retain the source-to-toolbox mapping dictionary and record inverted target channels
   separately; no JSON editing is needed in the app.
