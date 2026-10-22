@@ -19,7 +19,7 @@ Performance measurements are in the separate **ParaDigMaStudio-build-reports**
 artifact; you do not need that download to run the app. Keep `_internal`, the
 licence/citation files, and the security/checksum files with the executable.
 
-The ordinary Windows build is **unsigned**. If Smart App Control blocks it, see
+The ordinary Windows build is **unsigned**. Smart App Control may need to be temporarily disabled to run it, or alternatively, see
 the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
 A verified signing identity must be configured before the signed workflow can produce a trusted build.
 
