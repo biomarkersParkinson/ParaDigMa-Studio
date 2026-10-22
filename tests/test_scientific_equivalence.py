@@ -189,6 +189,7 @@ def compare_workflows(frame, reference_input, pipelines, directory, **settings):
         if key
         not in {
             "column_mapping",
+            "signal_columns",
             "axis_inversions",
             "drop_missing_samples",
             "output_dir",

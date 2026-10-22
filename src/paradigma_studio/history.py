@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .axis_mapping import preparation_orientations
+from .column_mapping import validate_signal_columns
 from .contracts import (
     AnalysisError,
     AnalysisResults,
@@ -164,6 +165,7 @@ def _read_run_record(path: Path) -> RunRecord:
     _validate_run_outputs(record, settings)
     migrate_problems(record)
     validate_column_mapping(settings.get("column_mapping"))
+    validate_signal_columns(settings.get("signal_columns"))
     preparation_orientations(settings)
     _validate_preparation_settings(settings)
     return record

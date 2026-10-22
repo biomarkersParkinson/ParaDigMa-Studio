@@ -183,6 +183,13 @@ by the recursive UI target. Controllers supply column-name schemas once per
 loaded batch and use the editor's explicit mapping/module APIs and `changed`
 signal. Mapping validation never scans sensor samples. Run settings retain the
 existing source-to-target dictionary, including additional legacy entries.
+New run settings also store `signal_columns`, the complete canonical-signal to
+source-column dictionary, with `null` for unassigned signals. These selections are
+authoritative for preparation, validation and clock previews: unselected canonical
+signal columns cannot supply fallback inputs. Selection metadata is restored in
+the editor's existing single-change update and is not forwarded to ParaDigMa.
+Older runs and direct API calls without `signal_columns` retain literal renaming
+semantics. Original frames remain available for raw-data inspection.
 `axis_inversions` stores inverted canonical IMU target channels separately. The
 preparation service passes independent signed `x,y,z` lists to the official
 accelerometer and gyroscope orientation calls after renaming; permutations belong

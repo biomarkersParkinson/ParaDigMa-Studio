@@ -235,6 +235,7 @@ class AnalysisController(QObject):
                 "time_input_unit": self.view.time.currentText(),
                 "skip_preparation": self.view.prepared.isChecked(),
                 "column_mapping": validate_column_mapping(self.view.mapping.mapping()),
+                "signal_columns": self.view.mapping.signal_columns(),
                 "pipelines": self.selected_modules(),
                 "drop_missing_samples": self.view.drop_missing.isChecked(),
             }
@@ -320,6 +321,7 @@ class AnalysisController(QObject):
             if self.view.prepared.isChecked()
             else self.view.mapping.axis_inversions(),
             "column_mapping": mapping,
+            "signal_columns": self.view.mapping.signal_columns(),
             "skip_preparation": self.view.prepared.isChecked(),
             "split_by_gaps": self.view.gaps.isChecked(),
             "drop_missing_samples": self.view.drop_missing.isChecked(),
@@ -434,5 +436,5 @@ class AnalysisController(QObject):
                 None if settings.get("skip_preparation") else settings.get("device_orientation")
             )
             mapping, inversions = migrate_legacy_orientation(mapping, orientation)
-        self.view.mapping.set_mapping(mapping)
+        self.view.mapping.set_mapping(mapping, signal_columns=settings.get("signal_columns"))
         self.view.mapping.set_axis_inversions(inversions)

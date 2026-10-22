@@ -84,8 +84,11 @@ FIELD_HELP = {
     ),
     "Signal columns": (
         "Choose the column in your files for each required signal. Exact ParaDigMa names are recognized "
-        "automatically. If a standard signal column is absent, choose Not included to clear a mistaken "
-        "assignment. Auto-match recomputes all signals, including optional ones, from names shared "
+        "automatically. Processing uses the dropdown selections only: a different selected source "
+        "replaces the standard-name source, and unselected standard-name columns are not used as a fallback. "
+        "Choose Not included to leave any signal unassigned, including when its standard-name column exists. "
+        "This choice persists across loads until you select a source, use Auto-match or Reset. "
+        "Auto-match recomputes all signals, including optional ones, from names shared "
         "by every recording. Exact names take precedence over unique aliases such as timestamp, ax, "
         "gyr_x or ppg. It replaces manual selections, clears fields without an unambiguous match and "
         "keeps axis inversions. The button is disabled only when all fields already match. "

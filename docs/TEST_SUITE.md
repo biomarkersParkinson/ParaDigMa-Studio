@@ -24,6 +24,7 @@ trigger and expected behavior still apply.
 | Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
 | Analyze wheel/trackpad page scrolling, unchanged focused dropdowns, open-list scrolling and keyboard selection | `test_analysis_scrolling.py` |
 | Signal-column dropdowns, header-only batch validation, ambiguity/conflicts, persisted choices and independent official pipeline equivalence | `test_column_mapping.py` |
+| Authoritative signal inputs, manual overrides, explicit absence, clock/preparation agreement, saved selections and unchanged original samples | `test_signal_selection.py` |
 | Per-sensor inversion, fixed-order official preparation, all legacy signed permutations, saved-setting validation and migration | `test_axis_mapping.py`, `test_column_mapping.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |
 | Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py`, `test_daily.py` |

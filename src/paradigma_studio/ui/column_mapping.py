@@ -179,6 +179,9 @@ class ColumnMappingEditor(QWidget):
     def mapping(self) -> dict[str, str]:
         return self.model.mapping()
 
+    def signal_columns(self) -> dict[str, str | None]:
+        return self.model.signal_columns()
+
     def axis_inversions(self) -> list[str]:
         return self.model.axis_inversions()
 
@@ -196,8 +199,13 @@ class ColumnMappingEditor(QWidget):
             checkbox.setChecked(target in self.model.inversions)
             checkbox.blockSignals(blocked)
 
-    def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
-        self.model.set_mapping(mapping)
+    def set_mapping(
+        self,
+        mapping: Mapping[str, str] | None,
+        *,
+        signal_columns: dict[str, str | None] | None = None,
+    ) -> None:
+        self.model.set_mapping(mapping, signal_columns=signal_columns)
         self._refresh()
         self.changed.emit()
 
@@ -234,8 +242,7 @@ class ColumnMappingEditor(QWidget):
             selected = self.model.choices[target]
             source.blockSignals(True)
             source.clear()
-            if target not in columns:
-                source.addItem("Not included", None)
+            source.addItem("Not included", None)
             ordered = (
                 [target, *(column for column in columns if column != target)]
                 if target in columns

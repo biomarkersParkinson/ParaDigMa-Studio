@@ -5,8 +5,12 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .axis_mapping import IMU_COLUMNS, validate_axis_inversions
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 SIGNALS = {
     "time": "Time",
@@ -20,6 +24,57 @@ ALIASES = {
     **{f"gyroscope_{axis}": (f"gyr_{axis}", f"gyro_{axis}", f"g{axis}") for axis in "xyz"},
     "green": ("ppg", "ppg_green", "green_ppg"),
 }
+
+
+def validate_signal_columns(value: object) -> dict[str, str | None] | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, dict)
+        or value.keys() != SIGNALS.keys()
+        or any(source is not None and not isinstance(source, str) for source in value.values())
+    ):
+        raise ValueError("Signal columns must assign each signal a source column or null.")
+    sources = [source for source in value.values() if source is not None]
+    if len(sources) != len(set(sources)):
+        raise ValueError("A source column cannot be assigned to multiple signals.")
+    return dict(value)
+
+
+def selected_signal_sources(columns: Iterable[str], mapping: Mapping[str, str]) -> list[str]:
+    """Keep selected signal sources and auxiliary columns, without name fallback."""
+    return [column for column in columns if column not in SIGNALS or column in mapping]
+
+
+def apply_signal_columns(
+    frame: pd.DataFrame,
+    mapping: Mapping[str, str] | None,
+    signal_columns: object = None,
+) -> pd.DataFrame:
+    """Apply explicit selections; old runs without them retain rename semantics."""
+    selected = validate_signal_columns(signal_columns)
+    routes = dict(mapping or {})
+    if selected is not None:
+        routes = {source: target for source, target in routes.items() if target not in SIGNALS}
+        routes.update({source: target for target, source in selected.items() if source is not None})
+        columns = selected_signal_sources(frame.columns, routes)
+        if len(columns) != len(frame.columns):
+            frame = _column_view(frame, columns)
+    return frame.rename(columns=routes, copy=False)
+
+
+def _column_view(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Avoid copying a long recording just to exclude unused signal columns."""
+    import pandas as pd
+
+    if not frame.columns.is_unique:
+        return frame[columns]  # Preserve duplicate-name errors at the caller's boundary.
+    result = pd.DataFrame(
+        {column: frame[column] for column in columns}, index=frame.index, copy=False
+    )
+    result.columns.name = frame.columns.name
+    result.attrs = frame.attrs
+    return result
 
 
 def required_signals(modules: Iterable[str]) -> set[str]:
@@ -70,7 +125,13 @@ class ColumnMapping:
         for target in SIGNALS.keys() - self._explicit:
             self.choices[target] = target if target in available - used else None
 
-    def set_mapping(self, mapping: Mapping[str, str] | None) -> None:
+    def set_mapping(
+        self,
+        mapping: Mapping[str, str] | None,
+        *,
+        signal_columns: dict[str, str | None] | None = None,
+    ) -> None:
+        selected = validate_signal_columns(signal_columns)
         inversions = self.inversions.copy()
         self.reset()
         self.inversions = inversions
@@ -84,19 +145,18 @@ class ColumnMapping:
                 # Preserve arbitrary legacy names and duplicate targets exactly.
                 self.extra[source] = target
         self._refresh_defaults()
+        if selected is not None:
+            self.choices = selected
+            self._explicit = set(SIGNALS)
+            self.extra = {
+                source: target for source, target in self.extra.items() if target not in SIGNALS
+            }
 
     def choose(self, target: str, source: str | None) -> None:
         if target not in SIGNALS:
             raise ValueError(f"Unknown signal: {target}")
-        self.choices[target] = (
-            source
-            if source is not None
-            else (target if target in self.columns and target not in self.extra else None)
-        )
-        if source is None:
-            self._explicit.discard(target)
-        else:
-            self._explicit.add(target)
+        self.choices[target] = source
+        self._explicit.add(target)
         self._identities.discard(target)
         self.extra = {key: value for key, value in self.extra.items() if value != target}
         self._refresh_defaults()
@@ -142,6 +202,30 @@ class ColumnMapping:
                 if source is not None and (source != target or source in self._identities)
             },
         }
+
+    def signal_columns(self) -> dict[str, str | None]:
+        self.mapping()  # Reject a source selected for multiple signals.
+        if self.target_conflicts():
+            raise ValueError("Multiple saved columns share a signal. Select one column per signal.")
+        return dict(self.choices)
+
+    def _selected_mapping(self) -> dict[str, str]:
+        return {
+            **{source: target for source, target in self.extra.items() if target not in SIGNALS},
+            **{source: target for target, source in self.choices.items() if source is not None},
+        }
+
+    def _declared_names(self, columns: Sequence[str], renamed: list[str]) -> list[str]:
+        # Old settings can declare several sources for one signal. Keep those
+        # conflicts visible until a dropdown selection replaces the saved entries.
+        return [
+            *renamed,
+            *(
+                target
+                for source, target in self.extra.items()
+                if target in SIGNALS and source in columns
+            ),
+        ]
 
     def suggestions(self) -> dict[str, str]:
         used = set(self.choices.values()) | set(self.extra)
@@ -191,10 +275,13 @@ class ColumnMapping:
     def target_conflicts(self) -> dict[str, list[str]]:
         if self.source_conflicts():
             return {}
-        mapping = self.mapping()
+        mapping = self._selected_mapping()
         conflicts: dict[str, list[str]] = {}
         for key, columns in self.schemas.items():
-            for target, count in Counter(mapping.get(column, column) for column in columns).items():
+            renamed = [
+                mapping.get(column, column) for column in selected_signal_sources(columns, mapping)
+            ]
+            for target, count in Counter(self._declared_names(columns, renamed)).items():
                 if count > 1:
                     conflicts.setdefault(target, []).append(self.names.get(key, key))
         return conflicts
@@ -207,15 +294,21 @@ class ColumnMapping:
                 0,
                 ("Columns assigned to multiple signals: " + ", ".join(sorted(conflicts)),),
             )
-        mapping = self.mapping()
+        mapping = self._selected_mapping()
         required = required_signals(modules)
         missing_counts: Counter[str] = Counter()
         duplicate_counts: Counter[str] = Counter()
         compatible = 0
         for columns in self.schemas.values():
-            renamed = [mapping.get(column, column) for column in columns]
+            renamed = [
+                mapping.get(column, column) for column in selected_signal_sources(columns, mapping)
+            ]
             missing = required - set(renamed)
-            duplicates = [column for column, count in Counter(renamed).items() if count > 1]
+            duplicates = [
+                column
+                for column, count in Counter(self._declared_names(columns, renamed)).items()
+                if count > 1
+            ]
             missing_counts.update(SIGNALS[target] for target in SIGNALS if target in missing)
             duplicate_counts.update(duplicates)
             compatible += not missing and not duplicates

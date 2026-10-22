@@ -5,6 +5,7 @@ from functools import lru_cache
 
 import numpy as np
 
+from .column_mapping import apply_signal_columns
 from .core import result_tables
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
 
@@ -375,7 +376,9 @@ def recording_clock(frame, settings, timeline=None):
         return None
     try:
         timeline = source_timeline(frame, settings) if timeline is None else timeline
-        mapped = frame.rename(columns=settings.get("column_mapping", {}), copy=False)
+        mapped = apply_signal_columns(
+            frame, settings.get("column_mapping"), settings.get("signal_columns")
+        )
         candidates = [
             column
             for column in frame

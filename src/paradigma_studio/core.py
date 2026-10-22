@@ -14,6 +14,7 @@ import numpy as np
 
 from .availability import prepared_availability
 from .axis_mapping import preparation_orientations, validate_orientation as validate_orientation
+from .column_mapping import apply_signal_columns
 from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
 from .empatica import load_empatica_imu
 from .serialization import (
@@ -341,7 +342,11 @@ def _run_prepared_analysis(
             return_intermediate=["classification", "quantification"],
             custom_logger=active_logger,
             **{
-                **{key: value for key, value in settings.items() if key != "axis_inversions"},
+                **{
+                    key: value
+                    for key, value in settings.items()
+                    if key not in {"axis_inversions", "signal_columns"}
+                },
                 "output_dir": run_directory,
                 "skip_preparation": True,
                 "split_by_gaps": False,
@@ -465,7 +470,11 @@ def result_tables(value: Any, path: str = "") -> dict[str, pd.DataFrame]:
 def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
     mapping = validate_column_mapping(column_mapping)
     axes = preparation_orientations(settings)
-    mapped = frame.rename(columns=mapping).copy().reset_index(drop=True)
+    mapped = (
+        apply_signal_columns(frame, mapping, settings.get("signal_columns"))
+        .copy()
+        .reset_index(drop=True)
+    )
     if not mapped.columns.is_unique:
         raise ValueError("Column mapping produces duplicate column names.")
     required, time_unit = _validate_required_channels(mapped, pipelines, settings)

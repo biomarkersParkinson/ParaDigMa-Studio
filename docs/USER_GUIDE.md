@@ -80,10 +80,13 @@ and missing-sample checks during preparation.
   selection still works.
 - In **Signal columns**, choose a source column from the dropdown for each
   required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
-  are recognized automatically and shown by their actual names. If a standard
-  signal column is absent, select **Not included** to clear its assignment (for
-  example, to undo assigning an accelerometer column to Green PPG). Missing
-  signals required by a selected module still show a warning. **Auto-match**
+  are recognized automatically and shown by their actual names. The dropdown
+  selections determine the signal inputs used in processing. Selecting a different
+  source replaces the standard-name source; an unselected standard-name column
+  does not fill a missing selection. Select **Not included** to leave any signal
+  unassigned, even if its standard-name column exists. This choice persists across
+  loads until you select a source, use Auto-match or Reset. Missing signals required
+  by a selected module still show a warning. **Auto-match**
   recomputes all signal assignments, including optional signals, from names shared
   by every loaded recording. Exact ParaDigMa names take precedence, followed by
   unambiguous familiar names such as `timestamp`, `gyr_x` and `ppg`.

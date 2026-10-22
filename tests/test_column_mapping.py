@@ -342,7 +342,8 @@ def test_reused_source_is_reported_without_silently_replacing_another_choice(mod
 def test_renaming_an_existing_standard_source_updates_its_implicit_assignment(model):
     model.choose("gyroscope_x", "gyroscope_y")
     assert model.choices["gyroscope_y"] is None
-    assert model.target_conflicts() == {"gyroscope_x": ["sensor.csv"]}
+    assert model.target_conflicts() == {}
+    assert model.validate(["gait"]).details == ("Missing Gyroscope Y",)
     model.choose("gyroscope_y", "gyroscope_x")
     assert model.mapping() == {"gyroscope_y": "gyroscope_x", "gyroscope_x": "gyroscope_y"}
     assert model.validate(["gait"]).compatible == 1
@@ -350,10 +351,12 @@ def test_renaming_an_existing_standard_source_updates_its_implicit_assignment(mo
 
 def test_target_collisions_retain_saved_mapping_until_the_user_fixes_it(model):
     model.set_recordings({"one": ["time", "green", "ppg"]}, {"one": "sensor.csv"})
-    model.set_mapping({"ppg": "green"})
+    model.set_mapping({"ppg": "green", "green": "green"})
     assert model.target_conflicts() == {"green": ["sensor.csv"]}
     assert model.validate(["pulse_rate"]).details == ("Conflicting column names: green",)
-    assert model.mapping() == {"ppg": "green"}
+    assert model.mapping() == {"ppg": "green", "green": "green"}
+    with pytest.raises(ValueError, match="Multiple saved columns"):
+        model.signal_columns()
     model.choose("green", "green")
     assert model.mapping() == {}
     assert model.validate(["pulse_rate"]).compatible == 1
@@ -387,7 +390,7 @@ def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing
     model.set_recordings(
         {
             "one": ["time", "green", "ppg"],
-            "two": ["time", "green"],
+            "two": ["time", "ppg"],
             "three": ["time"],
             "four": ["temperature"],
         },
@@ -395,7 +398,7 @@ def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing
     )
     # The first recording has a name conflict, the third lacks PPG, and the
     # fourth lacks time and PPG. The second is the only compatible recording.
-    model.set_mapping({"ppg": "green"})
+    model.set_mapping({"ppg": "green", "green": "green"})
     validation = model.validate(["pulse_rate"])
     assert validation.recordings == 4 and validation.compatible == 1
     assert validation.details == (
@@ -451,8 +454,10 @@ def test_not_included_clears_a_mistaken_ppg_assignment_and_restores_the_source_s
     assert editor._warnings["green"].isHidden()
     assert editor.model.choices["green"] is None
     editor.set_recordings({"three": list(SIGNALS)}, {})
-    assert selector.currentData() == "green"
-    assert editor.model.choices["green"] == "green"
+    assert selector.currentData() is None
+    assert selector.currentText() == "Not included"
+    assert editor.model.choices["green"] is None
+    assert editor.model.validate(["pulse_rate"]).compatible == 0
     assert editor.mapping() == {}
     assert changes.count() == 2
 
@@ -510,22 +515,21 @@ def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_option
     assert changes.count() == 1
 
 
-def test_dropdowns_offer_real_columns_and_not_included_for_missing_standard_signals(editor):
+def test_dropdowns_offer_real_columns_and_an_explicit_not_included_option(editor):
     assert all(
         source.count() == 1 and source.itemText(0) == "Not included" and source.itemData(0) is None
         for source in editor._combos.values()
     )
     editor.set_recordings({"one": ["time", "green"], "two": ["time", "optical"]}, {})
     editor.set_mapping({"missing_clock": "time", "missing_ppg": "green"})
-    for target, source in editor._combos.items():
+    for source in editor._combos.values():
         expected = {
             "time",
             "green",
             "optical",
         }
-        if target not in expected:
-            expected.add(None)
-            assert source.itemText(0) == "Not included" and source.itemData(0) is None
+        expected.add(None)
+        assert source.itemText(0) == "Not included" and source.itemData(0) is None
         assert {source.itemData(index) for index in range(source.count())} == expected
         assert all(
             source.itemText(index) == source.itemData(index)
@@ -547,7 +551,7 @@ def test_auto_match_reset_and_inline_conflicts(editor):
     editor.set_recordings({"one": ["time", "ppg", "green", "ax"]}, {})
     editor.auto_button.click()
     assert editor.mapping() == {"ax": "accelerometer_x"}
-    editor.set_mapping({"ppg": "green"})
+    editor.set_mapping({"ppg": "green", "green": "green"})
     assert not editor._warnings["green"].isHidden()
     assert "Name conflict" in editor._warnings["green"].toolTip()
     assert "Multiple columns become this signal in 1 of 1 recordings." in (
@@ -767,6 +771,7 @@ def test_reused_dropdown_source_reports_a_failure_before_a_job_starts(window):
 def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
     window, tmp_path, pipeline
 ):
+    import numpy as np
     import pandas as pd
     from paradigma.config import PulseRateConfig
     from paradigma.prepare_data import correct_watch_orientation, prepare_time_column
@@ -788,9 +793,17 @@ def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
     for target in inversions:
         if target in names:
             frame[names[target]] *= -1
+    reference_frame = frame.copy(deep=True)
+    # Existing standard names must not override the visible manual choices.
+    # These invalid decoys would fail preparation or change the scientific output.
+    frame = frame.assign(**dict.fromkeys(SIGNALS, np.nan))
     expected_mapping = {source: target for target, source in names.items()}
     window.set_modules([pipeline])
     window.loaded(("sensor.csv", frame))
+    assert window.mapping.model.choices["time"] == "time"
+    for target in SIGNALS.keys() - names.keys():
+        selector = window.mapping._combos[target]
+        selector.setCurrentIndex(selector.findData(None))
     for target, source in names.items():
         selector = window.mapping._combos[target]
         selector.setCurrentIndex(selector.findData(source))
@@ -799,16 +812,20 @@ def test_dropdown_mapping_matches_independent_official_preparation_and_outputs(
     assert settings["column_mapping"] == expected_mapping
     assert settings["device_orientation"] == ["x", "y", "z"]
     assert settings["axis_inversions"] == inversions
-    extra = {"watch_side": settings["watch_side"], "axis_inversions": inversions}
+    extra = {
+        "watch_side": settings["watch_side"],
+        "axis_inversions": inversions,
+        "signal_columns": settings["signal_columns"],
+    }
     if pipeline == "pulse_rate":
         reference = prepare_time_column(
-            frame.rename(columns=expected_mapping), input_unit_type="relative_s"
+            reference_frame.rename(columns=expected_mapping), input_unit_type="relative_s"
         )
         extra["pulse_rate_config"] = PulseRateConfig(
             ppg_sampling_frequency=100, min_window_length_s=10
         )
     else:
-        reference = official_preparation(frame, column_mapping=expected_mapping)
+        reference = official_preparation(reference_frame, column_mapping=expected_mapping)
     for sensor in ("accelerometer", "gyroscope"):
         if all(f"{sensor}_{axis}" in reference for axis in "xyz"):
             axes = [("-" if f"{sensor}_{axis}" in inversions else "") + axis for axis in "xyz"]

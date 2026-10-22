@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Use the visible Signal columns selections for new analyses and clock previews.
+  Manual choices replace standard-name inputs; **Not included** stays unassigned
+  even when a matching column exists. Save and restore the complete selections.
+
 - Keep Analyze's scroll range synchronized when nested forms shrink or change
   between stacked and side-by-side layouts, avoiding stale excess scrolling on
   Windows. Settle active layout items without activating hidden popup layouts.
