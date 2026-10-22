@@ -193,7 +193,6 @@ class DataController(QObject):
         self.inputs.sources, self.inputs.recordings = sources, recordings
         self._supply_mapping_schemas()
         self.state._input_descriptions = descriptions
-        self.analysis._origin_override = False
         self.inspect_input_recording(new_selection=True)
         self.callbacks.modules_changed()
         self.view.status.setText(f"{len(recordings)} recordings loaded for one subject.")
@@ -222,7 +221,6 @@ class DataController(QObject):
         self.previews._time_preview.clear()
         self.previews._sensor_preview.clear()
         self.inputs.source, self.inputs.frame = payload[:2]
-        self.analysis._origin_override = False
         self.inputs.sources, self.inputs.recordings = {"recording_001": self.inputs.source}, {}
         self._supply_mapping_schemas()
         self.state._input_descriptions = {}

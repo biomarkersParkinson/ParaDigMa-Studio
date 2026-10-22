@@ -56,6 +56,7 @@ include = [
     "src/paradigma_studio/analysis_process.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/column_mapping.py",
+    "src/paradigma_studio/input_metadata.py",
     "src/paradigma_studio/axis_mapping.py",
     "src/paradigma_studio/jobs.py",
     "src/paradigma_studio/parallel_analysis.py",
@@ -106,6 +107,7 @@ max-branches = 12
 python_version = "3.11"
 files = [
     "src/paradigma_studio/contracts.py",
+    "src/paradigma_studio/input_metadata.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/column_mapping.py",
     "src/paradigma_studio/axis_mapping.py",

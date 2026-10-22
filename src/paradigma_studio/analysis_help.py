@@ -27,7 +27,8 @@ FIELD_HELP = {
     ),
     "Watch side": (
         "Choose the wrist on which the sensor was worn. ParaDigMa applies its right-wrist IMU inversion "
-        "during pipeline preprocessing. Set this separately from the device-axis mapping; "
+        "during pipeline preprocessing. Supported imports do not currently select the wrist from metadata. "
+        "Set this separately from the device-axis mapping; "
         "do not manually invert axes merely because the watch was on the right wrist.",
         "preprocessing.py#L364",
     ),

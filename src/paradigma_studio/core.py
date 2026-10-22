@@ -17,6 +17,7 @@ from .axis_mapping import preparation_orientations, validate_orientation as vali
 from .column_mapping import apply_signal_columns
 from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
 from .empatica import load_empatica_imu
+from .input_metadata import record_import_units
 from .serialization import (
     export_results as export_results,
     export_table_csv as export_table_csv,
@@ -124,6 +125,8 @@ def load_sensor_file(path: PathInput, *, allow_pickle: bool = False) -> pd.DataF
         _, frame, start = load_single_data_file(path)
         if start is not None:
             frame.attrs["desktop_recording_start"] = str(start)
+        if path.suffix.lower() == ".cwa":
+            record_import_units(frame, "cwa")
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         raise ValueError("The sensor file contains no tabular samples.")
     return frame

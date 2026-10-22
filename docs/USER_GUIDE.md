@@ -52,6 +52,25 @@ Signal columns includes ParaDigMa's original reference figure and a direct link 
 Coordinate System guide. The example explains source-axis selection and inversion.
 Parameter settings appear on the left and signal columns on the right; narrow
 windows stack the two sections.
+Analyze prefills time and sensor units when supported metadata agrees across
+all applicable recordings. TSDF supplies per-channel units after physical scaling;
+Axivity CWA and Empatica imports supply their decoded output conventions (`g`,
+`deg/s` where gyroscope is present, and `relative_s`). Plain CSV, Parquet and
+pickle tables do not establish units merely through their format or values.
+Only supported, explicit time representations are accepted: a declaration of
+seconds alone does not distinguish relative, absolute or difference-based time.
+
+A small **From file** label identifies detected units and automatic time origins.
+Hover over it, or open the field's existing **i** explanation, to see the source.
+Defaults remain unmarked. Editing a value removes its label and preserves the
+manual choice across subsequent loads; **Use file value** in the explanation
+restores the detected value. Time origin's **Default** button also restores its
+automatic value. **Use parameters** keeps restored units explicit, including
+values equal to the current defaults. Unit detection follows the selected source
+columns. A single message summarizes conflicting or incomplete unit declarations
+across recordings, without listing filenames; normalize differing inputs or
+analyze them separately. Watch side, axis directions, Already prepared and gap
+and missing-sample policies remain user choices.
 The page preserves comfortable spacing. Parameters fit together at normal window
 sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
 visible below the settings.
@@ -95,6 +114,8 @@ and missing-sample checks during preparation.
   Auto-match is disabled only when every signal already matches its automatic
   result; hover over the button for an explanation.
   **Show optional signals** exposes other channels;
+  **Show details** also explains whether column assignments came from exact names,
+  Auto-match, manual selections or explicit saved mappings.
   selecting another module preserves all choices.
   For axis swaps, choose the source column that should become each toolbox axis.
   For example, select the device's Y column for **Accelerometer X** and its X column

@@ -31,6 +31,7 @@ from .results_view import (
 )
 from .time_controls import TimeField
 from .ui.column_mapping import ColumnMappingEditor
+from .ui.file_defaults import FileDefaults
 from .widgets import (
     ContextComboBox,
     WrappedForm,
@@ -71,10 +72,12 @@ class AnalysisView:
     analysis_scroll: QScrollArea
     clock_input: TimeField
     drop_missing: QCheckBox
+    file_badges: dict[str, QLabel]
     gaps: QCheckBox
     gyro: QComboBox
     log: QPlainTextEdit
     mapping: ColumnMappingEditor
+    metadata_notice: QLabel
     max_gap: QDoubleSpinBox
     min_segment: QDoubleSpinBox
     module_buttons: dict[str, QPushButton]
@@ -137,6 +140,14 @@ class AnalysisController(QObject):
         self.services = services
         self.previews = previews
         self.modules = modules
+        self.file_defaults = FileDefaults(
+            {"Acceleration units": view.acc, "Gyroscope units": view.gyro, "Time units": view.time},
+            view.file_badges,
+            view.analysis_help,
+            view.metadata_notice,
+            self.update_origin_default,
+            self.reset_origin,
+        )
 
     def toggle_analysis_help(self, title: str, checked: bool) -> None:
         if self.analysis._updating_analysis_help:
@@ -220,6 +231,7 @@ class AnalysisController(QObject):
 
     def origin_edited(self) -> None:
         self.analysis._origin_override = True
+        self.file_defaults.mark_manual(["Time origin"])
         self.previews._origin_preview.cancel_pending()
         self.view.clock_input.setEnabled(True)
 
@@ -228,6 +240,13 @@ class AnalysisController(QObject):
         self.update_origin_default()
 
     def update_origin_default(self, *_: object) -> None:
+        if self.file_defaults.applying:
+            return
+        if self.inputs.frame is not None:
+            self.file_defaults.refresh(
+                self.inputs.recordings or {"recording_001": self.inputs.frame},
+                self.view.mapping.model.choices,
+            )
         if self.analysis._origin_override or self.inputs.frame is None:
             return
         try:
@@ -269,6 +288,7 @@ class AnalysisController(QObject):
         self.view.clock_input.set_clock(clock)
         self.view.clock_input.setText(clock["origin"] if clock else "")
         self.view.clock_input.setEnabled(True)
+        self.file_defaults.set_origin(clock)
 
     def origin_setting(self) -> AnalysisSettings:
         if not self.analysis._origin_override:
@@ -385,20 +405,36 @@ class AnalysisController(QObject):
         if self.runs.selected_run is None or self.jobs.worker is not None:
             return
         settings = self.runs.selected_run["settings"]
+        self.file_defaults.mark_manual(
+            [
+                title
+                for title, key in (
+                    ("Acceleration units", "accelerometer_units"),
+                    ("Gyroscope units", "gyroscope_units"),
+                    ("Time units", "time_input_unit"),
+                )
+                if key in settings
+            ],
+            "Restored from saved run parameters.",
+        )
         self.set_modules(settings.get("pipelines", ["gait"]))
-        for widget, key in (
-            (self.view.side, "watch_side"),
-            (self.view.acc, "accelerometer_units"),
-            (self.view.gyro, "gyroscope_units"),
-            (self.view.time, "time_input_unit"),
-        ):
-            if key in settings:
-                value = str(settings[key])
-                index = widget.findData(value)
-                if index >= 0:
-                    widget.setCurrentIndex(index)
-                else:
-                    widget.setCurrentText(value)
+        self.file_defaults.applying = True
+        try:
+            for widget, key in (
+                (self.view.side, "watch_side"),
+                (self.view.acc, "accelerometer_units"),
+                (self.view.gyro, "gyroscope_units"),
+                (self.view.time, "time_input_unit"),
+            ):
+                if key in settings:
+                    value = str(settings[key])
+                    index = widget.findData(value)
+                    if index >= 0:
+                        widget.setCurrentIndex(index)
+                    else:
+                        widget.setCurrentText(value)
+        finally:
+            self.file_defaults.applying = False
         self._restore_signal_columns(settings)
         self.view.prepared.setChecked(settings.get("skip_preparation", False))
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))

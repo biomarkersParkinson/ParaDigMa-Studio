@@ -92,6 +92,7 @@ class AnalysisPage:
         # compressing spacing when help is taller at the current width.
         self.analysis_help = {}
         self.analysis_help_sections = {}
+        self.file_badges: dict[str, QLabel] = {}
         self._build_analysis_modules(controls)
         self._build_analysis_parameters()
         self._build_analysis_help()
@@ -183,6 +184,12 @@ class AnalysisPage:
         parameter_header.addWidget(label("Analysis parameters", "sectionTitle"))
         parameter_header.addWidget(self.module_requirements, 1)
         parameters.addLayout(parameter_header)
+        self.metadata_notice = label("", "muted")
+        self.metadata_notice.setWordWrap(True)
+        self.metadata_notice.setTextFormat(Qt.TextFormat.PlainText)
+        self.metadata_notice.setAccessibleName("Input metadata differences")
+        self.metadata_notice.hide()
+        parameters.addWidget(self.metadata_notice)
         left, right = QVBoxLayout(), QVBoxLayout()
         columns = AdaptiveFormColumns(left, right)
         for column in (left, right):
@@ -374,6 +381,13 @@ class AnalysisPage:
             title_label.setBuddy(control)
         row.addWidget(title_label)
         row.addWidget(info, alignment=Qt.AlignmentFlag.AlignVCenter)
+        if title in {"Acceleration units", "Gyroscope units", "Time units", "Time origin"}:
+            badge = label("From file", "muted")
+            badge.setObjectName("fileDefaultBadge")
+            badge.setAccessibleName(f"{title}: from file")
+            badge.hide()
+            self.file_badges[title] = badge
+            row.addWidget(badge, alignment=Qt.AlignmentFlag.AlignVCenter)
         row.addStretch()
         body = QWidget()
         content = QVBoxLayout(body)
@@ -406,10 +420,12 @@ class AnalysisPage:
             analysis_scroll=self.analysis_scroll,
             clock_input=self.clock_input,
             drop_missing=self.drop_missing,
+            file_badges=self.file_badges,
             gaps=self.gaps,
             gyro=self.gyro,
             log=log,
             mapping=self.mapping,
+            metadata_notice=self.metadata_notice,
             max_gap=self.max_gap,
             min_segment=self.min_segment,
             module_buttons=self.module_buttons,

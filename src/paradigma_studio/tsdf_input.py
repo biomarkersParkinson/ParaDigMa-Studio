@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .input_metadata import METADATA_KEY
+
 if TYPE_CHECKING:
     import pandas as pd
 
@@ -27,6 +29,14 @@ def load_tsdf_sensor_file(path: Path) -> tuple[pd.DataFrame, datetime | None]:
         raise ValueError("TSDF metadata must contain unique channel names across streams.")
     for metadata in (time_metadata, value_metadata):
         _scale_stream(frame, metadata)
+    frame.attrs[METADATA_KEY] = {
+        "format": "tsdf",
+        "units": {
+            channel: unit
+            for metadata in (time_metadata, value_metadata)
+            for channel, unit in zip(metadata.channels, metadata.units, strict=True)
+        },
+    }
     start = getattr(time_metadata, "start_iso8601", None)
     return frame, datetime.fromisoformat(start) if start is not None else None
 

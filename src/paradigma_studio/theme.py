@@ -83,6 +83,7 @@ QFrame#sidebar QPushButton:checked { background: #344960; color: white; }
 QLabel#pageTitle { font-size: 27px; font-weight: 600; color: #16253a; }
 QLabel#sectionTitle { font-size: 16px; font-weight: 600; }
 QLabel#muted { color: #68778c; }
+QLabel#fileDefaultBadge { color: #68778c; font-size: 11px; }
 QLabel#metricValue { font-size: 25px; font-weight: 600; }
 QLabel#notice { color: #77561d; background: #fff6e4; border: 1px solid #eddfbf;
     border-radius: 7px; padding: 10px; }

@@ -11,6 +11,8 @@ import numpy as np
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 
+from .input_metadata import record_import_units
+
 
 def _motion_stream(sensor, name, version):
     if sensor is None:
@@ -105,4 +107,5 @@ def load_empatica_imu(path):
         timestamp_start_us=start,
         schema_version=version,
     )
+    record_import_units(frame, "empatica")
     return frame

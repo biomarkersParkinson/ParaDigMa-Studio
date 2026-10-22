@@ -56,6 +56,7 @@ class ColumnMappingEditor(QWidget):
         self._labels: dict[str, QTableWidgetItem] = {}
         self._warnings: dict[str, QToolButton] = {}
         self._inversions: dict[str, QCheckBox] = {}
+        self._choice_sources: dict[str, tuple[str | None, str]] = {}
         self._fitting_table = False
         content = QVBoxLayout(self)
         content.setContentsMargins(0, 0, 0, 0)
@@ -211,6 +212,11 @@ class ColumnMappingEditor(QWidget):
         signal_columns: dict[str, str | None] | None = None,
     ) -> None:
         self.model.set_mapping(mapping, signal_columns=signal_columns)
+        self._choice_sources = {
+            target: (self.model.choices[target], "Explicit mapping")
+            for target in SIGNALS
+            if signal_columns is not None or target in (mapping or {}).values()
+        }
         self._refresh()
         self.changed.emit()
 
@@ -227,16 +233,31 @@ class ColumnMappingEditor(QWidget):
 
     def auto_match(self) -> None:
         self.model.auto_match()
+        self._choice_sources = {
+            target: (
+                source,
+                (
+                    "Auto-match: exact column name"
+                    if source == target
+                    else "Auto-match: recognized alias"
+                )
+                if source is not None
+                else "Auto-match: no unambiguous match",
+            )
+            for target, source in self.model.choices.items()
+        }
         self._refresh()
         self.changed.emit()
 
     def reset(self) -> None:
         self.model.reset()
+        self._choice_sources.clear()
         self._refresh()
         self.changed.emit()
 
     def _choose(self, target: str) -> None:
         self.model.choose(target, self._combos[target].currentData())
+        self._choice_sources[target] = (self.model.choices[target], "Selected manually")
         self._refresh()
         self.changed.emit()
 
@@ -298,6 +319,10 @@ class ColumnMappingEditor(QWidget):
         if self.model.extra:
             lines.append("Other saved mappings (preserved):")
             lines.extend(f"{source} → {target}" for source, target in self.model.extra.items())
+        if total:
+            if lines:
+                lines.append("")
+            lines.extend(["Column selections:", *self._selection_details()])
         self.details.setText("\n".join(lines))
         self.details_button.setVisible(bool(lines))
         self.details.setVisible(bool(lines) and self.details_button.isChecked())
@@ -305,6 +330,18 @@ class ColumnMappingEditor(QWidget):
         self.auto_button.setToolTip(tooltip_text(self._auto_match_help()))
         self.optional_button.setVisible(len(required) < len(SIGNALS))
         self._fit_table()
+
+    def _selection_details(self) -> list[str]:
+        return [
+            f"{SIGNALS[target]}: {source or 'Not included'} "
+            f"({self._selection_source(target, source)})"
+            for target, source in self.model.choices.items()
+        ]
+
+    def _selection_source(self, target: str, source: str | None) -> str:
+        fallback = "Exact column name" if source == target else "Not assigned"
+        previous, reason = self._choice_sources.get(target, (source, fallback))
+        return reason if previous == source else fallback
 
     def _auto_match_help(self) -> str:
         if not self.auto_button.isEnabled():

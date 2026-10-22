@@ -371,7 +371,10 @@ def test_identical_batch_mapping_issues_appear_once_without_recording_names(edit
         "Gyroscope X, Gyroscope Y, Gyroscope Z"
     )
     assert editor.summary.text().startswith("Compatible with 0 of 7 recordings")
-    assert editor.details.text() == expected
+    issues, provenance = editor.details.text().split("\n\nColumn selections:\n")
+    assert issues == expected
+    assert "Time: time (Exact column name)" in provenance
+    assert "recording_" not in editor.details.text()
     assert editor.details.isHidden()
     editor.details_button.click()
     assert not editor.details.isHidden()
@@ -381,8 +384,9 @@ def test_identical_batch_mapping_issues_appear_once_without_recording_names(edit
     assert editor.details_button.text() == "Show details"
     editor.set_modules(["pulse_rate"])
     assert editor.summary.text().startswith("Compatible with 7 of 7 recordings")
-    assert editor.details.text() == ""
-    assert editor.details_button.isHidden()
+    assert "Missing" not in editor.details.text()
+    assert "Green PPG: green (Exact column name)" in editor.details.text()
+    assert not editor.details_button.isHidden()
 
 
 def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing_compatibility():
@@ -586,9 +590,11 @@ def test_auto_match_includes_optional_signals_and_reports_headers_as_plain_text(
     assert changes.count() == 1
     assert not editor.auto_button.isEnabled()
     editor.set_modules(["gait"])
-    assert editor.details.text() == (
+    issues, provenance = editor.details.text().split("\n\nColumn selections:\n")
+    assert issues == (
         "Missing Accelerometer Y, Accelerometer Z, Gyroscope X, Gyroscope Y, Gyroscope Z"
     )
+    assert "Auto-match: recognized alias" in provenance
     from PySide6.QtCore import Qt
 
     assert editor.details.textFormat() == Qt.TextFormat.PlainText
