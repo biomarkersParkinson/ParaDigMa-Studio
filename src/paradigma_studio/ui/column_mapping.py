@@ -157,6 +157,8 @@ class ColumnMappingEditor(QWidget):
     def _show_warning(self, target: str) -> None:
         warning = self._warnings[target]
         dialog = QMessageBox(QMessageBox.Icon.Warning, warning.accessibleName(), "", parent=self)
+        # A custom pixmap keeps the warning visible without Qt's Windows alert sound.
+        dialog.setIconPixmap(dialog.iconPixmap())
         dialog.setTextFormat(Qt.TextFormat.PlainText)
         dialog.setText(warning.accessibleDescription())
         dialog.exec()
