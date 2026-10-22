@@ -136,7 +136,7 @@ def test_irrelevant_watch_side_is_blank_and_retains_the_users_choice(window):
     assert window.side.grab().toImage() != shown_right
 
 
-def test_segmentation_defaults_match_official_package_and_resets_remain_available(window):
+def test_desktop_preparation_defaults_and_official_threshold_resets_remain_available(window):
     from inspect import signature
 
     from paradigma.orchestrator import run_paradigma
@@ -153,7 +153,9 @@ def test_segmentation_defaults_match_official_package_and_resets_remain_availabl
         == DEFAULT_MIN_SECTION_SECONDS
         == defaults["min_segment_length_s"].default
     )
-    assert window.gaps.isChecked() == signature(run_paradigma).parameters["split_by_gaps"].default
+    assert window.gaps.isChecked() and window.drop_missing.isChecked()
+    settings = window._analysis_controller._analysis_settings(["gait"])
+    assert settings["split_by_gaps"] and settings["drop_missing_samples"]
     assert (
         window.acc.currentText()
         == signature(run_paradigma).parameters["accelerometer_units"].default

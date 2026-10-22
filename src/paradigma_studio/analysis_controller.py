@@ -215,7 +215,7 @@ class AnalysisController(QObject):
                 self.file_defaults.reset()
                 self.view.side.setCurrentText("left")
                 self.view.prepared.setChecked(False)
-                self.view.gaps.setChecked(False)
+                self.view.gaps.setChecked(True)
                 self.view.drop_missing.setChecked(True)
                 self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
                 self.view.min_segment.setValue(DEFAULT_MIN_SECTION_SECONDS)

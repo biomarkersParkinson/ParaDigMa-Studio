@@ -257,6 +257,7 @@ class AnalysisPage:
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
+        self.gaps.setChecked(True)
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(True)
         for checkbox in (self.prepared, self.gaps, self.drop_missing):
@@ -391,23 +392,7 @@ class AnalysisPage:
         description.hide()
         self.analysis_help[title] = (info, description)
         control.setAccessibleName(title)
-        heading = QWidget()
-        row = QHBoxLayout(heading)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(6)
-        title_label = control if inline else label(title, "muted")
-        if not inline:
-            title_label.setBuddy(control)
-        row.addWidget(title_label)
-        row.addWidget(info, alignment=Qt.AlignmentFlag.AlignVCenter)
-        if title in {"Acceleration units", "Gyroscope units", "Time units", "Time origin"}:
-            badge = label("From file", "muted")
-            badge.setObjectName("fileDefaultBadge")
-            badge.setAccessibleName(f"{title}: from file")
-            badge.hide()
-            self.file_badges[title] = badge
-            row.addWidget(badge, alignment=Qt.AlignmentFlag.AlignVCenter)
-        row.addStretch()
+        heading = self._analysis_heading(title, control, info, inline=inline)
         body = QWidget()
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 0, 0)
@@ -427,6 +412,30 @@ class AnalysisPage:
             if not inline:
                 content.addWidget(control)
         return body
+
+    def _analysis_heading(self, title, control, info, *, inline):
+        heading = QWidget()
+        heading_layout = QVBoxLayout(heading)
+        heading_layout.setContentsMargins(0, 0, 0, 0)
+        heading_layout.setSpacing(2)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        title_label = control if inline else label(title, "muted")
+        if not inline:
+            title_label.setBuddy(control)
+        row.addWidget(title_label)
+        row.addWidget(info, alignment=Qt.AlignmentFlag.AlignVCenter)
+        row.addStretch()
+        heading_layout.addLayout(row)
+        if title in {"Acceleration units", "Gyroscope units", "Time units", "Time origin"}:
+            badge = label("From file", "muted")
+            badge.setObjectName("fileDefaultBadge")
+            badge.setAccessibleName(f"{title}: from file")
+            badge.setWordWrap(False)
+            badge.hide()
+            self.file_badges[title] = badge
+            heading_layout.addWidget(badge, alignment=Qt.AlignmentFlag.AlignLeft)
+        return heading
 
     def view(self, parent: QWidget, status: QLabel, log: QPlainTextEdit) -> AnalysisView:
         return AnalysisView(

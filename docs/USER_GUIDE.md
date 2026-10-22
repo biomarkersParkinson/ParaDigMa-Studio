@@ -60,7 +60,8 @@ pickle tables do not establish units merely through their format or values.
 Only supported, explicit time representations are accepted: a declaration of
 seconds alone does not distinguish relative, absolute or difference-based time.
 
-A small **From file** label identifies detected units and automatic time origins.
+A small **From file** label beneath the parameter name identifies detected units
+and automatic time origins.
 In Signal columns, each automatically matched signal has its own label.
 Hover over it, or open the field's existing **i** explanation, to see the source.
 Defaults remain unmarked. Editing a value removes its label and keeps the manual
@@ -155,12 +156,12 @@ and missing-sample checks during preparation.
   inversions are skipped; unchecking Already prepared restores your selections.
 - **Exclude missing sensor samples** removes rows with non-finite required sensor
   values from analysis. Counts are logged and recorded in exported metadata.
-  Uncheck it for strict rejection. Non-finite relative or absolute timestamps
-  can also be excluded. Missing time differences cannot be excluded, and retained
-  timestamps must still be strictly increasing.
+  It defaults to on; uncheck it for strict rejection. Non-finite relative or
+  absolute timestamps can also be excluded. Missing time differences cannot be
+  excluded, and retained timestamps must still be strictly increasing.
 - **Split recordings at time gaps** runs continuous sections independently. The
-  switch defaults to off, matching ParaDigMa. Maximum gap and minimum section
-  duration both default to 1.5 seconds, matching its preparation defaults.
+  switch defaults to on. Maximum gap and minimum section duration both default
+  to 1.5 seconds, matching ParaDigMa's preparation defaults.
   Each **Default** button restores its field even when splitting or conversion
   is disabled. Maximum gap is an interval between samples, not a feature window.
   Outputs identify multiple sections using `file_key`.

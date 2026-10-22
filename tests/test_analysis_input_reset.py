@@ -79,7 +79,7 @@ def edit_all_settings(window):
     window.mapping._combos["green"].setCurrentIndex(window.mapping._combos["green"].findData(None))
     window.mapping.set_axis_inversions(["accelerometer_x", "gyroscope_y"])
     window.drop_missing.setChecked(False)
-    window.gaps.setChecked(True)
+    window.gaps.setChecked(False)
     window.max_gap.setValue(7.5)
     window.min_segment.setValue(9.0)
     window.prepared.setChecked(True)
@@ -128,12 +128,12 @@ def test_successful_new_load_resets_every_analyze_setting_and_uses_new_metadata(
     assert window.acc.currentData() == "m/s^2"
     assert window.gyro.currentText() == "rad/s"
     assert window.time.currentText() == "relative_s"
-    assert not window.prepared.isChecked() and not window.gaps.isChecked()
-    assert window.drop_missing.isChecked()
+    assert not window.prepared.isChecked()
+    assert window.gaps.isChecked() and window.drop_missing.isChecked()
     assert window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS
     assert window.min_segment.value() == DEFAULT_MIN_SECTION_SECONDS
     assert all(control.isEnabled() for control in (window.acc, window.gyro, window.time))
-    assert not window.max_gap.isEnabled() and not window.min_segment.isEnabled()
+    assert window.max_gap.isEnabled() and window.min_segment.isEnabled()
     assert window.mapping.signal_columns() == dict(zip(SIGNALS, SIGNALS, strict=True))
     assert window.mapping.mapping() == {} and window.mapping.axis_inversions() == []
     assert all(checkbox.isEnabled() for checkbox in window.mapping._inversions.values())
