@@ -80,7 +80,10 @@ and missing-sample checks during preparation.
   selection still works.
 - In **Signal columns**, choose a source column from the dropdown for each
   required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
-  are recognized automatically and shown by their actual names. **Auto-match**
+  are recognized automatically and shown by their actual names. If a standard
+  signal column is absent, select **Not included** to clear its assignment (for
+  example, to undo assigning an accelerometer column to Green PPG). Missing
+  signals required by a selected module still show a warning. **Auto-match**
   recomputes all signal assignments, including optional signals, from names shared
   by every loaded recording. Exact ParaDigMa names take precedence, followed by
   unambiguous familiar names such as `timestamp`, `gyr_x` and `ppg`.
@@ -97,14 +100,16 @@ and missing-sample checks during preparation.
   independently. There is no separate Device axes field.
   One mapping and set of inversions applies to every loaded recording.
   The compatibility summary covers every loaded recording. **Show details**
-  identifies missing signals and conflicting names; warning icons beside affected
-  dropdowns explain reused source columns and files missing a selected column.
+  groups missing signals and conflicting names into messages shared across the
+  recordings, without listing filenames. Counts identify issues affecting only
+  some recordings. Warning icons beside affected dropdowns explain reused source
+  columns and how many recordings are missing a selected column.
   Click a warning icon to read its full message, or focus it and press Space.
   Valid rows need no status indicator. Existing per-recording and
   per-module analysis validation still determines which workflows can run.
   **Reset** clears custom choices and inversions and restores standard-name matching. A new
-  load retains explicit choices. Dropdowns list only columns present in the loaded
-  recordings; a missing saved choice shows the selection prompt and its warning
+  load retains explicit choices. Source-column options list only columns present
+  in the loaded recordings; a missing saved choice shows the selection prompt and its warning
   names the missing column so it can be corrected. **Use parameters** restores
   saved mappings, including additional legacy mappings shown in Details.
   Older saved global axis permutations are

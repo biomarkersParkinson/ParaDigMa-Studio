@@ -234,6 +234,8 @@ class ColumnMappingEditor(QWidget):
             selected = self.model.choices[target]
             source.blockSignals(True)
             source.clear()
+            if target not in columns:
+                source.addItem("Not included", None)
             ordered = (
                 [target, *(column for column in columns if column != target)]
                 if target in columns
@@ -311,8 +313,9 @@ class ColumnMappingEditor(QWidget):
         if source in conflicts:
             return "Assigned twice", "Choose a different column for each signal."
         if target in self._target_conflicts:
-            return "Name conflict", "Multiple columns become this signal in:\n" + "\n".join(
-                self._target_conflicts[target]
+            return "Name conflict", (
+                f"Multiple columns become this signal in "
+                f"{len(self._target_conflicts[target])} of {total} recordings."
             )
         if source is None:
             suggestion = suggestions.get(target)
@@ -321,15 +324,11 @@ class ColumnMappingEditor(QWidget):
                 if suggestion
                 else ("Not mapped", "Select a column from the loaded recordings.")
             )
-        missing = [
-            self.model.names.get(key, key)
-            for key, columns in self.model.schemas.items()
-            if source not in columns
-        ]
+        missing = sum(source not in columns for columns in self.model.schemas.values())
         if missing:
             return (
-                f"Missing in {len(missing)}/{total}",
-                f"Selected column: {source}\nMissing from:\n" + "\n".join(missing),
+                f"Missing in {missing}/{total}",
+                f"Selected column: {source}\nMissing in {missing} of {total} recordings.",
             )
         return ("Available", source) if total else ("No recording", source)
 

@@ -93,7 +93,10 @@ class ColumnMapping:
             if source is not None
             else (target if target in self.columns and target not in self.extra else None)
         )
-        self._explicit.add(target)
+        if source is None:
+            self._explicit.discard(target)
+        else:
+            self._explicit.add(target)
         self._identities.discard(target)
         self.extra = {key: value for key, value in self.extra.items() if value != target}
         self._refresh_defaults()
@@ -206,21 +209,29 @@ class ColumnMapping:
             )
         mapping = self.mapping()
         required = required_signals(modules)
-        details = []
-        for key, columns in self.schemas.items():
+        missing_counts: Counter[str] = Counter()
+        duplicate_counts: Counter[str] = Counter()
+        compatible = 0
+        for columns in self.schemas.values():
             renamed = [mapping.get(column, column) for column in columns]
             missing = required - set(renamed)
             duplicates = [column for column, count in Counter(renamed).items() if count > 1]
-            issues = []
-            if missing:
-                issues.append(
-                    "Missing "
-                    + ", ".join(SIGNALS[target] for target in SIGNALS if target in missing)
-                )
-            if duplicates:
-                issues.append("Conflicting column names: " + ", ".join(duplicates))
-            if issues:
-                details.append(f"{self.names.get(key, key)}: {'; '.join(issues)}")
+            missing_counts.update(SIGNALS[target] for target in SIGNALS if target in missing)
+            duplicate_counts.update(duplicates)
+            compatible += not missing and not duplicates
         return MappingValidation(
-            len(self.schemas), len(self.schemas) - len(details), tuple(details)
+            len(self.schemas),
+            compatible,
+            self._issue_details("Missing", missing_counts)
+            + self._issue_details("Conflicting column names:", duplicate_counts),
+        )
+
+    def _issue_details(self, prefix: str, counts: Counter[str]) -> tuple[str, ...]:
+        groups: dict[int, list[str]] = {}
+        for name, count in counts.items():
+            groups.setdefault(count, []).append(name)
+        return tuple(
+            f"{prefix} {', '.join(names)}"
+            + (f" ({count} of {len(self.schemas)} recordings)" if count < len(self.schemas) else "")
+            for count, names in groups.items()
         )

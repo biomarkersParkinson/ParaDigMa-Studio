@@ -84,7 +84,8 @@ FIELD_HELP = {
     ),
     "Signal columns": (
         "Choose the column in your files for each required signal. Exact ParaDigMa names are recognized "
-        "automatically. Auto-match recomputes all signals, including optional ones, from names shared "
+        "automatically. If a standard signal column is absent, choose Not included to clear a mistaken "
+        "assignment. Auto-match recomputes all signals, including optional ones, from names shared "
         "by every recording. Exact names take precedence over unique aliases such as timestamp, ax, "
         "gyr_x or ppg. It replaces manual selections, clears fields without an unambiguous match and "
         "keeps axis inversions. The button is disabled only when all fields already match. "
@@ -96,8 +97,9 @@ FIELD_HELP = {
         "independently; use each source column once. Set Watch side separately. "
         "One mapping and set of inversions applies to all loaded recordings. Click warning icons to "
         "read their messages. Warning icons and "
-        "Show details identify missing signals and conflicting names. Reset restores standard-name "
-        "matching and clears inversions. Dropdowns list only loaded columns; missing saved choices "
+        "Show details summarize missing signals and conflicting names across recordings without "
+        "listing filenames; counts identify issues affecting only some recordings. Reset restores standard-name "
+        "matching and clears inversions. Source-column options list only loaded columns; missing saved choices "
         "remain in settings and are named in their warning until replaced. "
         "Already prepared skips inversions, while column mapping still applies. Missing signals remain "
         "subject to the existing per-recording and per-module analysis validation.",

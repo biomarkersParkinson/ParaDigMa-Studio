@@ -87,13 +87,15 @@ def test_inversion_checkboxes_never_trigger_clock_or_raw_plot_mapping_refreshes(
     assert changes.count() == 2
 
 
-def test_inline_warnings_name_affected_files_and_escape_untrusted_headers(editor):
+def test_inline_warnings_count_affected_recordings_and_escape_untrusted_headers(editor):
     editor.set_recordings({"one": ["time", "optical"]}, {"one": "<b>sensor.csv</b>"})
     editor.set_modules(["pulse_rate"])
     assert not editor._warnings["green"].isHidden()
     assert editor._warnings["accelerometer_x"].isHidden()
     editor.set_mapping({"<bad>": "green"})
-    assert "&lt;b&gt;sensor.csv&lt;/b&gt;" in editor._warnings["green"].toolTip()
+    assert "&lt;bad&gt;" in editor._warnings["green"].toolTip()
+    assert "sensor.csv" not in editor._warnings["green"].toolTip()
+    assert "Missing in 1 of 1 recordings." in editor._warnings["green"].accessibleDescription()
     editor.set_mapping({"optical": "green"})
     assert all(warning.isHidden() for warning in editor._warnings.values())
 
@@ -178,7 +180,7 @@ def test_warning_activation_opens_current_plain_text_message_without_changing_ma
     assert messages == [
         (
             "Column warning: Green PPG",
-            "Missing in 1/1\nSelected column: <missing>\nMissing from:\n<b>sensor.csv</b>",
+            "Missing in 1/1\nSelected column: <missing>\nMissing in 1 of 1 recordings.",
             Qt.TextFormat.PlainText,
         )
     ]
@@ -313,7 +315,7 @@ def test_legacy_null_mapping_restores_standard_matching(model):
     assert model.choices == {signal: signal for signal in SIGNALS}
 
 
-def test_batch_compatibility_names_missing_signals_and_affected_files():
+def test_batch_compatibility_names_missing_signals_and_counts_affected_recordings():
     value = ColumnMapping()
     value.set_recordings(
         {"one": ["timestamp", "ppg"], "two": ["timestamp", "red"]},
@@ -322,7 +324,7 @@ def test_batch_compatibility_names_missing_signals_and_affected_files():
     value.set_mapping({"timestamp": "time", "ppg": "green"})
     validation = value.validate(["pulse_rate"])
     assert validation.recordings == 2 and validation.compatible == 1
-    assert validation.details == ("second.csv: Missing Green PPG",)
+    assert validation.details == ("Missing Green PPG (1 of 2 recordings)",)
     assert value.validate([]).compatible == 2
 
 
@@ -350,13 +352,57 @@ def test_target_collisions_retain_saved_mapping_until_the_user_fixes_it(model):
     model.set_recordings({"one": ["time", "green", "ppg"]}, {"one": "sensor.csv"})
     model.set_mapping({"ppg": "green"})
     assert model.target_conflicts() == {"green": ["sensor.csv"]}
-    assert model.validate(["pulse_rate"]).details == (
-        "sensor.csv: Conflicting column names: green",
-    )
+    assert model.validate(["pulse_rate"]).details == ("Conflicting column names: green",)
     assert model.mapping() == {"ppg": "green"}
     model.choose("green", "green")
     assert model.mapping() == {}
     assert model.validate(["pulse_rate"]).compatible == 1
+
+
+def test_identical_batch_mapping_issues_appear_once_without_recording_names(editor):
+    schemas = {f"recording_{index}": ["time", "green"] for index in range(7)}
+    editor.set_recordings(schemas, {key: f"{key}.csv" for key in schemas})
+    editor.set_modules(["gait"])
+    expected = (
+        "Missing Accelerometer X, Accelerometer Y, Accelerometer Z, "
+        "Gyroscope X, Gyroscope Y, Gyroscope Z"
+    )
+    assert editor.summary.text().startswith("Compatible with 0 of 7 recordings")
+    assert editor.details.text() == expected
+    assert editor.details.isHidden()
+    editor.details_button.click()
+    assert not editor.details.isHidden()
+    assert editor.details_button.text() == "Hide details"
+    editor.details_button.click()
+    assert editor.details.isHidden()
+    assert editor.details_button.text() == "Show details"
+    editor.set_modules(["pulse_rate"])
+    assert editor.summary.text().startswith("Compatible with 7 of 7 recordings")
+    assert editor.details.text() == ""
+    assert editor.details_button.isHidden()
+
+
+def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing_compatibility():
+    model = ColumnMapping()
+    model.set_recordings(
+        {
+            "one": ["time", "green", "ppg"],
+            "two": ["time", "green"],
+            "three": ["time"],
+            "four": ["temperature"],
+        },
+        {},
+    )
+    # The first recording has a name conflict, the third lacks PPG, and the
+    # fourth lacks time and PPG. The second is the only compatible recording.
+    model.set_mapping({"ppg": "green"})
+    validation = model.validate(["pulse_rate"])
+    assert validation.recordings == 4 and validation.compatible == 1
+    assert validation.details == (
+        "Missing Green PPG (2 of 4 recordings)",
+        "Missing Time (1 of 4 recordings)",
+        "Conflicting column names: green (1 of 4 recordings)",
+    )
 
 
 def test_dropdowns_emit_one_change_and_module_changes_preserve_choices(editor):
@@ -381,6 +427,57 @@ def test_dropdowns_emit_one_change_and_module_changes_preserve_choices(editor):
     assert changes.count() == 2
 
 
+def test_not_included_clears_a_mistaken_ppg_assignment_and_restores_the_source_signal(editor):
+    columns = list(SIGNALS.keys() - {"green"})
+    editor.set_recordings({"one": columns, "two": columns}, {})
+    editor.set_modules(["gait", "pulse_rate"])
+    selector = editor._combos["green"]
+    changes = QSignalSpy(editor.changed)
+    assert selector.currentText() == "Not included"
+    selector.setCurrentIndex(selector.findData("accelerometer_x"))
+    assert editor.mapping() == {"accelerometer_x": "green"}
+    assert editor.model.choices["accelerometer_x"] is None
+    selector.setCurrentIndex(selector.findText("Not included"))
+    assert selector.currentData() is None
+    assert selector.currentText() == "Not included"
+    assert editor.mapping() == {}
+    assert editor.model.choices["accelerometer_x"] == "accelerometer_x"
+    assert editor.model.validate(["gait"]).compatible == 2
+    assert editor.model.validate(["pulse_rate"]).compatible == 0
+    assert not editor._warnings["green"].isHidden()
+    assert not editor.auto_button.isEnabled()
+    assert changes.count() == 2
+    editor.set_modules(["gait"])
+    assert editor._warnings["green"].isHidden()
+    assert editor.model.choices["green"] is None
+    editor.set_recordings({"three": list(SIGNALS)}, {})
+    assert selector.currentData() == "green"
+    assert editor.model.choices["green"] == "green"
+    assert editor.mapping() == {}
+    assert changes.count() == 2
+
+
+def test_not_included_clears_a_missing_saved_assignment_and_auto_match_can_restore_an_alias(editor):
+    editor.set_recordings({"one": ["time", "ppg"]}, {})
+    editor.set_modules(["pulse_rate"])
+    editor.set_mapping({"missing_optical": "green", "skin": "temperature"})
+    selector = editor._combos["green"]
+    assert selector.currentIndex() == -1
+    changes = QSignalSpy(editor.changed)
+    selector.setCurrentIndex(selector.findText("Not included"))
+    assert selector.currentText() == "Not included"
+    assert editor.mapping() == {"skin": "temperature"}
+    assert "missing_optical" not in editor._warnings["green"].accessibleDescription()
+    assert editor.auto_button.isEnabled()
+    assert changes.count() == 1
+    editor.auto_button.click()
+    assert selector.currentData() == "ppg"
+    assert editor.mapping() == {"skin": "temperature", "ppg": "green"}
+    assert editor._warnings["green"].isHidden()
+    assert not editor.auto_button.isEnabled()
+    assert changes.count() == 2
+
+
 def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_options(editor):
     editor.set_mapping({"clock": "time", "ppg": "green", "skin": "temperature"})
     editor.set_modules(["pulse_rate"])
@@ -391,11 +488,13 @@ def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_option
     assert editor.mapping() == {"clock": "time", "ppg": "green", "skin": "temperature"}
     assert not editor._warnings["green"].isHidden()
     assert "Missing in 1/2" in editor._warnings["green"].toolTip()
-    assert "second.csv" in editor._warnings["green"].toolTip()
+    assert "Missing in 1 of 2 recordings." in editor._warnings["green"].accessibleDescription()
+    assert "second.csv" not in editor._warnings["green"].toolTip()
     assert editor.summary.text().startswith("Compatible with 1 of 2")
     editor.details_button.click()
     assert not editor.details.isHidden()
-    assert "second.csv: Missing Green PPG" in editor.details.text()
+    assert "Missing Green PPG (1 of 2 recordings)" in editor.details.text()
+    assert "second.csv" not in editor.details.text()
     assert "skin → temperature" in editor.details.text()
     editor.set_recordings({"third": ["new_time", "new_ppg"]}, {})
     selector = editor._combos["green"]
@@ -411,24 +510,36 @@ def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_option
     assert changes.count() == 1
 
 
-def test_dropdown_options_are_only_real_columns_in_the_loaded_recordings(editor):
-    assert all(source.count() == 0 for source in editor._combos.values())
+def test_dropdowns_offer_real_columns_and_not_included_for_missing_standard_signals(editor):
+    assert all(
+        source.count() == 1 and source.itemText(0) == "Not included" and source.itemData(0) is None
+        for source in editor._combos.values()
+    )
     editor.set_recordings({"one": ["time", "green"], "two": ["time", "optical"]}, {})
     editor.set_mapping({"missing_clock": "time", "missing_ppg": "green"})
-    for source in editor._combos.values():
-        assert {source.itemData(index) for index in range(source.count())} == {
+    for target, source in editor._combos.items():
+        expected = {
             "time",
             "green",
             "optical",
         }
+        if target not in expected:
+            expected.add(None)
+            assert source.itemText(0) == "Not included" and source.itemData(0) is None
+        assert {source.itemData(index) for index in range(source.count())} == expected
         assert all(
-            source.itemText(index) == source.itemData(index) for index in range(source.count())
+            source.itemText(index) == source.itemData(index)
+            for index in range(source.count())
+            if source.itemData(index) is not None
         )
     assert editor._combos["time"].currentIndex() == -1
     assert editor._combos["green"].currentIndex() == -1
     assert editor.mapping() == {"missing_clock": "time", "missing_ppg": "green"}
     editor.set_recordings({}, {})
-    assert all(source.count() == 0 for source in editor._combos.values())
+    assert all(
+        source.count() == 1 and source.itemText(0) == "Not included" and source.itemData(0) is None
+        for source in editor._combos.values()
+    )
     assert editor.mapping() == {"missing_clock": "time", "missing_ppg": "green"}
 
 
@@ -439,6 +550,9 @@ def test_auto_match_reset_and_inline_conflicts(editor):
     editor.set_mapping({"ppg": "green"})
     assert not editor._warnings["green"].isHidden()
     assert "Name conflict" in editor._warnings["green"].toolTip()
+    assert "Multiple columns become this signal in 1 of 1 recordings." in (
+        editor._warnings["green"].accessibleDescription()
+    )
     assert editor.summary.text().startswith("Compatible with 0 of 1")
     editor.reset_button.click()
     assert editor.mapping() == {}
@@ -468,7 +582,9 @@ def test_auto_match_includes_optional_signals_and_reports_headers_as_plain_text(
     assert changes.count() == 1
     assert not editor.auto_button.isEnabled()
     editor.set_modules(["gait"])
-    assert "<b>sensor.csv</b>" in editor.details.text()
+    assert editor.details.text() == (
+        "Missing Accelerometer Y, Accelerometer Z, Gyroscope X, Gyroscope Y, Gyroscope Z"
+    )
     from PySide6.QtCore import Qt
 
     assert editor.details.textFormat() == Qt.TextFormat.PlainText
