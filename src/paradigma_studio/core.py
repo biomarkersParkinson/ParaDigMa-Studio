@@ -181,7 +181,7 @@ def _analyze_pipeline_groups(
     frame, pipelines, column_mapping, logger, drop_missing_samples, settings
 ):
     groups = [[pipeline for pipeline in pipelines if pipeline != "pulse_rate"], ["pulse_rate"]]
-    combined = {
+    combined: AnalysisResults = {
         "quantifications": {},
         "classifications": {},
         "aggregations": {},
@@ -426,7 +426,7 @@ def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
         "pulse_rate": {"": "ppg_quality_predictions.parquet"},
     }
     keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
-    classifications = {}
+    classifications: dict[str, pd.DataFrame | dict[str, pd.DataFrame]] = {}
     for pipeline in pipelines:
         for name, filename in files[pipeline].items():
             frames = []

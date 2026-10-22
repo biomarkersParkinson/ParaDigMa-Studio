@@ -141,6 +141,7 @@ files = [
 # Check service/controller APIs and every UI module, including new builders.
 # UI annotations remain gradual; strict service/controller settings stay below.
 follow_imports = "silent"
+check_untyped_defs = true
 disallow_incomplete_defs = true
 warn_unused_ignores = true
 show_error_codes = true
@@ -161,14 +162,12 @@ module = [
     "paradigma_studio.storage",
     "paradigma_studio.exports",
 ]
-# Require complete annotations and check nested helpers in this expanded scope.
+# Require complete annotations here; all configured targets check function bodies.
 disallow_untyped_defs = true
-check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = ["paradigma_studio.ui.*"]
-# Check UI bodies while annotations are introduced gradually.
-check_untyped_defs = true
+# Inherit body checking while UI annotations are introduced gradually.
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]

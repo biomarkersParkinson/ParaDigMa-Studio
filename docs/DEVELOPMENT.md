@@ -172,7 +172,9 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 
 ## Type checking
 
-`python -m mypy` checks `contracts`, `core`, `recordings`, `history`, `jobs`,
+`python -m mypy` checks function bodies throughout its configured scope, including
+functions without annotated signatures (`check_untyped_defs = true`). It targets
+`contracts`, `core`, `recordings`, `history`, `jobs`,
 `analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
 `serialization` and `epoch_profile`, plus these controller and service modules:
 
@@ -206,21 +208,21 @@ permutation into the mapping and signs; prepared runs retain renaming alone.
 Inversion edits do not emit the mapping `changed` signal because they affect
 neither clock previews nor original raw plots.
 
-The entire `ui/` directory is checked recursively, including new modules. The
-`paradigma_studio.ui.*` override checks function bodies (`check_untyped_defs`)
-while allowing unannotated functions (`disallow_untyped_defs = false`). Callback,
+The entire `ui/` directory is checked recursively, including new modules. Its
+function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
+override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,
 graphics and small-component public contracts are annotated; other UI signatures
 can be completed incrementally. Scientific and plotting types stay under
 `TYPE_CHECKING` to preserve deferred imports. Dynamic descriptor values retain
 `Any` at their boundary; do not suppress whole UI modules or error categories.
 
 The controller and supporting-service modules listed above require complete
-function annotations (`disallow_untyped_defs`) and check helper bodies
-(`check_untyped_defs`), including job operations, preview completion and export
-writers. Callback protocols describe
-optional arguments and service dependencies; atomic writes distinguish text and
-binary streams. Existing service checks remain lenient. Add service/controller
-targets to the `files` list in `pyproject.toml`; apply the stricter override only
+function annotations (`disallow_untyped_defs`). Body checking also covers nested
+helpers, including job operations, preview completion and export writers.
+Callback protocols describe optional arguments and service dependencies; atomic
+writes distinguish text and binary streams. Existing service signatures remain
+gradual while their bodies are checked. Add service/controller targets to the
+`files` list in `pyproject.toml`; apply the stricter override only
 when a module has complete annotations. Additional UI modules need no new file
 entry. Clock-summary inputs use read-only `Mapping` annotations so the stored
 `ClockMetadata` contract can pass through without copying or conversion.

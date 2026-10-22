@@ -133,7 +133,7 @@ def _dispatch_recordings(frames, root, tasks, events, processes, logger, cancel,
     paths = [root / f"result-{index}.pkl" for index in range(len(frames))]
     for _ in range(workers):
         _submit_next(pending, root, paths, tasks, cancel)
-    completed = set()
+    completed: set[int] = set()
     while len(completed) < len(frames):
         event = _receive_event(events, processes, logger, cancel)
         if event[0] == "task_completed":
