@@ -255,8 +255,11 @@ class ColumnMappingEditor(QWidget):
         total = len(self.model.schemas)
         for row, target in enumerate(SIGNALS):
             self.table.setRowHidden(row, target not in required and not self._expanded)
-            self._labels[target].setText(
-                SIGNALS[target] + ("" if target in required else " (optional)")
+            self._labels[target].setText(SIGNALS[target])
+            self._labels[target].setToolTip(
+                "Required by the selected modules."
+                if target in required
+                else "Optional for the selected modules."
             )
             selected = self.model.choices[target]
             status, tooltip = self._status(target, selected, total, conflicts, suggestions)
