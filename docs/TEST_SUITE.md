@@ -37,14 +37,14 @@ trigger and expected behavior still apply.
 | Plot reuse, redraw avoidance, exact shared time coordinates and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py`, `test_result_plot_cache.py`, `test_result_coordinates.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, exact JSON precision, bounded batches, source integrity, atomic failures and background completion | `test_result_exports.py` |
-| Complete local snapshots, responsive background reopening, isolated-reader cleanup/failure, exact restored values, deferred graphs and unsaved-close warnings | `test_saved_results.py` |
+| Complete local snapshots, responsive background reopening, isolated-reader cleanup/failure, exact restored values, deferred graphs, unsaved-close warnings and mixed-success bulk saves | `test_saved_results.py` |
 | Run history, warnings, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
 | Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
-| Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
+| Specific input errors, complete worker/UI tracebacks, startup/smoke failure reports and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 | Frozen layout/graph ports, required callbacks connected before worker start, terminal cleanup, queued input/cancellation snapshots and coordinator size | `test_composition_order.py` |
 | Data page tab/action order, callback delivery, deferred graphs and responsive splitter transitions | `test_data_page.py` |
@@ -157,6 +157,10 @@ That guide maintains the [lint and size limits](DEVELOPMENT.md#quality-gates-and
 [mypy scope](DEVELOPMENT.md#type-checking), and
 [branch-coverage scope, floor and reports](DEVELOPMENT.md#branch-coverage).
 Static checks complement the runtime and scientific tests; they do not replace them.
+Failure-boundary tests deliberately raise unexpected exceptions, retain their original
+tracebacks and require a failed probe exit status. Bulk-save checks fail either the
+first or second save, reopen the successful snapshot with exact values and keep the
+failed run unsaved with the window open.
 The [scientific methodology](SCIENTIFIC_TESTS.md) explains the independent
 references, tolerances and limits. Native Windows execution and signature checks
 remain responsibilities of the Windows build workflows.

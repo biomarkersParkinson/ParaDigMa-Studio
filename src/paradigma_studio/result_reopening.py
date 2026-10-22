@@ -27,7 +27,7 @@ def _read_export_child(path: str, output: str, status: Connection) -> None:
         with open(output, "wb") as stream:
             pickle.dump(value, stream, protocol=pickle.HIGHEST_PROTOCOL)
         status.send(None)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- Transfer child failures with their traceback.
         # Preserve the child traceback across the job boundary without loading
         # exception objects or arbitrary user-selected pickle files.
         status.send((isinstance(exc, ValueError), str(exc), traceback.format_exc()))

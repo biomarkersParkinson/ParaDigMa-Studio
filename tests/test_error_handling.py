@@ -1,7 +1,11 @@
 """Tracebacks survive error boundaries without changing notices or error counts."""
 
+import json
 import logging
+import os
 import pickle
+import subprocess
+import sys
 from queue import SimpleQueue
 from threading import Event
 from types import SimpleNamespace
@@ -23,6 +27,49 @@ from paradigma_studio.history import new_run
 from paradigma_studio.jobs import SignalHandler, Worker
 from paradigma_studio.results_view import normalise_clock, time_bound
 from paradigma_studio.ui.deferred import DeferredWidget
+
+
+@pytest.mark.parametrize("probe,diagnostic_key", [("startup", "error"), ("smoke", "traceback")])
+def test_probe_failure_reports_original_traceback_and_returns_failure(
+    tmp_path, probe, diagnostic_key
+):
+    # Startup owns a QApplication, so each probe needs a fresh interpreter.
+    code = """import sys, time
+started = time.perf_counter()
+
+class ProbeFailure(Exception):
+    pass
+
+def fail_probe(*args, **kwargs):
+    raise ProbeFailure(f"Unexpected {sys.argv[1]} probe failure")
+
+if sys.argv[1] == "startup":
+    from paradigma_studio import app, startup
+    app.MainWindow = fail_probe
+    status = startup.startup_test(sys.argv[2], started)
+else:
+    from paradigma_studio import smoke
+    smoke._verify_bundled_models = fail_probe
+    status = smoke.smoke_test(sys.argv[2])
+sys.exit(status)
+"""
+    report = tmp_path / f"{probe}.json"
+    result = subprocess.run(
+        [sys.executable, "-c", code, probe, str(report)],
+        cwd=tmp_path,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "MPLCONFIGDIR": str(tmp_path / "mpl")},
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert report.is_file(), result.stdout + result.stderr
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["status"] == "failed"
+    diagnostic = data[diagnostic_key]
+    assert "Traceback (most recent call last)" in diagnostic
+    assert "in fail_probe" in diagnostic
+    assert f"ProbeFailure: Unexpected {probe} probe failure" in diagnostic
 
 
 def captured_logger():

@@ -57,7 +57,7 @@ class Worker(QThread):
             self.completed.emit(self.operation(logger))
         except AnalysisCancelled:
             self.cancelled.emit()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- Final boundary for arbitrary Qt jobs.
             # The Qt worker is the final boundary for arbitrary job operations.
             # Log diagnostics separately so failed emits/counts one concise error.
             self.message.emit(traceback.format_exc())

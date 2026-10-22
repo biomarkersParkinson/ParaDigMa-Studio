@@ -100,7 +100,7 @@ class CachedPreview(QObject):
             error: str | None
             try:
                 value, error = future.result(), None
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- Deliver arbitrary preview failures to Qt.
                 # Preview operations are arbitrary; retain the stack across threads.
                 value, error = None, f"{type(exc).__name__}: {exc}"
                 details = traceback.format_exc()

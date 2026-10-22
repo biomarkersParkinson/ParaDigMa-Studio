@@ -202,7 +202,7 @@ def _analyze_pipeline_groups(
                 drop_missing_samples=drop_missing_samples,
                 **settings,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- Retain independent toolbox groups.
             # Independent toolbox groups must retain successful partial results.
             combined["errors"].append(
                 {

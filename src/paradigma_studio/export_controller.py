@@ -133,7 +133,7 @@ class ExportController(QObject):
                 )
                 self.callbacks.record_output(path, "JSON")
                 self.view.status.setText(f"Results exported to {path}")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- Final export UI error reporting.
                 # Final UI boundary for file writers and run-history callbacks.
                 self.callbacks.append_log(traceback.format_exc())
                 self.callbacks.failure(str(exc))
@@ -211,7 +211,7 @@ class ExportController(QObject):
                 )
                 self.callbacks.record_output(path, "CSV")
                 self.view.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- Final export UI error reporting.
                 # Final UI boundary for file writers and run-history callbacks.
                 self.callbacks.append_log(traceback.format_exc())
                 self.callbacks.failure(str(exc))

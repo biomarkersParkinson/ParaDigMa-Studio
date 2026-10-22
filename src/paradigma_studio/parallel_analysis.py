@@ -78,7 +78,7 @@ def run_parallel_analysis(
 def _recording_worker(tasks, events, settings):
     try:
         _run_worker_loop(tasks, events, settings)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- Report failures before a worker exits.
         # Report any toolbox/serialization failure before this worker exits.
         events.put(("log", logging.INFO, traceback.format_exc()))
         events.put(("failed", f"{type(exc).__name__}: {exc}"))

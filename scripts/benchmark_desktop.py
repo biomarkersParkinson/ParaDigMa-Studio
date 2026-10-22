@@ -33,6 +33,7 @@ def benchmark(executable, report_path, repetitions=5):
                 visible = time.perf_counter() - launched
                 stdout, stderr = process.communicate(timeout=15)
             except BaseException:
+                # Reap our child even on KeyboardInterrupt/SystemExit, then re-raise.
                 process.kill()
                 process.communicate()
                 raise

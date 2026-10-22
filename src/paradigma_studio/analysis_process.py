@@ -83,7 +83,7 @@ def _analyze_child(
         with open(output_path, "wb") as stream:
             pickle.dump(results, stream, protocol=pickle.HIGHEST_PROTOCOL)
         queue.put(("completed",))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- Final child-process failure reporting.
         # This process boundary also covers toolbox imports and result serialization.
         queue.put(("log", logging.INFO, traceback.format_exc()))
         queue.put(("failed", f"{type(exc).__name__}: {exc}"))

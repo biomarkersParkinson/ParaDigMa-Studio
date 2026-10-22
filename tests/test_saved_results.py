@@ -485,6 +485,56 @@ def test_close_saves_all_unsaved_runs_even_when_another_run_is_displayed(
     assert second["outputs"][0]["local"]
 
 
+@pytest.mark.parametrize("failed_attempt", [1, 2])
+def test_failed_bulk_save_preserves_other_snapshot_and_keeps_unsaved_run_open(
+    window, tremor_outputs, tmp_path, monkeypatch, failed_attempt
+):
+    records = [
+        analyzed_run(window, tremor_outputs, tmp_path, name) for name in ("first.csv", "second.csv")
+    ]
+    save = window.history.save_results
+    attempted = []
+
+    def save_with_failure(record, *args):
+        attempted.append(record["id"])
+        if len(attempted) == failed_attempt:
+            raise RuntimeError("Unexpected snapshot failure")
+        return save(record, *args)
+
+    monkeypatch.setattr(window.history, "save_results", save_with_failure)
+    with monkeypatch.context() as prompt:
+        prompt.setattr(QMessageBox, "exec", lambda dialog: QMessageBox.Save)
+        window.close()
+    finish_job(window)
+
+    assert len(attempted) == 2 and set(attempted) == {record["id"] for record in records}
+    failed = next(record for record in records if record["id"] == attempted[failed_attempt - 1])
+    saved = next(record for record in records if record is not failed)
+    assert window.isVisible() and not window._run_state._close_after_save
+    assert window.unsaved_result_runs() == [failed]
+    assert failed["outputs"] == [] and failed["status"] == "Completed"
+    assert len(saved["outputs"]) == 1
+    output = saved["outputs"][0]
+    assert output["local"] and output["complete"]
+    provenance, restored = load_result_export(output["path"])
+    assert provenance["run_id"] == saved["id"]
+    pd.testing.assert_frame_equal(
+        restored["quantifications"]["tremor"], tremor_outputs["quantifications"]["tremor"]
+    )
+    persisted, issues = window.history.load()
+    assert not issues
+    by_id = {record["id"]: record for record in persisted}
+    assert by_id[saved["id"]]["outputs"] == saved["outputs"]
+    assert by_id[failed["id"]]["outputs"] == []
+    assert not (window.history.directory / "results" / f"{failed['id']}.json").exists()
+    assert all(Path(record["source"]).read_text() == "original recording" for record in records)
+    assert "Unexpected snapshot failure" in window.notice.text()
+    assert Path(failed["source"]).name in window.notice.text()
+    log = window.log.toPlainText()
+    assert "Traceback" in log and "in save_with_failure" in log
+    assert "RuntimeError: Unexpected snapshot failure" in log
+
+
 @pytest.mark.parametrize(
     "failure", [OSError("Storage is full"), TypeError("Unsupported result value")]
 )

@@ -31,7 +31,7 @@ def smoke_test(report_path):
         finally:
             window.close()
             app.processEvents()
-    except Exception:
+    except Exception:  # noqa: BLE001 -- Report any bundled probe failure and fail the check.
         # The packaged probe must report failures from any bundled dependency.
         report["traceback"] = traceback.format_exc()
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
