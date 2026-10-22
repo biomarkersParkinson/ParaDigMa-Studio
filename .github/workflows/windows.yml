@@ -38,7 +38,7 @@ jobs:
         run: python -m mypy
       - name: Check native Analyze layout before the full suite
         run: >-
-          python -m pytest -q tests/test_workspace.py
+          python -m pytest -q tests/test_analysis_layout.py
           -k test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes
           --junitxml=test-reports/analyze-layout.xml
         env:

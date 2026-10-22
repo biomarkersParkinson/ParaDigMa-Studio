@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes
 from PySide6.QtCore import QEvent, QObject, QPoint, QSize
 from PySide6.QtGui import QPixmap
 from PySide6.QtTest import QTest
@@ -46,7 +47,7 @@ def test_native_analyze_layout_with_no_system_fonts(tmp_path):
             "-m",
             "pytest",
             "-q",
-            "tests/test_workspace.py",
+            "tests/test_analysis_layout.py",
             "-k",
             "test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes",
         ],
@@ -93,9 +94,7 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
         header.resizeSection(section, width)
     window.prepared.setMinimumWidth(472)
     if large:
-        from test_workspace import _configure_native_analysis_sizes
-
-        _configure_native_analysis_sizes(window, 44, True)
+        configure_native_analysis_sizes(window, 44, True)
     window.mapping._fit_table()
     window.navigate(1)
     window.resize(1200, 1050 if large else 900)
@@ -113,7 +112,7 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
         )
         for field in fields:
             if not field.isHidden():
-                assert field.visibleRegion().boundingRect().contains(field.rect())
+                assert_fully_visible(field)
     finally:
         window.close()
         app.processEvents()
@@ -158,7 +157,7 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
         assert window.analysis_scroll.verticalScrollBar().maximum() == 0
         for editor in (window.max_gap, window.min_segment):
             assert editor.width() >= editor.minimumSizeHint().width()
-            assert editor.visibleRegion().boundingRect().contains(editor.rect())
+            assert_fully_visible(editor)
             for value in (editor.minimum(), editor.maximum()):
                 editor.setValue(value)
                 assert editor.value() == value
@@ -195,7 +194,7 @@ def test_analyze_scroll_extent_shrinks_with_the_form_before_queued_parent_reques
             window.analysis_scroll.widget().height() == window.analysis_scroll.viewport().height()
         )
         for field in (window.prepared, window.mapping):
-            assert field.visibleRegion().boundingRect().contains(field.rect())
+            assert_fully_visible(field)
     finally:
         window.close()
         app.processEvents()
@@ -497,9 +496,7 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(
                     center.x(), center.y(), 0, control.height() // 2 + 8
                 )
                 app.processEvents()
-                assert control.visibleRegion().boundingRect().contains(control.rect()), (
-                    layout_bounds(window, control)
-                )
+                assert_fully_visible(control)
             assert window.clock_input.editors.currentWidget() is window.clock_input.calendar
             assert window.clock_input.calendar.width() >= calendar_width
             fields = window.analysis_parameter_fields
@@ -577,9 +574,7 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
         center.x(), center.y(), 0, window.mapping.height() // 2 + 8
     )
     app.processEvents()
-    assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect()), (
-        layout_bounds(window, window.mapping)
-    )
+    assert_fully_visible(window.mapping)
     actions = [window.run_button.pos(), window.stop_button.pos()]
 
     def module_bounds():
@@ -701,7 +696,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
                     center.x(), center.y(), 0, window.mapping.height() // 2 + 8
                 )
                 app.processEvents()
-                assert window.mapping.visibleRegion().boundingRect().contains(window.mapping.rect())
+                assert_fully_visible(window.mapping)
                 window.analysis_help[help_name][0].click()
                 QTest.qWait(30)
     finally:

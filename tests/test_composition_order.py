@@ -1,4 +1,4 @@
-"""Pin observable connection and lifecycle ordering before extracting the window."""
+"""Protect worker wiring, lifecycle ordering and independent UI composition."""
 
 from dataclasses import FrozenInstanceError, fields, replace
 from pathlib import Path
@@ -133,7 +133,9 @@ def test_analysis_launch_order_and_queued_input_cancel_snapshots(window, monkeyp
 
 
 @pytest.mark.parametrize("outcome", ["completed", "failed", "cancelled"])
-def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome):
+def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_controls(
+    window, monkeypatch, outcome
+):
     connections, events = [], []
 
     class RecordingWorker:
@@ -151,6 +153,10 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
                 setattr(self, name, RecordingSignal(name, connections))
 
         def start(self):
+            assert set(connections) == set(callbacks)
+            assert len(connections) == len(callbacks)
+            for name, callback in callbacks.items():
+                assert getattr(self, name).slots == [callback], name
             connections.append("start")
             assert window._job_state.worker is self
             assert not window.open_button.isEnabled()
@@ -166,40 +172,45 @@ def test_job_connections_and_finished_restore_order(window, monkeypatch, outcome
     monkeypatch.setattr(desktop, "Worker", RecordingWorker)
     monkeypatch.setattr(window, "failure", lambda message: events.append(("failed", message)))
     monkeypatch.setattr(window, "analysis_cancelled", lambda: events.append("cancelled"))
-    window.start_job(lambda logger: None, completed)
-    worker = window._job_state.worker
-    assert connections == [
-        "completed",
-        "failed",
-        "cancelled",
-        "message",
-        "warning",
-        "error",
-        "finished",
-        "start",
-    ]
+    callbacks = {
+        "completed": completed,
+        "failed": window.failure,
+        "cancelled": window.analysis_cancelled,
+        "message": window.append_log,
+        "warning": window.capture_warning,
+        "error": window.capture_error,
+        "finished": window.job_finished,
+    }
+    try:
+        window.start_job(lambda logger: None, completed)
+        worker = window._job_state.worker
+        assert connections[-1] == "start"
 
-    def restored(name):
-        assert window._job_state.worker is None
-        assert window.open_button.isEnabled() and window.settings_panel.isEnabled()
-        events.append(name)
+        def restored(name):
+            assert window._job_state.worker is None
+            assert window.open_button.isEnabled() and window.settings_panel.isEnabled()
+            events.append(name)
 
-    monkeypatch.setattr(window, "modules_changed", lambda: restored("modules"))
-    monkeypatch.setattr(window, "preparation_changed", lambda: restored("preparation"))
-    monkeypatch.setattr(window, "update_run_actions", lambda: events.append("run actions"))
-    if outcome == "completed":
-        worker.completed.emit("output")
-        terminal = ("completed", "output")
-    elif outcome == "failed":
-        worker.failed.emit("failure")
-        terminal = ("failed", "failure")
-    else:
-        worker.cancelled.emit()
-        terminal = "cancelled"
-    worker.finished.emit()
-    assert events == [terminal, "modules", "preparation", "delete worker", "run actions"]
-    assert window._job_state.worker is None and window._job_state._analysis_stop is None
-    assert not window.stop_button.isEnabled() and window.progress.isHidden()
+        monkeypatch.setattr(window, "modules_changed", lambda: restored("modules"))
+        monkeypatch.setattr(window, "preparation_changed", lambda: restored("preparation"))
+        monkeypatch.setattr(window, "update_run_actions", lambda: events.append("run actions"))
+        if outcome == "completed":
+            worker.completed.emit("output")
+            terminal = ("completed", "output")
+        elif outcome == "failed":
+            worker.failed.emit("failure")
+            terminal = ("failed", "failure")
+        else:
+            worker.cancelled.emit()
+            terminal = "cancelled"
+        worker.finished.emit()
+        assert events == [terminal, "modules", "preparation", "delete worker", "run actions"]
+        assert window._job_state.worker is None and window._job_state._analysis_stop is None
+        assert not window.stop_button.isEnabled() and window.progress.isHidden()
+    finally:
+        # An early assertion must not leave a fake worker for fixture teardown to await.
+        window._job_state.worker = None
+        window._job_state._analysis_stop = None
 
 
 def test_save_close_is_queued_after_job_cleanup(window, monkeypatch):

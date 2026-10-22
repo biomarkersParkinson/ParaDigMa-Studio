@@ -1,22 +1,18 @@
 """Behavioral checks for navigation, linked exploration and previous runs."""
 
 import json
-import time
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import bar_starts, bar_values, select_plot_metric, wait_for_previews
+from conftest import bar_starts, bar_values, select_plot_metric, wait_for_job, wait_for_previews
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
-    QCheckBox,
     QComboBox,
-    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
@@ -37,29 +33,6 @@ def window(tmp_path):
     wait_for_job(widget)
     widget.close()
     app.processEvents()
-
-
-@pytest.fixture(params=[None, "Windows"], ids=["native-style", "Windows-style"])
-def native_analysis_window(tmp_path, request):
-    app = QApplication.instance() or QApplication([])
-    original_style = app.style().objectName()
-    if request.param is not None:
-        app.setStyle(request.param)
-    widget = MainWindow(history_dir=tmp_path / "runs")
-    try:
-        yield widget
-    finally:
-        wait_for_job(widget)
-        widget.close()
-        app.processEvents()
-        app.setStyle(original_style)
-
-
-def wait_for_job(window):
-    deadline = time.monotonic() + 10
-    while window._job_state.worker is not None and time.monotonic() < deadline:
-        QTest.qWait(20)
-    assert window._job_state.worker is None, "Background operation did not finish"
 
 
 def output():
@@ -115,118 +88,6 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
     assert window.gyro.currentText() == "rad/s"
 
 
-def test_irrelevant_watch_side_is_blank_and_retains_the_users_choice(window):
-    window.navigate(1)
-    window.show()
-    window.side.setCurrentText("right")
-    window.set_modules(["tremor", "pulse_rate"])
-    assert not window.side.isEnabled()
-    hidden_right = window.side.grab().toImage()
-    window.side.setCurrentText("left")
-    assert window.side.grab().toImage() == hidden_right
-    window.side.setCurrentText("right")
-    window.set_modules(["gait"])
-    assert window.side.isEnabled()
-    assert window.side.currentText() == "right"
-    assert window.side.grab().toImage() != hidden_right
-    # Disabling the form during a job must not hide a relevant parameter.
-    window.settings_panel.setEnabled(False)
-    shown_right = window.side.grab().toImage()
-    window.side.setCurrentText("left")
-    assert window.side.grab().toImage() != shown_right
-
-
-def test_desktop_preparation_defaults_and_official_threshold_resets_remain_available(window):
-    from inspect import signature
-
-    from paradigma.orchestrator import run_paradigma
-    from paradigma.prepare_data import prepare_raw_data
-
-    from paradigma_studio.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
-
-    defaults = signature(prepare_raw_data).parameters
-    assert (
-        window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS == defaults["max_segment_gap_s"].default
-    )
-    assert (
-        window.min_segment.value()
-        == DEFAULT_MIN_SECTION_SECONDS
-        == defaults["min_segment_length_s"].default
-    )
-    assert window.gaps.isChecked() and window.drop_missing.isChecked()
-    settings = window._analysis_controller._analysis_settings(["gait"])
-    assert settings["split_by_gaps"] and settings["drop_missing_samples"]
-    assert (
-        window.acc.currentText()
-        == signature(run_paradigma).parameters["accelerometer_units"].default
-    )
-    assert (
-        window.gyro.currentText() == signature(run_paradigma).parameters["gyroscope_units"].default
-    )
-    assert (
-        window.time.currentText() == signature(run_paradigma).parameters["time_input_unit"].default
-    )
-    assert (
-        window._analysis_controller._analysis_settings(["gait"])["device_orientation"]
-        == signature(run_paradigma).parameters["device_orientation"].default
-    )
-    assert (
-        window.prepared.isChecked()
-        == signature(run_paradigma).parameters["skip_preparation"].default
-    )
-    window.navigate(1)
-    window.show()
-    QApplication.instance().processEvents()
-    for prepared in (False, True):
-        window.prepared.setChecked(prepared)
-        window.max_gap.setValue(4.0)
-        window.min_segment.setValue(8.0)
-        for title in ("Maximum gap", "Minimum section duration"):
-            reset = window.section_reset_buttons[title]
-            assert reset.isEnabled()
-            reset.click()
-        assert window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS
-        assert window.min_segment.value() == DEFAULT_MIN_SECTION_SECONDS
-    assert window.segmentation_controls.isAncestorOf(window.gaps)
-    assert window.segmentation_controls.isAncestorOf(window.max_gap)
-    assert window.segmentation_controls.isAncestorOf(window.min_segment)
-    from PySide6.QtCore import QPoint
-
-    ys = [
-        item.mapTo(window.settings_panel, QPoint(0, 0)).y()
-        for item in (
-            window.time,
-            window.clock_input,
-            window.drop_missing,
-            window.gaps,
-            window.max_gap,
-            window.min_segment,
-            window.prepared,
-        )
-    ]
-    assert ys == sorted(ys)
-    mapping_start = window.mapping.mapTo(window.settings_panel, QPoint(0, 0))
-    gap_start = window.gaps.mapTo(window.settings_panel, QPoint(0, 0))
-    assert mapping_start.x() > gap_start.x() and mapping_start.y() < gap_start.y()
-
-
-def test_run_button_remains_visible_in_compact_analysis_workspace(window):
-    app = QApplication.instance()
-    window.navigate(1)
-    window.sidebar.setExpanded(False, animated=False)
-    window.resize(1050, 720)
-    window.show()
-    app.processEvents()
-    assert window.run_button.isVisible()
-    assert window.run_button.parentWidget() is window.status_row
-    assert not window.pages.widget(1).isAncestorOf(window.run_button)
-    assert window.run_button.geometry().bottom() < window.status_row.height()
-    assert (
-        window.run_button.mapTo(window, window.run_button.rect().center()).y()
-        == window.status.mapTo(window, window.status.rect().center()).y()
-    )
-
-
 def test_page_actions_share_the_status_row_and_navigation_only_shows_relevant_actions(window):
     window.resize(1050, 720)
     window.show()
@@ -256,117 +117,6 @@ def test_page_actions_share_the_status_row_and_navigation_only_shows_relevant_ac
         bottom = window.pages.mapTo(window, QPoint(0, window.pages.height())).y()
         assert window.status_row.mapTo(window, QPoint(0, 0)).y() >= bottom
     assert len(set(heights)) == 1
-
-
-@pytest.mark.parametrize(
-    "control_minimum_height, larger_surrounding_controls",
-    [(0, False), (40, False), (44, False), (44, True)],
-)
-def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes(
-    native_analysis_window, control_minimum_height, larger_surrounding_controls
-):
-    window = native_analysis_window
-    window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
-    window.set_modules(["gait", "tremor", "pulse_rate"])
-    _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls)
-    window.navigate(1)
-    # The mapping table adds rows; larger native labels/buttons need more height
-    # for this all-visible check, within the 1080-pixel offscreen desktop.
-    # Compact-window reachability is checked below.
-    window.resize(1200, 1050 if larger_surrounding_controls else 900)
-    window.show()
-    QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() == 0, (
-        window.analysis_scroll.viewport().size(),
-        window.analysis_scroll.widget().size(),
-        window.analysis_scroll.widget().minimumSize(),
-        window.analysis_controls.size(),
-        window.analysis_controls.heightForWidth(window.analysis_controls.width()),
-    )
-    controls = (
-        window.side,
-        window.acc,
-        window.gyro,
-        window.time,
-        window.drop_missing,
-        window.gaps,
-        window.max_gap,
-        window.min_segment,
-        window.mapping,
-        window.prepared,
-        *window.section_reset_buttons.values(),
-    )
-    for control in controls:
-        assert control.visibleRegion().boundingRect().contains(control.rect()), (
-            control.accessibleName(),
-            control.geometry(),
-            control.parentWidget().rect(),
-            control.visibleRegion().boundingRect(),
-        )
-    for previous, following in zip(
-        (window.side, window.acc, window.gyro), (window.acc, window.gyro, window.time), strict=False
-    ):
-        bottom = previous.mapTo(window.settings_panel, QPoint(0, previous.height())).y()
-        top = following.mapTo(window.settings_panel, QPoint(0, 0)).y()
-        assert top - bottom >= 8, "Parameter rows must retain comfortable separation"
-    help_buttons = [info for info, description in window.analysis_help.values()]
-    assert {(info.width(), info.height()) for info in help_buttons} == {(22, 22)}
-    assert all(info.objectName() == "helpInfo" and info.isCheckable() for info in help_buttons)
-    # Small windows may scroll rather than compressing controls and whitespace.
-    # Every field remains reachable and the action stays outside the scroll area.
-    window.resize(960, 650)
-    QTest.qWait(30)
-    small_scroll_maximum = window.analysis_scroll.verticalScrollBar().maximum()
-    if larger_surrounding_controls:
-        assert small_scroll_maximum > 0
-    for control in controls:
-        # Text editors' ensureWidgetVisible follows their cursor rectangle;
-        # scroll the whole control into view to check complete accessibility.
-        center = control.mapTo(window.analysis_scroll.widget(), control.rect().center())
-        window.analysis_scroll.ensureVisible(center.x(), center.y(), 0, control.height() // 2 + 8)
-        QApplication.instance().processEvents()
-        assert control.visibleRegion().boundingRect().contains(control.rect())
-        assert window.run_button.visibleRegion().boundingRect().contains(window.run_button.rect())
-    for info in help_buttons:
-        info.click()
-        assert sum(button.isChecked() for button in help_buttons) == 1
-    QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() > small_scroll_maximum
-    for info in help_buttons:
-        if info.isChecked():
-            info.click()
-    QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
-    assert window.analysis_help_panel.isHidden()
-    window.resize(1200, 1050 if larger_surrounding_controls else 900)
-    QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() == 0
-
-
-def _configure_native_analysis_sizes(window, control_minimum_height, larger_surrounding_controls):
-    # Larger native Windows control hints overflowed the previous layout even
-    # though the same fields fitted under the headless Linux font metrics.
-    for control in (
-        window.side,
-        window.acc,
-        window.gyro,
-        window.time,
-        window.max_gap,
-        window.min_segment,
-    ):
-        control.setMinimumHeight(control_minimum_height)
-    if larger_surrounding_controls:
-        # Input controls alone did not reproduce the Windows overflow. Native
-        # labels, checkboxes and action buttons also consume vertical space.
-        body = window.analysis_scroll.widget()
-        for control in body.findChildren(QLabel):
-            if control.objectName() != "fieldHelp":
-                control.setMinimumHeight(28)
-        for control in body.findChildren(QCheckBox):
-            control.setMinimumHeight(36)
-        for control in body.findChildren(QPushButton):
-            if control.objectName() != "helpInfo":
-                control.setMinimumHeight(44)
 
 
 def test_data_overview_graphs_and_tables_use_original_recording(window):
@@ -428,44 +178,6 @@ def test_module_cards_allow_every_combination(window):
     assert window.module_requirements.text() == "Raw green PPG required."
     window.set_modules(["gait", "pulse_rate"])
     assert "Accelerometer" in window.module_requirements.text()
-
-
-def test_inline_analysis_help_does_not_change_configuration(window):
-    from paradigma_studio.analysis_help import FIELD_HELP
-
-    assert set(window.analysis_help) == set(FIELD_HELP)
-
-    def configuration():
-        return (
-            window.selected_modules(),
-            window.side.currentText(),
-            window.acc.currentText(),
-            window.gyro.currentText(),
-            window.time.currentText(),
-            window.mapping.axis_inversions(),
-            window.prepared.isChecked(),
-            window.gaps.isChecked(),
-            window.drop_missing.isChecked(),
-            window.max_gap.value(),
-            window.min_segment.value(),
-            window.mapping.mapping(),
-        )
-
-    before = configuration()
-    window.navigate(1)
-    window.show()
-    for title, (info, description) in window.analysis_help.items():
-        assert description.isHidden()
-        assert info.accessibleName() == f"Information: {title}"
-        info.click()
-        assert not description.isHidden()
-        assert "ParaDigMa documentation" in description.text()
-        assert window.pages.widget(1).isAncestorOf(description)
-        info.click()
-        assert description.isHidden()
-    assert configuration() == before
-    assert "toolbox X = minus sensor Y" in window.analysis_help["Signal columns"][1].text()
-    assert "Choose the column in your files" in window.analysis_help["Signal columns"][1].text()
 
 
 def test_input_graph_multi_selection_has_original_values_distinct_stable_colors_and_legend(window):

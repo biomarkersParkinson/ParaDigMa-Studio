@@ -21,7 +21,9 @@ trigger and expected behavior still apply.
 | Pulse estimate availability over the full recording timespan, compact overview, readable plot labels and saved-result reopening | `test_pulse_availability.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
-| Analysis settings and help | `test_analysis_settings.py`, `test_analysis_help_stability.py`; cross-page integration in `test_workspace.py` |
+| Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
+| Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
+| File-derived unit/origin defaults, provenance label placement, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |
 | Analyze wheel/trackpad page scrolling, unchanged focused dropdowns, open-list scrolling and keyboard selection | `test_analysis_scrolling.py` |
 | Signal-column dropdowns, header-only batch validation, ambiguity/conflicts, persisted choices and independent official pipeline equivalence | `test_column_mapping.py` |
 | Authoritative signal inputs, manual overrides, explicit absence, clock/preparation agreement, saved selections and unchanged original samples | `test_signal_selection.py` |
@@ -44,7 +46,7 @@ trigger and expected behavior still apply.
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Specific input errors, complete worker/UI tracebacks and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
-| Frozen layout/graph ports, analysis/job ordering, queued input/cancellation snapshots and coordinator size | `test_composition_order.py` |
+| Frozen layout/graph ports, required callbacks connected before worker start, terminal cleanup, queued input/cancellation snapshots and coordinator size | `test_composition_order.py` |
 | Data page tab/action order, callback delivery, deferred graphs and responsive splitter transitions | `test_data_page.py` |
 | MainWindow ownership boundaries and recording/results/sensor workflows without driver ports | `test_composition_without_facade.py` |
 
@@ -92,6 +94,22 @@ Modules retain their own window fixtures when they require special
 sizes, dark palettes, Qt styles or background-job handling. The shared data
 fixtures must remain function-scoped because several tests deliberately modify
 samples to exercise validation and missing-data behavior.
+
+Analyze layout scenarios live in `test_analysis_layout.py`, including the native
+style/control-height matrix used by the early Windows CI gate and the Linux
+font-fallback subprocess. `analysis_helpers.py` shares native sizing and full-control
+visibility assertions with help and metadata layout checks. Metadata labels must
+sit beneath their parameter names and share their left edge; tests compare relative
+positions instead of pinning absolute screen coordinates. The common `wait_for_job`
+helper keeps window teardown consistent.
+
+Workflow packaging checks parse YAML and inspect the build job's benchmark arguments
+and artifact uploads. They retain the required benchmark scripts, creation mode,
+report destinations, bundle path and hidden-library inclusion while allowing YAML
+formatting changes and additional benchmarks. PyYAML is a development dependency.
+Worker tests check each callback before start and retain meaningful terminal/cleanup
+ordering; independent signal-registration order is unrestricted. Fake workers are
+cleared in a `finally` block so an early failure does not cause teardown timeouts.
 
 `select_plot_metric` drives the current Plot series tree and its normal signals.
 Tests for metric changes use it instead of changing the hidden legacy metric

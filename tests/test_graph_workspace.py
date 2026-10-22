@@ -1,10 +1,7 @@
 """Shared recording clocks, categorical rasters and actual Qt wheel delivery."""
 
 import os
-from copy import deepcopy
 from types import SimpleNamespace
-
-from conftest import wait_for_previews
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import numpy as np
@@ -21,7 +18,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStyle,
     QStyleOptionButton,
-    QWidget,
 )
 
 from paradigma_studio.app import MainWindow
@@ -85,16 +81,6 @@ def window(tmp_path):
     yield widget
     widget.close()
     application.processEvents()
-
-
-def test_analysis_help_is_clickable_without_parameter_hover_text(window):
-    for child in window.pages.widget(1).findChildren(QWidget):
-        if not window.mapping.isAncestorOf(child):
-            assert not child.toolTip()
-    assert all(checkbox.toolTip() for checkbox in window.mapping._inversions.values())
-    info, explanation = window.analysis_help["Signal columns"]
-    info.click()
-    assert not explanation.isHidden()
 
 
 def test_plot_tree_is_graph_selector_and_table_dataset_selection_remains(window):
@@ -171,35 +157,6 @@ def test_raw_graphs_separate_states_and_signals_without_changing_values(window):
     assert states.get_xlim()[0] <= 0.0 and states.get_xlim()[1] >= 2.0
 
 
-def test_analyze_calendar_default_preserves_source_precision_and_results(window):
-    start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
-    raw = pd.DataFrame(
-        {"time": [0.0, 1.0, 2.0], "time_dt": start + pd.to_timedelta([0.0, 1.0, 2.0], unit="s")}
-    )
-    window.loaded(("sensor.csv", raw))
-    wait_for_previews(window)
-    assert window.clock_input.text() == start.isoformat()
-    assert window.clock_input.calendar.calendarPopup()
-    window._result_state.provenance = {"settings": {"skip_preparation": True}}
-    result = {
-        "quantifications": {
-            name: pd.DataFrame({"time": [0.0, 1.0, 2.0], "metric": [4.0, 5.0, 6.0]})
-            for name in ("tremor", "pulse_rate")
-        }
-    }
-    window.analyzed(result)
-    original = deepcopy(window._result_state.display_clock)
-    window.clock_input.calendar.setDateTime(window.clock_input.calendar.dateTime().addMSecs(1500))
-    assert window.origin_setting()["mode"] == "custom"
-    assert window._result_state.display_clock == original
-    assert all(
-        positions.tolist() == [0, 1, 2]
-        for _, positions in window._result_state._detail_selections.values()
-    )
-    window.origin_reset.click()
-    assert window.clock_input.text() == start.isoformat()
-
-
 def test_calendar_clock_preserves_named_timezone_across_dst():
     application = QApplication.instance() or QApplication([])
     field = TimeField("From")
@@ -249,28 +206,6 @@ def test_result_canvas_accepts_mouse_wheel_and_touchpad_scrolling(window):
     assert bar.value() > 70
     wheel(1000, 0)
     assert bar.value() == 0
-
-
-@pytest.mark.parametrize("editor_minimum_width", [0, 382])
-def test_analyze_origin_calendar_remains_readable_at_windows_control_widths(
-    window, editor_minimum_width
-):
-    field = window.clock_input
-    field.calendar.setMinimumWidth(editor_minimum_width)
-    field.seconds.setMinimumWidth(editor_minimum_width)
-    window.navigate(1)
-    window.resize(960, 720)
-    QTest.qWait(50)
-    window.analysis_scroll.ensureWidgetVisible(field, 0, 0)
-    QTest.qWait(20)
-    assert field.editors.currentWidget().height() >= 38
-    assert (
-        field.editors.currentWidget().width()
-        >= field.editors.currentWidget().minimumSizeHint().width()
-    )
-    assert field.visibleRegion().boundingRect().contains(field.rect())
-    assert window.analysis_scroll.isAncestorOf(field)
-    assert not window.result_tabs.isAncestorOf(field)
 
 
 def test_results_tabs_stay_anchored_across_views_and_scrolling(window):

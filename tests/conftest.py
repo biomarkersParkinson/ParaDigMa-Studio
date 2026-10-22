@@ -131,6 +131,17 @@ def bar_centers(axes):
     )
 
 
+def wait_for_job(window):
+    import time
+
+    from PySide6.QtTest import QTest
+
+    deadline = time.monotonic() + 10
+    while window._job_state.worker is not None and time.monotonic() < deadline:
+        QTest.qWait(20)
+    assert window._job_state.worker is None, "Background operation did not finish"
+
+
 @pytest.fixture
 def window(tmp_path):
     """Visible window for UI tests; modules override this for special Qt cases."""
@@ -145,14 +156,7 @@ def window(tmp_path):
     try:
         yield widget
     finally:
-        import time
-
-        deadline = time.monotonic() + 10
-        from PySide6.QtTest import QTest
-
-        while widget._job_state.worker is not None and time.monotonic() < deadline:
-            QTest.qWait(20)
-        assert widget._job_state.worker is None, "Background operation did not finish"
+        wait_for_job(widget)
         widget.close()
         application.processEvents()
 

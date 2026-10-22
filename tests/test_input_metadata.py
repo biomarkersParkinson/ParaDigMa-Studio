@@ -6,9 +6,11 @@ from importlib.resources import files
 
 import pandas as pd
 import pytest
+from analysis_helpers import assert_fully_visible
 from conftest import wait_for_previews
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QLabel
 
 from paradigma_studio.column_mapping import SIGNALS
 from paradigma_studio.core import load_sensor_file
@@ -372,10 +374,18 @@ def test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes(
             ):
                 window.analysis_scroll.ensureWidgetVisible(field)
                 app.processEvents()
-                assert field.visibleRegion().boundingRect().contains(field.rect())
-            assert (
-                window.run_button.visibleRegion().boundingRect().contains(window.run_button.rect())
-            )
+                assert_fully_visible(field)
+            for title, source_badge in window._analysis_controller.view.file_badges.items():
+                name = next(
+                    label
+                    for label in window.settings_panel.findChildren(QLabel)
+                    if label.text() == title
+                )
+                name_position = name.mapTo(window, QPoint())
+                badge_position = source_badge.mapTo(window, QPoint())
+                assert badge_position.x() == name_position.x(), title
+                assert badge_position.y() >= name_position.y() + name.height(), title
+            assert_fully_visible(window.run_button)
     finally:
         app.setStyle(original_style)
 

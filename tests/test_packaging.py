@@ -1,8 +1,10 @@
 """Downloads retain runtime files and reject leftover build/report artifacts."""
 
-from pathlib import Path
+import shlex
+from pathlib import Path, PurePosixPath
 
 import pytest
+import yaml
 
 from scripts.build_desktop import copy_notices, reset_build_outputs
 from scripts.check_frozen import check_layout
@@ -102,10 +104,64 @@ def test_invalid_output_paths_are_rejected_before_deleting_any_outputs(tmp_path)
 
 @pytest.mark.parametrize("workflow", ["windows.yml", "windows-signed.yml"])
 def test_ci_benchmarks_write_outside_the_application_download(workflow):
-    text = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / workflow).read_text()
-    commands = [line for line in text.splitlines() if "run: python scripts/benchmark_" in line]
-    assert len(commands) == 5
-    assert all("--report build-reports/" in command for command in commands)
-    assert "name: ParaDigMaStudio-build-reports\n          path: build-reports/" in text
-    assert "path: dist/ParaDigMaStudio/" in text
-    assert "include-hidden-files: true" in text
+    path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / workflow
+    steps = yaml.safe_load(path.read_text())["jobs"]["build"]["steps"]
+    commands = list(_benchmark_commands(steps))
+    required = {
+        "scripts/benchmark_desktop.py",
+        "scripts/benchmark_workflows.py",
+        "scripts/benchmark_pan.py",
+        "scripts/benchmark_sensor_context.py",
+    }
+    assert required <= {argument for command in commands for argument in command}
+    assert any(
+        "scripts/benchmark_pan.py" in command and "--first-creation-only" in command
+        for command in commands
+    )
+    for command in commands:
+        reports = [
+            argument.partition("=")[2] if argument.startswith("--report=") else command[index + 1]
+            for index, argument in enumerate(command)
+            if argument == "--report" or argument.startswith("--report=")
+        ]
+        assert len(reports) == 1, command
+        report = _workflow_path(reports[0])
+        assert report.parts and not report.is_absolute() and report.parts[0] == "build-reports", (
+            command
+        )
+        assert ".." not in report.parts, command
+    uploads = {
+        step["with"]["name"]: step["with"]
+        for step in steps
+        if step.get("uses", "").startswith("actions/upload-artifact@")
+    }
+    assert _workflow_path(uploads["ParaDigMaStudio-build-reports"]["path"]) == PurePosixPath(
+        "build-reports"
+    )
+    bundle_name = (
+        "ParaDigMaStudio-Windows" if workflow == "windows.yml" else "unsigned-signing-input"
+    )
+    bundle_upload = uploads[bundle_name]
+    assert _workflow_path(bundle_upload["path"]) == PurePosixPath("dist/ParaDigMaStudio")
+    assert str(bundle_upload.get("include-hidden-files", False)).lower() == "true"
+
+
+def _benchmark_commands(steps):
+    for step in steps:
+        script = step.get("run", "").replace("`\n", " ").replace("\\\n", " ")
+        for command in script.splitlines():
+            if "scripts/benchmark_" in command:
+                arguments = _command_arguments(command)
+                if arguments:
+                    yield arguments
+
+
+def _command_arguments(command):
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.escape = ""  # Preserve native Windows path separators inside run commands.
+    return list(lexer)
+
+
+def _workflow_path(value):
+    return PurePosixPath(value.strip().replace("\\", "/"))
