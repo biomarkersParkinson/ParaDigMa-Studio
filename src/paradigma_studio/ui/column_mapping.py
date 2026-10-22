@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QSizePolicy,
+    QSpacerItem,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -56,6 +57,7 @@ class ColumnMappingEditor(QWidget):
         self._labels: dict[str, QTableWidgetItem] = {}
         self._warnings: dict[str, QToolButton] = {}
         self._file_badges: dict[str, QLabel] = {}
+        self._name_spacers: list[tuple[QVBoxLayout, QSpacerItem]] = []
         self._inversions: dict[str, QCheckBox] = {}
         self._choice_sources: dict[str, tuple[str | None, str]] = {}
         self._fitting_table = False
@@ -96,11 +98,15 @@ class ColumnMappingEditor(QWidget):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         delegate = _CellControls(self.table)
-        for column in (1, 2):
+        for column in range(3):
             self.table.setItemDelegateForColumn(column, delegate)
         for row, (target, title) in enumerate(SIGNALS.items()):
             self._labels[target] = QTableWidgetItem(title)
+            self._labels[target].setTextAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            )
             self.table.setItem(row, 0, self._labels[target])
+            self.table.setCellWidget(row, 0, self._signal_field(target))
             source = combo()
             source.setMinimumWidth(80)
             source.setMinimumContentsLength(8)
@@ -115,14 +121,24 @@ class ColumnMappingEditor(QWidget):
             self.table.setCellWidget(row, 1, self._source_field(target, source))
             self._axis_field(row, target)
 
-    def _source_field(self, target: str, source: QComboBox) -> QWidget:
+    def _signal_field(self, target: str) -> QWidget:
         field = QWidget()
-        layout = QHBoxLayout(field)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(4)
-        layout.addWidget(source, 1)
+        layout = QVBoxLayout(field)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # The table paints the signal name above this transparent spacer.
+        spacer = QSpacerItem(
+            0,
+            self.table.fontMetrics().height(),
+            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Fixed,
+        )
+        layout.addItem(spacer)
+        self._name_spacers.append((layout, spacer))
         badge = label("From file", "muted")
         badge.setObjectName("fileDefaultBadge")
+        badge.setWordWrap(False)
         badge.setAccessibleName(f"{SIGNALS[target]}: from file")
         policy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
         policy.setRetainSizeWhenHidden(True)
@@ -130,6 +146,15 @@ class ColumnMappingEditor(QWidget):
         badge.hide()
         self._file_badges[target] = badge
         layout.addWidget(badge)
+        field.installEventFilter(self)
+        return field
+
+    def _source_field(self, target: str, source: QComboBox) -> QWidget:
+        field = QWidget()
+        layout = QHBoxLayout(field)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(4)
+        layout.addWidget(source, 1)
         warning = QToolButton()
         warning.setAutoRaise(True)
         warning.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning))
@@ -446,10 +471,15 @@ class ColumnMappingEditor(QWidget):
             self._fitting_table = False
 
     def _size_table(self) -> None:
+        for layout, spacer in self._name_spacers:
+            height = self.table.fontMetrics().height()
+            if spacer.sizeHint().height() != height:
+                spacer.changeSize(0, height, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+                layout.invalidate()
         controls = [
             cell
             for row in range(self.table.rowCount())
-            for column in (1, 2)
+            for column in range(3)
             if (cell := self.table.cellWidget(row, column)) is not None
         ]
         for cell in controls:
@@ -472,7 +502,15 @@ class ColumnMappingEditor(QWidget):
             + 2 * self.table.frameWidth()
         )
         header = self.table.horizontalHeader()
-        source_width = max(cell.minimumSizeHint().width() for cell in controls)
+        # Only source cells contribute to the source column's minimum width.
+        # Provenance shares the signal-name column instead of widening editors.
+        source_width = max(
+            128,
+            *(
+                self.table.cellWidget(row, 1).minimumSizeHint().width()
+                for row in range(len(SIGNALS))
+            ),
+        )
         self.table.setMinimumWidth(
             max(470, header.sectionSize(0) + header.sectionSize(2) + source_width)
         )

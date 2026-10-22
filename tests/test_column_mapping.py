@@ -144,7 +144,7 @@ def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_align
                     assert checkbox.parentWidget().rect().contains(checkbox.geometry())
                 badge = editor._file_badges[target]
                 if not badge.isHidden():
-                    assert cell.rect().contains(badge.geometry())
+                    assert badge.parentWidget().rect().contains(badge.geometry())
                     assert badge.width() >= badge.sizeHint().width()
             assert len({selector.width() for selector in editor._combos.values()}) == 1
             assert changes.count() == count  # Geometry changes do not change mapping choices.

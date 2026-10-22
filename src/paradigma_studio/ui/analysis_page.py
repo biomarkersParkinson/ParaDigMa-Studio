@@ -177,7 +177,8 @@ class AnalysisPage:
         parameters = QVBoxLayout(self.analysis_parameter_fields)
         parameters.setContentsMargins(0, 0, 0, 0)
         parameters.setSpacing(14)
-        parameters.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # WrappedForm reserves the exact height. AlignTop would cap nested
+        # layouts at their unwrapped hints and consume row spacing when origin wraps.
         parameter_card.addWidget(
             self.analysis_parameter_fields, alignment=Qt.AlignmentFlag.AlignTop
         )
@@ -195,7 +196,6 @@ class AnalysisPage:
         columns = AdaptiveFormColumns(left, right)
         for column in (left, right):
             column.setSpacing(12)
-            column.setAlignment(Qt.AlignmentFlag.AlignTop)
         units = QFormLayout()
         units.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         units.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -207,8 +207,10 @@ class AnalysisPage:
         self._build_analysis_origin(left)
         self._build_analysis_segmentation(left)
         left.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
+        left.addStretch()
         self.mapping = ColumnMappingEditor()
         right.addWidget(self.analysis_field("Signal columns", self.mapping))
+        right.addStretch()
         parameters.addLayout(columns)
 
     def _build_analysis_units(self, form):

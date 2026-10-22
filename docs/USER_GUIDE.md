@@ -121,7 +121,7 @@ and missing-sample checks during preparation.
   The table's single **Default** button restores these matches for all signals, including
   optional ones. It replaces manual selections and clears assignments without a confident match;
   ambiguous names need a manual selection afterwards. Axis inversions are kept.
-  A **From file** label appears beside each automatically matched column.
+  A **From file** label appears beneath each automatically matched signal name.
   Manually selected values are not marked as file-derived.
   **Show optional signals** exposes other channels;
   **Show details** also explains whether column assignments came from exact names,

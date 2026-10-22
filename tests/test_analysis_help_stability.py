@@ -1,5 +1,10 @@
 """Opening help must not reflow the Analyze labels, options or action buttons."""
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from PySide6.QtCore import QEvent, QObject, QPoint, QSize
 from PySide6.QtGui import QPixmap
@@ -8,6 +13,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QDoubleSpinBox,
+    QHeaderView,
     QLabel,
     QSizePolicy,
     QVBoxLayout,
@@ -15,8 +21,103 @@ from PySide6.QtWidgets import (
 )
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.ui import analysis_page
+from paradigma_studio.ui import analysis_page, column_mapping
 from paradigma_studio.widgets import AdaptiveFormColumns, WrappedForm
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Fontconfig isolation is specific to Linux.")
+def test_native_analyze_layout_with_no_system_fonts(tmp_path):
+    # Windows offscreen Qt has no resolved system font and measures fallback
+    # glyphs at their full pixel width. Reproduce that backend in a fresh Qt
+    # process, preserving every visibility, row-spacing and reachability check.
+    fonts = tmp_path / "fonts"
+    fonts.mkdir()
+    cache = tmp_path / "font-cache"
+    cache.mkdir()
+    config = tmp_path / "fonts.conf"
+    config.write_text(
+        f"<fontconfig><dir>{fonts}</dir><cachedir>{cache}</cachedir></fontconfig>",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "FONTCONFIG_FILE": str(config), "QT_QPA_PLATFORM": "offscreen"}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "tests/test_workspace.py",
+            "-k",
+            "test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+@pytest.mark.parametrize("large", [False, True])
+def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
+    tmp_path, monkeypatch, style, large
+):
+    import pandas as pd
+
+    class NativeBadge(QLabel):
+        def sizeHint(self):
+            return QSize(99, super().sizeHint().height())
+
+        def minimumSizeHint(self):
+            return QSize(44, super().minimumSizeHint().height())
+
+    original_label = column_mapping.label
+
+    def native_label(text="", role=None):
+        return NativeBadge(text) if text == "From file" else original_label(text, role)
+
+    monkeypatch.setattr(column_mapping, "label", native_label)
+    app = QApplication.instance() or QApplication([])
+    original_style = app.style().objectName()
+    app.setStyle(style)
+    window = MainWindow(tmp_path)
+    window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
+    window.set_modules(["gait", "tremor", "pulse_rate"])
+    # Measured on windows-latest: the two headers need 386 pixels and the
+    # left controls need 500. File labels must share existing cell width.
+    header = window.mapping.table.horizontalHeader()
+    for section, width in ((0, 217), (2, 169)):
+        header.setSectionResizeMode(section, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(section, width)
+    window.prepared.setMinimumWidth(472)
+    if large:
+        from test_workspace import _configure_native_analysis_sizes
+
+        _configure_native_analysis_sizes(window, 44, True)
+    window.mapping._fit_table()
+    window.navigate(1)
+    window.resize(1200, 1050 if large else 900)
+    window.show()
+    QTest.qWait(30)
+    try:
+        assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+        mapping = window.mapping.mapTo(window.settings_panel, QPoint())
+        prepared = window.prepared.mapTo(window.settings_panel, QPoint())
+        assert mapping.x() > prepared.x() and mapping.y() < prepared.y()
+        fields = (
+            *window.mapping._combos.values(),
+            *window.mapping._file_badges.values(),
+            *window.mapping._inversions.values(),
+        )
+        for field in fields:
+            if not field.isHidden():
+                assert field.visibleRegion().boundingRect().contains(field.rect())
+    finally:
+        window.close()
+        app.processEvents()
+        app.setStyle(original_style)
 
 
 def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
