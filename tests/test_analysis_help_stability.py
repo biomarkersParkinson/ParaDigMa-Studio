@@ -1,13 +1,72 @@
 """Opening help must not reflow the Analyze labels, options or action buttons."""
 
 import pytest
-from PySide6.QtCore import QEvent, QObject, QPoint
+from PySide6.QtCore import QEvent, QObject, QPoint, QSize
 from PySide6.QtGui import QPixmap
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QDoubleSpinBox,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from paradigma_studio.app import MainWindow
+from paradigma_studio.ui import analysis_page
 from paradigma_studio.widgets import AdaptiveFormColumns, WrappedForm
+
+
+def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
+    tmp_path, monkeypatch
+):
+    class NativeSpinBox(QDoubleSpinBox):
+        def sizeHint(self):
+            return QSize(243, super().sizeHint().height())
+
+        def minimumSizeHint(self):
+            return QSize(217, super().minimumSizeHint().height())
+
+    monkeypatch.setattr(analysis_page, "QDoubleSpinBox", NativeSpinBox)
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(tmp_path)
+    window.set_modules(["gait", "tremor", "pulse_rate"])
+    # Measured classic-Windows hints: the preferred spinner widths made the
+    # columns require 1038 pixels in a 1036-pixel form. Their actual minima fit.
+    window.mapping.setMinimumWidth(514)
+    window.prepared.setMinimumWidth(472)
+    for title, width in (("Maximum gap", 91), ("Minimum section duration", 104)):
+        heading = next(
+            label
+            for label in window.segmentation_controls.findChildren(QLabel)
+            if label.text() == title
+        )
+        heading.setMinimumWidth(width)
+        window.section_reset_buttons[title].setMinimumWidth(113)
+    window.navigate(1)
+    window.resize(1200, 900)
+    window.show()
+    QTest.qWait(30)
+    try:
+        prepared = window.prepared.mapTo(window.analysis_parameter_fields, QPoint())
+        mapping = window.mapping.mapTo(window.analysis_parameter_fields, QPoint())
+        assert mapping.x() > prepared.x()
+        assert mapping.y() < prepared.y()
+        assert window.analysis_scroll.verticalScrollBar().maximum() == 0
+        for editor in (window.max_gap, window.min_segment):
+            assert editor.width() >= editor.minimumSizeHint().width()
+            assert editor.visibleRegion().boundingRect().contains(editor.rect())
+            for value in (editor.minimum(), editor.maximum()):
+                editor.setValue(value)
+                assert editor.value() == value
+                assert editor.lineEdit().width() >= editor.fontMetrics().horizontalAdvance(
+                    editor.text()
+                )
+    finally:
+        window.close()
+        app.processEvents()
 
 
 @pytest.mark.parametrize("style", ["Fusion", "Windows"])

@@ -255,6 +255,9 @@ class AnalysisPage:
             ("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),
             ("Minimum section duration", self.min_segment, DEFAULT_MIN_SECTION_SECONDS),
         ):
+            # Native preferred widths can exceed minimumSizeHint. Allow that
+            # space to be shared before stacking the two parameter columns.
+            widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             widget.setRange(0.01, 86400)
             widget.setValue(default)
             widget.setSuffix(" s")

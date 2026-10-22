@@ -60,6 +60,10 @@ and unexpected files at the top of the app folder.
 
 ## Quality gates and implementation conventions
 
+Both Windows workflows run the Analyze layout regression under the default and
+classic Windows styles before the full test suite. This catches native control
+sizing failures early; the complete suite and coverage floor still run afterward.
+
 Both Windows workflows enforce the pinned Ruff formatter, error and import
 checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
 modernization (`UP`) rules. Functions are limited to McCabe complexity 10

@@ -29,6 +29,13 @@ jobs:
           python -m ruff format --check src scripts tests desktop.py
       - name: Check service, controller and UI types
         run: python -m mypy
+      - name: Check native Analyze layout before the full suite
+        run: >-
+          python -m pytest -q tests/test_workspace.py
+          -k test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes
+          --junitxml=test-reports/analyze-layout.xml
+        env:
+          QT_QPA_PLATFORM: offscreen
       - name: Run app and scientific equivalence tests
         run: >-
           python -m pytest --junitxml=test-results.xml
