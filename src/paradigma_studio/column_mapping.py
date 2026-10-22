@@ -141,26 +141,49 @@ class ColumnMapping:
         }
 
     def suggestions(self) -> dict[str, str]:
-        if not self.schemas:
-            return {}
-        common = set.intersection(*(set(columns) for columns in self.schemas.values()))
         used = set(self.choices.values()) | set(self.extra)
-        suggested = {}
-        for target, source in self.choices.items():
-            if source is not None:
+        return {
+            target: source
+            for target, source in self.automatic_choices().items()
+            if source is not None and self.choices[target] is None and source not in used
+        }
+
+    def automatic_choices(self) -> dict[str, str | None]:
+        """Match headers independently of manual choices; exact names take precedence."""
+        if not self.schemas:
+            return dict.fromkeys(SIGNALS)
+        common = set.intersection(*(set(columns) for columns in self.schemas.values()))
+        choices: dict[str, str | None] = {}
+        for target in SIGNALS:
+            if target in common:
+                choices[target] = target
                 continue
             names = {name.casefold() for name in (*ALIASES[target], target)}
-            matches = [column for column in common - used if column.casefold() in names]
-            if len(matches) == 1:
-                suggested[target] = matches[0]
-                used.add(matches[0])
-        return suggested
+            matches = [column for column in common if column.casefold() in names]
+            choices[target] = matches[0] if len(matches) == 1 else None
+        return choices
 
-    def auto_match(self, targets: Iterable[str] = SIGNALS) -> None:
-        allowed = set(targets)
-        for target, source in self.suggestions().items():
-            if target in allowed:
-                self.choose(target, source)
+    def _unrelated_mappings(self, choices: Mapping[str, str | None]) -> dict[str, str]:
+        used = set(choices.values())
+        return {
+            source: target
+            for source, target in self.extra.items()
+            if source not in used and target not in SIGNALS
+        }
+
+    def matches_automatic(self) -> bool:
+        choices = self.automatic_choices()
+        return self.choices == choices and self.extra == self._unrelated_mappings(choices)
+
+    def auto_match(self) -> None:
+        self.choices = self.automatic_choices()
+        self.extra = self._unrelated_mappings(self.choices)
+        self._explicit = {
+            target
+            for target, source in self.choices.items()
+            if source is not None and source != target
+        }
+        self._identities.clear()
 
     def target_conflicts(self) -> dict[str, list[str]]:
         if self.source_conflicts():

@@ -98,6 +98,113 @@ def test_inline_warnings_name_affected_files_and_escape_untrusted_headers(editor
     assert all(warning.isHidden() for warning in editor._warnings.values())
 
 
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_aligned(window, style):
+    from PySide6.QtCore import QPoint, QRect
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    original_style = app.style().objectName()
+    stylesheet = window.styleSheet()
+    app.setStyle(style)
+    window.navigate(1)
+    window.resize(1450, 920)
+    editor = window.mapping
+    editor.set_recordings({"one": list(SIGNALS)}, {})
+    editor.set_modules(["pulse_rate"])
+    editor.optional_button.click()
+    selector = editor._combos["accelerometer_x"]
+    selector.setCurrentIndex(selector.findData("time"))
+    changes = QSignalSpy(editor.changed)
+    try:
+        for font_size, minimum_height in ((13, 0), (18, 0), (13, 0), (13, 44)):
+            count = changes.count()
+            window.setStyleSheet(stylesheet + f"\nQWidget {{ font-size: {font_size}px; }}")
+            editor._combos["time"].setMinimumHeight(minimum_height)
+            editor._inversions["accelerometer_x"].setMinimumHeight(minimum_height)
+            QTest.qWait(30)
+            assert not editor._warnings["time"].isHidden()
+            assert editor._warnings["green"].isHidden()
+            for row, target in enumerate(SIGNALS):
+                index = editor.table.model().index(row, 1)
+                cell = editor.table.cellWidget(row, 1)
+                selector = editor._combos[target]
+                assert cell.rect().contains(selector.geometry()), (style, font_size, target)
+                assert selector.height() >= selector.sizeHint().height()
+                rectangle = QRect(
+                    selector.mapTo(editor.table.viewport(), QPoint()), selector.size()
+                )
+                assert editor.table.visualRect(index).contains(rectangle)
+                assert editor.table.viewport().rect().contains(rectangle)
+                if target in editor._inversions:
+                    checkbox = editor._inversions[target]
+                    assert checkbox.parentWidget().rect().contains(checkbox.geometry())
+            assert len({selector.width() for selector in editor._combos.values()}) == 1
+            assert changes.count() == count  # Geometry changes do not change mapping choices.
+    finally:
+        app.setStyle(original_style)
+
+
+@pytest.mark.parametrize("activation", ["mouse", "keyboard"])
+def test_warning_activation_opens_current_plain_text_message_without_changing_mapping(
+    editor, activation
+):
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QMessageBox
+
+    editor.set_recordings({"one": ["time", "optical"]}, {"one": "<b>sensor.csv</b>"})
+    editor.set_modules(["pulse_rate"])
+    editor.set_mapping({"<missing>": "green"})
+    editor.show()
+    QApplication.processEvents()
+    changes = QSignalSpy(editor.changed)
+    messages = []
+
+    def read_dialog():
+        dialog = QApplication.activeModalWidget()
+        if isinstance(dialog, QMessageBox):
+            messages.append((dialog.windowTitle(), dialog.text(), dialog.textFormat()))
+            dialog.accept()
+
+    QTimer.singleShot(0, read_dialog)
+    warning = editor._warnings["green"]
+    if activation == "mouse":
+        QTest.mouseClick(warning, Qt.MouseButton.LeftButton)
+    else:
+        warning.setFocus()
+        QTest.keyClick(warning, Qt.Key.Key_Space)
+    assert messages == [
+        (
+            "Column warning: Green PPG",
+            "Missing in 1/1\nSelected column: <missing>\nMissing from:\n<b>sensor.csv</b>",
+            Qt.TextFormat.PlainText,
+        )
+    ]
+    assert changes.count() == 0
+    assert editor.mapping() == {"<missing>": "green"}
+
+
+def test_column_names_and_auto_match_availability_explain_current_choices(editor):
+    assert not editor.auto_button.isEnabled()
+    assert "Open recordings" in editor.auto_button.toolTip()
+    editor.set_recordings({"one": ["time", "green"]}, {})
+    editor.set_modules(["pulse_rate"])
+    assert editor._combos["time"].currentText() == "time"
+    assert editor._combos["green"].currentText() == "green"
+    assert not editor.auto_button.isEnabled()
+    assert "already matches" in editor.auto_button.toolTip()
+    editor.optional_button.click()
+    assert not editor.auto_button.isEnabled()
+    assert "already matches" in editor.auto_button.toolTip()
+    editor.set_recordings({"one": ["time", "green", "ax"]}, {})
+    assert editor.auto_button.isEnabled()
+    assert "Replace manual selections" in editor.auto_button.toolTip()
+    editor.auto_button.click()
+    assert editor.mapping() == {"ax": "accelerometer_x"}
+
+
 def test_suggestions_use_unambiguous_names_shared_by_every_file():
     value = ColumnMapping()
     value.set_recordings(
@@ -110,7 +217,58 @@ def test_suggestions_use_unambiguous_names_shared_by_every_file():
     assert value.choices["green"] is None
     value.choose("time", "device_clock")
     value.auto_match()
-    assert value.mapping()["device_clock"] == "time"
+    assert value.mapping() == {"timestamp": "time", "ax": "accelerometer_x"}
+    assert value.matches_automatic()
+
+
+@pytest.mark.parametrize(
+    "manual",
+    [
+        {"green": "time", "time": "green"},
+        {"device_clock": "time", "optical": "green", "ax": "accelerometer_y"},
+        {"ppg": "green", "green": "green"},
+        {"time": "original_clock", "device_clock": "time"},
+    ],
+)
+def test_auto_match_replaces_manual_assignments_and_preserves_only_unrelated_legacy_entries(manual):
+    value = ColumnMapping()
+    value.set_recordings({"one": ["time", "green", "ax", "ppg", "skin"]}, {})
+    value.set_mapping({**manual, "skin": "temperature_c"})
+    value.set_axis_inversions(["accelerometer_y", "gyroscope_z"])
+    assert not value.matches_automatic()
+    value.auto_match()
+    assert value.choices == {
+        signal: signal
+        if signal in {"time", "green"}
+        else "ax"
+        if signal == "accelerometer_x"
+        else None
+        for signal in SIGNALS
+    }
+    assert value.mapping() == {"skin": "temperature_c", "ax": "accelerometer_x"}
+    assert value.axis_inversions() == ["accelerometer_y", "gyroscope_z"]
+    assert value.matches_automatic()
+    value.auto_match()
+    assert value.matches_automatic()
+    assert value.mapping() == {"skin": "temperature_c", "ax": "accelerometer_x"}
+
+
+def test_auto_match_clears_manual_choices_without_guessing_ambiguous_or_file_specific_names(editor):
+    editor.set_recordings(
+        {
+            "one": ["timestamp", "device_time", "ppg", "optical"],
+            "two": ["timestamp", "device_time", "optical"],
+        },
+        {},
+    )
+    editor.set_mapping({"timestamp": "time", "optical": "green"})
+    assert editor.auto_button.isEnabled()
+    editor.auto_button.click()
+    assert editor.model.choices == dict.fromkeys(SIGNALS)
+    assert editor.mapping() == {}
+    assert not editor.auto_button.isEnabled()
+    assert not editor._warnings["time"].isHidden()
+    assert not editor._warnings["accelerometer_x"].isHidden()
 
 
 def test_ambiguous_aliases_are_not_guessed():
@@ -223,7 +381,7 @@ def test_dropdowns_emit_one_change_and_module_changes_preserve_choices(editor):
     assert changes.count() == 2
 
 
-def test_missing_saved_columns_remain_selectable_and_batch_details_are_visible(editor):
+def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_options(editor):
     editor.set_mapping({"clock": "time", "ppg": "green", "skin": "temperature"})
     editor.set_modules(["pulse_rate"])
     editor.set_recordings(
@@ -240,7 +398,38 @@ def test_missing_saved_columns_remain_selectable_and_batch_details_are_visible(e
     assert "second.csv: Missing Green PPG" in editor.details.text()
     assert "skin → temperature" in editor.details.text()
     editor.set_recordings({"third": ["new_time", "new_ppg"]}, {})
-    assert editor._combos["green"].currentText() == "ppg (not available)"
+    selector = editor._combos["green"]
+    assert selector.currentIndex() == -1
+    assert selector.placeholderText() == "Select a column…"
+    assert selector.findData("ppg") == -1
+    assert "Selected column: ppg" in editor._warnings["green"].accessibleDescription()
+    assert editor.mapping() == {"clock": "time", "ppg": "green", "skin": "temperature"}
+    changes = QSignalSpy(editor.changed)
+    selector.setCurrentIndex(selector.findData("new_ppg"))
+    assert editor.mapping() == {"clock": "time", "new_ppg": "green", "skin": "temperature"}
+    assert editor._warnings["green"].isHidden()
+    assert changes.count() == 1
+
+
+def test_dropdown_options_are_only_real_columns_in_the_loaded_recordings(editor):
+    assert all(source.count() == 0 for source in editor._combos.values())
+    editor.set_recordings({"one": ["time", "green"], "two": ["time", "optical"]}, {})
+    editor.set_mapping({"missing_clock": "time", "missing_ppg": "green"})
+    for source in editor._combos.values():
+        assert {source.itemData(index) for index in range(source.count())} == {
+            "time",
+            "green",
+            "optical",
+        }
+        assert all(
+            source.itemText(index) == source.itemData(index) for index in range(source.count())
+        )
+    assert editor._combos["time"].currentIndex() == -1
+    assert editor._combos["green"].currentIndex() == -1
+    assert editor.mapping() == {"missing_clock": "time", "missing_ppg": "green"}
+    editor.set_recordings({}, {})
+    assert all(source.count() == 0 for source in editor._combos.values())
+    assert editor.mapping() == {"missing_clock": "time", "missing_ppg": "green"}
 
 
 def test_auto_match_reset_and_inline_conflicts(editor):
@@ -261,16 +450,23 @@ def test_auto_match_reset_and_inline_conflicts(editor):
         assert "Assigned twice" in editor._warnings[target].toolTip()
 
 
-def test_auto_match_only_changes_visible_signals_and_reports_headers_as_plain_text(editor):
+def test_auto_match_includes_optional_signals_and_reports_headers_as_plain_text(editor):
     editor.set_recordings({"one": ["timestamp", "ppg", "ax"]}, {"one": "<b>sensor.csv</b>"})
     editor.set_modules(["pulse_rate"])
     editor.auto_button.click()
-    assert editor.mapping() == {"timestamp": "time", "ppg": "green"}
+    automatic = {"timestamp": "time", "ppg": "green", "ax": "accelerometer_x"}
+    assert editor.mapping() == automatic
     assert not editor.auto_button.isEnabled()
     editor.optional_button.click()
+    assert not editor.auto_button.isEnabled()
+    selector = editor._combos["time"]
+    selector.setCurrentIndex(selector.findData("ppg"))
     assert editor.auto_button.isEnabled()
+    changes = QSignalSpy(editor.changed)
     editor.auto_button.click()
-    assert editor.mapping() == {"timestamp": "time", "ppg": "green", "ax": "accelerometer_x"}
+    assert editor.mapping() == automatic
+    assert changes.count() == 1
+    assert not editor.auto_button.isEnabled()
     editor.set_modules(["gait"])
     assert "<b>sensor.csv</b>" in editor.details.text()
     from PySide6.QtCore import Qt
@@ -302,8 +498,10 @@ def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(
     window._run_state.selected_run = record
     window.use_run_parameters()
     assert window.mapping.mapping() == saved
-    assert window.mapping._combos["time"].currentData() == "clock"
-    assert window.mapping._combos["green"].currentData() == "ppg"
+    assert window.mapping.model.choices["time"] == "clock"
+    assert window.mapping.model.choices["green"] == "ppg"
+    assert window.mapping._combos["time"].currentIndex() == -1
+    assert window.mapping._combos["green"].currentIndex() == -1
     assert window.mapping.axis_inversions() == ["accelerometer_x", "gyroscope_z"]
     assert "auxiliary → temperature_c" in window.mapping.details.text()
     assert window._analysis_controller._analysis_settings(["pulse_rate"])["column_mapping"] == saved
@@ -421,7 +619,9 @@ def test_batch_choices_survive_inspection_module_changes_and_new_loads(window, m
     window.loaded(("other.csv", pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0]})))
     wait_for_previews(window)
     assert window.mapping.mapping() == selected
-    assert window.mapping._combos["time"].currentText() == "clock (not available)"
+    assert window.mapping._combos["time"].currentIndex() == -1
+    assert window.mapping._combos["time"].findData("clock") == -1
+    assert "Selected column: clock" in window.mapping._warnings["time"].accessibleDescription()
     window.mapping.reset_button.click()
     assert window.mapping.mapping() == {}
     assert window.mapping.summary.text().startswith("Compatible with 1 of 1")

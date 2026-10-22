@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QPersistentModelIndex, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -12,10 +12,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QSizePolicy,
     QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -24,6 +28,18 @@ from ..axis_mapping import IMU_COLUMNS
 from ..column_mapping import SIGNALS, ColumnMapping, required_signals
 from ..theme import light_palette, tooltip_text
 from ..widgets import button, combo, label
+
+
+class _CellControls(QStyledItemDelegate):
+    """Give embedded controls the whole cell; their layouts own the padding."""
+
+    def updateEditorGeometry(
+        self,
+        editor: QWidget,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
 
 
 class ColumnMappingEditor(QWidget):
@@ -38,8 +54,9 @@ class ColumnMappingEditor(QWidget):
         self._expanded = False
         self._combos: dict[str, QComboBox] = {}
         self._labels: dict[str, QTableWidgetItem] = {}
-        self._warnings: dict[str, QLabel] = {}
+        self._warnings: dict[str, QToolButton] = {}
         self._inversions: dict[str, QCheckBox] = {}
+        self._fitting_table = False
         content = QVBoxLayout(self)
         content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(6)
@@ -73,12 +90,16 @@ class ColumnMappingEditor(QWidget):
         for column in (0, 2):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        delegate = _CellControls(self.table)
+        for column in (1, 2):
+            self.table.setItemDelegateForColumn(column, delegate)
         for row, (target, title) in enumerate(SIGNALS.items()):
             self._labels[target] = QTableWidgetItem(title)
             self.table.setItem(row, 0, self._labels[target])
             source = combo()
             source.setMinimumWidth(80)
             source.setMinimumContentsLength(8)
+            source.setPlaceholderText("Select a column…")
             source.setSizeAdjustPolicy(
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )
@@ -91,17 +112,22 @@ class ColumnMappingEditor(QWidget):
     def _source_field(self, target: str, source: QComboBox) -> QWidget:
         field = QWidget()
         layout = QHBoxLayout(field)
-        layout.setContentsMargins(0, 0, 4, 0)
+        layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(4)
         layout.addWidget(source, 1)
-        warning = QLabel()
-        warning.setPixmap(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning).pixmap(16, 16)
-        )
+        warning = QToolButton()
+        warning.setAutoRaise(True)
+        warning.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning))
+        warning.setFixedWidth(24)
+        policy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        policy.setRetainSizeWhenHidden(True)
+        warning.setSizePolicy(policy)
         warning.setAccessibleName(f"Column warning: {SIGNALS[target]}")
+        warning.clicked.connect(lambda: self._show_warning(target))
         warning.hide()
         self._warnings[target] = warning
         layout.addWidget(warning)
+        field.installEventFilter(self)
         return field
 
     def _axis_field(self, row: int, target: str) -> None:
@@ -112,7 +138,7 @@ class ColumnMappingEditor(QWidget):
             return
         field = QWidget()
         layout = QHBoxLayout(field)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 4, 0, 4)
         checkbox = QCheckBox()
         checkbox.setPalette(light_palette())
         checkbox.setAccessibleName(f"Invert {SIGNALS[target]}")
@@ -122,7 +148,16 @@ class ColumnMappingEditor(QWidget):
         checkbox.toggled.connect(lambda checked: self.model.invert(target, checked))
         self._inversions[target] = checkbox
         layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignCenter)
+        field.installEventFilter(self)
         self.table.setCellWidget(row, 2, field)
+
+    def _show_warning(self, target: str) -> None:
+        warning = self._warnings[target]
+        dialog = QMessageBox(QMessageBox.Icon.Warning, warning.accessibleName(), "", parent=self)
+        dialog.setTextFormat(Qt.TextFormat.PlainText)
+        dialog.setText(warning.accessibleDescription())
+        dialog.exec()
+        dialog.deleteLater()
 
     def _build_actions(self) -> QHBoxLayout:
         actions = QHBoxLayout()
@@ -178,7 +213,7 @@ class ColumnMappingEditor(QWidget):
         self._refresh_status()
 
     def auto_match(self) -> None:
-        self.model.auto_match(SIGNALS if self._expanded else required_signals(self._modules))
+        self.model.auto_match()
         self._refresh()
         self.changed.emit()
 
@@ -199,16 +234,14 @@ class ColumnMappingEditor(QWidget):
             selected = self.model.choices[target]
             source.blockSignals(True)
             source.clear()
-            standard = target if target in columns and selected is not None else None
-            source.addItem(
-                f"Standard name ({target})" if standard else "Select a column…", standard
+            ordered = (
+                [target, *(column for column in columns if column != target)]
+                if target in columns
+                else columns
             )
-            for column in columns:
-                if column != standard:
-                    source.addItem(column, column)
-            if selected is not None and selected not in columns:
-                source.addItem(f"{selected} (not available)", selected)
-            source.setCurrentIndex(max(0, source.findData(selected)))
+            for column in ordered:
+                source.addItem(column, column)
+            source.setCurrentIndex(source.findData(selected))
             source.blockSignals(False)
         self._refresh_status()
 
@@ -228,6 +261,7 @@ class ColumnMappingEditor(QWidget):
             warning = self._warnings[target]
             text = tooltip_text(f"{status}\n{tooltip}")
             warning.setToolTip(text)
+            warning.setAccessibleDescription(f"{status}\n{tooltip}")
             warning.setVisible(
                 bool(total)
                 and (
@@ -250,10 +284,21 @@ class ColumnMappingEditor(QWidget):
         self.details.setText("\n".join(lines))
         self.details_button.setVisible(bool(lines))
         self.details.setVisible(bool(lines) and self.details_button.isChecked())
-        visible = set(SIGNALS) if self._expanded else required
-        self.auto_button.setEnabled(bool(suggestions.keys() & visible))
+        self.auto_button.setEnabled(not self.model.matches_automatic())
+        self.auto_button.setToolTip(tooltip_text(self._auto_match_help()))
         self.optional_button.setVisible(len(required) < len(SIGNALS))
         self._fit_table()
+
+    def _auto_match_help(self) -> str:
+        if not self.auto_button.isEnabled():
+            return "Every signal already matches the automatic result." + (
+                " Open recordings to match their columns." if not self.model.schemas else ""
+            )
+        return (
+            "Match all signals, including optional ones, using column names shared by every recording. "
+            "Replace manual selections and clear fields without an unambiguous match. "
+            "Axis inversion choices are kept."
+        )
 
     def _status(
         self,
@@ -282,7 +327,10 @@ class ColumnMappingEditor(QWidget):
             if source not in columns
         ]
         if missing:
-            return f"Missing in {len(missing)}/{total}", "Missing from:\n" + "\n".join(missing)
+            return (
+                f"Missing in {len(missing)}/{total}",
+                f"Selected column: {source}\nMissing from:\n" + "\n".join(missing),
+            )
         return ("Available", source) if total else ("No recording", source)
 
     def _toggle_optional(self) -> None:
@@ -299,13 +347,34 @@ class ColumnMappingEditor(QWidget):
         )
 
     def _fit_table(self) -> None:
-        controls = (*self._combos.values(), *self._inversions.values())
+        if self._fitting_table:
+            return
+        self._fitting_table = True
+        try:
+            self._size_table()
+        finally:
+            self._fitting_table = False
+
+    def _size_table(self) -> None:
+        controls = [
+            cell
+            for row in range(self.table.rowCount())
+            for column in (1, 2)
+            if (cell := self.table.cellWidget(row, column)) is not None
+        ]
+        for cell in controls:
+            for control in cell.findChildren(QWidget):
+                control.ensurePolished()
         row_height = max(
             30,
-            max(max(control.sizeHint().height(), control.minimumHeight()) for control in controls)
-            + 4,
+            max(
+                max(cell.sizeHint().height(), cell.minimumSizeHint().height(), cell.minimumHeight())
+                for cell in controls
+            ),
         )
         self.table.verticalHeader().setDefaultSectionSize(row_height)
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, row_height)
         count = sum(not self.table.isRowHidden(row) for row in range(self.table.rowCount()))
         self.table.setFixedHeight(
             self.table.horizontalHeader().sizeHint().height()
@@ -314,6 +383,11 @@ class ColumnMappingEditor(QWidget):
         )
         header = self.table.horizontalHeader()
         self.table.setMinimumWidth(max(470, header.sectionSize(0) + header.sectionSize(2) + 128))
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.LayoutRequest and hasattr(self, "summary"):
+            self._fit_table()
+        return super().eventFilter(watched, event)
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)

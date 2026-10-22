@@ -83,17 +83,22 @@ FIELD_HELP = {
         "prepare_data.py",
     ),
     "Signal columns": (
-        "Choose the column in your files for each required signal. Standard names are recognized "
-        "automatically. Auto-match fills unambiguous suggestions such as timestamp, ax, gyr_x or ppg; "
-        "existing choices are preserved. Show optional signals exposes other channels. "
+        "Choose the column in your files for each required signal. Exact ParaDigMa names are recognized "
+        "automatically. Auto-match recomputes all signals, including optional ones, from names shared "
+        "by every recording. Exact names take precedence over unique aliases such as timestamp, ax, "
+        "gyr_x or ppg. It replaces manual selections, clears fields without an unambiguous match and "
+        "keeps axis inversions. The button is disabled only when all fields already match. "
+        "Show optional signals exposes other channels. "
         "Compare your device manual's X/Y/Z arrows with ParaDigMa's reference figure below. "
         "Select the source column that should become each ParaDigMa axis; tick Invert axis when "
         "its arrow points in the opposite direction. For example, choose sensor Y for Accelerometer X "
         "and tick Invert axis: toolbox X = minus sensor Y. Set accelerometer and gyroscope directions "
         "independently; use each source column once. Set Watch side separately. "
-        "One mapping and set of inversions applies to all loaded recordings. Warning icons and "
+        "One mapping and set of inversions applies to all loaded recordings. Click warning icons to "
+        "read their messages. Warning icons and "
         "Show details identify missing signals and conflicting names. Reset restores standard-name "
-        "matching and clears inversions. Saved choices remain even when a source column is unavailable. "
+        "matching and clears inversions. Dropdowns list only loaded columns; missing saved choices "
+        "remain in settings and are named in their warning until replaced. "
         "Already prepared skips inversions, while column mapping still applies. Missing signals remain "
         "subject to the existing per-recording and per-module analysis validation.",
         "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html",

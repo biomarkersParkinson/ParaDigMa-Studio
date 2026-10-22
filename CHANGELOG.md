@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Keep Signal columns dropdowns fully inside their rows and aligned when warnings
+  appear. Make warning icons clickable, show actual column names and explain
+  Auto-match availability. Auto-match now recomputes all assignments, including
+  optional signals, replacing manual choices while retaining axis inversions;
+  disable it only when every assignment already matches the automatic result.
+  List only loaded columns in dropdowns, keeping missing saved choices in settings
+  and identifying them in warnings until a replacement is selected.
+
 - Make Analyze's gap/duration step buttons wider with clear scalable chevrons,
   and display acceleration units as m/s² while preserving saved and pipeline
   unit identifiers.

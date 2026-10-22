@@ -76,10 +76,16 @@ and missing-sample checks during preparation.
 - Set the actual wrist as watch side.
   Watch-side inversion happens separately in official pipeline preprocessing.
 - In **Signal columns**, choose a source column from the dropdown for each
-  required signal. Standard names are recognized automatically. **Auto-match**
-  fills visible signals with unambiguous familiar names shared by every loaded recording, such as
-  `timestamp`, `gyr_x` and `ppg`, while retaining existing choices. Ambiguous
-  names need a manual selection. **Show optional signals** exposes other channels;
+  required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
+  are recognized automatically and shown by their actual names. **Auto-match**
+  recomputes all signal assignments, including optional signals, from names shared
+  by every loaded recording. Exact ParaDigMa names take precedence, followed by
+  unambiguous familiar names such as `timestamp`, `gyr_x` and `ppg`.
+  It replaces manual selections and clears assignments without a confident match;
+  ambiguous names need a manual selection afterwards. Axis inversions are kept.
+  Auto-match is disabled only when every signal already matches its automatic
+  result; hover over the button for an explanation.
+  **Show optional signals** exposes other channels;
   selecting another module preserves all choices.
   For axis swaps, choose the source column that should become each toolbox axis.
   For example, select the device's Y column for **Accelerometer X** and its X column
@@ -90,11 +96,13 @@ and missing-sample checks during preparation.
   The compatibility summary covers every loaded recording. **Show details**
   identifies missing signals and conflicting names; warning icons beside affected
   dropdowns explain reused source columns and files missing a selected column.
+  Click a warning icon to read its full message, or focus it and press Space.
   Valid rows need no status indicator. Existing per-recording and
   per-module analysis validation still determines which workflows can run.
   **Reset** clears custom choices and inversions and restores standard-name matching. A new
-  load retains explicit choices and shows unavailable columns so they can be
-  corrected. **Use parameters** restores saved mappings, including additional
+  load retains explicit choices. Dropdowns list only columns present in the loaded
+  recordings; a missing saved choice shows the selection prompt and its warning
+  names the missing column so it can be corrected. **Use parameters** restores saved mappings, including additional
   legacy mappings shown in Details. Older saved global axis permutations are
   translated into equivalent column choices and inversions. Saved runs and exports
   retain the source-to-toolbox mapping dictionary and record inverted target channels
