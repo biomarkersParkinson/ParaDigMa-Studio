@@ -235,12 +235,10 @@ def _verify_analysis_controls(window):
         raise RuntimeError("Analysis parameters are not integrated into Analyze")
     if not window.pages.widget(2).isAncestorOf(window.y_column):
         raise RuntimeError("Result controls are not integrated into Results")
-    if (
-        window.gaps.isChecked()
-        or window.max_gap.value() != 1.5
-        or window.min_segment.value() != 1.5
-    ):
-        raise RuntimeError("Gap controls differ from the pinned official defaults")
+    if not window.gaps.isChecked() or not window.drop_missing.isChecked():
+        raise RuntimeError("Desktop gap splitting and missing-sample exclusion must default to on")
+    if window.max_gap.value() != 1.5 or window.min_segment.value() != 1.5:
+        raise RuntimeError("Gap thresholds differ from the pinned official defaults")
     for title, spin in (
         ("Maximum gap", window.max_gap),
         ("Minimum section duration", window.min_segment),
@@ -707,6 +705,7 @@ def _successful_smoke_report(
         "tremor_power_log_scale_verified": True,
         "aggregation_tables_verified": True,
         "official_gap_defaults_verified": True,
+        "desktop_preparation_defaults_verified": True,
         "absolute_recording_clock_verified": True,
         "estimated_gait_positions_verified": True,
         "linked_result_selection_verified": True,

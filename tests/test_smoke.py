@@ -41,6 +41,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["tremor_power_log_scale_verified"]
     assert data["aggregation_tables_verified"]
     assert data["official_gap_defaults_verified"]
+    assert data["desktop_preparation_defaults_verified"]
     assert data["absolute_recording_clock_verified"]
     assert data["estimated_gait_positions_verified"]
     assert data["linked_result_selection_verified"]

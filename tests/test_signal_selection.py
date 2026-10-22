@@ -18,14 +18,19 @@ def selections(**sources):
 
 
 @pytest.mark.parametrize("prepared", [False, True])
-def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(window, prepared):
+@pytest.mark.parametrize("split_by_gaps", [False, True])
+def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(
+    window, prepared, split_by_gaps
+):
+    # Keep the selected 4 Hz signal above the default 1.5-second section minimum.
+    samples = np.arange(8, dtype=float)
     frame = pd.DataFrame(
         {
-            "time": [100.0, 200.0, 300.0],
-            "device_clock": [0.0, 0.25, 0.5],
-            "green": [np.nan, np.nan, np.nan],
-            "optical": [2.0, 3.0, 4.0],
-            "temperature": [30.0, 31.0, 32.0],
+            "time": 100 * (samples + 1),
+            "device_clock": samples / 4,
+            "green": np.nan,
+            "optical": samples + 2,
+            "temperature": samples + 30,
         }
     )
     original = frame.copy(deep=True)
@@ -37,13 +42,18 @@ def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(wind
         selector = window.mapping._combos[target]
         selector.setCurrentIndex(selector.findData(source))
         assert window.mapping._warnings[target].isHidden()
+    window.gaps.setChecked(split_by_gaps)
     window.prepared.setChecked(prepared)
     settings = window._analysis_controller._analysis_settings(["pulse_rate"])
+    assert settings["split_by_gaps"] == (split_by_gaps and not prepared)
     assert settings["signal_columns"] == selections(time="device_clock", green="optical")
     assert window.mapping.model.validate(["pulse_rate"]).compatible == 1
     actual, exclusion, count = core._prepare_recording(
         frame, ["pulse_rate"], settings["column_mapping"], None, False, settings
     )
+    if settings["split_by_gaps"]:
+        assert set(actual) == {"segment_1"}
+        actual = actual["segment_1"].drop(columns="data_segment_nr")
     expected = pd.DataFrame(
         {"time": frame.device_clock, "green": frame.optical, "temperature": frame.temperature}
     )
@@ -170,10 +180,14 @@ def test_official_pipeline_receives_only_selected_signals_without_studio_setting
     assert result["errors"] == [] and calls == [True]
 
 
-def test_saved_selections_restore_atomically_and_keep_not_included(window, tmp_path, synthetic_imu):
+@pytest.mark.parametrize("split_by_gaps", [False, True])
+def test_saved_selections_restore_atomically_and_keep_not_included(
+    window, tmp_path, synthetic_imu, split_by_gaps
+):
     frame = synthetic_imu.assign(device_clock=synthetic_imu.time, device_gyro=2.0, green=np.nan)
     window.loaded(("sensor.csv", frame))
     window.set_modules(["tremor"])
+    window.gaps.setChecked(split_by_gaps)
     for target, source in (
         ("time", "device_clock"),
         ("gyroscope_x", "device_gyro"),
@@ -191,6 +205,7 @@ def test_saved_selections_restore_atomically_and_keep_not_included(window, tmp_p
     records, issues = history.load()
     assert issues == [] and records[0]["settings"]["signal_columns"] == settings["signal_columns"]
     window.mapping.auto_match()
+    window.gaps.setChecked(not split_by_gaps)
     changes = QSignalSpy(window.mapping.changed)
     window._run_state.selected_run = record
     window.use_run_parameters()
@@ -198,9 +213,13 @@ def test_saved_selections_restore_atomically_and_keep_not_included(window, tmp_p
     assert window.mapping.signal_columns() == settings["signal_columns"]
     assert window.mapping._combos["green"].currentText() == "Not included"
     restored = window._analysis_controller._analysis_settings(["tremor"])
+    assert restored["split_by_gaps"] == split_by_gaps
     actual, _, _ = core._prepare_recording(
         frame, ["tremor"], restored["column_mapping"], None, False, restored
     )
+    if split_by_gaps:
+        assert set(actual) == {"segment_1"}
+        actual = actual["segment_1"]
     assert "green" not in actual
     np.testing.assert_array_equal(actual.gyroscope_x, frame.device_gyro)
     np.testing.assert_array_equal(actual.time, frame.device_clock)
