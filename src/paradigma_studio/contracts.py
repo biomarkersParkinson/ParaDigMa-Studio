@@ -53,6 +53,7 @@ class RunOutput(TypedDict):
     dataset: NotRequired[str]
     local: NotRequired[bool]
     complete: NotRequired[bool]
+    sha256: NotRequired[str]
     selected: NotRequired[list[str]]
     selected_rows: NotRequired[int]
     selection: NotRequired[dict[str, JSONValue]]

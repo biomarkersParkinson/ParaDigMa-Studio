@@ -260,6 +260,7 @@ def test_export_failure_logs_stack_with_a_completed_run_selected(
     window._result_state.results = {"quantifications": {"tremor": frame}}
     window._run_state.selected_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
     window._run_state.selected_run["status"] = "Completed"
+    window._run_state.current_run = window._run_state.selected_run
     monkeypatch.setattr(window, "selected_export_table", lambda: ("quantifications/tremor", frame))
     monkeypatch.setattr(
         desktop.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / "export.json"), "")

@@ -1,5 +1,6 @@
 """Complete local snapshots, reopening, deletion and safe unsaved-run closing."""
 
+import hashlib
 import json
 import logging
 import multiprocessing
@@ -61,8 +62,12 @@ def test_isolated_result_reader_retains_exact_values_and_cleans_private_files(
     frame = tremor_outputs["quantifications"]["tremor"]
     frame["precision"] = [np.nextafter(1.0, 2.0), -0.0, 1e-200]
     path = tmp_path / "saved.json"
-    provenance = {"source": "missing.pkl", "settings": {"pipelines": ["tremor"]}}
-    export_results(path, tremor_outputs, provenance)
+    provenance = {
+        "source": "missing.pkl",
+        "settings": {"pipelines": ["tremor"]},
+        "run_id": "1" * 32,
+    }
+    checksum = export_results(path, tremor_outputs, provenance)
     original = path.read_bytes()
     expected_provenance, expected = load_result_export(path)
     temporary = result_reopening.tempfile.TemporaryDirectory
@@ -73,7 +78,11 @@ def test_isolated_result_reader_retains_exact_values_and_cleans_private_files(
     )
     children = {child.pid for child in multiprocessing.active_children()}
     restored_provenance, restored = load_saved_results(
-        path, logging.getLogger(__name__), isolate_bytes=0
+        path,
+        logging.getLogger(__name__),
+        run_id=provenance["run_id"],
+        checksum=checksum,
+        isolate_bytes=0,
     )
     assert restored_provenance == expected_provenance
     for stage in ("classifications", "quantifications"):
@@ -105,7 +114,13 @@ def test_isolated_result_reader_rejects_unsafe_input_and_retains_child_traceback
         path.write_bytes(pickle.dumps(Payload()))
     children = {child.pid for child in multiprocessing.active_children()}
     with caplog.at_level(logging.INFO), pytest.raises(ValueError):
-        load_saved_results(path, logging.getLogger(__name__), isolate_bytes=0)
+        load_saved_results(
+            path,
+            logging.getLogger(__name__),
+            run_id="1" * 32,
+            checksum=hashlib.sha256(path.read_bytes()).hexdigest(),
+            isolate_bytes=0,
+        )
     assert "Traceback (most recent call last)" in caplog.text
     assert ("JSONDecodeError" if kind == "json" else "UnicodeDecodeError") in caplog.text
     assert not marker.exists()
@@ -136,7 +151,13 @@ def test_result_reader_recovers_from_child_start_exit_and_pipe_failure(
     )
     monkeypatch.setattr(result_reopening.multiprocessing, "get_context", lambda method: context)
     with pytest.raises((OSError, RuntimeError)):
-        load_saved_results(path, logging.getLogger(__name__), isolate_bytes=0)
+        load_saved_results(
+            path,
+            logging.getLogger(__name__),
+            run_id="1" * 32,
+            checksum=hashlib.sha256(path.read_bytes()).hexdigest(),
+            isolate_bytes=0,
+        )
     receiver.close.assert_called()
     sender.close.assert_called()
     if failure != "start":
@@ -153,14 +174,18 @@ def test_reopening_prepares_off_thread_keeps_events_running_and_defers_graphs(
 
     record = new_run("missing-sensor.pkl", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
-    provenance = {"source": record["source"], "settings": record["settings"]}
+    provenance = {
+        "source": record["source"],
+        "settings": record["settings"],
+        "run_id": record["id"],
+    }
     original = tremor_outputs["quantifications"]["tremor"].copy(deep=True)
     if cached:
         record.update(_results=tremor_outputs, _provenance=provenance)
     else:
         path = tmp_path / "saved.json"
-        export_results(path, tremor_outputs, provenance)
-        record["outputs"] = [{"kind": "JSON", "path": str(path), "local": True}]
+        checksum = export_results(path, tremor_outputs, provenance)
+        record["outputs"] = [{"kind": "JSON", "path": str(path), "local": True, "sha256": checksum}]
     window._run_state.runs = [record]
     window.refresh_runs()
     window.navigate(3)
@@ -326,8 +351,8 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
         },
     }
     path = tmp_path / "user-export.json"
-    export_results(path, changed, window._result_state.provenance)
-    window.record_output(path, "JSON")
+    checksum = export_results(path, changed, window._result_state.provenance)
+    window.record_output(path, "JSON", checksum=checksum)
     shown = window.run_table.model().frame.iloc[0]
     assert shown["Saved"] == "Yes" and shown["Exports"] == 1
     assert str(path) in window.run_outputs.toPlainText()
@@ -526,7 +551,7 @@ def test_failed_bulk_save_preserves_other_snapshot_and_keeps_unsaved_run_open(
     by_id = {record["id"]: record for record in persisted}
     assert by_id[saved["id"]]["outputs"] == saved["outputs"]
     assert by_id[failed["id"]]["outputs"] == []
-    assert not (window.history.directory / "results" / f"{failed['id']}.json").exists()
+    assert not list((window.history.directory / "results").glob(f"{failed['id']}-*.json"))
     assert all(Path(record["source"]).read_text() == "original recording" for record in records)
     assert "Unexpected snapshot failure" in window.notice.text()
     assert Path(failed["source"]).name in window.notice.text()
@@ -577,13 +602,22 @@ def test_json_exports_remain_separate_from_local_saved_status(
     finish_job(window)
     assert window.unsaved_result_runs() == [record]
     assert record["outputs"][-1]["complete"] == complete
+    output = record["outputs"][-1]
+    path = Path(output["path"])
+    assert output["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert load_result_export(path)[0]["run_id"] == record["id"]
+    persisted, issues = window.history.load()
+    assert not issues and persisted[0]["outputs"] == record["outputs"]
     shown = window.run_table.model().frame.iloc[0]
     assert shown["Saved"] == "No" and shown["Exports"] == 1
 
 
-def test_local_save_does_not_overwrite_original_recordings(window, tremor_outputs, tmp_path):
+def test_local_save_does_not_overwrite_original_recordings(
+    window, tremor_outputs, tmp_path, monkeypatch
+):
     record = analyzed_run(window, tremor_outputs, tmp_path)
-    target = window.history.directory / "results" / f"{record['id']}.json"
+    monkeypatch.setattr("paradigma_studio.history.uuid4", lambda: SimpleNamespace(hex="b" * 32))
+    target = window.history.directory / "results" / f"{record['id']}-{'b' * 32}.json"
     target.parent.mkdir()
     target.write_text("original sensor file")
     with pytest.raises(ValueError, match="overwrite"):

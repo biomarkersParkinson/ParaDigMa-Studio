@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .contracts import AnalysisResults, PathInput, Provenance
-from .history import load_result_export
+from .history import load_verified_result_export
+from .result_integrity import validate_checksum, validate_run_id
 
 if TYPE_CHECKING:
     import logging
@@ -20,9 +21,11 @@ if TYPE_CHECKING:
 ISOLATE_JSON_BYTES = 8 * 1024 * 1024
 
 
-def _read_export_child(path: str, output: str, status: Connection) -> None:
+def _read_export_child(
+    path: str, output: str, status: Connection, run_id: str, checksum: str
+) -> None:
     try:
-        value = load_result_export(path)
+        value = load_verified_result_export(path, run_id, checksum)
         # The parent owns this private transfer file; user files remain JSON.
         with open(output, "wb") as stream:
             pickle.dump(value, stream, protocol=pickle.HIGHEST_PROTOCOL)
@@ -36,18 +39,27 @@ def _read_export_child(path: str, output: str, status: Connection) -> None:
 
 
 def load_saved_results(
-    path: PathInput, logger: logging.Logger, *, isolate_bytes: int = ISOLATE_JSON_BYTES
+    path: PathInput,
+    logger: logging.Logger,
+    *,
+    run_id: str,
+    checksum: object,
+    isolate_bytes: int = ISOLATE_JSON_BYTES,
 ) -> tuple[Provenance, AnalysisResults]:
-    """Use the unchanged reader, isolating large C JSON-decoder calls from Qt."""
+    """Verify every disk reopen, isolating large C JSON-decoder calls from Qt."""
+    validate_run_id(run_id)
+    checksum = validate_checksum(checksum)
     path = Path(path)
     if path.stat().st_size < isolate_bytes:
-        return load_result_export(path)
+        return load_verified_result_export(path, run_id, checksum)
     context = multiprocessing.get_context("spawn")
     with tempfile.TemporaryDirectory(prefix="paradigma-result-open-") as directory:
         output = Path(directory) / "results.pkl"
         receiver, sender = context.Pipe(duplex=False)
         process = context.Process(
-            target=_read_export_child, args=(str(path), str(output), sender), daemon=True
+            target=_read_export_child,
+            args=(str(path), str(output), sender, run_id, checksum),
+            daemon=True,
         )
         try:
             process.start()

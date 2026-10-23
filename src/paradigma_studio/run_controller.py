@@ -22,6 +22,7 @@ from .history import (
     run_status,
     saved_result_output,
 )
+from .result_integrity import provenance_for_run, validate_checksum
 from .result_preparation import PreparedResults
 from .result_reopening import load_saved_results
 from .theme import STYLESHEET, light_palette
@@ -446,8 +447,11 @@ class RunController:
         def read(logger):
             values, origin = cached, provenance
             if values is None:
-                origin, values = load_saved_results(output["path"], logger)
-                origin = origin or provenance
+                origin, values = load_saved_results(
+                    output["path"], logger, run_id=run_id, checksum=output.get("sha256")
+                )
+            else:
+                origin = provenance_for_run(origin, run_id)
             return run_id, self.callbacks.prepare_results(values, origin, source_frame)
 
         self.callbacks.start_job(read, self._restore_prepared_run)
@@ -455,6 +459,7 @@ class RunController:
     @staticmethod
     def _run_provenance(record: RunRecord) -> Provenance:
         return {
+            "run_id": record["id"],
             "source": record["source"],
             "settings": record["settings"],
             "paradigma_version": record["paradigma_version"],
@@ -471,8 +476,7 @@ class RunController:
     def reopen_output(record: RunRecord) -> RunOutput | None:
         if run_is_saved(record):
             return saved_result_output(record)
-        # Keep reopening complete legacy exports possible, but distinguish them
-        # from local saves and never treat a known partial export as a full run.
+        # Complete exports are candidates; the reader checks identity and hash.
         return next(
             (
                 output
@@ -490,16 +494,21 @@ class RunController:
 
     def _restore_record(self, run_id, provenance, results):
         record = next(record for record in self.state.runs if record["id"] == run_id)
+        provenance = provenance_for_run(provenance or self._run_provenance(record), run_id)
         self.state.current_run = record
-        self.results.provenance = provenance or self._run_provenance(record)
+        self.results.provenance = provenance
         self.results.result_source_frame = record.get("_frame")
         self.results.result_timeline = None
         record["_results"], record["_provenance"] = results, self.results.provenance
         record.setdefault("_unsaved_results", not run_is_saved(record))
         self.callbacks.show_notice("")
 
-    def record_output(self, path: PathInput, kind: OutputKind) -> None:
+    def record_output(
+        self, path: PathInput, kind: OutputKind, *, checksum: str | None = None
+    ) -> None:
         if self.state.current_run is not None:
+            if kind == "JSON":
+                validate_checksum(checksum)
             name, frame = self.callbacks.selected_export_table()
             self.state.current_run["outputs"].append(
                 {
@@ -509,6 +518,10 @@ class RunController:
                     "dataset": name if kind == "CSV" else "all results",
                 }
             )
+            if kind == "JSON":
+                self.state.current_run["outputs"][-1].update(
+                    sha256=validate_checksum(checksum), complete=True
+                )
             if kind == "CSV":
                 aggregation = name.startswith("aggregations/")
                 self.state.current_run["outputs"][-1].update(

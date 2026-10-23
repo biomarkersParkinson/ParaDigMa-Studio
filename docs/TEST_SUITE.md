@@ -38,7 +38,8 @@ trigger and expected behavior still apply.
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, exact JSON precision, bounded batches, source integrity, atomic failures and background completion | `test_result_exports.py` |
 | Complete local snapshots, responsive background reopening, isolated-reader cleanup/failure, exact restored values, deferred graphs, unsaved-close warnings and mixed-success bulk saves | `test_saved_results.py` |
-| Run history, validated record/output metadata, legacy normalization/reopening, transient-cache exclusion, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
+| Run history, validated record/output metadata, transient-cache exclusion, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
+| Run identity and exact-byte checksums, rejected replacements/edits, isolated verification, unchanged displayed results on failure and snapshot/history consistency | `test_result_integrity.py`; export receipts in `test_saved_results.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |

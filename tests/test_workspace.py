@@ -1,5 +1,6 @@
 """Behavioral checks for navigation, linked exploration and previous runs."""
 
+import hashlib
 import json
 from types import SimpleNamespace
 
@@ -653,6 +654,10 @@ def test_exported_json_can_reopen_after_restart_without_loading_pickle(
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(target), ""))
     window.export()
     assert window._run_state.current_run["outputs"][-1]["path"] == str(target)
+    assert (
+        window._run_state.current_run["outputs"][-1]["sha256"]
+        == hashlib.sha256(target.read_bytes()).hexdigest()
+    )
     reopened = MainWindow(history_dir=window.history.directory)
     try:
         monkeypatch.setattr(

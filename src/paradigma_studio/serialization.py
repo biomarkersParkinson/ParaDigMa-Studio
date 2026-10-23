@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 
 from .contracts import AnalysisResults, JSONValue, PathInput, Provenance
+from .result_integrity import DigestTextWriter
 from .storage import atomic_file, recording_files, same_file
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ def _write_export(path, writer, *, source=None, protected_sources=(), binary=Fal
                 "An export cannot overwrite the loaded sensor file or its companion binaries. Choose another filename."
             )
     with atomic_file(target, binary=binary, newline="") as stream:
-        writer(stream)
+        return writer(stream)
 
 
 def _json_records(frame: pd.DataFrame) -> JSONValue:
@@ -116,10 +117,15 @@ def export_results(
     provenance: Provenance,
     *,
     protected_sources: Iterable[PathInput] = (),
-) -> None:
-    _write_export(
+) -> str:
+    def write(stream):
+        writer = DigestTextWriter(stream)
+        _write_json(writer, {"analysis": provenance, "results": results})
+        return writer.hexdigest()
+
+    return _write_export(
         path,
-        lambda stream: _write_json(stream, {"analysis": provenance, "results": results}),
+        write,
         source=provenance.get("source"),
         protected_sources=protected_sources,
     )

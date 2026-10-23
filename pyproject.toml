@@ -66,6 +66,7 @@ include = [
     "src/paradigma_studio/storage.py",
     "src/paradigma_studio/result_preparation.py",
     "src/paradigma_studio/result_reopening.py",
+    "src/paradigma_studio/result_integrity.py",
     "src/paradigma_studio/raw_signals.py",
 ]
 fail_under = 80
@@ -139,6 +140,7 @@ files = [
     "src/paradigma_studio/previews.py",
     "src/paradigma_studio/storage.py",
     "src/paradigma_studio/exports.py",
+    "src/paradigma_studio/result_integrity.py",
     "src/paradigma_studio/ui",
 ]
 # Check service/controller APIs and every UI module, including new builders.
@@ -157,6 +159,7 @@ module = [
     "paradigma_studio.analysis_limits",
     "paradigma_studio.preparation_contracts",
     "paradigma_studio.paradigma_api",
+    "paradigma_studio.result_integrity",
 ]
 # These small services have complete annotations; retain explicit container types
 # and reject Any returned from a function with a concrete declared return type.

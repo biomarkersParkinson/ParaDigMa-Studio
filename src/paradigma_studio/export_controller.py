@@ -25,6 +25,7 @@ from .contracts import (
     StartJobCallback,
 )
 from .history import RunHistory, now, run_is_saved
+from .result_integrity import provenance_for_run, validate_checksum, validate_run_id
 from .theme import STYLESHEET, light_palette
 from .workspace_state import (
     InputState,
@@ -50,7 +51,7 @@ class ResultExporter(Protocol):
         provenance: Provenance,
         *,
         protected_sources: Iterable[PathInput] = (),
-    ) -> None: ...
+    ) -> str: ...
 
 
 class TableExporter(Protocol):
@@ -68,6 +69,10 @@ class SaveRunResultsCallback(Protocol):
     def __call__(self, records: list[RunRecord], *, close_after: bool = False) -> None: ...
 
 
+class RecordOutputCallback(Protocol):
+    def __call__(self, path: str, kind: OutputKind, *, checksum: str | None = None) -> None: ...
+
+
 @dataclass(frozen=True)
 class ExportView:
     parent: QWidget
@@ -79,7 +84,7 @@ class ExportCallbacks:
     append_log: Callable[[str], None]
     failure: Callable[[str], None]
     persist_run: Callable[[RunRecord], None]
-    record_output: Callable[[str, OutputKind], None]
+    record_output: RecordOutputCallback
     refresh_runs: Callable[[], None]
     save_run_results: SaveRunResultsCallback
     selected_export_table: Callable[[], tuple[str, pd.DataFrame | None]]
@@ -129,16 +134,16 @@ class ExportController(QObject):
         if path:
             try:
                 self.history.validate_export_destination(path, self.runs.runs)
-                self.services.export_results(
+                checksum = self.services.export_results(
                     path,
                     self.results.results,
-                    self.results.provenance,
+                    self._owned_provenance(self.results.provenance, self.runs.current_run),
                     protected_sources=[
                         *self.inputs.sources.values(),
                         *self.results.provenance.get("sources", {}).values(),
                     ],
                 )
-                self.callbacks.record_output(path, "JSON")
+                self.callbacks.record_output(path, "JSON", checksum=validate_checksum(checksum))
                 self.view.status.setText(f"Results exported to {path}")
             except Exception as exc:  # noqa: BLE001 -- Final export UI error reporting.
                 # Final UI boundary for file writers and run-history callbacks.
@@ -174,14 +179,22 @@ class ExportController(QObject):
         complete = format_name == "JSON" and set(selected) == set(tables) | set(metadata)
         protected = [*self.inputs.sources.values(), *provenance.get("sources", {}).values()]
 
-        def write(logger: logging.Logger) -> str:
+        def write(logger: logging.Logger) -> tuple[str, str | None]:
             self.history.validate_export_destination(path, self.runs.runs)
-            export_selection(
-                path, results, provenance, selected, format_name, protected_sources=protected
+            checksum = export_selection(
+                path,
+                results,
+                self._owned_provenance(provenance, run) if format_name == "JSON" else provenance,
+                selected,
+                format_name,
+                protected_sources=protected,
             )
-            return str(Path(path).resolve())
+            if format_name == "JSON":
+                checksum = validate_checksum(checksum)
+            return str(Path(path).resolve()), checksum
 
-        def completed(output_path: str) -> None:
+        def completed(payload: tuple[str, str | None]) -> None:
+            output_path, checksum = payload
             if run is not None:
                 run["outputs"].append(
                     {
@@ -192,12 +205,19 @@ class ExportController(QObject):
                         "complete": complete,
                     }
                 )
+                if checksum is not None:
+                    run["outputs"][-1]["sha256"] = checksum
                 self.callbacks.persist_run(run)
                 self.callbacks.refresh_runs()
             self.view.status.setText(f"Results exported to {output_path}")
 
         self.view.status.setText("Exporting results…")
         self.callbacks.start_job(write, completed)
+
+    @staticmethod
+    def _owned_provenance(provenance: Provenance, run: RunRecord | None) -> Provenance:
+        run_id = run["id"] if run is not None else validate_run_id(provenance.get("run_id"))
+        return provenance_for_run(provenance, run_id)
 
     def export_csv(self) -> None:
         name, frame = self.callbacks.selected_export_table()

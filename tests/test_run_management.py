@@ -13,12 +13,12 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from paradigma_studio import analysis_process, app as desktop
 from paradigma_studio.app import MainWindow, Worker
-from paradigma_studio.history import RunHistory, load_result_export, new_run, run_is_saved
+from paradigma_studio.history import RunHistory, new_run, run_is_saved
 from paradigma_studio.run_controller import RunController
 from paradigma_studio.serialization import export_results
 
 
-def test_legacy_history_normalizes_omitted_fields_and_reopens_original_results(
+def test_history_normalization_does_not_enable_unverified_result_reopening(
     tmp_path, tremor_outputs
 ):
     history = RunHistory(tmp_path / "runs")
@@ -48,11 +48,12 @@ def test_legacy_history_normalizes_omitted_fields_and_reopens_original_results(
     assert not run_is_saved(restored)
     saved = RunController.reopen_output(restored)
     assert saved == record["outputs"][0]
-    saved_provenance, values = load_result_export(saved["path"])
-    assert saved_provenance == provenance
-    pd.testing.assert_frame_equal(
-        values["quantifications"]["tremor"], tremor_outputs["quantifications"]["tremor"]
-    )
+    from paradigma_studio.result_reopening import load_saved_results
+
+    with pytest.raises(ValueError, match="checksum"):
+        load_saved_results(
+            saved["path"], logging.getLogger(__name__), run_id=restored["id"], checksum=None
+        )
     history.save(restored)
     again, issues = history.load()
     assert not issues and again == records
@@ -111,6 +112,8 @@ def test_malformed_run_fields_skip_only_the_damaged_history_entry(tmp_path, inva
         {"selected_rows": -1},
         {"selected_rows": 1.5},
         {"selection": []},
+        {"sha256": "invalid"},
+        {"sha256": 123},
     ],
 )
 def test_malformed_output_metadata_cannot_change_saved_or_export_state(tmp_path, invalid):

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QDialogButtonBox
 from paradigma_studio import core, exports
 from paradigma_studio.core import export_results
 from paradigma_studio.exports import ExportDialog, export_selection
-from paradigma_studio.history import load_result_export
+from paradigma_studio.history import load_result_export, new_run
 
 
 def test_selective_json_csv_zip_preserve_native_outputs_precision_and_metadata(
@@ -251,6 +251,7 @@ def test_later_batch_encoding_failure_keeps_destination_and_cleans_temporary_fil
 def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_path, monkeypatch):
     frame = pd.DataFrame({"time": [0.0, 1.0], "metric": [2.0, 3.0]})
     window.analyzed({"quantifications": {"tremor": frame}})
+    window._run_state.current_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
     path = tmp_path / "chosen.json"
     started, release = threading.Event(), threading.Event()
     original = exports.export_selection

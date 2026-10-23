@@ -50,7 +50,7 @@ Only one explanation is shown at a time; opening another replaces it without
 moving the fields.
 Signal columns includes ParaDigMa's original reference figure and a direct link to its
 Coordinate System guide. The example explains source-axis selection and inversion.
-Parameter settings appear on the left and signal columns on the right; narrow
+Signal columns appear on the left and parameter settings on the right; narrow
 windows stack the two sections.
 Analyze prefills time and sensor units when supported metadata agrees across
 all applicable recordings. TSDF supplies per-channel units after physical scaling;
@@ -464,12 +464,18 @@ Processing log, Saved run and Exports.
 separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
 Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
 stores all unsaved runs before closing. Exporting, including complete JSON,
-does not mark a run as saved locally or clear that warning. Complete legacy
-exports can still reopen through **Open exported results**; local saves take precedence.
+does not mark a run as saved locally or clear that warning. Complete JSON
+exports can reopen through **Open exported results**; local saves take precedence.
+
+Saved snapshots and JSON exports identify their owning run. Runs also records a
+SHA-256 checksum of each file. Opening requires both the run ID and checksum to
+match, so replacing or editing a result file prevents reopening it under the
+original run. A failed open leaves the displayed results intact. Files without
+this verification information, including older exports, cannot reopen through Runs.
 
 Existing installations continue using their earlier `ParaDigMaDesktop` history
 folder when a Studio history folder does not yet exist. Saved result files stay
-at their original paths and remain available through Runs.
+at their original paths and follow the same verification requirements.
 
 **Stop Analysis** remains available below Analyze settings while a run is active.
 Cancellation stops the owned analysis process, removes its temporary files and records

@@ -56,14 +56,14 @@ def _verify_smoke_workflows(window, app, directory, models):
     classification, present = _verify_binary_outputs(window, results)
     _verify_result_selection(window, classification, present)
     _verify_official_result_tables(window, results, classification)
-    export = _verify_result_export(directory, source, results, quantified)
+    export, run_id, checksum = _verify_result_export(directory, source, results, quantified)
     cwa_source, cwa_frame, cwa_results, cwa_quantified = _run_cwa_example()
     _verify_combined_modules(frame, t)
     _verify_gait_workspace(window, app, cwa_source, cwa_frame, cwa_results)
     _verify_multiple_recordings(window, directory, frame)
     avro_frame = _verify_empatica_inspection(window, app)
     details, physilog_gait = _verify_physilog_preparation()
-    _verify_saved_run_roundtrip(window, source, export, quantified)
+    _verify_saved_run_roundtrip(window, source, export, quantified, run_id, checksum)
     return _successful_smoke_report(
         models, quantified, cwa_frame, cwa_quantified, avro_frame, details, physilog_gait
     )
@@ -410,13 +410,15 @@ def _verify_official_result_tables(window, results, classification):
 
 def _verify_result_export(directory, source, results, quantified):
     from .core import export_results
+    from .history import new_run
 
     export = directory / "results.json"
-    export_results(export, results, {"source": source.name})
+    run_id = new_run(str(source), {"pipelines": ["tremor"]})["id"]
+    checksum = export_results(export, results, {"source": source.name, "run_id": run_id})
     saved = json.loads(export.read_text(encoding="utf-8"))
     if len(saved["results"]["quantifications"]["tremor"]["data"]) != len(quantified):
         raise RuntimeError("Result export lost quantified rows")
-    return export
+    return export, run_id, checksum
 
 
 def _run_cwa_example():
@@ -601,19 +603,20 @@ def _verify_physilog_preparation():
     return details, physilog_gait
 
 
-def _verify_saved_run_roundtrip(window, source, export, quantified):
+def _verify_saved_run_roundtrip(window, source, export, quantified, run_id, checksum):
     # Reopen an explicitly exported result through the Runs page.
     # This also exercises the frozen app's Qt background worker,
     # metadata persistence and safe JSON restoration.
     from .history import new_run, now
 
-    _verify_isolated_result_reader(export, quantified)
+    _verify_isolated_result_reader(export, quantified, run_id, checksum)
     record = new_run(str(source), {"pipelines": ["tremor"]})
+    record["id"] = run_id
     record.update(
         status="Completed",
         finished=now(),
         paradigma_version=version("paradigma"),
-        outputs=[{"kind": "JSON", "path": str(export)}],
+        outputs=[{"kind": "JSON", "path": str(export), "sha256": checksum, "complete": True}],
     )
     window.history.save(record)
     window._run_state.runs, issues = window.history.load()
@@ -673,7 +676,7 @@ def _wait_for_worker(worker: Worker, timeout_ms: int = 15000) -> None:
     timer.stop()
 
 
-def _verify_isolated_result_reader(export, quantified):
+def _verify_isolated_result_reader(export, quantified, run_id, checksum):
     import logging
 
     import pandas as pd
@@ -682,7 +685,9 @@ def _verify_isolated_result_reader(export, quantified):
 
     # Exercise the same spawned reader used for large runs even with the small
     # public smoke fixture; this also checks PyInstaller child-process imports.
-    _, results = load_saved_results(export, logging.getLogger(__name__), isolate_bytes=0)
+    _, results = load_saved_results(
+        export, logging.getLogger(__name__), run_id=run_id, checksum=checksum, isolate_bytes=0
+    )
     pd.testing.assert_frame_equal(
         results["quantifications"]["tremor"], quantified, check_dtype=False
     )

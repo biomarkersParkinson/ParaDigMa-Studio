@@ -234,6 +234,8 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     results = output()
     original = deepcopy(results)
     window.analyzed(results)
+    record = new_run(next(iter(sources.values())), window._result_state.provenance["settings"])
+    window._run_state.current_run = record
     name = "quantifications/tremor"
     np.testing.assert_array_equal(
         window._result_state._timings[name]["Timeline time (s)"], [0.0, 1.0, 86400.0, 86401.0]
@@ -269,7 +271,6 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     pd.testing.assert_frame_equal(
         restored["quantifications"]["tremor"], original["quantifications"]["tremor"]
     )
-    record = new_run(next(iter(sources.values())), provenance["settings"])
     window._run_state.runs = [record]
     window.restore_run((record["id"], provenance, restored))
     assert window._result_state.result_source_frame is None
@@ -305,6 +306,9 @@ def test_export_protects_every_loaded_source_even_when_another_file_is_selected(
     load(window, sources, frames)
     window.input_recording.setCurrentIndex(1)
     window.analyzed(output())
+    window._run_state.current_run = new_run(
+        next(iter(sources.values())), window._result_state.provenance["settings"]
+    )
     protected = Path(sources["recording_001"])
     original = protected.read_bytes()
     monkeypatch.setattr(desktop.QFileDialog, "getSaveFileName", lambda *args: (str(protected), ""))

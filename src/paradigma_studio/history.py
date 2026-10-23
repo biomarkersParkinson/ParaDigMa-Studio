@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from collections.abc import Iterable, Sequence
@@ -25,6 +26,12 @@ from .contracts import (
     RunStatus,
 )
 from .core import validate_column_mapping
+from .result_integrity import (
+    provenance_for_run,
+    read_verified_text,
+    validate_checksum,
+    verify_run_id,
+)
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
 
@@ -212,6 +219,8 @@ def _validate_run_output(output: object) -> None:
         or any(key in output and not isinstance(output[key], bool) for key in ("local", "complete"))
     ):
         raise ValueError("Invalid run output.")
+    if "sha256" in output:
+        validate_checksum(output["sha256"])
     selected = output.get("selected", [])
     if not isinstance(selected, list) or not all(isinstance(name, str) for name in selected):
         raise ValueError("Invalid exported table selection.")
@@ -282,14 +291,18 @@ class RunHistory:
 
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")
+        protected_sources = tuple(protected_sources)
         directory = self.directory / "results"
         directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"{record['id']}.json"
-        existed = path.exists()
-        export_results(
+        # A new snapshot stays independent of the old history/checksum pair.
+        # Only publish its link after both its write and the history update succeed.
+        path = directory / f"{record['id']}-{uuid4().hex}.json"
+        if path.exists():
+            raise ValueError("A snapshot destination already exists; refusing to overwrite it.")
+        checksum = export_results(
             path,
             results,
-            provenance,
+            provenance_for_run(provenance, record["id"]),
             protected_sources=[
                 record["source"],
                 *record.get("sources", {}).values(),
@@ -303,6 +316,7 @@ class RunHistory:
             "dataset": "all results",
             "local": True,
             "complete": True,
+            "sha256": checksum,
         }
         outputs = [item for item in record["outputs"] if not item.get("local")] + [output]
         history_saved = False
@@ -310,9 +324,36 @@ class RunHistory:
             self.save({**record, "outputs": outputs})
             history_saved = True
         finally:
-            if not history_saved and not existed:
+            if not history_saved:
                 path.unlink(missing_ok=True)
+        self._remove_previous_snapshots(record, protected_sources)
         return outputs
+
+    def _remove_previous_snapshots(
+        self, record: RunRecord, protected_sources: Iterable[PathInput]
+    ) -> None:
+        directory = (self.directory / "results").resolve()
+        protected = recording_files(
+            [record["source"], *record.get("sources", {}).values(), *protected_sources]
+        )
+        for output in record["outputs"]:
+            path = Path(output["path"])
+            if not output.get("local") or not re.fullmatch(
+                rf"{record['id']}-[0-9a-f]{{32}}\.json", path.name
+            ):
+                continue
+            try:
+                if (
+                    not path.is_symlink()
+                    and path.parent.resolve() == directory
+                    and not any(same_file(path, source) for source in protected)
+                ):
+                    path.unlink(missing_ok=True)
+            except OSError as exc:
+                # The new snapshot/history pair is already committed and usable.
+                logging.getLogger("paradigma").warning(
+                    "Could not remove old snapshot %s: %s", path, exc
+                )
 
     def validate_export_destination(self, path: PathInput, records: Iterable[RunRecord]) -> None:
         """An adjustable export must not replace a local snapshot or its history."""
@@ -375,10 +416,23 @@ class RunHistory:
 
 
 def load_result_export(path: PathInput) -> tuple[Provenance, AnalysisResults]:
-    """Read the wrapper's JSON export, never pickle or original sensor files."""
+    """Decode an unassociated export; run reopening must use the verified reader."""
+    return _decode_result_export(Path(path).read_text(encoding="utf-8"))
+
+
+def load_verified_result_export(
+    path: PathInput, run_id: str, checksum: object
+) -> tuple[Provenance, AnalysisResults]:
+    """Require both the recorded fingerprint and the selected run's identity."""
+    provenance, results = _decode_result_export(read_verified_text(path, checksum))
+    verify_run_id(provenance, run_id)
+    return provenance, results
+
+
+def _decode_result_export(text: str) -> tuple[Provenance, AnalysisResults]:
     import pandas as pd
 
-    saved = json.loads(Path(path).read_text(encoding="utf-8"))
+    saved = json.loads(text)
     if (
         not isinstance(saved, dict)
         or not isinstance(saved.get("analysis"), dict)

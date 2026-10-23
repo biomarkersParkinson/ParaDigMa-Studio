@@ -27,7 +27,7 @@ import pandas as pd
 from paradigma_studio.analysis_limits import parallel_worker_count
 from paradigma_studio.analysis_process import run_isolated_analysis
 from paradigma_studio.core import load_sensor_file
-from paradigma_studio.history import RunHistory, load_result_export, new_run
+from paradigma_studio.history import RunHistory, load_verified_result_export, new_run
 from paradigma_studio.inspection import inspect_recording, inspect_recordings
 from paradigma_studio.recordings import load_recordings
 from paradigma_studio.serialization import json_value
@@ -250,7 +250,11 @@ def _benchmark_saving(directory, measurements, repeats):
     history = RunHistory(directory / "runs")
     record = new_run("synthetic.csv", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
-    provenance = {"source": "synthetic.csv", "settings": {"pipelines": ["tremor"]}}
+    provenance = {
+        "run_id": record["id"],
+        "source": "synthetic.csv",
+        "settings": {"pipelines": ["tremor"]},
+    }
     outputs = _measure(
         measurements,
         "SAVE RUN 600000 ROWS",
@@ -260,7 +264,10 @@ def _benchmark_saving(directory, measurements, repeats):
     )
     path = Path(outputs[0]["path"])
     reopened = _measure(
-        measurements, "REOPEN RUN 600000 ROWS", lambda: load_result_export(path), repeats
+        measurements,
+        "REOPEN RUN 600000 ROWS",
+        lambda: load_verified_result_export(path, record["id"], outputs[0]["sha256"]),
+        repeats,
     )
     assert _digest(reopened) == _digest((provenance, results)), "Saved values changed"
     return {"saved_rows": rows * 2, "saved_bytes": path.stat().st_size}

@@ -38,7 +38,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Navigation, notices and About dialog | `shell_controller.py` |
 | Public service contracts and shared payload types; no startup scientific imports | `contracts.py`, `py.typed` |
 | Result installation, source alignment, clock selection and completion status | `result_controller.py`; worker-safe snapshots in `result_preparation.py`, isolated large-JSON decoding in `result_reopening.py` |
-| Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` |
+| Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py`; run identity and exact-byte checksums in `result_integrity.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
 | Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` |
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
@@ -132,8 +132,11 @@ analysis process; background previews only read data and deliver the newest
 requested result. GUI changes belong on the Qt thread.
 
 Use `storage.atomic_file` for destination replacement and `recording_files` /
-`same_file` for sensor-file protection. Keep result/history JSON schemas, CSV
-escaping and original-input protections compatible with existing saved runs.
+`same_file` for sensor-file protection. Owned JSON writes include the run ID and
+return a SHA-256 receipt for history. Runs must use the verified reader for both
+small and isolated large-file reopening, checking the same bytes it decodes.
+Missing identity/checksum information is rejected; there is no legacy reopening
+fallback. Keep CSV escaping and original-input protections intact.
 
 The supported build entry point is `scripts/build_desktop.py`. PyInstaller specs
 are generated under `build/desktop/` and ignored by Git; old specs left in a local

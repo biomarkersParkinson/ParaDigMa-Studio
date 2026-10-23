@@ -70,13 +70,13 @@ def export_selection(
     format: str,
     *,
     protected_sources: Iterable[PathInput] = (),
-) -> None:
+) -> str | None:
     tables, metadata = export_items(results)
     selected = list(dict.fromkeys(selected))
     if not selected or any(name not in tables and name not in metadata for name in selected):
         raise ValueError("Select at least one available table or metadata group.")
     if format == "JSON":
-        export_results(
+        return export_results(
             path,
             selected_results(results, selected),
             provenance,
@@ -122,6 +122,7 @@ def export_selection(
         )
     else:
         raise ValueError("Choose JSON or CSV.")
+    return None
 
 
 class ExportDialog(QDialog):
