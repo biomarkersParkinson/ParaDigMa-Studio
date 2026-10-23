@@ -130,6 +130,13 @@ boundary and exercises loading, results and sensor context with the driver-port
 decorator disabled. Preserve deferred lambdas and the real Qt receiver methods
 when changing callback wiring.
 
+`ui/result_graphs.py` owns series rendering, axis reuse and viewport restoration.
+`ui/result_graph_interactions.py` owns graph clicks, linked table selection,
+selection markers and sensor-context availability. Both share the same explicit
+view/state objects and `ResultPlotData`, including its existing cache. The renderer
+keeps its callback entry points; interaction updates on an empty or unopened graph
+must not initialize a canvas.
+
 ## CI artifacts
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,

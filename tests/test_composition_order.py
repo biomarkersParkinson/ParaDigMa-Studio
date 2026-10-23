@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from PySide6.QtCore import QObject, QThread, Slot
+from PySide6.QtCore import QModelIndex, QObject, QThread, Slot
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMainWindow
 
@@ -299,6 +299,9 @@ def test_layout_and_graph_components_need_only_declared_ports(tmp_path):
             graphs, results, views[-1], ResultGraphCallbacks(lambda: [], lambda: None)
         )
         renderer.plot()
+        renderer.result_row_changed(QModelIndex(), None)
+        renderer.highlight_result_row()
+        renderer.graph_clicked(SimpleNamespace(inaxes=None, xdata=None))
         assert not any(
             widget.initialized
             for widget in (layout._data_graph, layout.graph_view, layout._sensor_graph)
