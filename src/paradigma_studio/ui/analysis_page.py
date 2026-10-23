@@ -7,8 +7,8 @@ from html import escape
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QCheckBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from ..analysis_controller import AnalysisView
 from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
 from ..assets import DATA_DIRECTORY
+from ..field_scrolling import FieldWheelFilter, PageDoubleSpinBox
 from ..theme import LINK_COLOR, light_palette
 from ..time_controls import TimeField
 from ..widgets import (
@@ -114,6 +115,11 @@ class AnalysisPage:
         self.analysis_controls.height_changed.connect(self._sync_scroll_extent)
         for field in body.findChildren(ReadableComboBox):
             field.wheel_scroll_target = scroll
+        self._button_wheels = [
+            FieldWheelFilter(field, scroll)
+            for field in body.findChildren(QAbstractButton)
+            if field.window() is body.window()
+        ]
         layout.addWidget(scroll, 1)
 
     def _sync_scroll_extent(self):
@@ -279,7 +285,7 @@ class AnalysisPage:
         sections.addWidget(
             self.analysis_field("Split recordings at time gaps", self.gaps, inline=True), 0, 0, 1, 2
         )
-        self.max_gap, self.min_segment = QDoubleSpinBox(), QDoubleSpinBox()
+        self.max_gap, self.min_segment = PageDoubleSpinBox(), PageDoubleSpinBox()
         self.section_reset_buttons = {}
         for title, widget, default in (
             ("Maximum gap", self.max_gap, DEFAULT_MAX_GAP_SECONDS),

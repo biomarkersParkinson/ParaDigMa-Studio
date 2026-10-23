@@ -7,13 +7,12 @@ from PySide6.QtCore import QDateTime, Qt, QTimeZone, Signal
 from PySide6.QtWidgets import (
     QCalendarWidget,
     QCheckBox,
-    QDateTimeEdit,
-    QDoubleSpinBox,
     QHBoxLayout,
     QStackedWidget,
     QWidget,
 )
 
+from .field_scrolling import PageDateTimeEdit, PageDoubleSpinBox
 from .results_view import clock_origin, clock_times, time_bound
 from .theme import light_palette
 
@@ -28,7 +27,7 @@ class TimeField(QWidget):
         self._default_seconds = None
         self.use = QCheckBox()
         self.use.setAccessibleName(f"Use {title}")
-        self.calendar = QDateTimeEdit()
+        self.calendar = PageDateTimeEdit()
         self.calendar.setCalendarPopup(True)
         self.calendar.setDisplayFormat("dd MMM yyyy  HH:mm:ss.zzz")
         self.calendar.setAccessibleName(f"{title}: calendar and time")
@@ -39,7 +38,7 @@ class TimeField(QWidget):
         self.calendar.setMinimumHeight(38)
         self.calendar.setTimeZone(QTimeZone.utc())
         self.calendar.setDateTime(QDateTime.currentDateTimeUtc())
-        self.seconds = QDoubleSpinBox(self)
+        self.seconds = PageDoubleSpinBox(self)
         self.seconds.setMinimumHeight(38)
         self.seconds.setRange(-1e12, 1e12)
         self.seconds.setDecimals(6)

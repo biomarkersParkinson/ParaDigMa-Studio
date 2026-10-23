@@ -12,12 +12,12 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
 )
 
 from .assets import DATA_DIRECTORY
 from .epoch_profile import format_profile_time, parse_profile_time
+from .field_scrolling import PageLineEdit
 from .plotting import autoscale_bars
 from .theme import light_palette
 
@@ -211,7 +211,7 @@ class GraphSettings(QFrame):
         limits_layout.setVerticalSpacing(6)
         for row, axis in enumerate(("x", "y")):
             automatic = QCheckBox("Automatic")
-            lower, upper = QLineEdit(), QLineEdit()
+            lower, upper = PageLineEdit(), PageLineEdit()
             automatic.setChecked(True)
             automatic.toggled.connect(
                 lambda checked, lo=lower, hi=upper: (

@@ -104,9 +104,10 @@ and missing-sample checks during preparation.
   numeric representation before analysis.
 - Set the actual wrist as watch side.
   Watch-side inversion happens separately in official pipeline preprocessing.
-- Scrolling over a closed Analyze dropdown moves the page without changing the
-  selected value. Open the dropdown to select a value or scroll its list; keyboard
-  selection still works.
+- Scrolling over dropdowns, numeric fields or date/time fields moves their
+  surrounding page without changing their values, including when a field has
+  focus. This applies throughout the app. Use typing, keyboard arrows or the
+  field's buttons to edit a value. An opened dropdown list can still scroll.
 - In **Signal columns**, choose a source column from the dropdown for each
   required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
   are recognized automatically and shown by their actual names. The dropdown

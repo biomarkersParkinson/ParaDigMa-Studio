@@ -142,6 +142,7 @@ files = [
     "src/paradigma_studio/exports.py",
     "src/paradigma_studio/result_integrity.py",
     "src/paradigma_studio/ui",
+    "src/paradigma_studio/field_scrolling.py",
 ]
 # Check service/controller APIs and every UI module, including new builders.
 # UI annotations remain gradual; strict service/controller settings stay below.

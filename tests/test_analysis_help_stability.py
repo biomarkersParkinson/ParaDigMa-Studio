@@ -138,7 +138,7 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
         def minimumSizeHint(self):
             return QSize(217, super().minimumSizeHint().height())
 
-    monkeypatch.setattr(analysis_page, "QDoubleSpinBox", NativeSpinBox)
+    monkeypatch.setattr(analysis_page, "PageDoubleSpinBox", NativeSpinBox)
     app = QApplication.instance() or QApplication([])
     window = MainWindow(tmp_path)
     window.set_modules(["gait", "tremor", "pulse_rate"])

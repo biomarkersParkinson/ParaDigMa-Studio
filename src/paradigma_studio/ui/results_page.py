@@ -265,6 +265,9 @@ class ResultsPage:
         graph_scroll.setWidgetResizable(True)
         graph_scroll.setWidget(self.canvas)
         self.graph_scroll = graph_scroll
+        self.result_graph_view.wheel_scroll_target = graph_scroll
+        for _, lower, upper in self.plot_toolbar.settings.bounds.values():
+            lower.wheel_scroll_target = upper.wheel_scroll_target = graph_scroll
         self.canvas.scroll_area = graph_scroll
         self.canvas.outer_scroll_area = self._result_view_scrolls[1]
         plots.addWidget(graph_scroll, 1)

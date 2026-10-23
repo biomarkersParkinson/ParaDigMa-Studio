@@ -7,7 +7,6 @@ from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
     QModelIndex,
-    QPointF,
     QRect,
     QSize,
     Qt,
@@ -18,7 +17,6 @@ from PySide6.QtGui import QColor, QFont, QPalette, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
-    QApplication,
     QBoxLayout,
     QComboBox,
     QFrame,
@@ -42,6 +40,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .field_scrolling import scroll_field_wheel
 from .theme import light_palette, module_color
 
 
@@ -561,35 +560,15 @@ class RecordModel(FrameModel):
 class ReadableComboBox(QComboBox):
     wheel_scroll_target: QAbstractScrollArea | None = None
 
+    def event(self, event: QEvent) -> bool:
+        # Native disabled combos consume wheels before calling wheelEvent.
+        if isinstance(event, QWheelEvent):
+            self.wheelEvent(event)
+            return True
+        return super().event(event)
+
     def wheelEvent(self, event: QWheelEvent) -> None:
-        target = self.wheel_scroll_target
-        if target is None:
-            super().wheelEvent(event)
-            return
-        pixels = event.pixelDelta()
-        if not pixels.isNull():
-            for bar, delta in (
-                (target.horizontalScrollBar(), pixels.x()),
-                (target.verticalScrollBar(), pixels.y()),
-            ):
-                bar.setValue(bar.value() - delta)
-            event.accept()
-            return
-        viewport = target.viewport()
-        forwarded = QWheelEvent(
-            QPointF(viewport.mapFromGlobal(event.globalPosition().toPoint())),
-            event.globalPosition(),
-            event.pixelDelta(),
-            event.angleDelta(),
-            event.buttons(),
-            event.modifiers(),
-            event.phase(),
-            event.inverted(),
-            event.source(),
-            event.pointingDevice(),
-        )
-        QApplication.sendEvent(viewport, forwarded)
-        event.setAccepted(forwarded.isAccepted())
+        scroll_field_wheel(self, event, self.wheel_scroll_target)
 
     def showPopup(self):
         # The outer popup owns the margins above/below the list. It does not
