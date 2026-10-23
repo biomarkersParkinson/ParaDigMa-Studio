@@ -8,6 +8,7 @@ import re
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast, get_args
 from uuid import uuid4
 
 from .axis_mapping import preparation_orientations
@@ -16,10 +17,12 @@ from .contracts import (
     AnalysisError,
     AnalysisResults,
     AnalysisSettings,
+    OutputKind,
     PathInput,
     Provenance,
     RunOutput,
     RunRecord,
+    RunStatus,
 )
 from .core import validate_column_mapping
 from .serialization import json_value
@@ -109,7 +112,7 @@ def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> li
     return list(dict.fromkeys(messages))
 
 
-def migrate_problems(record: RunRecord) -> None:
+def migrate_problems(record: dict[str, Any]) -> None:
     """Recover errors saved in the warnings field by older app versions."""
     if "errors" in record:
         return
@@ -145,7 +148,8 @@ def _read_run_record(path: Path) -> RunRecord:
     record = json.loads(path.read_text(encoding="utf-8"))
     if (
         not isinstance(record, dict)
-        or not re.fullmatch(r"[0-9a-f]{32}", record.get("id", ""))
+        or not isinstance(record.get("id"), str)
+        or not re.fullmatch(r"[0-9a-f]{32}", record["id"])
         or path.stem != record["id"]
         or not isinstance(record.get("settings"), dict)
         or not all(isinstance(record.get(key), str) for key in ("started", "status", "source"))
@@ -153,6 +157,12 @@ def _read_run_record(path: Path) -> RunRecord:
         or not isinstance(record.get("warnings"), list)
     ):
         raise ValueError("Invalid run metadata.")
+    # Caches are created from live frames/results, never restored from history JSON.
+    record = {key: value for key, value in record.items() if not key.startswith("_")}
+    if record["status"] not in get_args(RunStatus) or not isinstance(
+        record.get("paradigma_version", ""), str
+    ):
+        raise ValueError("Invalid run status or version.")
     settings = record["settings"]
     sources = record.get("sources", {})
     if not isinstance(sources, dict) or not all(
@@ -160,18 +170,25 @@ def _read_run_record(path: Path) -> RunRecord:
     ):
         raise ValueError("Invalid recording sources.")
     datetime.fromisoformat(record["started"])
-    if record.get("finished") is not None:
-        datetime.fromisoformat(record["finished"])
+    finished = record.get("finished")
+    if finished is not None:
+        if not isinstance(finished, str):
+            raise ValueError("Invalid run completion time.")
+        datetime.fromisoformat(finished)
     _validate_run_outputs(record, settings)
     migrate_problems(record)
     validate_column_mapping(settings.get("column_mapping"))
     validate_signal_columns(settings.get("signal_columns"))
     preparation_orientations(settings)
     _validate_preparation_settings(settings)
-    return record
+    record.setdefault("finished", None)
+    record.setdefault("paradigma_version", "")
+    record.setdefault("log", "")
+    # All required fields and known optional fields are now validated/normalized.
+    return cast(RunRecord, record)
 
 
-def _validate_run_outputs(record, settings):
+def _validate_run_outputs(record: dict[str, Any], settings: AnalysisSettings) -> None:
     pipelines = settings.get("pipelines", [])
     if (
         not isinstance(pipelines, list)
@@ -180,14 +197,29 @@ def _validate_run_outputs(record, settings):
         or not isinstance(record.get("errors", []), list)
         or not all(isinstance(error, str) for error in record.get("errors", []))
         or not isinstance(record.get("log", ""), str)
-        or not all(
-            isinstance(output, dict)
-            and output.get("kind") in ("CSV", "JSON")
-            and isinstance(output.get("path"), str)
-            for output in record["outputs"]
-        )
     ):
         raise ValueError("Invalid run parameters or outputs.")
+    for output in record["outputs"]:
+        _validate_run_output(output)
+
+
+def _validate_run_output(output: object) -> None:
+    if (
+        not isinstance(output, dict)
+        or output.get("kind") not in get_args(OutputKind)
+        or not isinstance(output.get("path"), str)
+        or any(key in output and not isinstance(output[key], str) for key in ("saved", "dataset"))
+        or any(key in output and not isinstance(output[key], bool) for key in ("local", "complete"))
+    ):
+        raise ValueError("Invalid run output.")
+    selected = output.get("selected", [])
+    if not isinstance(selected, list) or not all(isinstance(name, str) for name in selected):
+        raise ValueError("Invalid exported table selection.")
+    rows = output.get("selected_rows", 0)
+    if isinstance(rows, bool) or not isinstance(rows, int) or rows < 0:
+        raise ValueError("Invalid exported row count.")
+    if not isinstance(output.get("selection", {}), dict):
+        raise ValueError("Invalid export selection metadata.")
 
 
 def _validate_preparation_settings(settings):
@@ -264,7 +296,7 @@ class RunHistory:
                 *protected_sources,
             ],
         )
-        output = {
+        output: RunOutput = {
             "kind": "JSON",
             "path": str(path.resolve()),
             "saved": now(),

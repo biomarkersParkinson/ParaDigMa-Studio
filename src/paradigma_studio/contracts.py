@@ -1,14 +1,14 @@
 """Shared API types without importing the scientific stack at startup.
 
-ParaDigMa results, settings and stored run records have extensible nested
-payloads. Keep their values permissive while typing frames and service inputs.
+Run records and saved outputs have explicit application-owned fields.
+ParaDigMa results and forwarding settings retain extensible nested payloads.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
 from os import PathLike
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, Protocol, TypeAlias, TypedDict
 
 if TYPE_CHECKING:
     import logging
@@ -28,8 +28,10 @@ AnalysisSettings: TypeAlias = dict[str, Any]
 AnalysisResults: TypeAlias = dict[str, Any]
 AnalysisError: TypeAlias = str | dict[str, Any]
 Provenance: TypeAlias = dict[str, Any]
-RunRecord: TypeAlias = dict[str, Any]
-RunOutput: TypeAlias = dict[str, Any]
+RunStatus: TypeAlias = Literal[
+    "Running", "Completed", "Partial", "Failed", "Cancelled", "Unfinished"
+]
+OutputKind: TypeAlias = Literal["CSV", "JSON"]
 JobOperation: TypeAlias = "Callable[[logging.Logger], object]"
 # Qt's object-valued completed signal carries heterogeneous job result payloads.
 JobCompletion: TypeAlias = Callable[[Any], None]
@@ -39,6 +41,41 @@ AnalysisLogEvent: TypeAlias = tuple[Literal["log"], int, str] | tuple[Literal["l
 AnalysisEvent: TypeAlias = (
     AnalysisLogEvent | tuple[Literal["failed"], str] | tuple[Literal["completed"]]
 )
+
+
+class RunOutput(TypedDict):
+    """A local snapshot or user export; older exports may omit optional details."""
+
+    kind: OutputKind
+    path: str
+    saved: NotRequired[str]
+    dataset: NotRequired[str]
+    local: NotRequired[bool]
+    complete: NotRequired[bool]
+    selected: NotRequired[list[str]]
+    selected_rows: NotRequired[int]
+    selection: NotRequired[dict[str, JSONValue]]
+
+
+class RunRecord(TypedDict):
+    """Normalized run history plus optional, never-persisted workspace caches."""
+
+    id: str
+    started: str
+    finished: str | None
+    status: RunStatus
+    source: str
+    settings: AnalysisSettings
+    paradigma_version: str
+    warnings: list[str]
+    errors: list[str]
+    outputs: list[RunOutput]
+    log: str
+    sources: NotRequired[dict[str, str]]
+    _frame: NotRequired[SensorInput]
+    _results: NotRequired[AnalysisResults]
+    _provenance: NotRequired[Provenance]
+    _unsaved_results: NotRequired[bool]
 
 
 class ClockMetadata(TypedDict):
@@ -86,7 +123,7 @@ class NoticeCallback(Protocol):
 
 
 class FinishRunCallback(Protocol):
-    def __call__(self, status: str, errors: Iterable[AnalysisError] = ()) -> None: ...
+    def __call__(self, status: RunStatus, errors: Iterable[AnalysisError] = ()) -> None: ...
 
 
 class StartJobCallback(Protocol):

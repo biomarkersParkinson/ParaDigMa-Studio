@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from PySide6.QtCore import QModelIndex
     from PySide6.QtWidgets import QLabel, QPlainTextEdit, QPushButton, QWidget
 
-    from .contracts import RunRecord
+    from .contracts import OutputKind, PathInput, RunOutput, RunRecord
     from .widgets import ReadableTable
 
 
@@ -453,7 +453,7 @@ class RunController:
         self.callbacks.start_job(read, self._restore_prepared_run)
 
     @staticmethod
-    def _run_provenance(record):
+    def _run_provenance(record: RunRecord) -> Provenance:
         return {
             "source": record["source"],
             "settings": record["settings"],
@@ -468,7 +468,7 @@ class RunController:
         self.update_run_actions()
 
     @staticmethod
-    def reopen_output(record):
+    def reopen_output(record: RunRecord) -> RunOutput | None:
         if run_is_saved(record):
             return saved_result_output(record)
         # Keep reopening complete legacy exports possible, but distinguish them
@@ -498,7 +498,7 @@ class RunController:
         record.setdefault("_unsaved_results", not run_is_saved(record))
         self.callbacks.show_notice("")
 
-    def record_output(self, path, kind):
+    def record_output(self, path: PathInput, kind: OutputKind) -> None:
         if self.state.current_run is not None:
             name, frame = self.callbacks.selected_export_table()
             self.state.current_run["outputs"].append(
@@ -520,11 +520,11 @@ class RunController:
             self.persist_run(self.state.current_run)
             self.refresh_runs()
 
-    def save_run_results(self, records, *, close_after=False):
+    def save_run_results(self, records: list[RunRecord], *, close_after: bool = False) -> None:
         if self.callbacks.is_busy() or not records:
             return
         snapshots = [
-            (dict(record), record["_results"], dict(record["_provenance"])) for record in records
+            (record.copy(), record["_results"], dict(record["_provenance"])) for record in records
         ]
         protected = [self.inputs.source, *self.inputs.sources.values()]
         self.state._close_after_save = close_after

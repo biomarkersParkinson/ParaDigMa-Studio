@@ -6,7 +6,7 @@ import traceback
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import (
@@ -16,7 +16,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .contracts import AnalysisResults, PathInput, Provenance, RunRecord, StartJobCallback
+from .contracts import (
+    AnalysisResults,
+    OutputKind,
+    PathInput,
+    Provenance,
+    RunRecord,
+    StartJobCallback,
+)
 from .history import RunHistory, now, run_is_saved
 from .theme import STYLESHEET, light_palette
 from .workspace_state import (
@@ -72,7 +79,7 @@ class ExportCallbacks:
     append_log: Callable[[str], None]
     failure: Callable[[str], None]
     persist_run: Callable[[RunRecord], None]
-    record_output: Callable[[str, str], None]
+    record_output: Callable[[str, OutputKind], None]
     refresh_runs: Callable[[], None]
     save_run_results: SaveRunResultsCallback
     selected_export_table: Callable[[], tuple[str, pd.DataFrame | None]]
@@ -155,7 +162,9 @@ class ExportController(QObject):
         )
         if not path:
             return
-        selected, format_name = dialog.selected(), dialog.format.currentText()
+        selected = dialog.selected()
+        # The non-editable chooser contains exactly the two supported output kinds.
+        format_name = cast(OutputKind, dialog.format.currentText())
         results, provenance, run = (
             self.results.results,
             self.results.provenance,

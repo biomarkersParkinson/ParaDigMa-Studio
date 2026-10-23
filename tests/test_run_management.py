@@ -1,5 +1,6 @@
 """Cancellation, process cleanup and confirmed deletion of owned exports."""
 
+import json
 import logging
 import time
 from threading import Event
@@ -12,7 +13,133 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from paradigma_studio import analysis_process, app as desktop
 from paradigma_studio.app import MainWindow, Worker
-from paradigma_studio.history import RunHistory, new_run
+from paradigma_studio.history import RunHistory, load_result_export, new_run, run_is_saved
+from paradigma_studio.run_controller import RunController
+from paradigma_studio.serialization import export_results
+
+
+def test_legacy_history_normalizes_omitted_fields_and_reopens_original_results(
+    tmp_path, tremor_outputs
+):
+    history = RunHistory(tmp_path / "runs")
+    output = tmp_path / "legacy.json"
+    provenance = {"source": "sensor.csv", "settings": {"pipelines": ["tremor"]}}
+    export_results(output, tremor_outputs, provenance)
+    record = new_run("sensor.csv", provenance["settings"])
+    record["status"] = "Completed"
+    record["warnings"] = ["Some windows excluded"]
+    record["outputs"] = [{"kind": "JSON", "path": str(output)}]
+    record["future_metadata"] = {"labels": ["retained"], "revision": 2}
+    for key in ("finished", "paradigma_version", "errors", "log"):
+        record.pop(key)
+    history.save(record)
+    path = history.directory / f"{record['id']}.json"
+    before = path.read_bytes()
+
+    records, issues = history.load()
+    assert not issues and len(records) == 1
+    restored = records[0]
+    assert restored["status"] == "Completed" and restored["finished"] is None
+    assert restored["paradigma_version"] == restored["log"] == ""
+    assert restored["errors"] == [] and restored["warnings"] == record["warnings"]
+    assert restored["future_metadata"] == record["future_metadata"]
+    assert restored["outputs"] == record["outputs"]
+    assert path.read_bytes() == before  # Reading never rewrites the older file.
+    assert not run_is_saved(restored)
+    saved = RunController.reopen_output(restored)
+    assert saved == record["outputs"][0]
+    saved_provenance, values = load_result_export(saved["path"])
+    assert saved_provenance == provenance
+    pd.testing.assert_frame_equal(
+        values["quantifications"]["tremor"], tremor_outputs["quantifications"]["tremor"]
+    )
+    history.save(restored)
+    again, issues = history.load()
+    assert not issues and again == records
+
+
+def test_history_never_persists_or_restores_transient_workspace_caches(tmp_path, tremor_outputs):
+    history = RunHistory(tmp_path / "runs")
+    record = new_run("sensor.csv", {})
+    record.update(
+        _frame=pd.DataFrame({"time": [0.0]}),
+        _results=tremor_outputs,
+        _provenance={"source": "sensor.csv"},
+        _unsaved_results=True,
+    )
+    history.save(record)
+    path = history.directory / f"{record['id']}.json"
+    public = json.loads(path.read_text(encoding="utf-8"))
+    assert not any(key.startswith("_") for key in public)
+    public.update(_frame="not a frame", _results={"cached": True}, _unsaved_results=True)
+    path.write_text(json.dumps(public), encoding="utf-8")
+    before = path.read_bytes()
+    restored, issues = history.load()
+    assert not issues and len(restored) == 1
+    assert not any(key.startswith("_") for key in restored[0])
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [{"status": "Unknown"}, {"paradigma_version": 112}, {"finished": False}],
+    ids=["unknown-status", "numeric-version", "boolean-finish-time"],
+)
+def test_malformed_run_fields_skip_only_the_damaged_history_entry(tmp_path, invalid):
+    history = RunHistory(tmp_path / "runs")
+    good, bad = new_run("good.csv", {}), new_run("bad.csv", {})
+    bad.update(invalid)
+    for record in (good, bad):
+        history.save(record)
+    restored, issues = history.load()
+    assert [record["id"] for record in restored] == [good["id"]]
+    assert len(issues) == 1 and bad["id"] in issues[0]
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"kind": "ZIP"},
+        {"path": None},
+        {"local": "false"},
+        {"complete": "false"},
+        {"saved": 123},
+        {"dataset": []},
+        {"selected": "quantifications/tremor"},
+        {"selected": [42]},
+        {"selected_rows": True},
+        {"selected_rows": -1},
+        {"selected_rows": 1.5},
+        {"selection": []},
+    ],
+)
+def test_malformed_output_metadata_cannot_change_saved_or_export_state(tmp_path, invalid):
+    history = RunHistory(tmp_path / "runs")
+    output = tmp_path / "result.json"
+    output.write_text("{}", encoding="utf-8")
+    good, bad = new_run("good.csv", {}), new_run("bad.csv", {})
+    good["outputs"] = [
+        {
+            "kind": "JSON",
+            "path": str(output),
+            "local": False,
+            "complete": False,
+            "saved": "2026-10-23T00:00:00+00:00",
+            "dataset": "quantifications/tremor",
+            "selected": ["quantifications/tremor"],
+            "selected_rows": 0,
+            "selection": {"scope": "Full run"},
+        }
+    ]
+    bad["outputs"] = [{**good["outputs"][0], **invalid}]
+    for record in (good, bad):
+        history.save(record)
+    restored, issues = history.load()
+    assert [record["id"] for record in restored] == [good["id"]]
+    assert restored[0]["outputs"] == good["outputs"]
+    assert not run_is_saved(restored[0])
+    assert RunController.reopen_output(restored[0]) is None
+    assert len(issues) == 1 and bad["id"] in issues[0]
 
 
 def slow_child(input_path, output_path, settings, queue):

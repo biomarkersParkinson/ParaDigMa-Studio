@@ -243,7 +243,15 @@ options. Loading still accepts a single frame with or without cached descriptive
 neither annotations nor type narrowing convert or copy source frames.
 
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
-messages. Extensible ParaDigMa payloads, the heterogeneous Qt job-completion
+messages. `RunRecord` and `RunOutput` are `TypedDict` schemas with required fields,
+known status/format literals and optional export details and workspace caches.
+History loading validates JSON before entering the typed API, migrates old errors,
+and supplies missing legacy completion time, toolbox version and log fields.
+Older exports can still omit saved/local/complete markers; reading does not rewrite
+their files or promote partial exports to complete snapshots. Public extension
+metadata is retained, while private frame/result caches are never restored from
+history JSON. Their scientific types remain under `TYPE_CHECKING` at startup.
+Extensible ParaDigMa settings, provenance and results, the heterogeneous Qt job-completion
 payload and upstream forwarding arguments retain `Any`. pandas stubs are
 development dependencies. Keep scientific type imports under `TYPE_CHECKING`;
 the packaged `py.typed` marker exposes available annotations to callers without
