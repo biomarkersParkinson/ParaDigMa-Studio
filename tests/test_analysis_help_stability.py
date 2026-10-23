@@ -48,8 +48,12 @@ def test_native_analyze_layout_with_no_system_fonts(tmp_path):
             "pytest",
             "-q",
             "tests/test_analysis_layout.py",
+            "tests/test_input_metadata.py",
             "-k",
-            "test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes",
+            (
+                "test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes"
+                " or test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes"
+            ),
         ],
         cwd=Path(__file__).resolve().parents[1],
         env=env,

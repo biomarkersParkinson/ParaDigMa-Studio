@@ -239,15 +239,19 @@ class AnalysisPage:
         ):
             control: QWidget = widget
             if title != "Watch side":
-                control = QWidget()
-                row = QHBoxLayout(control)
-                row.setContentsMargins(0, 0, 0, 0)
-                row.addWidget(widget, 1)
+                control = WrappedForm()
+                selector, action = QHBoxLayout(), QHBoxLayout()
+                selector.addWidget(widget)
                 reset = button("Default")
                 reset.setAccessibleName(f"Restore {title.lower()} from file")
                 reset.hide()
                 self.file_default_buttons[title] = reset
-                row.addWidget(reset)
+                action.addWidget(reset, alignment=Qt.AlignmentFlag.AlignRight)
+                # Keep the full action reachable when native label widths leave
+                # too little room beside the selector, as for Time origin.
+                row = AdaptiveFormColumns(selector, action, right_stretch=0)
+                row.setSpacing(6)
+                control.setLayout(row)
             self.analysis_field(title, control, form=form)
             widget.setAccessibleName(title)
 
