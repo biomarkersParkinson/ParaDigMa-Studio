@@ -1,5 +1,7 @@
 """Exercise startup and analysis inside the packaged executable."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -8,6 +10,10 @@ import traceback
 from importlib.metadata import version
 from pathlib import Path
 from threading import Event
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .jobs import Worker
 
 
 def smoke_test(report_path):
@@ -596,8 +602,6 @@ def _verify_physilog_preparation():
 
 
 def _verify_saved_run_roundtrip(window, source, export, quantified):
-    from PySide6.QtCore import QEventLoop, QTimer
-
     # Reopen an explicitly exported result through the Runs page.
     # This also exercises the frozen app's Qt background worker,
     # metadata persistence and safe JSON restoration.
@@ -621,14 +625,7 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     window.open_run()
     if window._job_state.worker is None:
         raise RuntimeError("Exported result was not reopened in a background worker")
-    loop = QEventLoop()
-    timer = QTimer()
-    timer.setSingleShot(True)
-    timer.timeout.connect(loop.quit)
-    window._job_state.worker.finished.connect(loop.quit)
-    timer.start(15000)
-    loop.exec()
-    timer.stop()
+    _wait_for_worker(window._job_state.worker)
     if (
         window._job_state.worker is not None
         or window._result_state.results["quantifications"]["tremor"].shape != quantified.shape
@@ -641,10 +638,7 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     window.save_results_button.click()
     if window._job_state.worker is None:
         raise RuntimeError("Local results were not saved in a background worker")
-    window._job_state.worker.finished.connect(loop.quit)
-    timer.start(15000)
-    loop.exec()
-    timer.stop()
+    _wait_for_worker(window._job_state.worker)
     if window._job_state.worker is not None:
         raise RuntimeError("Local results save did not finish")
     window._run_state.runs, issues = window.history.load()
@@ -657,15 +651,26 @@ def _verify_saved_run_roundtrip(window, source, export, quantified):
     window.open_run()
     if window._job_state.worker is None:
         raise RuntimeError("Local saved run was not reopened from disk")
-    window._job_state.worker.finished.connect(loop.quit)
-    timer.start(15000)
-    loop.exec()
-    timer.stop()
+    _wait_for_worker(window._job_state.worker)
     if (
         window._job_state.worker is not None
         or window._result_state.results["quantifications"]["tremor"].shape != quantified.shape
     ):
         raise RuntimeError("Local saved results did not reopen correctly")
+
+
+def _wait_for_worker(worker: Worker, timeout_ms: int = 15000) -> None:
+    """Pump Qt until the worker finishes or the caller's completion check times out."""
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    loop = QEventLoop()
+    timer = QTimer()
+    timer.setSingleShot(True)
+    timer.timeout.connect(loop.quit)
+    worker.finished.connect(loop.quit)
+    timer.start(timeout_ms)
+    loop.exec()
+    timer.stop()
 
 
 def _verify_isolated_result_reader(export, quantified):

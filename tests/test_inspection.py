@@ -202,6 +202,23 @@ def test_datetime_precision_and_timezone_do_not_change_sampling_rate():
     assert result["Gaps (>1.5 × median interval)"] == 1
 
 
+@pytest.mark.parametrize("encoding", ["datetime", "timezone", "timedelta"])
+def test_nanosecond_timing_keeps_span_and_does_not_bridge_missing_samples(encoding):
+    offsets = pd.Series(pd.to_timedelta([0, 10, 30, None, 80, 80, 70], unit="ns"))
+    series = offsets if encoding == "timedelta" else offsets + pd.Timestamp("2026-10-07")
+    if encoding == "timezone":
+        series = series.dt.tz_localize("UTC").dt.tz_convert("Europe/Amsterdam")
+    original = series.copy(deep=True)
+    result = values(series)
+    assert result["Time span (s)"] == 80 / 1e9
+    assert result["Estimated sampling rate (Hz)"] == pytest.approx(1e9 / 15)
+    assert result["Interval IQR (s)"] == pytest.approx(5 / 1e9)
+    assert result["Missing / invalid time samples"] == 1
+    assert result["Zero-length intervals"] == result["Backward intervals"] == 1
+    assert result["Gaps (>1.5 × median interval)"] == 0
+    pd.testing.assert_series_equal(series, original, check_exact=True)
+
+
 def test_invalid_timestamps_do_not_create_a_gap_across_unknown_intervals():
     result = values(pd.Series([0.0, 0.01, np.nan, 0.1, 0.11, 0.11, 0.09, np.inf]))
     assert result["Missing / invalid time samples"] == 2

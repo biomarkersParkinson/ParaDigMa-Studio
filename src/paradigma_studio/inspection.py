@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import tzinfo
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -15,8 +15,9 @@ if TYPE_CHECKING:
     import logging
 
     import pandas as pd
+    from numpy.typing import NDArray
 
-    from .contracts import RecordingDescription
+    from .contracts import FloatArray, RecordingDescription
 
 TIME_NAMES = {"time", "time_dt", "timestamp", "timestamps", "datetime", "date_time"}
 
@@ -143,20 +144,29 @@ def _sensor_descriptives(frame, time_column, missing_counts):
     )
 
 
-def time_descriptives(series, unit="relative_s"):
+def time_descriptives(series: pd.Series, unit: str = "relative_s") -> pd.DataFrame:
     """Report cadence without bridging invalid timestamps or guessing units.
 
     Sampling rate is the inverse median positive interval. A descriptive gap is
     an interval >1.5 times that median, independent of analysis gap settings.
     Difference timelines with invalid deltas have an unknown total time span.
     """
+    intervals, span, missing_samples = _time_intervals(series, unit)
+    return _time_statistics(intervals, span, missing_samples)
+
+
+def _time_intervals(series: pd.Series, unit: str) -> tuple[FloatArray, float, int]:
+    """Interpret adjacent intervals and span in seconds, without bridging holes."""
     import pandas as pd
 
+    valid: pd.Series | NDArray[np.bool_]
     if pd.api.types.is_datetime64_any_dtype(series.dtype) or pd.api.types.is_timedelta64_dtype(
         series.dtype
     ):
         valid = series.notna()
-        intervals = series.diff().dt.total_seconds().to_numpy(dtype=float, na_value=np.nan)[1:]
+        # The dtype check above guarantees that differences are timedeltas.
+        deltas = cast("pd.Series[pd.Timedelta]", series.diff())
+        intervals = deltas.dt.total_seconds().to_numpy(dtype=float, na_value=np.nan)[1:]
         if valid.any():
             delta = series[valid].max() - series[valid].min()
             span = delta.total_seconds() + delta.nanoseconds / 1e9
@@ -186,13 +196,20 @@ def time_descriptives(series, unit="relative_s"):
             # Subtract before scaling to preserve precision in epoch times.
             intervals = np.diff(values) * scale
             span = (values[valid].max() - values[valid].min()) * scale if valid.any() else np.nan
+    return intervals, span, int((~valid).sum())
+
+
+def _time_statistics(intervals: FloatArray, span: float, missing_samples: int) -> pd.DataFrame:
+    """Summarize interpreted intervals in the existing statistic order and units."""
+    import pandas as pd
+
     finite_intervals = intervals[np.isfinite(intervals)]
     positive = finite_intervals[finite_intervals > 0]
     median = np.median(positive) if len(positive) else np.nan
     iqr = np.diff(np.quantile(positive, [0.25, 0.75]))[0] if len(positive) else np.nan
-    gaps = positive[positive > 1.5 * median] if len(positive) else np.array([])
+    gaps: FloatArray = positive[positive > 1.5 * median] if len(positive) else np.array([])
     gap_count = len(gaps) if len(positive) else np.nan
-    longest_gap = (gaps.max() if len(gaps) else 0.0) if len(positive) else np.nan
+    longest_gap = (np.max(gaps) if len(gaps) else 0.0) if len(positive) else np.nan
     return pd.DataFrame(
         {
             "Statistic": [
@@ -213,7 +230,7 @@ def time_descriptives(series, unit="relative_s"):
                 iqr,
                 gap_count,
                 longest_gap,
-                int((~valid).sum()),
+                missing_samples,
                 int((finite_intervals == 0).sum()),
                 int((finite_intervals < 0).sum()),
             ],

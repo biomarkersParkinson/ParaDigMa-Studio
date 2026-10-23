@@ -1,5 +1,7 @@
 """Measure Results time navigation and raw panning with queued Qt painting."""
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -10,6 +12,7 @@ import time
 import tracemalloc
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -39,15 +42,7 @@ def benchmark(
 ):
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
-    report = {
-        "platform": platform.platform(),
-        "app_version": version("paradigma-studio"),
-        "qt_platform": app.platformName(),
-        "conditions": "Source app; Fusion, 1450x920; warm imports; queued Qt paints, without a profiler. Selection separates first creation from repeated toggles. Navigation release redraw is measured separately. See selection_conditions for input and display scale.",
-        "frames_per_drag": frames,
-        "repeats": repeats,
-        "measurements": {},
-    }
+    report = _pan_report(app, frames, repeats)
     if first_creation_only:
         _measure_first_creation(
             app,
@@ -93,56 +88,95 @@ def benchmark(
             _write_report(report_path, report)
             return
 
-        def measure(name, canvas, toolbar, limits):
-            _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames)
-
-        wide = full[0], full[0] + (full[1] - full[0]) * 0.75
-        _measure_time_scroll(
-            app, report, "results_wide_scroll_6x30000", window, wide, repeats, frames
-        )
-        zoomed = full[0] + 0.5, full[0] + 0.5 + 900 / 86400
-        _measure_time_scroll(
-            app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
-        )
-        _measure_time_selection(app, report, window, full, repeats, frames)
-        _measure_result_selection(app, report, window, repeats)
-        sensor = _synthetic_pan_sensors()
-        window.loaded(("sensor.csv", sensor))
-        deadline = time.monotonic() + 30
-        while any(
-            p.pending
-            for p in (window._origin_preview, window._time_preview, window._sensor_preview)
-        ):
-            if time.monotonic() > deadline:
-                raise RuntimeError("Inspection preview did not finish")
-            QTest.qWait(5)
-        channels = [c for c in sensor if c not in ("time", "time_dt")]
-        window.navigate(0)
-        window.data_tabs.setCurrentIndex(1)
-        window.set_input_channels(channels)
-        QTest.qWait(30)
-        measure(
-            "data_3_modalities",
-            window.data_canvas,
-            window.data_toolbar,
-            window.data_figure.axes[0].get_xlim(),
-        )
-        window._result_state.provenance = {"settings": {"skip_preparation": True}}
-        window.analyzed({"quantifications": {"tremor": output}})
-        window.result_table.setCurrentIndex(window.result_table.model().index(30, 0))
-        window.inspect_sensor_context()
-        window.navigate(2)
-        window.set_sensor_channels(channels)
-        QTest.qWait(30)
-        measure(
-            "context_3_modalities",
-            window.sensor_canvas,
-            window.sensor_toolbar,
-            window.sensor_figure.axes[0].get_xlim(),
-        )
+        _measure_result_navigation(app, report, window, full, repeats, frames)
+        _measure_raw_panning(app, report, window, output, repeats, frames)
         window.close()
         app.processEvents()
     _write_report(report_path, report)
+
+
+def _pan_report(app: QApplication, frames: int, repeats: int) -> dict[str, Any]:
+    """Describe the run before any measured interaction starts."""
+    return {
+        "platform": platform.platform(),
+        "app_version": version("paradigma-studio"),
+        "qt_platform": app.platformName(),
+        "conditions": "Source app; Fusion, 1450x920; warm imports; queued Qt paints, without a profiler. Selection separates first creation from repeated toggles. Navigation release redraw is measured separately. See selection_conditions for input and display scale.",
+        "frames_per_drag": frames,
+        "repeats": repeats,
+        "measurements": {},
+    }
+
+
+def _measure_result_navigation(
+    app: QApplication,
+    report: dict[str, Any],
+    window: MainWindow,
+    full: tuple[float, float],
+    repeats: int,
+    frames: int,
+) -> None:
+    """Measure the existing result-scroll, marker and selection scenarios in order."""
+    wide = full[0], full[0] + (full[1] - full[0]) * 0.75
+    _measure_time_scroll(app, report, "results_wide_scroll_6x30000", window, wide, repeats, frames)
+    zoomed = full[0] + 0.5, full[0] + 0.5 + 900 / 86400
+    _measure_time_scroll(
+        app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
+    )
+    _measure_time_selection(app, report, window, full, repeats, frames)
+    _measure_result_selection(app, report, window, repeats)
+
+
+def _measure_raw_panning(
+    app: QApplication,
+    report: dict[str, Any],
+    window: MainWindow,
+    output: pd.DataFrame,
+    repeats: int,
+    frames: int,
+) -> None:
+    """Prepare raw Data/context views outside the unchanged per-drag timers."""
+    sensor = _synthetic_pan_sensors()
+    window.loaded(("sensor.csv", sensor))
+    deadline = time.monotonic() + 30
+    while any(
+        p.pending for p in (window._origin_preview, window._time_preview, window._sensor_preview)
+    ):
+        if time.monotonic() > deadline:
+            raise RuntimeError("Inspection preview did not finish")
+        QTest.qWait(5)
+    channels = [c for c in sensor if c not in ("time", "time_dt")]
+    window.navigate(0)
+    window.data_tabs.setCurrentIndex(1)
+    window.set_input_channels(channels)
+    QTest.qWait(30)
+    _measure_pan(
+        app,
+        report,
+        "data_3_modalities",
+        window.data_canvas,
+        window.data_toolbar,
+        window.data_figure.axes[0].get_xlim(),
+        repeats,
+        frames,
+    )
+    window._result_state.provenance = {"settings": {"skip_preparation": True}}
+    window.analyzed({"quantifications": {"tremor": output}})
+    window.result_table.setCurrentIndex(window.result_table.model().index(30, 0))
+    window.inspect_sensor_context()
+    window.navigate(2)
+    window.set_sensor_channels(channels)
+    QTest.qWait(30)
+    _measure_pan(
+        app,
+        report,
+        "context_3_modalities",
+        window.sensor_canvas,
+        window.sensor_toolbar,
+        window.sensor_figure.axes[0].get_xlim(),
+        repeats,
+        frames,
+    )
 
 
 def _write_report(report_path, report):

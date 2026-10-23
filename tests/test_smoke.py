@@ -6,6 +6,28 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+
+@pytest.mark.parametrize("finishes", [True, False])
+def test_smoke_worker_wait_pumps_finished_signal_or_returns_on_timeout(finishes):
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
+    from paradigma_studio.jobs import Worker
+    from paradigma_studio.smoke import _wait_for_worker
+
+    application = QApplication.instance() or QApplication([])
+    worker = Worker(lambda logger: None)
+    finished = []
+    worker.finished.connect(lambda: finished.append(True))
+    if finishes:
+        QTimer.singleShot(0, worker.finished.emit)
+    _wait_for_worker(worker, timeout_ms=1000 if finishes else 0)
+    assert finished == ([True] if finishes else [])
+    worker.deleteLater()
+    application.processEvents()
+
 
 def test_desktop_smoke_entrypoint(tmp_path):
     root = Path(__file__).resolve().parents[1]
