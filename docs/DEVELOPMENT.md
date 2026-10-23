@@ -186,6 +186,14 @@ functions without annotated signatures (`check_untyped_defs = true`). It targets
 `inspection` is also checked at the lenient service level; its batch-inspection
 interface is fully annotated.
 The deferred `raw_signals` renderer is checked at the same lenient level.
+
+`axis_mapping`, `column_mapping`, `input_metadata` and `analysis_limits` have
+stronger per-module requirements: complete function annotations
+(`disallow_untyped_defs`), explicit generic arguments such as `list[str]` rather
+than bare `list` (`disallow_any_generics`), and warnings when a function with a
+concrete declared return type returns `Any` (`warn_return_any`). These services
+inherit the shared function-body checks and unused-ignore warnings.
+
 The header-only `column_mapping` model and pure `axis_mapping` service are also checked; the Qt editor is covered
 by the recursive UI target. Controllers supply column-name schemas once per
 loaded batch and use the editor's explicit mapping/module APIs and `changed`

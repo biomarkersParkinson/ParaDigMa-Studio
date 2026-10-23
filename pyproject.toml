@@ -148,6 +148,19 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
+    "paradigma_studio.axis_mapping",
+    "paradigma_studio.column_mapping",
+    "paradigma_studio.input_metadata",
+    "paradigma_studio.analysis_limits",
+]
+# These small services have complete annotations; retain explicit container types
+# and reject Any returned from a function with a concrete declared return type.
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = [
     "paradigma_studio.analysis_controller",
     "paradigma_studio.data_controller",
     "paradigma_studio.job_controller",
