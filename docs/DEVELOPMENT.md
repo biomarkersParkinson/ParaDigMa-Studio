@@ -137,6 +137,13 @@ view/state objects and `ResultPlotData`, including its existing cache. The rende
 keeps its callback entry points; interaction updates on an empty or unopened graph
 must not initialize a canvas.
 
+`ui/results_page.py` owns Results tabs, controls, its deferred result canvas and
+frozen workspace/graph views, following the `DataPage`/`AnalysisPage` composition
+pattern. `ResultsPageHost` supplies the parent, page layout and shared raw-channel
+graph builder/accessor. `WorkspaceLayout` retains page composition and explicit
+widget ports; it still builds the shared raw-data/sensor canvases. Constructing
+the page or obtaining its views must leave both result and sensor canvases deferred.
+
 ## CI artifacts
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
