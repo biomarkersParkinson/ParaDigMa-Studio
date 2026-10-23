@@ -87,12 +87,13 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
     # Measured on windows-latest: the two headers need 386 pixels and the
-    # left controls need 500. File labels must share existing cell width.
+    # parameter controls need 500. File labels must share existing cell width.
     header = window.mapping.table.horizontalHeader()
     for section, width in ((0, 217), (2, 169)):
         header.setSectionResizeMode(section, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(section, width)
     window.prepared.setMinimumWidth(472)
+    window.drop_missing.setMinimumWidth(472)
     if large:
         configure_native_analysis_sizes(window, 44, True)
     window.mapping._fit_table()
@@ -104,7 +105,11 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
         assert window.analysis_scroll.verticalScrollBar().maximum() == 0
         mapping = window.mapping.mapTo(window.settings_panel, QPoint())
         prepared = window.prepared.mapTo(window.settings_panel, QPoint())
-        assert mapping.x() > prepared.x() and mapping.y() < prepared.y()
+        assert mapping.x() == prepared.x()
+        assert prepared.y() >= mapping.y() + window.mapping.height() + 12
+        assert window.time.mapTo(window.settings_panel, QPoint()).x() > (
+            mapping.x() + window.mapping.width()
+        )
         fields = (
             *window.mapping._combos.values(),
             *window.mapping._file_badges.values(),
@@ -137,6 +142,7 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
     # columns require 1038 pixels in a 1036-pixel form. Their actual minima fit.
     window.mapping.setMinimumWidth(514)
     window.prepared.setMinimumWidth(472)
+    window.drop_missing.setMinimumWidth(472)
     for title, width in (("Maximum gap", 91), ("Minimum section duration", 104)):
         heading = next(
             label
@@ -152,8 +158,11 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
     try:
         prepared = window.prepared.mapTo(window.analysis_parameter_fields, QPoint())
         mapping = window.mapping.mapTo(window.analysis_parameter_fields, QPoint())
-        assert mapping.x() > prepared.x()
-        assert mapping.y() < prepared.y()
+        assert mapping.x() == prepared.x()
+        assert prepared.y() >= mapping.y() + window.mapping.height() + 12
+        assert window.max_gap.mapTo(window.analysis_parameter_fields, QPoint()).x() > (
+            mapping.x() + window.mapping.width()
+        )
         assert window.analysis_scroll.verticalScrollBar().maximum() == 0
         for editor in (window.max_gap, window.min_segment):
             assert editor.width() >= editor.minimumSizeHint().width()
@@ -681,7 +690,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
             if grid_width == 570:
                 form = window.analysis_parameter_fields
                 first_end = window.prepared.mapTo(form, QPoint(0, window.prepared.height()))
-                second_start = window.mapping.mapTo(form, QPoint(0, 0))
+                second_start = window.side.mapTo(form, QPoint(0, 0))
                 if size[0] == 960:
                     assert second_start.y() >= first_end.y() + 20
                 else:

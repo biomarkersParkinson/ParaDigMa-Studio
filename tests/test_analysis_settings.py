@@ -132,13 +132,12 @@ def test_desktop_preparation_defaults_and_official_threshold_resets_remain_avail
             window.gaps,
             window.max_gap,
             window.min_segment,
-            window.prepared,
         )
     ]
     assert ys == sorted(ys)
     mapping_start = window.mapping.mapTo(window.settings_panel, QPoint(0, 0))
     gap_start = window.gaps.mapTo(window.settings_panel, QPoint(0, 0))
-    assert mapping_start.x() > gap_start.x() and mapping_start.y() < gap_start.y()
+    assert mapping_start.x() < gap_start.x() and mapping_start.y() < gap_start.y()
 
 
 def test_inline_analysis_help_does_not_change_configuration(window):

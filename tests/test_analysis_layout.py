@@ -131,14 +131,23 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
     QTest.qWait(30)
     fields = [window.side, window.acc, window.gyro, window.time]
     assert len({field.mapTo(window, field.rect().topLeft()).x() for field in fields}) == 1
-    assert window.mapping.mapTo(window, window.mapping.rect().topLeft()).x() > max(
-        field.mapTo(window, field.rect().topRight()).x() for field in fields
-    )
+    mapping_right = window.mapping.mapTo(window, window.mapping.rect().topRight()).x()
+    for field in (
+        *fields,
+        window.clock_input,
+        window.drop_missing,
+        window.gaps,
+        window.max_gap,
+        window.min_segment,
+        *window.section_reset_buttons.values(),
+    ):
+        assert field.mapTo(window, field.rect().topLeft()).x() > mapping_right
+    mapping_bottom = window.mapping.mapTo(window, window.mapping.rect().bottomLeft())
+    prepared_top = window.prepared.mapTo(window, window.prepared.rect().topLeft())
+    assert prepared_top.x() == mapping_bottom.x()
+    assert prepared_top.y() >= mapping_bottom.y() + 12
     assert window.drop_missing.mapTo(window, window.drop_missing.rect().topLeft()).y() > (
         window.time.mapTo(window, window.time.rect().bottomLeft()).y()
-    )
-    assert window.clock_input.mapTo(window, window.clock_input.rect().topLeft()).x() < (
-        window.mapping.mapTo(window, window.mapping.rect().topLeft()).x()
     )
     for _info, description in window.analysis_help.values():
         assert f"color: {LINK_COLOR}" in description.text()
