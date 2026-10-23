@@ -174,7 +174,7 @@ These commands verify a Linux executable; the Windows workflows verify the EXE.
 
 `python -m mypy` checks function bodies throughout its configured scope, including
 functions without annotated signatures (`check_untyped_defs = true`). It targets
-`contracts`, `core`, `recordings`, `history`, `jobs`,
+`contracts`, `preparation_contracts`, `paradigma_api`, `core`, `recordings`, `history`, `jobs`,
 `analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
 `serialization` and `epoch_profile`, plus these controller and service modules:
 
@@ -187,12 +187,32 @@ functions without annotated signatures (`check_untyped_defs = true`). It targets
 interface is fully annotated.
 The deferred `raw_signals` renderer is checked at the same lenient level.
 
-`axis_mapping`, `column_mapping`, `input_metadata` and `analysis_limits` have
+`axis_mapping`, `column_mapping`, `input_metadata`, `analysis_limits`,
+`preparation_contracts` and `paradigma_api` have
 stronger per-module requirements: complete function annotations
 (`disallow_untyped_defs`), explicit generic arguments such as `list[str]` rather
 than bare `list` (`disallow_any_generics`), and warnings when a function with a
 concrete declared return type returns `Any` (`warn_return_any`). These services
 inherit the shared function-body checks and unused-ignore warnings.
+
+`preparation_contracts` defines supported signal names, signed axes, sensor units
+and the six numeric time encodings. `PreparationSettings` describes preparation
+keywords; the column mapping and missing-sample policy remain explicit `analyze`
+arguments. The Analyze controller constructs these settings before adding the
+open saved/display metadata. Qt combo values are narrowed at that boundary;
+runtime column/axis/timestamp validation still handles external and legacy inputs.
+
+`paradigma_api` provides typed lazy adapters for the pinned ParaDigMa 1.1.2 API.
+`Unpack` constrains orchestrator and `analyze` keyword names and values without
+injecting defaults into forwarded run options. Boundary casts account for
+incomplete upstream annotations; they do not validate a recording's actual unit
+or orientation. Adapter tests compare the pinned signatures/defaults and check
+that supplied objects pass through unchanged. The normal mypy target also includes
+`tests/typing/preparation_contracts.py`: valid calls must pass, and invalid units,
+axes, signals and keywords must continue producing the expected type errors.
+Scientific equivalence tests independently compare real preparation and pipeline
+outputs with direct official calls. Raw/prepared frames and result schemas remain
+unchanged.
 
 The header-only `column_mapping` model and pure `axis_mapping` service are also checked; the Qt editor is covered
 by the recursive UI target. Controllers supply column-name schemas once per
@@ -251,8 +271,9 @@ Older exports can still omit saved/local/complete markers; reading does not rewr
 their files or promote partial exports to complete snapshots. Public extension
 metadata is retained, while private frame/result caches are never restored from
 history JSON. Their scientific types remain under `TYPE_CHECKING` at startup.
-Extensible ParaDigMa settings, provenance and results, the heterogeneous Qt job-completion
-payload and upstream forwarding arguments retain `Any`. pandas stubs are
+Extensible saved/display settings, provenance and results and the heterogeneous Qt
+job-completion payload retain `Any`. Official adapter keywords are explicitly typed;
+open dictionaries loaded from history still require runtime validation. pandas stubs are
 development dependencies. Keep scientific type imports under `TYPE_CHECKING`;
 the packaged `py.typed` marker exposes available annotations to callers without
 adding startup imports.

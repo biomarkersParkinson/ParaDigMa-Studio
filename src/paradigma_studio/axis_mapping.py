@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import cast
 
-SENSORS = ("accelerometer", "gyroscope")
-IMU_COLUMNS = tuple(f"{sensor}_{axis}" for sensor in SENSORS for axis in "xyz")
+from .preparation_contracts import IMUSignal, Sensor, SignedAxis
+
+SENSORS: tuple[Sensor, ...] = ("accelerometer", "gyroscope")
+IMU_COLUMNS: tuple[IMUSignal, ...] = (
+    "accelerometer_x",
+    "accelerometer_y",
+    "accelerometer_z",
+    "gyroscope_x",
+    "gyroscope_y",
+    "gyroscope_z",
+)
 
 
-def validate_orientation(axes: object) -> list[str] | None:
+def validate_orientation(axes: object) -> list[SignedAxis] | None:
     if axes is None:
         return None
     if (
@@ -23,10 +33,11 @@ def validate_orientation(axes: object) -> list[str] | None:
         raise ValueError(
             "Device axes must contain x, y and z once each, optionally prefixed with '-'."
         )
-    return list(axes)
+    # Membership and the full permutation were checked above.
+    return cast("list[SignedAxis]", list(axes))
 
 
-def validate_axis_inversions(values: object) -> list[str] | None:
+def validate_axis_inversions(values: object) -> list[IMUSignal] | None:
     if values is None:
         return None
     if (
@@ -38,13 +49,19 @@ def validate_axis_inversions(values: object) -> list[str] | None:
     return [channel for channel in IMU_COLUMNS if channel in values]
 
 
-def sensor_orientation(sensor: str, inversions: list[str]) -> list[str]:
+def sensor_orientation(sensor: Sensor, inversions: list[IMUSignal]) -> list[SignedAxis]:
     if sensor not in SENSORS:
         raise ValueError("Select accelerometer or gyroscope for axis directions.")
-    return [("-" if f"{sensor}_{axis}" in inversions else "") + axis for axis in "xyz"]
+    # f-strings do not retain Literal types; the fixed xyz alphabet is exhaustive.
+    return [
+        cast("SignedAxis", ("-" if f"{sensor}_{axis}" in inversions else "") + axis)
+        for axis in "xyz"
+    ]
 
 
-def preparation_orientations(settings: Mapping[str, object]) -> dict[str, list[str] | None]:
+def preparation_orientations(
+    settings: Mapping[str, object],
+) -> dict[Sensor, list[SignedAxis] | None]:
     legacy = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
     inversions = validate_axis_inversions(settings.get("axis_inversions"))
     if inversions is None:
@@ -56,13 +73,13 @@ def preparation_orientations(settings: Mapping[str, object]) -> dict[str, list[s
 
 def migrate_legacy_orientation(
     mapping: Mapping[str, str] | None, orientation: object
-) -> tuple[dict[str, str], list[str]]:
+) -> tuple[dict[str, str], list[IMUSignal]]:
     """Compose old renaming then global orientation into one rename and signs.
 
     Unmentioned standard columns follow the same permutation as explicitly
     mapped columns. Additional names and identity mappings retain their meaning.
     """
-    axes = validate_orientation(orientation) or ["x", "y", "z"]
+    axes: list[SignedAxis] = validate_orientation(orientation) or ["x", "y", "z"]
     original = dict(mapping or {})
     routes = {
         f"{sensor}_{source[-1]}": f"{sensor}_{target}"
@@ -74,7 +91,7 @@ def migrate_legacy_orientation(
         if source != target and source not in original:
             translated[source] = target
     inversions = [
-        f"{sensor}_{target}"
+        cast("IMUSignal", f"{sensor}_{target}")
         for sensor in SENSORS
         for target, source in zip("xyz", axes, strict=True)
         if source.startswith("-")

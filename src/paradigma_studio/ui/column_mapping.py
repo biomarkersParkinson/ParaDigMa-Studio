@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from ..axis_mapping import IMU_COLUMNS
 from ..column_mapping import SIGNALS, ColumnMapping, required_signals
+from ..preparation_contracts import IMUSignal, SignalColumns
 from ..theme import light_palette, tooltip_text
 from ..widgets import button, combo, label
 
@@ -220,10 +221,10 @@ class ColumnMappingEditor(QWidget):
     def mapping(self) -> dict[str, str]:
         return self.model.mapping()
 
-    def signal_columns(self) -> dict[str, str | None]:
+    def signal_columns(self) -> SignalColumns:
         return self.model.signal_columns()
 
-    def axis_inversions(self) -> list[str]:
+    def axis_inversions(self) -> list[IMUSignal]:
         return self.model.axis_inversions()
 
     def set_axis_inversions(self, inversions: object) -> None:

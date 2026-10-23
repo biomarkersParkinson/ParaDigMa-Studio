@@ -60,6 +60,12 @@ if TYPE_CHECKING:
         SensorInput,
         StartJobCallback,
     )
+    from .preparation_contracts import (
+        AccelerationUnit,
+        GyroscopeUnit,
+        PreparationSettings,
+        TimeInputUnit,
+    )
 
 
 @dataclass(frozen=True)
@@ -377,32 +383,38 @@ class AnalysisController(QObject):
 
     def _analysis_settings(self, pipelines: list[str]) -> AnalysisSettings:
         mapping = validate_column_mapping(self.view.mapping.mapping())
-        settings: AnalysisSettings = {
-            "pipelines": pipelines,
-            "watch_side": self.view.side.currentText(),
-            "accelerometer_units": self.view.acc.currentData(),
-            "gyroscope_units": self.view.gyro.currentText(),
-            "time_input_unit": self.view.time.currentText(),
+        # Non-editable combo choices contain only supported canonical units.
+        preparation: PreparationSettings = {
+            "accelerometer_units": cast("AccelerationUnit", self.view.acc.currentData()),
+            "gyroscope_units": cast("GyroscopeUnit", self.view.gyro.currentText()),
+            "time_input_unit": cast("TimeInputUnit", self.view.time.currentText()),
             "device_orientation": ["x", "y", "z"],
             "axis_inversions": []
             if self.view.prepared.isChecked()
             else self.view.mapping.axis_inversions(),
-            "column_mapping": mapping,
             "signal_columns": self.view.mapping.signal_columns(),
             "skip_preparation": self.view.prepared.isChecked(),
             "split_by_gaps": self.view.gaps.isChecked(),
-            "drop_missing_samples": self.view.drop_missing.isChecked(),
             "max_gap_seconds": self.view.max_gap.value(),
             "min_segment_seconds": self.view.min_segment.value(),
         }
-        settings["plot_time_origin"] = self.origin_setting()
         if self.view.prepared.isChecked():
-            settings.update(
-                accelerometer_units="g",
-                gyroscope_units="deg/s",
-                time_input_unit="relative_s",
-                split_by_gaps=False,
+            preparation.update(
+                {
+                    "accelerometer_units": "g",
+                    "gyroscope_units": "deg/s",
+                    "time_input_unit": "relative_s",
+                    "split_by_gaps": False,
+                }
             )
+        settings: AnalysisSettings = {
+            "pipelines": pipelines,
+            "watch_side": self.view.side.currentText(),
+            **preparation,
+            "column_mapping": mapping,
+            "drop_missing_samples": self.view.drop_missing.isChecked(),
+            "plot_time_origin": self.origin_setting(),
+        }
         return settings
 
     def _initialize_analysis_run(self, settings: AnalysisSettings) -> SensorInput:

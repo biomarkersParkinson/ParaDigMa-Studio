@@ -1,7 +1,8 @@
 """Shared API types without importing the scientific stack at startup.
 
 Run records and saved outputs have explicit application-owned fields.
-ParaDigMa results and forwarding settings retain extensible nested payloads.
+ParaDigMa results and saved/display settings retain extensible nested payloads.
+Preparation and official adapter keywords live in preparation_contracts.
 """
 
 from __future__ import annotations

@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .axis_mapping import IMU_COLUMNS, validate_axis_inversions
+from .preparation_contracts import IMUSignal, SignalColumns
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -26,7 +27,7 @@ ALIASES = {
 }
 
 
-def validate_signal_columns(value: object) -> dict[str, str | None] | None:
+def validate_signal_columns(value: object) -> SignalColumns | None:
     if value is None:
         return None
     if (
@@ -38,7 +39,8 @@ def validate_signal_columns(value: object) -> dict[str, str | None] | None:
     sources = [source for source in value.values() if source is not None]
     if len(sources) != len(set(sources)):
         raise ValueError("A source column cannot be assigned to multiple signals.")
-    return dict(value)
+    # Exact canonical keys and string/null values were checked above.
+    return cast("SignalColumns", dict(value))
 
 
 def selected_signal_sources(columns: Iterable[str], mapping: Mapping[str, str]) -> list[str]:
@@ -146,7 +148,7 @@ class ColumnMapping:
                 self.extra[source] = target
         self._refresh_defaults()
         if selected is not None:
-            self.choices = selected
+            self.choices = dict(selected.items())
             self._explicit = set(SIGNALS)
             self.extra = {
                 source: target for source, target in self.extra.items() if target not in SIGNALS
@@ -180,7 +182,7 @@ class ColumnMapping:
         else:
             self.inversions.discard(target)
 
-    def axis_inversions(self) -> list[str]:
+    def axis_inversions(self) -> list[IMUSignal]:
         return [target for target in IMU_COLUMNS if target in self.inversions]
 
     def source_conflicts(self) -> set[str]:
@@ -203,11 +205,12 @@ class ColumnMapping:
             },
         }
 
-    def signal_columns(self) -> dict[str, str | None]:
+    def signal_columns(self) -> SignalColumns:
         self.mapping()  # Reject a source selected for multiple signals.
         if self.target_conflicts():
             raise ValueError("Multiple saved columns share a signal. Select one column per signal.")
-        return dict(self.choices)
+        # choices is initialized with SIGNALS and only accepts canonical targets.
+        return cast("SignalColumns", dict(self.choices))
 
     def _selected_mapping(self) -> dict[str, str]:
         return {

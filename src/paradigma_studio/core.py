@@ -6,18 +6,36 @@ import logging
 import re
 import tempfile
 from collections.abc import Sequence
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Unpack
 
 import numpy as np
 
 from .availability import prepared_availability
-from .axis_mapping import preparation_orientations, validate_orientation as validate_orientation
+from .axis_mapping import (
+    SENSORS,
+    preparation_orientations,
+    validate_orientation as validate_orientation,
+)
 from .column_mapping import apply_signal_columns
-from .contracts import AnalysisResults, PathInput, Pipeline, SegmentArray, SensorInput
+from .contracts import AnalysisResults, PathInput, Pipeline, SensorInput
 from .empatica import load_empatica_imu
 from .input_metadata import record_import_units
+from .paradigma_api import (
+    correct_watch_orientation as correct_watch_orientation,
+    create_segments as create_segments,
+    discard_segments as discard_segments,
+    load_single_data_file as load_single_data_file,
+    prepare_raw_data as prepare_raw_data,
+    run_paradigma as run_paradigma,
+)
+from .preparation_contracts import (
+    AnalysisOptions,
+    PreparationSettings,
+    Sensor,
+    SignedAxis,
+    TimeInputUnit,
+)
 from .serialization import (
     export_results as export_results,
     export_table_csv as export_table_csv,
@@ -27,6 +45,7 @@ from .tsdf_input import load_tsdf_sensor_file
 
 if TYPE_CHECKING:
     import pandas as pd
+    from numpy.typing import NDArray
 
 SUPPORTED = {".csv", ".parquet", ".pkl", ".pickle", ".json", ".avro", ".cwa"}
 TIME_UNITS = {
@@ -37,44 +56,6 @@ TIME_UNITS = {
     "difference_s",
     "difference_ms",
 }
-
-
-def load_single_data_file(*args: Any, **kwargs: Any) -> tuple[str, pd.DataFrame, datetime | None]:
-    # ParaDigMa's package initializer imports every pipeline. Defer that work
-    # until file loading/analysis, which the GUI already performs in a worker.
-    from paradigma.load import load_single_data_file as official
-
-    return official(*args, **kwargs)
-
-
-def run_paradigma(*args: Any, **kwargs: Any) -> AnalysisResults:
-    from paradigma.orchestrator import run_paradigma as official
-
-    return official(*args, **kwargs)
-
-
-def prepare_raw_data(*args: Any, **kwargs: Any) -> pd.DataFrame:
-    from paradigma.prepare_data import prepare_raw_data as official
-
-    return official(*args, **kwargs)
-
-
-def correct_watch_orientation(*args: Any, **kwargs: Any) -> pd.DataFrame:
-    from paradigma.prepare_data import correct_watch_orientation as official
-
-    return official(*args, **kwargs)
-
-
-def create_segments(*args: Any, **kwargs: Any) -> SegmentArray:
-    from paradigma.segmenting import create_segments as official
-
-    return official(*args, **kwargs)
-
-
-def discard_segments(*args: Any, **kwargs: Any) -> pd.DataFrame:
-    from paradigma.segmenting import discard_segments as official
-
-    return official(*args, **kwargs)
 
 
 def validate_column_mapping(mapping: object) -> dict[str, str]:
@@ -139,7 +120,7 @@ def analyze(
     column_mapping: dict[str, str] | None = None,
     logger: logging.Logger | None = None,
     drop_missing_samples: bool = False,
-    **settings: Any,
+    **settings: Unpack[AnalysisOptions],
 ) -> AnalysisResults:
     if isinstance(pipelines, str):
         pipelines = [pipelines]
@@ -242,14 +223,23 @@ def _analyze_pipeline_groups(
 
 
 def _prepare_analysis_inputs(
-    frame, pipelines, column_mapping, logger, drop_missing_samples, settings
-):
+    frame: SensorInput,
+    pipelines: Sequence[Pipeline],
+    column_mapping: dict[str, str] | None,
+    logger: logging.Logger | None,
+    drop_missing_samples: bool,
+    settings: PreparationSettings,
+) -> tuple[SensorInput, dict[str, Any], int, dict[str, Any] | None]:
     """Prepare inputs and retain source/section identities for combined outputs."""
 
     recordings = None
+    inputs: SensorInput
+    exclusion: dict[str, Any] | None
     if isinstance(frame, dict):
         validate_recordings(frame)
-        inputs, sections, preparation = {}, {}, {}
+        inputs = {}
+        sections: dict[str, str] = {}
+        preparation: dict[str, dict[str, Any]] = {}
         for key, recording in frame.items():
             (logger or logging.getLogger("paradigma")).info(
                 "Preparing recording %s (%s samples)", key, len(recording)
@@ -261,7 +251,7 @@ def _prepare_analysis_inputs(
                     column_mapping,
                     logger,
                     drop_missing_samples,
-                    dict(settings),
+                    settings.copy(),
                 )
             except (ValueError, TypeError) as exc:
                 raise ValueError(f"{key}: {exc}") from exc
@@ -470,7 +460,14 @@ def result_tables(value: Any, path: str = "") -> dict[str, pd.DataFrame]:
     return tables
 
 
-def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_samples, settings):
+def _prepare_recording(
+    frame: pd.DataFrame,
+    pipelines: Sequence[Pipeline],
+    column_mapping: dict[str, str] | None,
+    logger: logging.Logger | None,
+    drop_missing_samples: bool,
+    settings: PreparationSettings,
+) -> tuple[SensorInput, dict[str, Any] | None, int]:
     mapping = validate_column_mapping(column_mapping)
     axes = preparation_orientations(settings)
     mapped = (
@@ -508,7 +505,9 @@ def _prepare_recording(frame, pipelines, column_mapping, logger, drop_missing_sa
     return inputs, exclusion, len(prepared)
 
 
-def _validate_required_channels(mapped, pipelines, settings):
+def _validate_required_channels(
+    mapped: pd.DataFrame, pipelines: Sequence[Pipeline], settings: PreparationSettings
+) -> tuple[set[str], TimeInputUnit]:
     import pandas as pd
 
     required = _required_sensor_channels(mapped, pipelines)
@@ -531,7 +530,7 @@ def _validate_required_channels(mapped, pipelines, settings):
     return required, time_unit
 
 
-def _required_sensor_channels(mapped, pipelines):
+def _required_sensor_channels(mapped: pd.DataFrame, pipelines: Sequence[Pipeline]) -> set[str]:
     required = {"time"}
     for pipeline in pipelines:
         if pipeline in ("gait", "tremor"):
@@ -546,7 +545,7 @@ def _required_sensor_channels(mapped, pipelines):
     return required
 
 
-def _validate_present_channels(mapped, required):
+def _validate_present_channels(mapped: pd.DataFrame, required: set[str]) -> None:
     missing = required - set(mapped.columns)
     if missing:
         message = "Missing sensor columns: " + ", ".join(sorted(missing))
@@ -557,7 +556,9 @@ def _validate_present_channels(mapped, required):
         raise ValueError(message)
 
 
-def _numeric_sensor_values(mapped, required):
+def _numeric_sensor_values(
+    mapped: pd.DataFrame, required: set[str]
+) -> tuple[pd.DataFrame, NDArray[np.bool_], NDArray[np.bool_], int]:
     import pandas as pd
 
     values = mapped[sorted(required)].apply(pd.to_numeric, errors="raise")
@@ -573,17 +574,17 @@ def _numeric_sensor_values(mapped, required):
 
 
 def _exclude_invalid_samples(
-    frame,
-    mapped,
-    values,
-    finite,
-    invalid,
-    excluded_count,
-    time_unit,
-    settings,
-    logger,
-    drop_missing_samples,
-):
+    frame: pd.DataFrame,
+    mapped: pd.DataFrame,
+    values: pd.DataFrame,
+    finite: NDArray[np.bool_],
+    invalid: NDArray[np.bool_],
+    excluded_count: int,
+    time_unit: TimeInputUnit,
+    settings: PreparationSettings,
+    logger: logging.Logger | None,
+    drop_missing_samples: bool,
+) -> tuple[pd.DataFrame, pd.DataFrame, TimeInputUnit, dict[str, Any]]:
     """Remove invalid rows after converting a complete difference timeline.
 
     Update settings when differences become relative seconds and preserve
@@ -642,7 +643,7 @@ def _exclude_invalid_samples(
     return mapped, values, time_unit, exclusion
 
 
-def _validate_timeline(values, time_unit):
+def _validate_timeline(values: pd.DataFrame, time_unit: TimeInputUnit) -> None:
     if time_unit.startswith("difference"):
         if values["time"].iloc[0] < 0 or not (values["time"].iloc[1:] > 0).all():
             raise ValueError(
@@ -655,7 +656,12 @@ def _validate_timeline(values, time_unit):
             )
 
 
-def _convert_recording(mapped, axes, time_unit, settings):
+def _convert_recording(
+    mapped: pd.DataFrame,
+    axes: dict[Sensor, list[SignedAxis] | None],
+    time_unit: TimeInputUnit,
+    settings: PreparationSettings,
+) -> pd.DataFrame:
     # Preparation is explicit because the pinned orchestrator ignores
     # accelerometer/orientation settings for some pipelines and passes None
     # as gap defaults. Continue to use the official preparation functions.
@@ -673,7 +679,7 @@ def _convert_recording(mapped, axes, time_unit, settings):
         device_orientation=None,
         validate=has_imu,
     )
-    for sensor in ("accelerometer", "gyroscope"):
+    for sensor in SENSORS:
         if all(f"{sensor}_{axis}" in prepared for axis in "xyz"):
             prepared = correct_watch_orientation(
                 prepared, device_orientation=axes[sensor], sensor=sensor
@@ -683,7 +689,7 @@ def _convert_recording(mapped, axes, time_unit, settings):
     return prepared
 
 
-def _split_recording_gaps(prepared, settings):
+def _split_recording_gaps(prepared: pd.DataFrame, settings: PreparationSettings) -> pd.DataFrame:
     import pandas as pd
 
     max_gap = settings.get("max_gap_seconds")
@@ -710,11 +716,11 @@ def _split_recording_gaps(prepared, settings):
     return prepared
 
 
-def _contiguous_recording_inputs(prepared):
+def _contiguous_recording_inputs(prepared: pd.DataFrame) -> SensorInput:
     # The pinned preprocessing code otherwise interpolates across gaps even
     # when data_segment_nr is present. Give the orchestrator separate contiguous
     # frames so filtering and feature windows cannot bridge missing recordings.
-    inputs = prepared
+    inputs: SensorInput = prepared
     if "data_segment_nr" in prepared:
         inputs = {
             f"segment_{i + 1}": group.reset_index(drop=True)

@@ -108,6 +108,9 @@ max-branches = 12
 python_version = "3.11"
 files = [
     "src/paradigma_studio/contracts.py",
+    "src/paradigma_studio/preparation_contracts.py",
+    "src/paradigma_studio/paradigma_api.py",
+    "tests/typing/preparation_contracts.py",
     "src/paradigma_studio/input_metadata.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/column_mapping.py",
@@ -152,6 +155,8 @@ module = [
     "paradigma_studio.column_mapping",
     "paradigma_studio.input_metadata",
     "paradigma_studio.analysis_limits",
+    "paradigma_studio.preparation_contracts",
+    "paradigma_studio.paradigma_api",
 ]
 # These small services have complete annotations; retain explicit container types
 # and reject Any returned from a function with a concrete declared return type.
