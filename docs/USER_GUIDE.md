@@ -72,13 +72,14 @@ that value comes from the selected **Time** column. For relative or difference
 time, it comes from recording-start metadata when available (including TSDF,
 Axivity CWA and Empatica imports). Other date columns, including `time_dt`,
 `datetime` and `timestamp`, do not supply an origin. Without an available origin,
-the field stays empty and results use elapsed time.
+the field displays **Not set** and results use elapsed time.
 **Use parameters** keeps restored units explicit, including
 values equal to the current defaults. Unit detection follows the selected source
 columns. A single message summarizes conflicting or incomplete unit declarations
-across recordings, without listing filenames; normalize differing inputs or
-analyze them separately. Watch side, axis directions, Already prepared and gap
-and missing-sample policies remain user choices.
+across recordings, without listing filenames. These warnings do not block analysis:
+the selected units apply to the whole batch. If the actual units differ, normalize
+the inputs or analyze them separately. Watch side, axis directions and preparation
+policies remain user choices.
 Acceleration and gyroscope unit fields are greyed out when no axis for that sensor
 is mapped to an available column. Mapping an axis enables its unit field;
 **Already prepared** keeps both unit fields disabled.
@@ -111,7 +112,8 @@ and missing-sample checks during preparation.
   relative, absolute or difference-based values
   in seconds or milliseconds. CSV date strings need conversion to a supported
   numeric representation before analysis.
-- Set the actual wrist as watch side.
+- For gait, set the actual wrist as watch side. The field is inactive for
+  tremor or pulse rate alone.
   Watch-side inversion happens separately in official pipeline preprocessing.
 - Scrolling over dropdowns, numeric fields or date/time fields moves their
   surrounding page without changing their values, including when a field has
@@ -161,9 +163,12 @@ and missing-sample checks during preparation.
   retain the source-to-toolbox mapping dictionary and record inverted target channels
   separately; no JSON editing is needed in the app.
 - Keep preparation enabled for raw data. Use **Already prepared** only for data
-  already converted to ParaDigMa's units, orientation and sampling requirements.
-  Mapping still applies in prepared mode. Inversion controls are disabled and
-  inversions are skipped; unchecking Already prepared restores your selections.
+  already using relative seconds, acceleration in `g`, gyroscope values in `deg/s`
+  and the expected device axes. Unit and axis conversions, gap splitting and
+  minimum-section filtering are skipped. Column mapping and the missing-sample
+  policy still apply, as do official pipeline resampling, filtering and watch-side
+  correction. Inversion controls are disabled; unchecking **Already prepared**
+  restores your selections.
 - **Exclude missing sensor samples** removes rows with non-finite required sensor
   values from analysis. Counts are logged and recorded in exported metadata.
   It defaults to on; uncheck it for strict rejection. Non-finite relative or

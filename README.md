@@ -45,9 +45,9 @@ A verified signing identity must be configured before the signed workflow can pr
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
-Keep preparation enabled for raw recordings. Missing-sample exclusion is a desktop
-option enabled by default. If your recordings contain sampling gaps, enable gap splitting;
-its thresholds are 1.5 seconds, with **Default** buttons to restore them.
+Keep preparation enabled for raw recordings. Missing-sample exclusion and gap
+splitting are enabled by default in Studio. Gap and minimum-section thresholds
+are 1.5 seconds, with **Default** buttons to restore them.
 
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.

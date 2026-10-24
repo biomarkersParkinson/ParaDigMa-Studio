@@ -576,12 +576,9 @@ class MainWindow(QMainWindow):
         self._layout.clock_input.valueEdited.connect(self._analysis_controller.origin_edited)
         self._layout.mapping.changed.connect(self._analysis_controller.update_origin_default)
         self._layout.mapping.changed.connect(self._data_controller.input_plot_changed)
-        for control in (self._layout.time,):
-            control.currentTextChanged.connect(self._analysis_controller.update_origin_default)
-        for control in (self._layout.prepared, self._layout.drop_missing):
-            control.toggled.connect(self._analysis_controller.update_origin_default)
+        # Time, prepared and missing-sample edits already refresh defaults via
+        # preparation_changed -> modules_changed -> update_origin_default.
         self._layout.sensor_channels.itemChanged.connect(self.plot_sensor)
-        self._analysis_controller.modules_changed()
         self._analysis_controller.preparation_changed()
 
     def _connect_worker(self, worker, completed):

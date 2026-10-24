@@ -9,12 +9,16 @@ SOURCE = "https://github.com/biomarkersParkinson/paradigma/blob/4735d6d21b2a62b7
 # Pinned 1.1.2 prepare_raw_data defaults; kept lightweight for desktop startup.
 DEFAULT_MAX_GAP_SECONDS = 1.5
 DEFAULT_MIN_SECTION_SECONDS = 1.5
+# Studio policies are enabled on new input; the Python API keeps them opt-in.
+DEFAULT_DROP_MISSING_SAMPLES = True
+DEFAULT_SPLIT_BY_GAPS = True
 
 FIELD_HELP = {
     "Time origin": (
         "Calendar date and time corresponding to analysis time zero. The default comes from the selected "
         "absolute Time column or recording-start metadata for relative/difference time. Other date columns "
-        "are ignored. Use Default to restore it. Uncheck to show "
+        "are ignored. Without an available origin, the field displays Not set. "
+        "Use Default to restore the automatic value. Uncheck to show "
         "elapsed seconds. This desktop display setting does not change the sensor times or scientific analysis.",
         "util.py",
     ),
@@ -29,6 +33,7 @@ FIELD_HELP = {
     "Watch side": (
         "Choose the wrist on which the sensor was worn. ParaDigMa applies its right-wrist IMU inversion "
         "during pipeline preprocessing. Supported imports do not currently select the wrist from metadata. "
+        "This field is used for gait and is inactive for tremor or pulse rate alone. "
         "Set this separately from the device-axis mapping; "
         "do not manually invert axes merely because the watch was on the right wrist.",
         "preprocessing.py#L364",
@@ -36,12 +41,16 @@ FIELD_HELP = {
     "Acceleration units": (
         "Choose the units in the input file: g (gravitational acceleration) or m/s². "
         "ParaDigMa converts m/s² to g during preparation. A stationary gravity axis is typically "
-        "about 1 g or 9.81 m/s². Use the device's documentation to confirm.",
+        "about 1 g or 9.81 m/s². Use the device's documentation to confirm. "
+        "The field is inactive when no accelerometer axis is mapped to an available column, "
+        "or when Already prepared is selected.",
         "prepare_data.py",
     ),
     "Gyroscope units": (
         "Choose deg/s (degrees per second) or rad/s (radians per second), as stored in the file. "
-        "ParaDigMa converts rad/s to deg/s during preparation.",
+        "ParaDigMa converts rad/s to deg/s during preparation. "
+        "The field is inactive when no gyroscope axis is mapped to an available column, "
+        "or when Already prepared is selected.",
         "prepare_data.py",
     ),
     "Time units": (
@@ -54,18 +63,21 @@ FIELD_HELP = {
     "Already prepared": (
         "Skip the wrapper's unit and device-axis conversions only when data already uses relative seconds, "
         "acceleration in g and gyroscope values in deg/s, with axes in ParaDigMa orientation. "
-        "Column mapping still applies. Official pipeline resampling, filtering and watch-side correction "
+        "Unit and device-axis conversions, gap splitting and minimum-section filtering are skipped. "
+        "Column mapping and the missing-sample policy still apply. "
+        "Official pipeline resampling, filtering and watch-side correction "
         "still run; do not select this simply because a file has been loaded.",
         "prepare_data.py",
     ),
     "Split recordings at time gaps": (
         "Analyze continuous recording sections independently. A time interval larger than Maximum gap "
         "starts a new section; sections shorter than Minimum section duration are excluded. "
-        "Disabled by default, matching the official orchestrator. Multiple sections are identified by file_key.",
+        "Enabled by default in Studio; the Python API keeps this opt-in. "
+        "Already prepared disables this preparation step. Multiple sections are identified by file_key.",
         "orchestrator.py",
     ),
     "Exclude missing sensor samples": (
-        "Desktop option: exclude rows with missing or non-finite channels required by the selected workflow, "
+        "Enabled by default in Studio: exclude rows with missing or non-finite channels required by the selected workflow, "
         "then analyze valid sections independently. Exclusion counts are saved in metadata. "
         "Unchecked: reject invalid required values. Non-monotonic timestamps and missing time increments need correction; "
         "the app does not invent sensor values. IMU and pulse-rate workflows check their own channels.",

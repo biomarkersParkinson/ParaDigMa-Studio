@@ -32,6 +32,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Input, result, run, sensor, job and presentation state | `workspace_state.py` |
 | Recording loading, inspection previews and raw Data graphs | `data_controller.py` |
 | Analysis controls, field guidance, origin previews and run configuration | `analysis_controller.py`, `analysis_help.py` |
+| Selected-channel unit metadata, From file labels and Default actions | `input_metadata.py`, `ui/file_defaults.py`; input resets and sensor-unit availability in `analysis_controller.py` |
 | Worker creation, control restoration, failure and cancellation actions | `job_controller.py` |
 | Result tables, detail selection, series and shared view controls | `result_workspace_controller.py` |
 | Exports, save actions and unsaved-close handling | `export_controller.py` |

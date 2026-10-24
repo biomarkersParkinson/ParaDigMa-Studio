@@ -23,7 +23,14 @@ from PySide6.QtWidgets import (
 )
 
 from ..analysis_controller import AnalysisView
-from ..analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS, FIELD_HELP, SOURCE
+from ..analysis_help import (
+    DEFAULT_DROP_MISSING_SAMPLES,
+    DEFAULT_MAX_GAP_SECONDS,
+    DEFAULT_MIN_SECTION_SECONDS,
+    DEFAULT_SPLIT_BY_GAPS,
+    FIELD_HELP,
+    SOURCE,
+)
 from ..assets import DATA_DIRECTORY
 from ..field_scrolling import FieldWheelFilter, PageDoubleSpinBox
 from ..theme import LINK_COLOR, light_palette
@@ -267,9 +274,9 @@ class AnalysisPage:
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
-        self.gaps.setChecked(True)
+        self.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
-        self.drop_missing.setChecked(True)
+        self.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
         for checkbox in (self.prepared, self.gaps, self.drop_missing):
             checkbox.setPalette(light_palette())
         form.addRow(

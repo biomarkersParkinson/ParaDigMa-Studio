@@ -23,13 +23,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
+from .analysis_help import (
+    DEFAULT_DROP_MISSING_SAMPLES,
+    DEFAULT_MAX_GAP_SECONDS,
+    DEFAULT_MIN_SECTION_SECONDS,
+    DEFAULT_SPLIT_BY_GAPS,
+)
 from .axis_mapping import migrate_legacy_orientation
 from .core import validate_column_mapping
 from .history import new_run
-from .results_view import (
-    normalise_clock,
-)
+from .results_view import normalise_clock
 from .time_controls import TimeField
 from .ui.column_mapping import ColumnMappingEditor
 from .ui.file_defaults import FileDefaults
@@ -221,8 +224,8 @@ class AnalysisController(QObject):
                 self.file_defaults.reset()
                 self.view.side.setCurrentText("left")
                 self.view.prepared.setChecked(False)
-                self.view.gaps.setChecked(True)
-                self.view.drop_missing.setChecked(True)
+                self.view.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
+                self.view.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
                 self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
                 self.view.min_segment.setValue(DEFAULT_MIN_SECTION_SECONDS)
                 self.view.clock_input.set_clock(None)
@@ -271,11 +274,10 @@ class AnalysisController(QObject):
         widget: QWidget
         for widget in (
             self.view.time,
-            *self.view.file_default_buttons.values(),
+            self.view.file_default_buttons["Time units"],
             self.view.gaps,
         ):
             widget.setEnabled(not prepared)
-        self._update_sensor_units()
         self.view.mapping.set_preparation_enabled(not prepared)
         for widget in (self.view.max_gap, self.view.min_segment):
             widget.setEnabled(not prepared and self.view.gaps.isChecked())
@@ -305,6 +307,8 @@ class AnalysisController(QObject):
         self.update_origin_default()
 
     def update_origin_default(self, *_: object) -> None:
+        # Mapping changes and preparation edits share this defaults refresh.
+        # Update availability even when a manual origin suppresses its preview.
         self._update_sensor_units()
         if self.file_defaults.applying:
             return
