@@ -29,9 +29,8 @@ from .analysis_help import (
     DEFAULT_MIN_SECTION_SECONDS,
     DEFAULT_SPLIT_BY_GAPS,
 )
-from .axis_mapping import migrate_legacy_orientation
 from .core import validate_column_mapping
-from .history import new_run
+from .history import new_run, validate_run_settings
 from .results_view import normalise_clock
 from .time_controls import TimeField
 from .ui.column_mapping import ColumnMappingEditor
@@ -508,10 +507,15 @@ class AnalysisController(QObject):
     def use_run_parameters(self) -> None:
         if self.runs.selected_run is None or self.jobs.worker is not None:
             return
-        settings = _reusable_run_settings(self.runs.selected_run["settings"])
+        settings = self.runs.selected_run["settings"]
+        try:
+            validate_run_settings(settings)
+        except ValueError as exc:
+            self.callbacks.show_notice(f"Cannot restore run parameters: {exc}", "error")
+            return
         previous_time_unit = self.view.time.currentText()
         with self._applying_settings():
-            self.set_modules(settings.get("pipelines", ["gait"]))
+            self.set_modules(settings["pipelines"])
             self._restore_units_and_side(settings)
             self._restore_signal_columns(settings)
             self._restore_segmentation(settings)
@@ -524,15 +528,7 @@ class AnalysisController(QObject):
 
     def _restore_units_and_side(self, settings: AnalysisSettings) -> None:
         self.file_defaults.mark_manual(
-            [
-                title
-                for title, key in (
-                    ("Acceleration units", "accelerometer_units"),
-                    ("Gyroscope units", "gyroscope_units"),
-                    ("Time units", "time_input_unit"),
-                )
-                if key in settings
-            ],
+            ["Acceleration units", "Gyroscope units", "Time units"],
             "Restored from saved run parameters.",
         )
         for widget, key in (
@@ -541,24 +537,18 @@ class AnalysisController(QObject):
             (self.view.gyro, "gyroscope_units"),
             (self.view.time, "time_input_unit"),
         ):
-            if key in settings:
-                value = str(settings[key])
-                index = widget.findData(value)
-                widget.setCurrentIndex(index if index >= 0 else widget.findText(value))
+            value = str(settings[key])
+            index = widget.findData(value)
+            widget.setCurrentIndex(index if index >= 0 else widget.findText(value))
 
     def _restore_segmentation(self, settings: AnalysisSettings) -> None:
-        self.view.gaps.setChecked(settings.get("split_by_gaps", False))
-        self.view.drop_missing.setChecked(settings.get("drop_missing_samples", False))
-        self.view.max_gap.setValue(
-            settings.get("max_gap_seconds", DEFAULT_MAX_GAP_SECONDS) or DEFAULT_MAX_GAP_SECONDS
-        )
-        self.view.min_segment.setValue(
-            settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS)
-            or DEFAULT_MIN_SECTION_SECONDS
-        )
+        self.view.gaps.setChecked(settings["split_by_gaps"])
+        self.view.drop_missing.setChecked(settings["drop_missing_samples"])
+        self.view.max_gap.setValue(settings["max_gap_seconds"])
+        self.view.min_segment.setValue(settings["min_segment_seconds"])
 
     def _restore_origin(self, settings: AnalysisSettings) -> None:
-        origin = settings.get("plot_time_origin", {"mode": "automatic"})
+        origin = settings["plot_time_origin"]
         self.analysis._origin_override = origin.get("mode") != "automatic"
         if self.analysis._origin_override:
             self.file_defaults.mark_manual(["Time origin"], "Restored from saved run parameters.")
@@ -569,26 +559,7 @@ class AnalysisController(QObject):
             self.view.clock_input.clear()
 
     def _restore_signal_columns(self, settings: AnalysisSettings) -> None:
-        mapping = settings.get("column_mapping")
-        inversions = settings.get("axis_inversions")
-        if inversions is None:
-            mapping, inversions = migrate_legacy_orientation(
-                mapping, settings.get("device_orientation")
-            )
-        self.view.mapping.set_mapping(mapping, signal_columns=settings.get("signal_columns"))
-        self.view.mapping.set_axis_inversions(inversions)
-
-
-def _reusable_run_settings(settings: AnalysisSettings) -> AnalysisSettings:
-    """Restore effective input conventions without reviving the retired GUI bypass."""
-    restored = dict(settings)
-    if restored.pop("skip_preparation", False):
-        restored.update(
-            accelerometer_units="g",
-            gyroscope_units="deg/s",
-            time_input_unit="relative_s",
-            device_orientation=["x", "y", "z"],
-            axis_inversions=[],
-            split_by_gaps=False,
+        self.view.mapping.set_mapping(
+            settings["column_mapping"], signal_columns=settings["signal_columns"]
         )
-    return restored
+        self.view.mapping.set_axis_inversions(settings["axis_inversions"])

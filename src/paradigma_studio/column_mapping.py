@@ -53,7 +53,7 @@ def apply_signal_columns(
     mapping: Mapping[str, str] | None,
     signal_columns: object = None,
 ) -> pd.DataFrame:
-    """Apply explicit selections; old runs without them retain rename semantics."""
+    """Apply explicit selections, or literal renaming for direct Python callers."""
     selected = validate_signal_columns(signal_columns)
     routes = dict(mapping or {})
     if selected is not None:
@@ -99,16 +99,14 @@ class MappingValidation:
 
 
 class ColumnMapping:
-    """Keep explicit choices and old saved mappings without owning sample data."""
+    """Keep one source choice per signal without owning sample data."""
 
     def __init__(self) -> None:
         self.schemas: dict[str, tuple[str, ...]] = {}
         self.names: dict[str, str] = {}
         self.choices: dict[str, str | None] = dict.fromkeys(SIGNALS)
-        self.extra: dict[str, str] = {}
         self.inversions: set[str] = set()
         self._explicit: set[str] = set()
-        self._identities: set[str] = set()
 
     @property
     def columns(self) -> list[str]:
@@ -123,7 +121,7 @@ class ColumnMapping:
 
     def _refresh_defaults(self) -> None:
         available = set(self.columns)
-        used = {self.choices[target] for target in self._explicit} | set(self.extra)
+        used = {self.choices[target] for target in self._explicit}
         for target in SIGNALS.keys() - self._explicit:
             self.choices[target] = target if target in available - used else None
 
@@ -134,40 +132,32 @@ class ColumnMapping:
         signal_columns: dict[str, str | None] | None = None,
     ) -> None:
         selected = validate_signal_columns(signal_columns)
+        routes = dict(mapping or {})
+        if any(target not in SIGNALS for target in routes.values()) or len(
+            set(routes.values())
+        ) != len(routes):
+            raise ValueError("Select one source column per supported signal.")
         inversions = self.inversions.copy()
         self.reset()
         self.inversions = inversions
-        for source, target in (mapping or {}).items():
-            if target in SIGNALS and target not in self._explicit:
-                self.choices[target] = source
-                self._explicit.add(target)
-                if source == target:
-                    self._identities.add(source)
-            else:
-                # Preserve arbitrary legacy names and duplicate targets exactly.
-                self.extra[source] = target
-        self._refresh_defaults()
         if selected is not None:
             self.choices = dict(selected.items())
             self._explicit = set(SIGNALS)
-            self.extra = {
-                source: target for source, target in self.extra.items() if target not in SIGNALS
-            }
+        else:
+            self.choices.update({target: source for source, target in routes.items()})
+            self._explicit = set(routes.values())
+            self._refresh_defaults()
 
     def choose(self, target: str, source: str | None) -> None:
         if target not in SIGNALS:
             raise ValueError(f"Unknown signal: {target}")
         self.choices[target] = source
         self._explicit.add(target)
-        self._identities.discard(target)
-        self.extra = {key: value for key, value in self.extra.items() if value != target}
         self._refresh_defaults()
 
     def reset(self) -> None:
         self.inversions.clear()
-        self.extra.clear()
         self._explicit.clear()
-        self._identities.clear()
         available = set(self.columns)
         self.choices = {target: target if target in available else None for target in SIGNALS}
 
@@ -187,7 +177,6 @@ class ColumnMapping:
 
     def source_conflicts(self) -> set[str]:
         sources = [source for source in self.choices.values() if source is not None]
-        sources.extend(self.extra)
         return {source for source, count in Counter(sources).items() if count > 1}
 
     def mapping(self) -> dict[str, str]:
@@ -197,41 +186,21 @@ class ColumnMapping:
                 "Columns assigned to multiple signals: " + ", ".join(sorted(conflicts))
             )
         return {
-            **self.extra,
-            **{
-                source: target
-                for target, source in self.choices.items()
-                if source is not None and (source != target or source in self._identities)
-            },
+            source: target
+            for target, source in self.choices.items()
+            if source is not None and source != target
         }
 
     def signal_columns(self) -> SignalColumns:
         self.mapping()  # Reject a source selected for multiple signals.
-        if self.target_conflicts():
-            raise ValueError("Multiple saved columns share a signal. Select one column per signal.")
         # choices is initialized with SIGNALS and only accepts canonical targets.
         return cast("SignalColumns", dict(self.choices))
 
     def _selected_mapping(self) -> dict[str, str]:
-        return {
-            **{source: target for source, target in self.extra.items() if target not in SIGNALS},
-            **{source: target for target, source in self.choices.items() if source is not None},
-        }
-
-    def _declared_names(self, columns: Sequence[str], renamed: list[str]) -> list[str]:
-        # Old settings can declare several sources for one signal. Keep those
-        # conflicts visible until a dropdown selection replaces the saved entries.
-        return [
-            *renamed,
-            *(
-                target
-                for source, target in self.extra.items()
-                if target in SIGNALS and source in columns
-            ),
-        ]
+        return {source: target for target, source in self.choices.items() if source is not None}
 
     def suggestions(self) -> dict[str, str]:
-        used = set(self.choices.values()) | set(self.extra)
+        used = set(self.choices.values())
         return {
             target: source
             for target, source in self.automatic_choices().items()
@@ -253,27 +222,16 @@ class ColumnMapping:
             choices[target] = matches[0] if len(matches) == 1 else None
         return choices
 
-    def _unrelated_mappings(self, choices: Mapping[str, str | None]) -> dict[str, str]:
-        used = set(choices.values())
-        return {
-            source: target
-            for source, target in self.extra.items()
-            if source not in used and target not in SIGNALS
-        }
-
     def matches_automatic(self) -> bool:
-        choices = self.automatic_choices()
-        return self.choices == choices and self.extra == self._unrelated_mappings(choices)
+        return self.choices == self.automatic_choices()
 
     def auto_match(self) -> None:
         self.choices = self.automatic_choices()
-        self.extra = self._unrelated_mappings(self.choices)
         self._explicit = {
             target
             for target, source in self.choices.items()
             if source is not None and source != target
         }
-        self._identities.clear()
 
     def target_conflicts(self) -> dict[str, list[str]]:
         if self.source_conflicts():
@@ -284,7 +242,7 @@ class ColumnMapping:
             renamed = [
                 mapping.get(column, column) for column in selected_signal_sources(columns, mapping)
             ]
-            for target, count in Counter(self._declared_names(columns, renamed)).items():
+            for target, count in Counter(renamed).items():
                 if count > 1:
                     conflicts.setdefault(target, []).append(self.names.get(key, key))
         return conflicts
@@ -307,11 +265,7 @@ class ColumnMapping:
                 mapping.get(column, column) for column in selected_signal_sources(columns, mapping)
             ]
             missing = required - set(renamed)
-            duplicates = [
-                column
-                for column, count in Counter(self._declared_names(columns, renamed)).items()
-                if count > 1
-            ]
+            duplicates = [column for column, count in Counter(renamed).items() if count > 1]
             missing_counts.update(SIGNALS[target] for target in SIGNALS if target in missing)
             duplicate_counts.update(duplicates)
             compatible += not missing and not duplicates

@@ -45,14 +45,14 @@ AnalysisEvent: TypeAlias = (
 
 
 class RunOutput(TypedDict):
-    """A local snapshot or user export; older exports may omit optional details."""
+    """A local snapshot or user export, with details specific to its kind."""
 
     kind: OutputKind
     path: str
-    saved: NotRequired[str]
+    saved: str
     dataset: NotRequired[str]
     local: NotRequired[bool]
-    complete: NotRequired[bool]
+    complete: bool
     sha256: NotRequired[str]
     selected: NotRequired[list[str]]
     selected_rows: NotRequired[int]
@@ -62,6 +62,8 @@ class RunOutput(TypedDict):
 class RunRecord(TypedDict):
     """Normalized run history plus optional, never-persisted workspace caches."""
 
+    format: str
+    format_version: int
     id: str
     started: str
     finished: str | None

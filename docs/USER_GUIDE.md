@@ -156,10 +156,8 @@ and missing-sample checks during preparation.
   Source-column options list only columns present
   in the loaded recordings; a missing saved choice shows the selection prompt and its warning
   names the missing column so it can be corrected. **Use parameters** restores
-  saved mappings, including additional legacy mappings shown in Details.
-  Older saved global axis permutations are
-  translated into equivalent column choices and inversions. Saved runs and exports
-  retain the source-to-toolbox mapping dictionary and record inverted target channels
+  the explicit signal choices and inversions from a supported saved run.
+  Saved runs and exports retain the source-to-toolbox mapping dictionary and record inverted target channels
   separately; no JSON editing is needed in the app.
 - Studio always prepares inputs according to the selected columns, units and
   axis inversions. Acceleration already in `g`, gyroscope values in `deg/s` and
@@ -321,8 +319,8 @@ or elapsed half-hours otherwise. Gait range of motion and peak velocity require
 at least 90 seconds of the corresponding filtered or unfiltered gait presence
 per epoch; tremor power requires at least 90 seconds of checked tremor presence.
 Overlapping presence intervals count once. The same threshold applies to partial
-epochs, and unknown presence leaves the median blank. For older saved results
-without gait classifications, known gait-segment boundaries provide the fallback.
+epochs, and unknown presence leaves the median blank. When gait classifications
+are unavailable, known gait-segment boundaries provide the fallback.
 Data coverage instead shows covered time as a percentage of the recording span
 within each epoch, including partial edge epochs.
 
@@ -487,9 +485,14 @@ match, so replacing or editing a result file prevents reopening it under the
 original run. A failed open leaves the displayed results intact. Files without
 this verification information, including older exports, cannot reopen through Runs.
 
-Existing installations continue using their earlier `ParaDigMaDesktop` history
-folder when a Studio history folder does not yet exist. Saved result files stay
-at their original paths and follow the same verification requirements.
+Saved run history and result JSON use **Studio format version 1**, independently
+of the app release and ParaDigMa toolbox version. Only this format is supported.
+Unversioned history and exports from earlier builds, and unsupported format
+versions, are rejected without changing or deleting their files. History reports
+unsupported entries while continuing to show supported runs. Re-analyze the
+original sensor recordings to create new runs; original recording formats remain
+supported. Studio uses the `ParaDigMaStudio` storage directory and does not discover
+history in the earlier `ParaDigMaDesktop` directory.
 
 **Stop Analysis** remains available below Analyze settings while a run is active.
 Cancellation stops the owned analysis process, removes its temporary files and records

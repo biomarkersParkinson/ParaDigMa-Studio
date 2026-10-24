@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 from PySide6.QtWidgets import QApplication
+from run_fixtures import make_run
 
 from paradigma_studio import (
     analysis_process,
@@ -23,7 +24,6 @@ from paradigma_studio import (
     recordings,
 )
 from paradigma_studio.analysis_process import QueueLogHandler, forward_analysis_log
-from paradigma_studio.history import new_run
 from paradigma_studio.jobs import SignalHandler, Worker
 from paradigma_studio.results_view import normalise_clock, time_bound
 from paradigma_studio.ui.deferred import DeferredWidget
@@ -258,7 +258,7 @@ def test_export_failure_logs_stack_with_a_completed_run_selected(
 ):
     frame = pd.DataFrame({"time": [0.0], "tremor_power": [1.0]})
     window._result_state.results = {"quantifications": {"tremor": frame}}
-    window._run_state.selected_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    window._run_state.selected_run = make_run("sensor.csv", {"pipelines": ["tremor"]})
     window._run_state.selected_run["status"] = "Completed"
     window._run_state.current_run = window._run_state.selected_run
     monkeypatch.setattr(window, "selected_export_table", lambda: ("quantifications/tremor", frame))

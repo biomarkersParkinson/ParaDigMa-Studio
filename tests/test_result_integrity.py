@@ -9,15 +9,16 @@ import pandas as pd
 import pytest
 from conftest import wait_for_job
 from PySide6.QtTest import QTest
+from run_fixtures import make_run
 
-from paradigma_studio.history import RunHistory, new_run
+from paradigma_studio.history import RunHistory
 from paradigma_studio.result_integrity import provenance_for_run
 from paradigma_studio.result_reopening import load_saved_results
 from paradigma_studio.serialization import export_results
 
 
 def owned_output(path, results):
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
     provenance = {
         "run_id": record["id"],
@@ -25,7 +26,15 @@ def owned_output(path, results):
         "settings": record["settings"],
     }
     checksum = export_results(path, results, provenance)
-    record["outputs"] = [{"kind": "JSON", "path": str(path), "complete": True, "sha256": checksum}]
+    record["outputs"] = [
+        {
+            "kind": "JSON",
+            "path": str(path),
+            "complete": True,
+            "sha256": checksum,
+            "saved": "2026-10-24T00:00:00Z",
+        }
+    ]
     return record, provenance, checksum
 
 
@@ -86,7 +95,7 @@ def test_both_reader_paths_reject_unverified_or_changed_files(
         checksum = export_results(path, tremor_outputs, provenance)
         message = "run ID"
     elif problem == "different_id":
-        provenance["run_id"] = new_run("other.csv", {})["id"]
+        provenance["run_id"] = make_run("other.csv", {})["id"]
         checksum = export_results(path, tremor_outputs, provenance)
         message = "different run"
     else:
@@ -127,7 +136,7 @@ def test_verification_and_decoding_use_the_same_read_buffer(tmp_path, tremor_out
 
 
 @pytest.mark.parametrize(
-    "problem", ["reused_filename", "same_id_edit", "missing_checksum", "missing_id", "different_id"]
+    "problem", ["reused_filename", "same_id_edit", "missing_id", "different_id"]
 )
 def test_failed_reopen_keeps_displayed_results_and_restores_controls(
     window, tmp_path, tremor_outputs, problem
@@ -140,19 +149,19 @@ def test_failed_reopen_keeps_displayed_results_and_restores_controls(
                 "kind": "JSON",
                 "path": str(tmp_path / "missing-snapshot.json"),
                 "local": True,
+                "complete": True,
+                "saved": "2026-10-24T00:00:00Z",
                 "sha256": checksum,
             }
         )
         owned_output(path, {**tremor_outputs, "errors": ["from another run"]})
     elif problem == "same_id_edit":
         export_results(path, {**tremor_outputs, "errors": ["edited"]}, provenance)
-    elif problem == "missing_checksum":
-        record["outputs"][0].pop("sha256")
     elif problem == "missing_id":
         provenance.pop("run_id")
         record["outputs"][0]["sha256"] = export_results(path, tremor_outputs, provenance)
     else:
-        provenance["run_id"] = new_run("other.csv", {})["id"]
+        provenance["run_id"] = make_run("other.csv", {})["id"]
         record["outputs"][0]["sha256"] = export_results(path, tremor_outputs, provenance)
     # Reload the disk history without an in-memory result cache.
     window.history.save(record)
@@ -187,7 +196,7 @@ def test_history_failure_keeps_previous_snapshot_and_matching_fingerprint(
     tmp_path, tremor_outputs, monkeypatch
 ):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     record["outputs"] = history.save_results(record, tremor_outputs, {})
     old_output = record["outputs"][0]
     old_bytes = Path(old_output["path"]).read_bytes()
@@ -216,7 +225,7 @@ def test_successful_resave_publishes_new_fingerprint_and_removes_previous_snapsh
     tmp_path, tremor_outputs
 ):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     record["outputs"] = history.save_results(record, tremor_outputs, {})
     previous = Path(record["outputs"][0]["path"])
     next_outputs = history.save_results(record, {**tremor_outputs, "errors": ["new values"]}, {})
@@ -232,8 +241,8 @@ def test_successful_resave_publishes_new_fingerprint_and_removes_previous_snapsh
 
 
 def test_owned_writes_reject_another_runs_provenance_without_modifying_it():
-    record = new_run("sensor.csv", {})
-    other = {"run_id": new_run("other.csv", {})["id"]}
+    record = make_run("sensor.csv", {})
+    other = {"run_id": make_run("other.csv", {})["id"]}
     before = dict(other)
     with pytest.raises(ValueError, match="different run"):
         provenance_for_run(other, record["id"])
@@ -244,12 +253,12 @@ def test_contradictory_snapshot_identity_leaves_files_and_history_unchanged(
     tmp_path, tremor_outputs
 ):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     record["outputs"] = history.save_results(record, tremor_outputs, {})
     previous = Path(record["outputs"][0]["path"])
     before = previous.read_bytes()
     with pytest.raises(ValueError, match="different run"):
-        history.save_results(record, tremor_outputs, {"run_id": new_run("other.csv", {})["id"]})
+        history.save_results(record, tremor_outputs, {"run_id": make_run("other.csv", {})["id"]})
     records, issues = history.load()
     assert not issues and records[0]["outputs"] == record["outputs"]
     assert previous.read_bytes() == before
@@ -260,7 +269,7 @@ def test_old_snapshot_cleanup_failure_leaves_new_snapshot_verified_and_usable(
     tmp_path, tremor_outputs, monkeypatch, caplog
 ):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     record["outputs"] = history.save_results(record, tremor_outputs, {})
     previous = Path(record["outputs"][0]["path"])
     unlink = Path.unlink
@@ -287,7 +296,7 @@ def test_resaving_does_not_remove_protected_or_unowned_old_files(
     tmp_path, tremor_outputs, protected
 ):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     record["outputs"] = history.save_results(record, tremor_outputs, {})
     previous = Path(record["outputs"][0]["path"])
     if protected == "outside_directory":

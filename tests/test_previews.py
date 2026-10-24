@@ -10,6 +10,7 @@ from conftest import wait_for_previews
 from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
+from run_fixtures import saved_settings
 
 from paradigma_studio import app as desktop, recordings
 from paradigma_studio.inspection import inspect_recording, sensor_descriptives, time_descriptives
@@ -350,10 +351,12 @@ def test_restoring_custom_origin_remains_editable_and_is_not_overwritten(window)
         "source": "User supplied",
     }
     window._run_state.selected_run = {
-        "settings": {
-            "pipelines": ["tremor"],
-            "plot_time_origin": {"mode": "custom", "clock": clock},
-        }
+        "settings": saved_settings(
+            **{
+                "pipelines": ["tremor"],
+                "plot_time_origin": {"mode": "custom", "clock": clock},
+            }
+        )
     }
     window.use_run_parameters()
     wait_for_previews(window)

@@ -12,10 +12,11 @@ from conftest import wait_for_previews
 from matplotlib import dates
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
+from run_fixtures import make_run
 
 from paradigma_studio import app as desktop, core
 from paradigma_studio.app import MainWindow
-from paradigma_studio.history import load_result_export, new_run
+from paradigma_studio.history import load_result_export
 from paradigma_studio.inspection import inspect_recording, time_descriptives
 from paradigma_studio.recordings import align_recordings, load_recordings
 
@@ -234,7 +235,9 @@ def test_batch_clock_aligns_sensor_context_and_survives_json_reopening(
     results = output()
     original = deepcopy(results)
     window.analyzed(results)
-    record = new_run(next(iter(sources.values())), window._result_state.provenance["settings"])
+    record = make_run(
+        next(iter(sources.values())), window._analysis_controller._analysis_settings(["tremor"])
+    )
     window._run_state.current_run = record
     name = "quantifications/tremor"
     np.testing.assert_array_equal(
@@ -310,8 +313,8 @@ def test_export_protects_every_loaded_source_even_when_another_file_is_selected(
     load(window, sources, frames)
     window.input_recording.setCurrentIndex(1)
     window.analyzed(output())
-    window._run_state.current_run = new_run(
-        next(iter(sources.values())), window._result_state.provenance["settings"]
+    window._run_state.current_run = make_run(
+        next(iter(sources.values())), window._analysis_controller._analysis_settings(["tremor"])
     )
     protected = Path(sources["recording_001"])
     original = protected.read_bytes()

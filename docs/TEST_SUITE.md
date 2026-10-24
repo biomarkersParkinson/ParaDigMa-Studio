@@ -24,13 +24,13 @@ trigger and expected behavior still apply.
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
 | Dependency-specific updates, complete saved settings before previews/Data notifications, one load refresh, independent Data formats and metadata updates with manual origins | `test_analysis_refresh.py`; lifecycle order in `test_composition_order.py` |
-| GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and reuse of retired bypass settings | `test_analysis_preparation.py` |
+| GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and rejection of retired bypass settings | `test_analysis_preparation.py` |
 | Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
 | File-derived unit/origin defaults, provenance label placement, mapping-dependent unit controls, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |
 | App-wide field wheel/trackpad page scrolling, unchanged focused numeric/calendar/dropdown values, embedded text editors, pinned graph fields, open-list scrolling and keyboard/button edits | `test_analysis_scrolling.py` |
 | Signal-column dropdowns, header-only batch validation, ambiguity/conflicts, persisted choices and independent official pipeline equivalence | `test_column_mapping.py` |
 | Authoritative signal inputs, manual overrides, explicit absence, clock/preparation agreement, saved selections and unchanged original samples | `test_signal_selection.py` |
-| Per-sensor inversion, fixed-order official preparation, all legacy signed permutations, saved-setting validation and migration | `test_axis_mapping.py`, `test_column_mapping.py` |
+| Per-sensor inversion, fixed-order official preparation and current saved-setting validation | `test_axis_mapping.py`, `test_column_mapping.py` |
 | Prepared-data coverage and recording overview | `test_availability.py`, `test_availability_plot_stability.py`, `test_recording_overview.py` |
 | Gait overview, gait presence and epoch summaries | `test_gait_overview.py`, `test_gait_presence.py`, `test_epochs.py`, `test_epoch_presence_threshold.py`, `test_daily.py` |
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | `test_epoch_profile.py` |
@@ -46,7 +46,8 @@ trigger and expected behavior still apply.
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
-| Studio identity, launcher and legacy user-data compatibility | `test_branding.py` |
+| Versioned history/results, rejection without migration, required fields and explicit export completeness | `test_saved_format.py` |
+| Studio identity, launcher and exclusive Studio storage paths | `test_branding.py` |
 | Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
 | Specific input errors, complete worker/UI tracebacks, startup/smoke failure reports and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |

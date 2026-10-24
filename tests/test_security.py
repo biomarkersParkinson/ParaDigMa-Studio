@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from run_fixtures import make_run
 
 from paradigma_studio import core, serialization
 from scripts import audit_dependencies
@@ -133,7 +134,7 @@ def test_failed_history_save_keeps_previous_record_and_removes_temporary_file(
     from paradigma_studio import history
 
     store = history.RunHistory(tmp_path)
-    record = history.new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     store.save(record)
     target = tmp_path / f"{record['id']}.json"
     before = target.read_bytes()

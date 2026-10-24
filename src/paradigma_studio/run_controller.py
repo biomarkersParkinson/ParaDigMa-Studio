@@ -481,7 +481,7 @@ class RunController:
             (
                 output
                 for output in reversed(run_exports(record))
-                if output.get("kind") == "JSON" and output.get("complete") is not False
+                if output.get("kind") == "JSON" and output.get("complete") is True
             ),
             None,
         )
@@ -516,6 +516,7 @@ class RunController:
                     "path": str(Path(path).resolve()),
                     "saved": now(),
                     "dataset": name if kind == "CSV" else "all results",
+                    "complete": kind == "JSON",
                 }
             )
             if kind == "JSON":

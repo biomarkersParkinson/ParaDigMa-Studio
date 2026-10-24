@@ -84,6 +84,7 @@ def test_saved_settings_are_complete_before_one_preview_and_data_notification(
         "gyroscope_units": "rad/s",
         "time_input_unit": time_unit,
         "signal_columns": choices,
+        "column_mapping": {"device_clock": "time", "optical": "green"},
         "axis_inversions": ["gyroscope_y"],
         "split_by_gaps": False,
         "drop_missing_samples": False,

@@ -2,6 +2,7 @@
 
 import pytest
 from PySide6.QtTest import QSignalSpy
+from run_fixtures import make_run
 
 from paradigma_studio.column_mapping import SIGNALS, ColumnMapping, required_signals
 from paradigma_studio.ui.column_mapping import ColumnMappingEditor
@@ -226,14 +227,14 @@ def test_file_labels_follow_automatic_manual_and_saved_choices_and_one_default_r
         "Show optional signals",
         "Show details",
     }
-    editor.set_mapping({"skin": "temperature"}, signal_columns=dict.fromkeys(SIGNALS))
+    editor.set_mapping({}, signal_columns=dict.fromkeys(SIGNALS))
     editor.set_axis_inversions(["accelerometer_x", "gyroscope_z"])
     assert all(badge.isHidden() for badge in editor._file_badges.values())
     count = changes.count()
     editor.default_button.click()
     assert changes.count() == count + 1
     assert editor.model.choices == {target: automatic.get(target) for target in SIGNALS}
-    assert editor.mapping() == {"skin": "temperature", "ax": "accelerometer_x", "ppg": "green"}
+    assert editor.mapping() == {"ax": "accelerometer_x", "ppg": "green"}
     assert editor.axis_inversions() == ["accelerometer_x", "gyroscope_z"]
     assert not editor._file_badges["green"].isHidden()
     selector = editor._combos["green"]
@@ -306,14 +307,14 @@ def test_suggestions_use_unambiguous_names_shared_by_every_file():
     [
         {"green": "time", "time": "green"},
         {"device_clock": "time", "optical": "green", "ax": "accelerometer_y"},
-        {"ppg": "green", "green": "green"},
-        {"time": "original_clock", "device_clock": "time"},
+        {"ppg": "green"},
+        {"green": "time", "device_clock": "green"},
     ],
 )
-def test_auto_match_replaces_manual_assignments_and_preserves_only_unrelated_legacy_entries(manual):
+def test_auto_match_replaces_manual_assignments(manual):
     value = ColumnMapping()
     value.set_recordings({"one": ["time", "green", "ax", "ppg", "skin"]}, {})
-    value.set_mapping({**manual, "skin": "temperature_c"})
+    value.set_mapping(manual)
     value.set_axis_inversions(["accelerometer_y", "gyroscope_z"])
     assert not value.matches_automatic()
     value.auto_match()
@@ -325,12 +326,12 @@ def test_auto_match_replaces_manual_assignments_and_preserves_only_unrelated_leg
         else None
         for signal in SIGNALS
     }
-    assert value.mapping() == {"skin": "temperature_c", "ax": "accelerometer_x"}
+    assert value.mapping() == {"ax": "accelerometer_x"}
     assert value.axis_inversions() == ["accelerometer_y", "gyroscope_z"]
     assert value.matches_automatic()
     value.auto_match()
     assert value.matches_automatic()
-    assert value.mapping() == {"skin": "temperature_c", "ax": "accelerometer_x"}
+    assert value.mapping() == {"ax": "accelerometer_x"}
 
 
 def test_auto_match_clears_manual_choices_without_guessing_ambiguous_or_file_specific_names(editor):
@@ -363,30 +364,33 @@ def test_ambiguous_aliases_are_not_guessed():
     "saved",
     [
         {"device_clock": "time", "optical": "green"},
-        {"time": "time", "unrelated": "extra_signal"},
-        {"time": "original_clock", "device_clock": "time"},
-        {"a": "green", "b": "green"},
+        {"time": "time"},
         {"gyroscope_x": "gyroscope_y", "gyroscope_y": "gyroscope_x"},
     ],
 )
 def test_saved_mappings_keep_exact_entries_and_missing_sources(model, saved):
     model.set_mapping(saved)
-    assert model.mapping() == saved
+    assert model.mapping() == {
+        source: target for source, target in saved.items() if source != target
+    }
     model.set_recordings({"another": ["new_time", "new_ppg"]}, {})
-    assert model.mapping() == saved
+    assert model.mapping() == {
+        source: target for source, target in saved.items() if source != target
+    }
     model.set_recordings({}, {})
-    assert model.mapping() == saved
+    assert model.mapping() == {
+        source: target for source, target in saved.items() if source != target
+    }
 
 
-def test_reset_discards_explicit_and_other_saved_mappings(model):
-    model.set_mapping({"timestamp": "time", "temperature": "temperature_c"})
+def test_reset_discards_explicit_choices(model):
+    model.set_mapping({"timestamp": "time"})
     model.reset()
     assert model.mapping() == {}
-    assert model.extra == {}
     assert model.choices == {signal: signal for signal in SIGNALS}
 
 
-def test_legacy_null_mapping_restores_standard_matching(model):
+def test_reset_mapping_restores_standard_matching(model):
     model.set_mapping({"device_time": "time"})
     model.set_mapping(None)
     assert model.mapping() == {}
@@ -427,17 +431,12 @@ def test_renaming_an_existing_standard_source_updates_its_implicit_assignment(mo
     assert model.validate(["gait"]).compatible == 1
 
 
-def test_target_collisions_retain_saved_mapping_until_the_user_fixes_it(model):
-    model.set_recordings({"one": ["time", "green", "ppg"]}, {"one": "sensor.csv"})
-    model.set_mapping({"ppg": "green", "green": "green"})
-    assert model.target_conflicts() == {"green": ["sensor.csv"]}
-    assert model.validate(["pulse_rate"]).details == ("Conflicting column names: green",)
-    assert model.mapping() == {"ppg": "green", "green": "green"}
-    with pytest.raises(ValueError, match="Multiple saved columns"):
-        model.signal_columns()
-    model.choose("green", "green")
-    assert model.mapping() == {}
-    assert model.validate(["pulse_rate"]).compatible == 1
+@pytest.mark.parametrize("invalid", [{"a": "green", "b": "green"}, {"skin": "temperature"}])
+def test_editor_rejects_unsupported_or_duplicate_saved_targets(model, invalid):
+    before = model.signal_columns()
+    with pytest.raises(ValueError, match="one source column per supported signal"):
+        model.set_mapping(invalid)
+    assert model.signal_columns() == before
 
 
 def test_identical_batch_mapping_issues_appear_once_without_recording_names(editor):
@@ -471,7 +470,7 @@ def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing
     model = ColumnMapping()
     model.set_recordings(
         {
-            "one": ["time", "green", "ppg"],
+            "one": ["time", "ppg", "ppg"],
             "two": ["time", "ppg"],
             "three": ["time"],
             "four": ["temperature"],
@@ -480,7 +479,7 @@ def test_mixed_batch_mapping_issues_are_grouped_by_affected_count_without_losing
     )
     # The first recording has a name conflict, the third lacks PPG, and the
     # fourth lacks time and PPG. The second is the only compatible recording.
-    model.set_mapping({"ppg": "green", "green": "green"})
+    model.set_mapping({"ppg": "green"})
     validation = model.validate(["pulse_rate"])
     assert validation.recordings == 4 and validation.compatible == 1
     assert validation.details == (
@@ -548,32 +547,32 @@ def test_not_included_clears_a_mistaken_ppg_assignment_and_restores_the_source_s
 def test_not_included_clears_a_missing_saved_assignment_and_auto_match_can_restore_an_alias(editor):
     editor.set_recordings({"one": ["time", "ppg"]}, {})
     editor.set_modules(["pulse_rate"])
-    editor.set_mapping({"missing_optical": "green", "skin": "temperature"})
+    editor.set_mapping({"missing_optical": "green"})
     selector = editor._combos["green"]
     assert selector.currentIndex() == -1
     changes = QSignalSpy(editor.changed)
     selector.setCurrentIndex(selector.findText("Not included"))
     assert selector.currentText() == "Not included"
-    assert editor.mapping() == {"skin": "temperature"}
+    assert editor.mapping() == {}
     assert "missing_optical" not in editor._warnings["green"].accessibleDescription()
     assert editor.default_button.isEnabled()
     assert changes.count() == 1
     editor.default_button.click()
     assert selector.currentData() == "ppg"
-    assert editor.mapping() == {"skin": "temperature", "ppg": "green"}
+    assert editor.mapping() == {"ppg": "green"}
     assert editor._warnings["green"].isHidden()
     assert editor.default_button.isEnabled()
     assert changes.count() == 2
 
 
 def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_options(editor):
-    editor.set_mapping({"clock": "time", "ppg": "green", "skin": "temperature"})
+    editor.set_mapping({"clock": "time", "ppg": "green"})
     editor.set_modules(["pulse_rate"])
     editor.set_recordings(
         {"one": ["clock", "ppg"], "two": ["clock", "other"]},
         {"one": "first.csv", "two": "second.csv"},
     )
-    assert editor.mapping() == {"clock": "time", "ppg": "green", "skin": "temperature"}
+    assert editor.mapping() == {"clock": "time", "ppg": "green"}
     assert not editor._warnings["green"].isHidden()
     assert "Missing in 1/2" in editor._warnings["green"].toolTip()
     assert "Missing in 1 of 2 recordings." in editor._warnings["green"].accessibleDescription()
@@ -583,17 +582,17 @@ def test_missing_saved_columns_stay_in_settings_without_becoming_dropdown_option
     assert not editor.details.isHidden()
     assert "Missing Green PPG (1 of 2 recordings)" in editor.details.text()
     assert "second.csv" not in editor.details.text()
-    assert "skin → temperature" in editor.details.text()
+    assert "Other saved mappings" not in editor.details.text()
     editor.set_recordings({"third": ["new_time", "new_ppg"]}, {})
     selector = editor._combos["green"]
     assert selector.currentIndex() == -1
     assert selector.placeholderText() == "Select a column…"
     assert selector.findData("ppg") == -1
     assert "Selected column: ppg" in editor._warnings["green"].accessibleDescription()
-    assert editor.mapping() == {"clock": "time", "ppg": "green", "skin": "temperature"}
+    assert editor.mapping() == {"clock": "time", "ppg": "green"}
     changes = QSignalSpy(editor.changed)
     selector.setCurrentIndex(selector.findData("new_ppg"))
-    assert editor.mapping() == {"clock": "time", "new_ppg": "green", "skin": "temperature"}
+    assert editor.mapping() == {"clock": "time", "new_ppg": "green"}
     assert editor._warnings["green"].isHidden()
     assert changes.count() == 1
 
@@ -634,10 +633,12 @@ def test_default_restores_file_matches_and_clears_inline_conflicts(editor):
     editor.set_recordings({"one": ["time", "ppg", "green", "ax"]}, {})
     editor.default_button.click()
     assert editor.mapping() == {"ax": "accelerometer_x"}
-    editor.set_mapping({"ppg": "green", "green": "green"})
+    for target in ("time", "green"):
+        selector = editor._combos[target]
+        selector.setCurrentIndex(selector.findData("ppg"))
     assert not editor._warnings["green"].isHidden()
-    assert "Name conflict" in editor._warnings["green"].toolTip()
-    assert "Multiple columns become this signal in 1 of 1 recordings." in (
+    assert "Assigned twice" in editor._warnings["green"].toolTip()
+    assert "Choose a different column for each signal." in (
         editor._warnings["green"].accessibleDescription()
     )
     assert editor.summary.text().startswith("Compatible with 0 of 1")
@@ -679,27 +680,29 @@ def test_auto_match_includes_optional_signals_and_reports_headers_as_plain_text(
     assert editor.details.textFormat() == Qt.TextFormat.PlainText
 
 
-def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(window, tmp_path):
-    from paradigma_studio.history import load_result_export, new_run
+def test_saved_result_mapping_round_trip_restores_explicit_choices(window, tmp_path):
+    from run_fixtures import saved_settings
+
+    from paradigma_studio.history import load_result_export
     from paradigma_studio.serialization import export_results
 
-    saved = {"clock": "time", "ppg": "green", "auxiliary": "temperature_c"}
+    saved = {"clock": "time", "ppg": "green"}
     path = tmp_path / "saved.json"
     export_results(
         path,
         {"errors": []},
         {
-            "settings": {
-                "pipelines": ["pulse_rate"],
-                "column_mapping": saved,
-                "axis_inversions": ["accelerometer_x", "gyroscope_z"],
-                "device_orientation": ["x", "y", "z"],
-            }
+            "settings": saved_settings(
+                pipelines=["pulse_rate"],
+                column_mapping=saved,
+                signal_columns={**dict.fromkeys(SIGNALS), "time": "clock", "green": "ppg"},
+                axis_inversions=["accelerometer_x", "gyroscope_z"],
+            )
         },
     )
     original_bytes = path.read_bytes()
     provenance, _results = load_result_export(path)
-    record = new_run("sensor.csv", provenance["settings"])
+    record = make_run("sensor.csv", provenance["settings"])
     window._run_state.selected_run = record
     window.use_run_parameters()
     assert window.mapping.mapping() == saved
@@ -708,64 +711,9 @@ def test_saved_result_mapping_round_trip_restores_every_choice_and_legacy_entry(
     assert window.mapping._combos["time"].currentIndex() == -1
     assert window.mapping._combos["green"].currentIndex() == -1
     assert window.mapping.axis_inversions() == ["accelerometer_x", "gyroscope_z"]
-    assert "auxiliary → temperature_c" in window.mapping.details.text()
+    assert "Other saved mappings" not in window.mapping.details.text()
     assert window._analysis_controller._analysis_settings(["pulse_rate"])["column_mapping"] == saved
     assert path.read_bytes() == original_bytes
-
-
-@pytest.mark.parametrize("prepared", [False, True])
-@pytest.mark.parametrize("aliased", [False, True])
-def test_restoring_legacy_signed_run_preserves_official_sensor_values(
-    window, tmp_path, prepared, aliased
-):
-    import numpy as np
-    import pandas as pd
-    from paradigma.prepare_data import correct_watch_orientation
-
-    from paradigma_studio import core
-    from paradigma_studio.axis_mapping import IMU_COLUMNS
-    from paradigma_studio.history import load_result_export, new_run
-    from paradigma_studio.serialization import export_results
-
-    source = pd.DataFrame(
-        {
-            "time": np.arange(200) / 100,
-            **{
-                channel: np.arange(200, dtype=float) + index
-                for index, channel in enumerate(IMU_COLUMNS)
-            },
-        }
-    )
-    names = {column: f"sensor_{column}" for column in source if aliased}
-    source = source.rename(columns=names)
-    mapping = {renamed: column for column, renamed in names.items()}
-    legacy_settings = {
-        "pipelines": ["gait"],
-        "column_mapping": mapping,
-        "device_orientation": ["-y", "z", "-x"],
-        "skip_preparation": prepared,
-    }
-    path = tmp_path / "legacy.json"
-    export_results(path, {"errors": []}, {"settings": legacy_settings})
-    before = path.read_bytes()
-    window.loaded(("sensor.csv", source))
-    provenance, _ = load_result_export(path)
-    window._run_state.selected_run = new_run("sensor.csv", provenance["settings"])
-    window.use_run_parameters()
-    settings = window._analysis_controller._analysis_settings(["gait"])
-    assert settings["device_orientation"] == ["x", "y", "z"]
-    assert settings["axis_inversions"] == (
-        [] if prepared else ["accelerometer_x", "accelerometer_z", "gyroscope_x", "gyroscope_z"]
-    )
-    actual, exclusion, count = core._prepare_recording(
-        source, ["gait"], settings["column_mapping"], None, False, settings
-    )
-    expected = source.rename(columns=mapping)
-    if not prepared:
-        expected = correct_watch_orientation(expected, ["-y", "z", "-x"])
-    pd.testing.assert_frame_equal(actual, expected, check_like=True, check_exact=True)
-    assert exclusion is None and count == len(source)
-    assert path.read_bytes() == before
 
 
 def test_batch_schema_installation_never_reads_or_counts_samples(window):

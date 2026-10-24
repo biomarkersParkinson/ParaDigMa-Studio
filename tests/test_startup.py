@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from run_fixtures import make_run
 
 from paradigma_studio import plot_cache
 from paradigma_studio.plot_cache import configure_plot_cache
@@ -191,12 +192,11 @@ finally:
 
 @pytest.mark.parametrize("run_count", [0, 200])
 def test_runs_page_starts_without_tabular_imports_even_with_saved_history(tmp_path, run_count):
-    from paradigma_studio.history import new_run
 
     directory = tmp_path / "runs"
     directory.mkdir()
     for index in range(run_count):
-        record = new_run(f"sensor-{index}.csv", {"pipelines": ["tremor"]})
+        record = make_run(f"sensor-{index}.csv", {"pipelines": ["tremor"]})
         record["status"] = "Completed"
         (directory / f"{record['id']}.json").write_text(json.dumps(record), encoding="utf-8")
     report = tmp_path / "startup-runs.json"

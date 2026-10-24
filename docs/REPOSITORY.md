@@ -40,7 +40,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Public service contracts and shared payload types; no startup scientific imports | `contracts.py`, `py.typed` |
 | Shared input-field wheel routing to surrounding pages | `field_scrolling.py`; reused by `widgets.py`, `time_controls.py` and graph settings |
 | Result installation, source alignment, clock selection and completion status | `result_controller.py`; worker-safe snapshots in `result_preparation.py`, isolated large-JSON decoding in `result_reopening.py`; automatic origins in `results_view.recording_clock` use selected absolute time or explicit recording-start metadata |
-| Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py`; run identity and exact-byte checksums in `result_integrity.py` |
+| Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` and `saved_format.py`; run identity and exact-byte checksums in `result_integrity.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
 | Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` |
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
@@ -114,7 +114,7 @@ Qt-independent helpers. Component tests exercise result installation and partial
 deletion without constructing a complete window. Layout/graph component tests
 use a plain `QMainWindow`, while ordering tests pin signal delivery, GUI-thread
 completion, control restoration and queued close after saving. The full UI
-regressions cover composition and saved-run compatibility.
+regressions cover composition and the current saved-run contract.
 
 Extract named helpers for validation, preparation, execution and rendering, with
 explicit inputs and return values.
@@ -137,8 +137,9 @@ Use `storage.atomic_file` for destination replacement and `recording_files` /
 `same_file` for sensor-file protection. Owned JSON writes include the run ID and
 return a SHA-256 receipt for history. Runs must use the verified reader for both
 small and isolated large-file reopening, checking the same bytes it decodes.
-Missing identity/checksum information is rejected; there is no legacy reopening
-fallback. Keep CSV escaping and original-input protections intact.
+History and JSON results require the current `saved_format.py` envelope; missing
+identity/checksum information is rejected. Unsupported formats are not migrated.
+Keep CSV escaping and original-input protections intact.
 
 The supported build entry point is `scripts/build_desktop.py`. PyInstaller specs
 are generated under `build/desktop/` and ignored by Git; old specs left in a local

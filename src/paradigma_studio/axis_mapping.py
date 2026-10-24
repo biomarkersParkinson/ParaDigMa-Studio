@@ -1,4 +1,4 @@
-"""Fixed-order sensor signs and migration of saved global axis permutations."""
+"""Fixed-order sensor signs and the Python API's global axis convention."""
 
 from __future__ import annotations
 
@@ -62,38 +62,10 @@ def sensor_orientation(sensor: Sensor, inversions: list[IMUSignal]) -> list[Sign
 def preparation_orientations(
     settings: Mapping[str, object],
 ) -> dict[Sensor, list[SignedAxis] | None]:
-    legacy = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
+    global_axes = validate_orientation(settings.get("device_orientation", ["x", "y", "z"]))
     inversions = validate_axis_inversions(settings.get("axis_inversions"))
     if inversions is None:
-        return dict.fromkeys(SENSORS, legacy)
-    if legacy is not None and legacy != ["x", "y", "z"]:
+        return dict.fromkeys(SENSORS, global_axes)
+    if global_axes is not None and global_axes != ["x", "y", "z"]:
         raise ValueError("Use column mapping for axis swaps when axis inversions are specified.")
     return {sensor: sensor_orientation(sensor, inversions) for sensor in SENSORS}
-
-
-def migrate_legacy_orientation(
-    mapping: Mapping[str, str] | None, orientation: object
-) -> tuple[dict[str, str], list[IMUSignal]]:
-    """Compose old renaming then global orientation into one rename and signs.
-
-    Unmentioned standard columns follow the same permutation as explicitly
-    mapped columns. Additional names and identity mappings retain their meaning.
-    """
-    axes: list[SignedAxis] = validate_orientation(orientation) or ["x", "y", "z"]
-    original = dict(mapping or {})
-    routes = {
-        f"{sensor}_{source[-1]}": f"{sensor}_{target}"
-        for sensor in SENSORS
-        for target, source in zip("xyz", axes, strict=True)
-    }
-    translated = {source: routes.get(target, target) for source, target in original.items()}
-    for source, target in routes.items():
-        if source != target and source not in original:
-            translated[source] = target
-    inversions = [
-        cast("IMUSignal", f"{sensor}_{target}")
-        for sensor in SENSORS
-        for target, source in zip("xyz", axes, strict=True)
-        if source.startswith("-")
-    ]
-    return translated, inversions

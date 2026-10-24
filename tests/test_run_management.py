@@ -10,58 +10,17 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
+from run_fixtures import export_receipt, make_run
 
 from paradigma_studio import analysis_process, app as desktop
 from paradigma_studio.app import MainWindow, Worker
-from paradigma_studio.history import RunHistory, new_run, run_is_saved
+from paradigma_studio.history import RunHistory, run_is_saved
 from paradigma_studio.run_controller import RunController
-from paradigma_studio.serialization import export_results
-
-
-def test_history_normalization_does_not_enable_unverified_result_reopening(
-    tmp_path, tremor_outputs
-):
-    history = RunHistory(tmp_path / "runs")
-    output = tmp_path / "legacy.json"
-    provenance = {"source": "sensor.csv", "settings": {"pipelines": ["tremor"]}}
-    export_results(output, tremor_outputs, provenance)
-    record = new_run("sensor.csv", provenance["settings"])
-    record["status"] = "Completed"
-    record["warnings"] = ["Some windows excluded"]
-    record["outputs"] = [{"kind": "JSON", "path": str(output)}]
-    record["future_metadata"] = {"labels": ["retained"], "revision": 2}
-    for key in ("finished", "paradigma_version", "errors", "log"):
-        record.pop(key)
-    history.save(record)
-    path = history.directory / f"{record['id']}.json"
-    before = path.read_bytes()
-
-    records, issues = history.load()
-    assert not issues and len(records) == 1
-    restored = records[0]
-    assert restored["status"] == "Completed" and restored["finished"] is None
-    assert restored["paradigma_version"] == restored["log"] == ""
-    assert restored["errors"] == [] and restored["warnings"] == record["warnings"]
-    assert restored["future_metadata"] == record["future_metadata"]
-    assert restored["outputs"] == record["outputs"]
-    assert path.read_bytes() == before  # Reading never rewrites the older file.
-    assert not run_is_saved(restored)
-    saved = RunController.reopen_output(restored)
-    assert saved == record["outputs"][0]
-    from paradigma_studio.result_reopening import load_saved_results
-
-    with pytest.raises(ValueError, match="checksum"):
-        load_saved_results(
-            saved["path"], logging.getLogger(__name__), run_id=restored["id"], checksum=None
-        )
-    history.save(restored)
-    again, issues = history.load()
-    assert not issues and again == records
 
 
 def test_history_never_persists_or_restores_transient_workspace_caches(tmp_path, tremor_outputs):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     record.update(
         _frame=pd.DataFrame({"time": [0.0]}),
         _results=tremor_outputs,
@@ -88,7 +47,7 @@ def test_history_never_persists_or_restores_transient_workspace_caches(tmp_path,
 )
 def test_malformed_run_fields_skip_only_the_damaged_history_entry(tmp_path, invalid):
     history = RunHistory(tmp_path / "runs")
-    good, bad = new_run("good.csv", {}), new_run("bad.csv", {})
+    good, bad = make_run("good.csv", {}), make_run("bad.csv", {})
     bad.update(invalid)
     for record in (good, bad):
         history.save(record)
@@ -120,7 +79,7 @@ def test_malformed_output_metadata_cannot_change_saved_or_export_state(tmp_path,
     history = RunHistory(tmp_path / "runs")
     output = tmp_path / "result.json"
     output.write_text("{}", encoding="utf-8")
-    good, bad = new_run("good.csv", {}), new_run("bad.csv", {})
+    good, bad = make_run("good.csv", {}), make_run("bad.csv", {})
     good["outputs"] = [
         {
             "kind": "JSON",
@@ -128,6 +87,7 @@ def test_malformed_output_metadata_cannot_change_saved_or_export_state(tmp_path,
             "local": False,
             "complete": False,
             "saved": "2026-10-23T00:00:00+00:00",
+            "sha256": "0" * 64,
             "dataset": "quantifications/tremor",
             "selected": ["quantifications/tremor"],
             "selected_rows": 0,
@@ -228,12 +188,12 @@ def test_history_removal_protects_sources_companions_shared_outputs_and_director
     shared.write_text("shared")
     directory = tmp_path / "do-not-delete"
     directory.mkdir()
-    first, second = new_run(str(source), {}), new_run(str(source), {})
+    first, second = make_run(str(source), {}), make_run(str(source), {})
     first["status"], second["status"] = "Cancelled", "Completed"
     first["outputs"] = [
-        {"kind": "CSV", "path": str(path)} for path in (source, binary, export, shared, directory)
+        export_receipt(path, "CSV") for path in (source, binary, export, shared, directory)
     ]
-    second["outputs"] = [{"kind": "JSON", "path": str(shared)}]
+    second["outputs"] = [export_receipt(shared)]
     history.save(first)
     history.save(second)
     assert history.removal_files(first, [first, second]) == [export]
@@ -251,9 +211,9 @@ def test_delete_key_prompts_and_removes_only_confirmed_run(monkeypatch, tmp_path
     source.write_text("original")
     output = tmp_path / "result.json"
     output.write_text("export")
-    record = new_run(str(source), {})
+    record = make_run(str(source), {})
     record["status"] = "Completed"
-    record["outputs"] = [{"kind": "JSON", "path": str(output)}]
+    record["outputs"] = [export_receipt(output)]
     window.history.save(record)
     window._run_state.runs = [record]
     window.refresh_runs()

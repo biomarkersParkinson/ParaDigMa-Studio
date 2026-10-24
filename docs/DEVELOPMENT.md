@@ -5,9 +5,9 @@ official ParaDigMa 1.1.2 and an official Open Movement reader revision compatibl
 with NumPy 2 CWA timestamps.
 
 The Python distribution and launcher are `paradigma-studio`; the importable
-package and its `_internal` folder are `paradigma_studio`. New user data goes to
-`%LOCALAPPDATA%\ParaDigMaStudio`. Existing history and result locations under
-`ParaDigMaDesktop` remain usable without moving files or changing stored paths.
+package and its `_internal` folder are `paradigma_studio`. User data goes to
+`%LOCALAPPDATA%\ParaDigMaStudio`; earlier `ParaDigMaDesktop` storage is not
+discovered. Saved history and result JSON require Studio format version 1.
 
 ## Run from source on Windows
 
@@ -214,7 +214,7 @@ and the six numeric time encodings. `PreparationSettings` describes preparation
 keywords; the column mapping and missing-sample policy remain explicit `analyze`
 arguments. The Analyze controller constructs these settings before adding the
 open saved/display metadata. Qt combo values are narrowed at that boundary;
-runtime column/axis/timestamp validation still handles external and legacy inputs.
+runtime column/axis/timestamp validation still handles external inputs.
 
 `paradigma_api` provides typed lazy adapters for the pinned ParaDigMa 1.1.2 API.
 `Unpack` constrains orchestrator and `analyze` keyword names and values without
@@ -232,31 +232,31 @@ The header-only `column_mapping` model and pure `axis_mapping` service are also 
 by the recursive UI target. Controllers supply column-name schemas once per
 loaded batch and use the editor's explicit mapping/module APIs and `changed`
 signal. Mapping validation never scans sensor samples. Run settings retain the
-existing source-to-target dictionary, including additional legacy entries.
-New run settings also store `signal_columns`, the complete canonical-signal to
+source-to-target dictionary for the explicit supported signal choices.
+Run settings also store `signal_columns`, the complete canonical-signal to
 source-column dictionary, with `null` for unassigned signals. These selections are
 authoritative for preparation, validation and clock previews: unselected canonical
 signal columns cannot supply fallback inputs. Selection metadata is restored
 with the rest of the Analyze settings under one signal guard and is not
 forwarded to ParaDigMa. Normal editor changes still emit one `changed` signal.
-Older runs and direct API calls without `signal_columns` retain literal renaming
+Direct Python API calls without `signal_columns` retain literal renaming
 semantics. Original frames remain available for raw-data inspection.
 `axis_inversions` stores inverted canonical IMU target channels separately. The
 preparation service passes independent signed `x,y,z` lists to the official
 accelerometer and gyroscope orientation calls after renaming; permutations belong
 only in column mapping. This desktop setting is removed before calling the official
-orchestrator. The old Python `device_orientation` API remains supported when
-`axis_inversions` is absent. Restoring old raw-run settings composes the legacy
-permutation into the mapping and signs. Retired GUI bypass settings restore their
-effective native units, unchanged axes and disabled gap splitting. They never
-restore a preparation bypass for a new GUI run; opening stored results retains
-their original provenance and timing.
+orchestrator. The Python `device_orientation` API remains supported when
+`axis_inversions` is absent. Saved GUI settings require explicit selections and
+inversions; global permutations and the retired preparation bypass are rejected.
+Restoration validates the full settings before changing widgets and installs them
+under one signal guard. The editor no longer preserves arbitrary extra mappings,
+duplicate targets or redundant identity mapping entries.
 Inversion edits do not emit the mapping `changed` signal because they affect
 neither clock previews nor original raw plots.
 
 GUI runs always use Studio's normal preparation path with the selected input
 conventions. New GUI settings do not contain `skip_preparation`. The Python API
-retains that option for explicit callers and stored-result interpretation.
+retains that option for explicit callers and their result interpretation.
 After Studio prepares inputs, its internal call to the official orchestrator
 still sets `skip_preparation=True` to prevent a second preparation pass.
 
@@ -315,12 +315,22 @@ neither annotations nor type narrowing convert or copy source frames.
 Shared contracts type frames, paths, pipeline names, worker callbacks and process
 messages. `RunRecord` and `RunOutput` are `TypedDict` schemas with required fields,
 known status/format literals and optional export details and workspace caches.
-History loading validates JSON before entering the typed API, migrates old errors,
-and supplies missing legacy completion time, toolbox version and log fields.
-Older exports can still omit saved/local/complete markers; reading does not rewrite
-their files or promote partial exports to complete snapshots. Public extension
-metadata is retained, while private frame/result caches are never restored from
-history JSON. Their scientific types remain under `TYPE_CHECKING` at startup.
+`saved_format.py` defines independent history (`paradigma-studio.run`) and result
+(`paradigma-studio.results`) envelopes, both with integer `format_version: 1`.
+Readers reject missing, boolean, non-integer and unsupported versions; they never
+migrate or rewrite files. Bump `FORMAT_VERSION` for incompatible persistence
+changes rather than introducing missing-field migrations. History also requires its
+current record fields, explicit Analyze settings and kind-specific output fields. JSON output receipts require a
+checksum; export reopening requires `complete: true`. CSV outputs remain valid
+without JSON-specific fields, and local snapshots remain distinct from exports.
+`new_run` stamps the format but callers constructing history records must provide
+the complete current Analyze settings. Public extension metadata is retained,
+while private frame/result caches are never restored from history JSON. The generic
+result decoder enforces the result envelope; Runs additionally verifies identity
+and the recorded checksum. Unsupported history entries produce issues without
+hiding valid entries. The earlier application storage directory is not discovered.
+Missing-result/clock handling remains available for partial analyses and recordings
+without a calendar origin. Scientific types remain under `TYPE_CHECKING` at startup.
 Extensible saved/display settings, provenance and results and the heterogeneous Qt
 job-completion payload retain `Any`. Official adapter keywords are explicitly typed;
 open dictionaries loaded from history still require runtime validation. pandas stubs are

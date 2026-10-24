@@ -14,6 +14,7 @@ import numpy as np
 
 from .contracts import AnalysisResults, JSONValue, PathInput, Provenance
 from .result_integrity import DigestTextWriter
+from .saved_format import FORMAT_VERSION, RESULT_FORMAT
 from .storage import atomic_file, recording_files, same_file
 
 if TYPE_CHECKING:
@@ -120,7 +121,15 @@ def export_results(
 ) -> str:
     def write(stream):
         writer = DigestTextWriter(stream)
-        _write_json(writer, {"analysis": provenance, "results": results})
+        _write_json(
+            writer,
+            {
+                "format": RESULT_FORMAT,
+                "format_version": FORMAT_VERSION,
+                "analysis": provenance,
+                "results": results,
+            },
+        )
         return writer.hexdigest()
 
     return _write_export(

@@ -19,11 +19,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTextEdit,
 )
+from run_fixtures import make_run
 
 from paradigma_studio import app as desktop
 from paradigma_studio.app import MainWindow
 from paradigma_studio.exploration import source_timeline
-from paradigma_studio.history import RunHistory, new_run
+from paradigma_studio.history import RunHistory
 
 
 @pytest.fixture
@@ -721,7 +722,7 @@ def test_history_write_failure_keeps_result_available(window, monkeypatch):
 
 def test_history_rejects_damaged_entries_and_marks_unfinished_runs(tmp_path):
     history = RunHistory(tmp_path / "runs")
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     history.save(record)
     (history.directory / "bad.json").write_text("{broken")
     records, issues = history.load()
@@ -834,38 +835,8 @@ def test_no_quantified_windows_is_a_warning_without_processing_errors(window, mo
     assert window.notice.property("severity") == "warning"
 
 
-def test_legacy_history_moves_known_failures_to_errors_and_preserves_quality_warnings(tmp_path):
-    history = RunHistory(tmp_path)
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
-    record.pop("errors")
-    record["status"] = "Partial"
-    record["warnings"] = [
-        "Quality warning",
-        "ParaDigMa analysis completed with 1 error(s)",
-        "tremor pipeline returned error: Failed aggregation",
-        json.dumps(
-            {"pipeline": "tremor", "stage": "pipeline_execution", "error": "Failed aggregation"}
-        ),
-    ]
-    history.save(record)
-    records, issues = history.load()
-    assert not issues
-    assert records[0]["warnings"] == ["Quality warning"]
-    assert records[0]["errors"] == ["tremor · pipeline_execution: Failed aggregation"]
-    record["status"] = "Failed"
-    record["warnings"] = ["Quality warning", "ValueError: Invalid data"]
-    history.save(record)
-    records, issues = history.load()
-    assert not issues
-    assert records[0]["warnings"] == ["Quality warning"]
-    assert records[0]["errors"] == ["ValueError: Invalid data"]
-    record["errors"] = "invalid"
-    history.save(record)
-    assert history.load()[0] == []
-
-
 def test_running_problem_counts_update_immediately(window):
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     window._run_state.runs.insert(0, record)
     window._run_state.active_run = record
     window.refresh_runs()
@@ -879,16 +850,6 @@ def test_running_problem_counts_update_immediately(window):
     assert window.run_errors.toPlainText() == "Pipeline error"
     window.finish_run("Completed")
     assert record["status"] == "Partial"
-
-
-def test_legacy_history_rejects_non_text_warnings_without_crashing(tmp_path):
-    history = RunHistory(tmp_path)
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
-    record.pop("errors")
-    record["warnings"] = [42]
-    history.save(record)
-    records, issues = history.load()
-    assert records == [] and len(issues) == 1
 
 
 def test_identical_errors_in_different_recording_sections_remain_separate():

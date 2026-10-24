@@ -5,6 +5,8 @@ import os
 from importlib.metadata import distribution, version
 from pathlib import Path
 
+from run_fixtures import make_run
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtCore import QStandardPaths
@@ -115,24 +117,31 @@ def test_about_displays_and_copies_citation_without_changing_workspace(tmp_path)
 
 
 @pytest.mark.parametrize("existing_studio", [False, True])
-def test_renamed_app_reopens_existing_default_run_history(tmp_path, monkeypatch, existing_studio):
-    from paradigma_studio.history import RunHistory, new_run
+def test_app_reads_only_studio_history_and_leaves_earlier_storage_untouched(
+    tmp_path, monkeypatch, existing_studio
+):
+    from paradigma_studio.history import RunHistory
 
     application = QApplication.instance() or QApplication([])
     directory = tmp_path / "ParaDigMaDesktop" / "runs"
-    record = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    record = make_run("sensor.csv", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
     RunHistory(directory).save(record)
+    earlier = directory / f"{record['id']}.json"
+    before = earlier.read_bytes()
     if existing_studio:
         directory = tmp_path / "ParaDigMaStudio" / "runs"
-        record = new_run("studio.csv", {"pipelines": ["gait"]})
+        record = make_run("studio.csv", {"pipelines": ["gait"]})
         record["status"] = "Completed"
         RunHistory(directory).save(record)
     monkeypatch.setattr(QStandardPaths, "writableLocation", lambda location: str(tmp_path))
     window = MainWindow()
     try:
-        assert window.history.directory == directory
-        assert [run["id"] for run in window._run_state.runs] == [record["id"]]
+        assert window.history.directory == tmp_path / "ParaDigMaStudio" / "runs"
+        assert [run["id"] for run in window._run_state.runs] == (
+            [record["id"]] if existing_studio else []
+        )
+        assert earlier.read_bytes() == before
     finally:
         window.close()
         application.processEvents()

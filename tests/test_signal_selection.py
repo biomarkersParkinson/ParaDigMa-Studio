@@ -4,11 +4,12 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtTest import QSignalSpy
+from run_fixtures import make_run
 
 from paradigma_studio import core
 from paradigma_studio.column_mapping import SIGNALS, apply_signal_columns, validate_signal_columns
 from paradigma_studio.exploration import source_timeline
-from paradigma_studio.history import RunHistory, load_result_export, new_run
+from paradigma_studio.history import RunHistory, load_result_export
 from paradigma_studio.results_view import recording_clock
 from paradigma_studio.serialization import export_results
 
@@ -105,7 +106,7 @@ def test_absolute_clock_uses_the_selected_source_and_ignores_the_original_time()
     assert clock["source"] == "absolute_s"
 
 
-def test_old_runs_without_selections_retain_literal_rename_semantics():
+def test_python_api_without_selections_retains_literal_rename_semantics():
     frame = pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0], "ppg": [3.0, 4.0]})
     legacy = apply_signal_columns(frame, {"ppg": "green"})
     assert legacy.columns.tolist() == ["time", "green", "green"]
@@ -196,7 +197,7 @@ def test_saved_selections_restore_atomically_and_keep_not_included(
     path = tmp_path / "saved.json"
     export_results(path, {"errors": []}, {"settings": settings})
     provenance, _ = load_result_export(path)
-    record = new_run("sensor.csv", provenance["settings"])
+    record = make_run("sensor.csv", provenance["settings"])
     history = RunHistory(tmp_path / "history")
     history.save(record)
     records, issues = history.load()
@@ -243,7 +244,7 @@ def test_invalid_signal_selections_are_rejected_before_processing_and_in_saved_r
     with pytest.raises(ValueError, match="Signal columns|multiple signals"):
         validate_signal_columns(invalid)
     history = RunHistory(tmp_path)
-    record = new_run("sensor.csv", {"signal_columns": invalid})
+    record = make_run("sensor.csv", {"signal_columns": invalid})
     history.save(record)
     records, issues = history.load()
     assert records == []

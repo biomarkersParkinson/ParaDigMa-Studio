@@ -11,6 +11,7 @@ from conftest import wait_for_previews
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel
+from run_fixtures import saved_settings
 
 from paradigma_studio.column_mapping import SIGNALS
 from paradigma_studio.core import load_sensor_file
@@ -342,12 +343,14 @@ def test_conflicting_batch_metadata_is_summarized_once_without_source_names(wind
 def test_saved_parameters_remain_explicit_within_input_and_reset_on_new_load(window, sensor_frame):
     load(window, sensor_frame)
     window._run_state.selected_run = {
-        "settings": {
-            "pipelines": ["tremor"],
-            "accelerometer_units": "g",
-            "gyroscope_units": "deg/s",
-            "time_input_unit": "relative_s",
-        }
+        "settings": saved_settings(
+            **{
+                "pipelines": ["tremor"],
+                "accelerometer_units": "g",
+                "gyroscope_units": "deg/s",
+                "time_input_unit": "relative_s",
+            }
+        )
     }
     window.use_run_parameters()
     window.set_modules(["pulse_rate"])

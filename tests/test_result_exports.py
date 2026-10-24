@@ -13,11 +13,13 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialogButtonBox
+from run_fixtures import make_run
 
 from paradigma_studio import core, exports
 from paradigma_studio.core import export_results
 from paradigma_studio.exports import ExportDialog, export_selection
-from paradigma_studio.history import load_result_export, new_run
+from paradigma_studio.history import load_result_export
+from paradigma_studio.saved_format import FORMAT_VERSION, RESULT_FORMAT
 
 
 def test_selective_json_csv_zip_preserve_native_outputs_precision_and_metadata(
@@ -170,7 +172,14 @@ def test_json_save_matches_existing_bytes_and_keeps_nested_source_values(tmp_pat
     provenance = {"settings": {"threshold": np.float32(0.1), "pair": ("a", pd.NA)}}
     results = {"quantifications": {"tremor": frame}, "errors": []}
     expected = json.dumps(
-        core.json_value({"analysis": provenance, "results": results}),
+        core.json_value(
+            {
+                "format": RESULT_FORMAT,
+                "format_version": FORMAT_VERSION,
+                "analysis": provenance,
+                "results": results,
+            }
+        ),
         allow_nan=False,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -216,7 +225,14 @@ def test_json_save_preserves_column_key_order_collisions_and_empty_tables(tmp_pa
         else nullcontext()
     ):
         expected = json.dumps(
-            core.json_value({"analysis": {}, "results": result}),
+            core.json_value(
+                {
+                    "format": RESULT_FORMAT,
+                    "format_version": FORMAT_VERSION,
+                    "analysis": {},
+                    "results": result,
+                }
+            ),
             allow_nan=False,
             separators=(",", ":"),
         )
@@ -251,7 +267,7 @@ def test_later_batch_encoding_failure_keeps_destination_and_cleans_temporary_fil
 def test_export_worker_leaves_ui_responsive_until_atomic_completion(window, tmp_path, monkeypatch):
     frame = pd.DataFrame({"time": [0.0, 1.0], "metric": [2.0, 3.0]})
     window.analyzed({"quantifications": {"tremor": frame}})
-    window._run_state.current_run = new_run("sensor.csv", {"pipelines": ["tremor"]})
+    window._run_state.current_run = make_run("sensor.csv", {"pipelines": ["tremor"]})
     path = tmp_path / "chosen.json"
     started, release = threading.Event(), threading.Event()
     original = exports.export_selection

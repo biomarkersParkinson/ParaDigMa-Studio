@@ -19,8 +19,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from run_fixtures import make_run
 
-from paradigma_studio.history import RunHistory, new_run
+from paradigma_studio.history import RunHistory
 from paradigma_studio.recordings import align_recordings
 from paradigma_studio.result_controller import ResultCallbacks, ResultController, ResultView
 from paradigma_studio.results_view import analysis_alignment
@@ -101,7 +102,7 @@ def test_result_components_keep_scientific_frames_and_handle_partial_outputs(
     workspace.inputs.frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "gyroscope_x": [1.0, 2.0, 3.0]})
     workspace.inputs.source = "sensor.csv"
     workspace.state.provenance = {"settings": {"skip_preparation": True}}
-    record = new_run("sensor.csv", {})
+    record = make_run("sensor.csv", {})
     workspace.runs.active_run = record
     workspace.state._epoch_views["stale"] = object()
     workspace.state._table_views["stale"] = object()
@@ -183,7 +184,7 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
     )
     source = tmp_path / "sensor.csv"
     source.write_text("original sensor samples")
-    records = [new_run(str(source), {}) for _ in range(3)]
+    records = [make_run(str(source), {}) for _ in range(3)]
     state = RunState(runs=records.copy(), current_run=records[0])
     results = ResultState(results={"metadata": {}}, provenance={"source": str(source)})
     history = RunHistory(tmp_path / "runs")

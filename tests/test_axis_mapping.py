@@ -1,78 +1,16 @@
-"""Independent sensor signs and exact migration of legacy signed permutations."""
+"""Independent sensor signs and the supported Python axis API."""
 
-from itertools import permutations, product
-
-import numpy as np
 import pandas as pd
 import pytest
 from paradigma.prepare_data import correct_watch_orientation, prepare_raw_data
+from run_fixtures import make_run
 
 from paradigma_studio import core
 from paradigma_studio.axis_mapping import (
-    IMU_COLUMNS,
-    migrate_legacy_orientation,
     preparation_orientations,
     sensor_orientation,
     validate_axis_inversions,
 )
-
-LEGACY_AXES = [
-    [sign + axis for sign, axis in zip(signs, axes, strict=True)]
-    for axes in permutations("xyz")
-    for signs in product(("", "-"), repeat=3)
-]
-
-
-@pytest.mark.parametrize("axes", LEGACY_AXES)
-@pytest.mark.parametrize("schema", ["canonical", "aliases", "mixed"])
-def test_legacy_migration_matches_official_transform_for_every_signed_permutation(axes, schema):
-    canonical = pd.DataFrame(
-        {
-            "time": np.arange(200) / 100,
-            **{name: np.arange(200) + i for i, name in enumerate(IMU_COLUMNS)},
-        }
-    )
-    names = {
-        name: f"source_{name}"
-        for i, name in enumerate(IMU_COLUMNS)
-        if schema == "aliases" or (schema == "mixed" and i % 2)
-    }
-    source = canonical.rename(columns=names)
-    original = source.copy(deep=True)
-    mapping = {renamed: name for name, renamed in names.items()}
-    legacy = correct_watch_orientation(source.rename(columns=mapping), axes)
-    translated, inversions = migrate_legacy_orientation(mapping, axes)
-    migrated = source.rename(columns=translated)
-    for sensor, orientation in preparation_orientations({"axis_inversions": inversions}).items():
-        migrated = correct_watch_orientation(migrated, orientation, sensor=sensor)
-    pd.testing.assert_frame_equal(migrated, legacy, check_exact=True, check_like=True)
-    pd.testing.assert_frame_equal(source, original, check_exact=True)
-
-
-def test_migration_retains_unrelated_names_identities_and_invalid_name_collisions():
-    mapping = {"clock": "time", "time": "aux_clock", "ppg": "green", "temperature": "temperature"}
-    translated, signs = migrate_legacy_orientation(mapping, ["-y", "x", "z"])
-    assert {key: translated[key] for key in mapping} == mapping
-    assert signs == ["accelerometer_x", "gyroscope_x"]
-    # A duplicate canonical source must remain a duplicate after translation.
-    translated, _ = migrate_legacy_orientation({"ax": "accelerometer_x"}, ["y", "x", "z"])
-    assert translated["ax"] == translated["accelerometer_x"] == "accelerometer_y"
-
-
-def test_legacy_orientation_composes_with_existing_cross_axis_column_mapping():
-    source = pd.DataFrame({name: [index + 1.0] for index, name in enumerate(IMU_COLUMNS)})
-    mapping = {
-        "accelerometer_x": "accelerometer_y",
-        "accelerometer_y": "accelerometer_x",
-        "gyroscope_z": "gyroscope_x",
-        "gyroscope_x": "gyroscope_z",
-    }
-    expected = correct_watch_orientation(source.rename(columns=mapping), ["-z", "x", "-y"])
-    translated, inversions = migrate_legacy_orientation(mapping, ["-z", "x", "-y"])
-    actual = source.rename(columns=translated)
-    for sensor, axes in preparation_orientations({"axis_inversions": inversions}).items():
-        actual = correct_watch_orientation(actual, axes, sensor=sensor)
-    pd.testing.assert_frame_equal(actual, expected, check_like=True, check_exact=True)
 
 
 @pytest.mark.parametrize("invalid", ["x", ["x"], ["green"], [None], ["gyroscope_x"] * 2, {}])
@@ -103,10 +41,10 @@ def test_new_axis_settings_require_mapping_for_swaps_and_keep_sensor_signs_indep
 def test_history_accepts_valid_axis_settings_and_reports_corrupt_settings(
     tmp_path, inversions, valid
 ):
-    from paradigma_studio.history import RunHistory, new_run
+    from paradigma_studio.history import RunHistory
 
     history = RunHistory(tmp_path)
-    record = new_run("sensor.csv", {"axis_inversions": inversions})
+    record = make_run("sensor.csv", {"axis_inversions": inversions})
     record["status"] = "Completed"
     history.save(record)
     records, issues = history.load()

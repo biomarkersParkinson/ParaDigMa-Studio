@@ -93,34 +93,13 @@ def test_native_unit_inputs_honor_selected_gap_and_duration_rules(
     pd.testing.assert_frame_equal(source, original, check_exact=True)
 
 
-@pytest.mark.parametrize("explicit_inversions", [False, True])
-def test_reusing_retired_bypass_restores_effective_choices_without_a_hidden_skip(
-    window, monkeypatch, explicit_inversions
-):
+def test_retired_preparation_parameters_are_rejected_without_changing_current_fields(window):
     source = pd.DataFrame({"time": np.arange(400) / 100, **dict.fromkeys(IMU_COLUMNS, 1.0)})
     window.loaded(("sensor.csv", source))
-    saved = {
-        "pipelines": ["gait"],
-        "skip_preparation": True,
-        "accelerometer_units": "m/s^2",
-        "gyroscope_units": "rad/s",
-        "time_input_unit": "absolute_ms",
-        "device_orientation": ["-y", "x", "z"],
-        "split_by_gaps": True,
-        "drop_missing_samples": True,
-    }
-    if explicit_inversions:
-        saved["axis_inversions"] = ["accelerometer_x", "gyroscope_y"]
-    original = deepcopy(saved)
+    before = deepcopy(window._analysis_controller._analysis_settings(["gait"]))
+    saved = {**before, "skip_preparation": True}
     window._run_state.selected_run = {"settings": saved}
     window.use_run_parameters()
-    assert window.acc.currentData() == "g" and window.gyro.currentText() == "deg/s"
-    assert window.time.currentText() == "relative_s" and not window.gaps.isChecked()
-    assert window.mapping.axis_inversions() == []
-    assert window.time.isEnabled() and window.gaps.isEnabled()
-    assert all(field.isEnabled() for field in window.mapping._inversions.values())
-    submitted = capture_prepared_inputs(window, monkeypatch)
-    window.run_analysis()
-    pd.testing.assert_frame_equal(submitted[0], source, check_exact=True)
-    assert "skip_preparation" not in window._run_state.current_run["settings"]
-    assert saved == original
+    assert window._analysis_controller._analysis_settings(["gait"]) == before
+    assert "Cannot restore run parameters" in window.notice.text()
+    assert "skip_preparation" not in before

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast, get_args
 from uuid import uuid4
 
-from .axis_mapping import preparation_orientations
+from .axis_mapping import validate_axis_inversions
 from .column_mapping import validate_signal_columns
 from .contracts import (
     AnalysisError,
@@ -32,6 +32,7 @@ from .result_integrity import (
     validate_checksum,
     verify_run_id,
 )
+from .saved_format import FORMAT_VERSION, RESULT_FORMAT, RUN_FORMAT, validate_saved_format
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
 
@@ -42,6 +43,8 @@ def now() -> str:
 
 def new_run(source: str, settings: AnalysisSettings) -> RunRecord:
     return {
+        "format": RUN_FORMAT,
+        "format_version": FORMAT_VERSION,
         "id": uuid4().hex,
         "started": now(),
         "finished": None,
@@ -119,40 +122,11 @@ def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> li
     return list(dict.fromkeys(messages))
 
 
-def migrate_problems(record: dict[str, Any]) -> None:
-    """Recover errors saved in the warnings field by older app versions."""
-    if "errors" in record:
-        return
-    errors: list[AnalysisError]
-    warnings, errors, remaining = record["warnings"], [], []
-    for message in warnings:
-        if error_summary(message):
-            continue
-        try:
-            value = json.loads(message)
-        except (ValueError, TypeError):
-            value = None
-        if isinstance(value, dict) and "error" in value:
-            errors.append(value)
-        elif failure_log(message):
-            errors.append(message)
-        else:
-            remaining.append(message)
-    # Failed runs appended the terminal exception last; earlier messages
-    # retain their original warning meaning.
-    if record["status"] == "Failed" and remaining:
-        errors.append(remaining.pop())
-    record["warnings"] = remaining
-    record["errors"] = merge_errors(
-        [error for error in errors if isinstance(error, str)],
-        [error for error in errors if isinstance(error, dict)],
-    )
-
-
 def _read_run_record(path: Path) -> RunRecord:
     if path.is_symlink():
         raise ValueError("History entries must be regular files.")
     record = json.loads(path.read_text(encoding="utf-8"))
+    validate_saved_format(record, RUN_FORMAT)
     if (
         not isinstance(record, dict)
         or not isinstance(record.get("id"), str)
@@ -162,12 +136,13 @@ def _read_run_record(path: Path) -> RunRecord:
         or not all(isinstance(record.get(key), str) for key in ("started", "status", "source"))
         or not isinstance(record.get("outputs"), list)
         or not isinstance(record.get("warnings"), list)
+        or "finished" not in record
     ):
         raise ValueError("Invalid run metadata.")
     # Caches are created from live frames/results, never restored from history JSON.
     record = {key: value for key, value in record.items() if not key.startswith("_")}
     if record["status"] not in get_args(RunStatus) or not isinstance(
-        record.get("paradigma_version", ""), str
+        record.get("paradigma_version"), str
     ):
         raise ValueError("Invalid run status or version.")
     settings = record["settings"]
@@ -182,28 +157,18 @@ def _read_run_record(path: Path) -> RunRecord:
         if not isinstance(finished, str):
             raise ValueError("Invalid run completion time.")
         datetime.fromisoformat(finished)
-    _validate_run_outputs(record, settings)
-    migrate_problems(record)
-    validate_column_mapping(settings.get("column_mapping"))
-    validate_signal_columns(settings.get("signal_columns"))
-    preparation_orientations(settings)
-    _validate_preparation_settings(settings)
-    record.setdefault("finished", None)
-    record.setdefault("paradigma_version", "")
-    record.setdefault("log", "")
-    # All required fields and known optional fields are now validated/normalized.
+    _validate_run_outputs(record)
+    validate_run_settings(settings)
+    # All required fields and known optional fields are now validated.
     return cast(RunRecord, record)
 
 
-def _validate_run_outputs(record: dict[str, Any], settings: AnalysisSettings) -> None:
-    pipelines = settings.get("pipelines", [])
+def _validate_run_outputs(record: dict[str, Any]) -> None:
     if (
-        not isinstance(pipelines, list)
-        or not all(p in ("gait", "tremor", "pulse_rate") for p in pipelines)
-        or not all(isinstance(warning, str) for warning in record["warnings"])
-        or not isinstance(record.get("errors", []), list)
-        or not all(isinstance(error, str) for error in record.get("errors", []))
-        or not isinstance(record.get("log", ""), str)
+        not all(isinstance(warning, str) for warning in record["warnings"])
+        or not isinstance(record.get("errors"), list)
+        or not all(isinstance(error, str) for error in record["errors"])
+        or not isinstance(record.get("log"), str)
     ):
         raise ValueError("Invalid run parameters or outputs.")
     for output in record["outputs"]:
@@ -215,12 +180,18 @@ def _validate_run_output(output: object) -> None:
         not isinstance(output, dict)
         or output.get("kind") not in get_args(OutputKind)
         or not isinstance(output.get("path"), str)
-        or any(key in output and not isinstance(output[key], str) for key in ("saved", "dataset"))
-        or any(key in output and not isinstance(output[key], bool) for key in ("local", "complete"))
+        or not isinstance(output.get("saved"), str)
+        or not isinstance(output.get("complete"), bool)
+        or ("dataset" in output and not isinstance(output["dataset"], str))
+        or ("local" in output and not isinstance(output["local"], bool))
     ):
         raise ValueError("Invalid run output.")
-    if "sha256" in output:
-        validate_checksum(output["sha256"])
+    if output["kind"] == "JSON" or "sha256" in output:
+        validate_checksum(output.get("sha256"))
+    if (output.get("local") or output["complete"]) and (
+        output["kind"] != "JSON" or not output["complete"]
+    ):
+        raise ValueError("Only complete JSON results can be saved locally or reopened.")
     selected = output.get("selected", [])
     if not isinstance(selected, list) or not all(isinstance(name, str) for name in selected):
         raise ValueError("Invalid exported table selection.")
@@ -231,19 +202,82 @@ def _validate_run_output(output: object) -> None:
         raise ValueError("Invalid export selection metadata.")
 
 
-def _validate_preparation_settings(settings):
+def validate_run_settings(settings: AnalysisSettings) -> None:
+    """Require the conventions recorded by the current Analyze page."""
+    for key, choices in (
+        ("accelerometer_units", ("g", "m/s^2")),
+        ("gyroscope_units", ("deg/s", "rad/s")),
+        (
+            "time_input_unit",
+            (
+                "relative_s",
+                "relative_ms",
+                "absolute_s",
+                "absolute_ms",
+                "difference_s",
+                "difference_ms",
+            ),
+        ),
+        ("watch_side", ("left", "right")),
+    ):
+        if settings.get(key) not in choices:
+            raise ValueError(f"Invalid or missing saved parameter: {key}.")
+    if "skip_preparation" in settings or settings.get("device_orientation", ["x", "y", "z"]) != [
+        "x",
+        "y",
+        "z",
+    ]:
+        raise ValueError("Saved runs must use explicit signal columns and axis inversions.")
+    selected = validate_signal_columns(settings.get("signal_columns"))
+    inversions = validate_axis_inversions(settings.get("axis_inversions"))
+    if selected is None or inversions is None:
+        raise ValueError("Saved runs require signal_columns and axis_inversions.")
+    if not isinstance(settings.get("column_mapping"), dict):
+        raise ValueError("Saved runs require an explicit column_mapping object.")
+    mapping = validate_column_mapping(settings["column_mapping"])
+    expected = {
+        source: target
+        for target, source in selected.items()
+        if source is not None and source != target
+    }
+    if mapping != expected:
+        raise ValueError("Saved column mapping must match the explicit signal columns.")
+    pipelines = settings.get("pipelines")
+    if (
+        not isinstance(pipelines, list)
+        or not pipelines
+        or any(pipeline not in ("gait", "tremor", "pulse_rate") for pipeline in pipelines)
+    ):
+        raise ValueError("Invalid or missing saved pipelines.")
+    _validate_preparation_settings(settings)
+    _validate_saved_origin(settings.get("plot_time_origin"))
+
+
+def _validate_preparation_settings(settings: AnalysisSettings) -> None:
     for key in ("max_gap_seconds", "min_segment_seconds"):
         value = settings.get(key)
-        if value is not None and (
+        if (
             isinstance(value, bool)
             or not isinstance(value, (float, int))
             or not math.isfinite(value)
             or value <= 0
         ):
-            raise ValueError("Invalid gap duration.")
-    for key in ("skip_preparation", "split_by_gaps", "drop_missing_samples"):
-        if key in settings and not isinstance(settings[key], bool):
-            raise ValueError("Invalid preparation setting.")
+            raise ValueError("Invalid or missing gap duration.")
+    for key in ("split_by_gaps", "drop_missing_samples"):
+        if not isinstance(settings.get(key), bool):
+            raise ValueError("Invalid or missing preparation setting.")
+
+
+def _validate_saved_origin(origin: object) -> None:
+    if not isinstance(origin, dict) or origin.get("mode") not in ("automatic", "custom", "elapsed"):
+        raise ValueError("Invalid or missing saved time origin.")
+    if origin["mode"] == "custom":
+        from .results_view import normalise_clock
+
+        try:
+            normalise_clock(origin["clock"])
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Invalid saved time origin.") from exc
 
 
 class RunHistory:
@@ -273,6 +307,7 @@ class RunHistory:
     def save(self, record: RunRecord) -> None:
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")
+        validate_saved_format(record, RUN_FORMAT)
         self.directory.mkdir(parents=True, exist_ok=True)
         public = {key: value for key, value in record.items() if not key.startswith("_")}
         target = self.directory / f"{record['id']}.json"
@@ -433,6 +468,7 @@ def _decode_result_export(text: str) -> tuple[Provenance, AnalysisResults]:
     import pandas as pd
 
     saved = json.loads(text)
+    validate_saved_format(saved, RESULT_FORMAT)
     if (
         not isinstance(saved, dict)
         or not isinstance(saved.get("analysis"), dict)

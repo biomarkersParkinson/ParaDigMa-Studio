@@ -610,13 +610,21 @@ def _verify_saved_run_roundtrip(window, source, export, quantified, run_id, chec
     from .history import new_run, now
 
     _verify_isolated_result_reader(export, quantified, run_id, checksum)
-    record = new_run(str(source), {"pipelines": ["tremor"]})
+    record = new_run(str(source), window._analysis_controller._analysis_settings(["tremor"]))
     record["id"] = run_id
     record.update(
         status="Completed",
         finished=now(),
         paradigma_version=version("paradigma"),
-        outputs=[{"kind": "JSON", "path": str(export), "sha256": checksum, "complete": True}],
+        outputs=[
+            {
+                "kind": "JSON",
+                "path": str(export),
+                "sha256": checksum,
+                "complete": True,
+                "saved": now(),
+            }
+        ],
     )
     window.history.save(record)
     window._run_state.runs, issues = window.history.load()

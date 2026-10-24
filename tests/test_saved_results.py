@@ -17,17 +17,18 @@ import pytest
 from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
+from run_fixtures import make_run
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.exports import ExportDialog, export_items
-from paradigma_studio.history import load_result_export, new_run
+from paradigma_studio.history import load_result_export
 from paradigma_studio.result_reopening import load_saved_results
 
 
 def analyzed_run(window, results, tmp_path, name="sensor.csv"):
     source = tmp_path / name
     source.write_text("original recording", encoding="utf-8")
-    record = new_run(str(source), {"pipelines": ["tremor"]})
+    record = make_run(str(source), {"pipelines": ["tremor"]})
     record["paradigma_version"] = "1.1.2"
     window._run_state.runs.insert(0, record)
     window._run_state.active_run = window._run_state.current_run = (
@@ -172,7 +173,7 @@ def test_reopening_prepares_off_thread_keeps_events_running_and_defers_graphs(
 ):
     from paradigma_studio.serialization import export_results
 
-    record = new_run("missing-sensor.pkl", {"pipelines": ["tremor"]})
+    record = make_run("missing-sensor.pkl", {"pipelines": ["tremor"]})
     record["status"] = "Completed"
     provenance = {
         "source": record["source"],
@@ -185,7 +186,16 @@ def test_reopening_prepares_off_thread_keeps_events_running_and_defers_graphs(
     else:
         path = tmp_path / "saved.json"
         checksum = export_results(path, tremor_outputs, provenance)
-        record["outputs"] = [{"kind": "JSON", "path": str(path), "local": True, "sha256": checksum}]
+        record["outputs"] = [
+            {
+                "kind": "JSON",
+                "path": str(path),
+                "local": True,
+                "complete": True,
+                "saved": "2026-10-24T00:00:00Z",
+                "sha256": checksum,
+            }
+        ]
     window._run_state.runs = [record]
     window.refresh_runs()
     window.navigate(3)
@@ -242,7 +252,7 @@ def test_reopen_preparation_failure_keeps_previous_results_and_restores_controls
 ):
     window.analyzed(tremor_outputs)
     previous = window._result_state.results
-    record = new_run("missing.csv", {"pipelines": ["tremor"]})
+    record = make_run("missing.csv", {"pipelines": ["tremor"]})
     record.update(
         status="Completed",
         _results=tremor_outputs,
@@ -267,7 +277,7 @@ def test_reopen_replaces_existing_graphs_when_graphs_are_shown(window, monkeypat
     window.analyzed(first)
     window.result_tabs.setCurrentIndex(1)
     old = window.figure.axes[0]
-    record = new_run("second.csv", {})
+    record = make_run("second.csv", {})
     record.update(status="Completed", _results=second)
     window._run_state.runs = [record]
     window.refresh_runs()

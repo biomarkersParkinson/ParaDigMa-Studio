@@ -380,9 +380,6 @@ class ColumnMappingEditor(QWidget):
             else "Open recordings to select signal columns."
         )
         lines = list(validation.details)
-        if self.model.extra:
-            lines.append("Other saved mappings (preserved):")
-            lines.extend(f"{source} → {target}" for source, target in self.model.extra.items())
         if total:
             if lines:
                 lines.append("")

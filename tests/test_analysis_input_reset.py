@@ -10,6 +10,7 @@ import pytest
 from conftest import wait_for_previews
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
+from run_fixtures import saved_settings
 
 from paradigma_studio.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
 from paradigma_studio.column_mapping import SIGNALS
@@ -266,12 +267,14 @@ def test_switching_loaded_batch_recordings_keeps_manual_and_saved_settings(windo
     assert window.mapping.details_button.isChecked()
     assert window.analysis_help["Time units"][0].isChecked()
     window._run_state.selected_run = {
-        "settings": {
-            "pipelines": ["tremor"],
-            "accelerometer_units": "g",
-            "gyroscope_units": "deg/s",
-            "time_input_unit": "relative_s",
-        }
+        "settings": saved_settings(
+            **{
+                "pipelines": ["tremor"],
+                "accelerometer_units": "g",
+                "gyroscope_units": "deg/s",
+                "time_input_unit": "relative_s",
+            }
+        )
     }
     window.use_run_parameters()
     window.input_recording.setCurrentIndex(0)

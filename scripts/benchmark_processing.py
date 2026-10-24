@@ -26,6 +26,7 @@ import pandas as pd
 
 from paradigma_studio.analysis_limits import parallel_worker_count
 from paradigma_studio.analysis_process import run_isolated_analysis
+from paradigma_studio.axis_mapping import IMU_COLUMNS
 from paradigma_studio.core import load_sensor_file
 from paradigma_studio.history import RunHistory, load_verified_result_export, new_run
 from paradigma_studio.inspection import inspect_recording, inspect_recordings
@@ -248,12 +249,27 @@ def _benchmark_saving(directory, measurements, repeats):
     )
     results = {"quantifications": {"tremor": frame}, "classifications": {"tremor": frame}}
     history = RunHistory(directory / "runs")
-    record = new_run("synthetic.csv", {"pipelines": ["tremor"]})
+    settings = {
+        "pipelines": ["tremor"],
+        "watch_side": "left",
+        "accelerometer_units": "g",
+        "gyroscope_units": "deg/s",
+        "time_input_unit": "relative_s",
+        "signal_columns": {signal: signal for signal in ("time", "green", *IMU_COLUMNS)},
+        "axis_inversions": [],
+        "column_mapping": {},
+        "split_by_gaps": False,
+        "drop_missing_samples": False,
+        "max_gap_seconds": 1.5,
+        "min_segment_seconds": 1.5,
+        "plot_time_origin": {"mode": "automatic"},
+    }
+    record = new_run("synthetic.csv", settings)
     record["status"] = "Completed"
     provenance = {
         "run_id": record["id"],
         "source": "synthetic.csv",
-        "settings": {"pipelines": ["tremor"]},
+        "settings": settings,
     }
     outputs = _measure(
         measurements,

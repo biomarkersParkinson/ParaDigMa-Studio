@@ -4,9 +4,9 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
+from run_fixtures import export_receipt, make_run
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.history import new_run
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def window(tmp_path):
     widget = MainWindow(tmp_path / "runs")
     source = tmp_path / "sensor.csv"
     source.write_text("original sensor data")
-    widget._run_state.runs = [new_run(str(source), {}) for _ in range(5)]
+    widget._run_state.runs = [make_run(str(source), {}) for _ in range(5)]
     for record in widget._run_state.runs:
         record["status"] = "Completed"
         widget.history.save(record)
@@ -68,12 +68,10 @@ def test_bulk_delete_key_confirms_once_and_respects_shared_exports(
     retained_shared.write_text("also used by a run being kept")
     original_runs = list(window._run_state.runs)
     for record in original_runs[:2]:
-        record["outputs"] = [
-            {"kind": "JSON", "path": str(path)} for path in (selected_shared, retained_shared)
-        ]
-        record["outputs"].append({"kind": "CSV", "path": record["source"]})
+        record["outputs"] = [export_receipt(path) for path in (selected_shared, retained_shared)]
+        record["outputs"].append(export_receipt(record["source"], "CSV"))
         window.history.save(record)
-    original_runs[2]["outputs"] = [{"kind": "JSON", "path": str(retained_shared)}]
+    original_runs[2]["outputs"] = [export_receipt(retained_shared)]
     window.history.save(original_runs[2])
     window.refresh_runs()
     click_row(window, 0)
@@ -112,7 +110,7 @@ def test_clear_all_deletes_every_run_after_one_readable_confirmation(
     output = tmp_path / "shared.json"
     output.write_text("export")
     for record in window._run_state.runs:
-        record["outputs"] = [{"kind": "JSON", "path": str(output)}]
+        record["outputs"] = [export_receipt(output)]
         window.history.save(record)
     window._run_state.current_run = window._run_state.runs[0]
     window._result_state.results = {}
