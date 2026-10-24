@@ -43,12 +43,12 @@ A verified signing identity must be configured before the signed workflow can pr
    runs and use **Delete Run(s)** or the Delete key, or **Clear all** to remove every
    run, after confirmation. Original sensor files are preserved.
 
-**Check your recording's units before running.** Defaults are acceleration in **g**,
-gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
-Studio prepares recordings using the selected columns, units and axes.
-Matching units and axes require no conversion. Missing-sample exclusion and gap
-splitting are enabled by default in Studio. Gap and minimum-section thresholds
-are 1.5 seconds, with **Default** buttons to restore them.
+**Review the source recording configuration before running.** Carefully check the
+signal columns, units, time representation, watch side and axis orientation against
+your recordings, including values prefilled from file metadata.
+When analyzing multiple recordings from the same subject, ensure their formatting
+is consistent across files: column names, units, time representation and axis
+conventions must match. One Analyze configuration applies to the entire batch.
 
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
