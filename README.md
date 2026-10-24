@@ -45,7 +45,8 @@ A verified signing identity must be configured before the signed workflow can pr
 
 **Check your recording's units before running.** Defaults are acceleration in **g**,
 gyroscope in **deg/s**, time in **relative seconds**, and **x/y/z** orientation.
-Keep preparation enabled for raw recordings. Missing-sample exclusion and gap
+Studio prepares recordings using the selected columns, units and axes.
+Matching units and axes require no conversion. Missing-sample exclusion and gap
 splitting are enabled by default in Studio. Gap and minimum-section thresholds
 are 1.5 seconds, with **Default** buttons to restore them.
 

@@ -66,7 +66,6 @@ def test_wheel_over_analyze_dropdowns_scrolls_page_without_changing_values(
         )
     # Checkboxes and nearby actions must not swallow page scrolling either.
     for control in (
-        window.prepared,
         window.gaps,
         window.drop_missing,
         *window.mapping._inversions.values(),

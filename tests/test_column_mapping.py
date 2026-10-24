@@ -74,10 +74,7 @@ def test_inversion_checkboxes_never_trigger_clock_or_raw_plot_mapping_refreshes(
     editor.auto_match()
     assert changes.count() == 1
     assert editor.axis_inversions() == list(IMU_COLUMNS)
-    editor.set_preparation_enabled(False)
-    assert all(not checkbox.isEnabled() for checkbox in editor._inversions.values())
     assert all(source.isEnabled() for source in editor._combos.values())
-    editor.set_preparation_enabled(True)
     assert all(
         checkbox.isEnabled() and checkbox.isChecked() for checkbox in editor._inversions.values()
     )

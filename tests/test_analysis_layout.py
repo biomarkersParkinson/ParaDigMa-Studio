@@ -80,7 +80,6 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         window.max_gap,
         window.min_segment,
         window.mapping,
-        window.prepared,
         *window.section_reset_buttons.values(),
     )
     for control in controls:
@@ -142,10 +141,6 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
         *window.section_reset_buttons.values(),
     ):
         assert field.mapTo(window, field.rect().topLeft()).x() > mapping_right
-    mapping_bottom = window.mapping.mapTo(window, window.mapping.rect().bottomLeft())
-    prepared_top = window.prepared.mapTo(window, window.prepared.rect().topLeft())
-    assert prepared_top.x() == mapping_bottom.x()
-    assert prepared_top.y() >= mapping_bottom.y() + 12
     assert window.drop_missing.mapTo(window, window.drop_missing.rect().topLeft()).y() > (
         window.time.mapTo(window, window.time.rect().bottomLeft()).y()
     )

@@ -246,9 +246,18 @@ accelerometer and gyroscope orientation calls after renaming; permutations belon
 only in column mapping. This desktop setting is removed before calling the official
 orchestrator. The old Python `device_orientation` API remains supported when
 `axis_inversions` is absent. Restoring old raw-run settings composes the legacy
-permutation into the mapping and signs; prepared runs retain renaming alone.
+permutation into the mapping and signs. Retired GUI bypass settings restore their
+effective native units, unchanged axes and disabled gap splitting. They never
+restore a preparation bypass for a new GUI run; opening stored results retains
+their original provenance and timing.
 Inversion edits do not emit the mapping `changed` signal because they affect
 neither clock previews nor original raw plots.
+
+GUI runs always use Studio's normal preparation path with the selected input
+conventions. New GUI settings do not contain `skip_preparation`. The Python API
+retains that option for explicit callers and stored-result interpretation.
+After Studio prepares inputs, its internal call to the official orchestrator
+still sets `skip_preparation=True` to prevent a second preparation pass.
 
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`

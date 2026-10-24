@@ -103,15 +103,12 @@ def test_desktop_preparation_defaults_and_official_threshold_resets_remain_avail
         window._analysis_controller._analysis_settings(["gait"])["device_orientation"]
         == signature(run_paradigma).parameters["device_orientation"].default
     )
-    assert (
-        window.prepared.isChecked()
-        == signature(run_paradigma).parameters["skip_preparation"].default
-    )
+    assert "skip_preparation" not in settings
     window.navigate(1)
     window.show()
     QApplication.instance().processEvents()
-    for prepared in (False, True):
-        window.prepared.setChecked(prepared)
+    for split_by_gaps in (False, True):
+        window.gaps.setChecked(split_by_gaps)
         window.max_gap.setValue(4.0)
         window.min_segment.setValue(8.0)
         for title in ("Maximum gap", "Minimum section duration"):
@@ -154,7 +151,6 @@ def test_inline_analysis_help_does_not_change_configuration(window):
             window.gyro.currentText(),
             window.time.currentText(),
             window.mapping.axis_inversions(),
-            window.prepared.isChecked(),
             window.gaps.isChecked(),
             window.drop_missing.isChecked(),
             window.max_gap.value(),

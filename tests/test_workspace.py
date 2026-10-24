@@ -175,8 +175,6 @@ def test_module_cards_allow_every_combination(window):
     assert window.selected_modules() == ["tremor", "pulse_rate"]
     window.set_modules(["pulse_rate"])
     assert window.module_requirements.text() == "Raw green PPG required."
-    window.prepared.setChecked(True)
-    assert window.module_requirements.text() == "Raw green PPG required."
     window.set_modules(["gait", "pulse_rate"])
     assert "Accelerometer" in window.module_requirements.text()
 
@@ -372,7 +370,6 @@ def test_multi_selection_and_all_parameters_reach_analysis_and_history(window, m
             "gyroscope_z": None,
             "green": None,
         },
-        "skip_preparation": False,
         "split_by_gaps": True,
         "drop_missing_samples": False,
         "max_gap_seconds": 2.5,
@@ -435,7 +432,7 @@ def test_dropdown_popup_text_is_readable_under_dark_system_palette(tmp_path):
                     ]
                 )
                 assert (values[1] + 0.05) / (values[0] + 0.05) >= 4.5
-        for checkbox in (window.prepared, window.gaps, window.drop_missing):
+        for checkbox in (window.gaps, window.drop_missing):
             assert checkbox.palette().color(QPalette.WindowText).name() == "#22324a"
         window.time.hidePopup()
     finally:

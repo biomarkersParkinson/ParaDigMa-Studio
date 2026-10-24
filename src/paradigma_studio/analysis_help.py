@@ -42,15 +42,13 @@ FIELD_HELP = {
         "Choose the units in the input file: g (gravitational acceleration) or m/s². "
         "ParaDigMa converts m/s² to g during preparation. A stationary gravity axis is typically "
         "about 1 g or 9.81 m/s². Use the device's documentation to confirm. "
-        "The field is inactive when no accelerometer axis is mapped to an available column, "
-        "or when Already prepared is selected.",
+        "The field is inactive when no accelerometer axis is mapped to an available column.",
         "prepare_data.py",
     ),
     "Gyroscope units": (
         "Choose deg/s (degrees per second) or rad/s (radians per second), as stored in the file. "
         "ParaDigMa converts rad/s to deg/s during preparation. "
-        "The field is inactive when no gyroscope axis is mapped to an available column, "
-        "or when Already prepared is selected.",
+        "The field is inactive when no gyroscope axis is mapped to an available column.",
         "prepare_data.py",
     ),
     "Time units": (
@@ -60,20 +58,11 @@ FIELD_HELP = {
         "These options require numeric values, not date strings. ParaDigMa converts time to relative seconds.",
         "util.py",
     ),
-    "Already prepared": (
-        "Skip the wrapper's unit and device-axis conversions only when data already uses relative seconds, "
-        "acceleration in g and gyroscope values in deg/s, with axes in ParaDigMa orientation. "
-        "Unit and device-axis conversions, gap splitting and minimum-section filtering are skipped. "
-        "Column mapping and the missing-sample policy still apply. "
-        "Official pipeline resampling, filtering and watch-side correction "
-        "still run; do not select this simply because a file has been loaded.",
-        "prepare_data.py",
-    ),
     "Split recordings at time gaps": (
         "Analyze continuous recording sections independently. A time interval larger than Maximum gap "
         "starts a new section; sections shorter than Minimum section duration are excluded. "
         "Enabled by default in Studio; the Python API keeps this opt-in. "
-        "Already prepared disables this preparation step. Multiple sections are identified by file_key.",
+        "Multiple sections are identified by file_key.",
         "orchestrator.py",
     ),
     "Exclude missing sensor samples": (
@@ -91,7 +80,7 @@ FIELD_HELP = {
         "prepare_data.py",
     ),
     "Minimum section duration": (
-        "Minimum continuous section length in seconds when gap splitting is enabled for raw data. "
+        "Minimum continuous section length in seconds when gap splitting is enabled. "
         "Shorter sections are discarded. The official preparation default is 1.5 s; Default restores this value. "
         "Individual algorithms may require longer windows and can return no measurements for short sections.",
         "prepare_data.py",
@@ -120,7 +109,7 @@ FIELD_HELP = {
         "listing filenames; counts identify issues affecting only some recordings. "
         "Source-column options list only loaded columns; missing saved choices "
         "remain in settings and are named in their warning until replaced. "
-        "Already prepared skips inversions, while column mapping still applies. Missing signals remain "
+        "Missing signals remain "
         "subject to the existing per-recording and per-module analysis validation.",
         "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html",
     ),

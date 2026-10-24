@@ -93,7 +93,6 @@ class AnalysisView:
     min_segment: QDoubleSpinBox
     module_buttons: dict[str, QPushButton]
     module_requirements: QLabel
-    prepared: QCheckBox
     run_button: QPushButton
     side: ContextComboBox
     status: QLabel
@@ -205,7 +204,6 @@ class AnalysisController(QObject):
             self.view.acc,
             self.view.gyro,
             self.view.time,
-            self.view.prepared,
             self.view.gaps,
             self.view.drop_missing,
             self.view.max_gap,
@@ -223,7 +221,6 @@ class AnalysisController(QObject):
                 self.analysis._origin_override = False
                 self.file_defaults.reset()
                 self.view.side.setCurrentText("left")
-                self.view.prepared.setChecked(False)
                 self.view.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
                 self.view.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
                 self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
@@ -270,21 +267,11 @@ class AnalysisController(QObject):
         self.update_origin_default()
 
     def preparation_changed(self, *_: object) -> None:
-        prepared = self.view.prepared.isChecked()
-        widget: QWidget
-        for widget in (
-            self.view.time,
-            self.view.file_default_buttons["Time units"],
-            self.view.gaps,
-        ):
-            widget.setEnabled(not prepared)
-        self.view.mapping.set_preparation_enabled(not prepared)
         for widget in (self.view.max_gap, self.view.min_segment):
-            widget.setEnabled(not prepared and self.view.gaps.isChecked())
+            widget.setEnabled(self.view.gaps.isChecked())
         self.modules_changed()
 
     def _update_sensor_units(self) -> None:
-        prepared = self.view.prepared.isChecked()
         columns = set(self.view.mapping.model.columns)
         for title, sensor, control in (
             ("Acceleration units", "accelerometer", self.view.acc),
@@ -293,8 +280,8 @@ class AnalysisController(QObject):
             mapped = any(
                 self.view.mapping.model.choices[f"{sensor}_{axis}"] in columns for axis in "xyz"
             )
-            control.setEnabled(not prepared and mapped)
-            self.view.file_default_buttons[title].setEnabled(not prepared and mapped)
+            control.setEnabled(mapped)
+            self.view.file_default_buttons[title].setEnabled(mapped)
 
     def origin_edited(self) -> None:
         self.analysis._origin_override = True
@@ -322,7 +309,6 @@ class AnalysisController(QObject):
         try:
             settings: AnalysisSettings = {
                 "time_input_unit": self.view.time.currentText(),
-                "skip_preparation": self.view.prepared.isChecked(),
                 "column_mapping": validate_column_mapping(self.view.mapping.mapping()),
                 "signal_columns": self.view.mapping.signal_columns(),
                 "pipelines": self.selected_modules(),
@@ -332,7 +318,7 @@ class AnalysisController(QObject):
             self.previews._origin_preview.cancel_pending()
             self.apply_origin_preview(None)
             return
-        if settings["skip_preparation"] or not settings["drop_missing_samples"]:
+        if not settings["drop_missing_samples"]:
             settings["pipelines"] = []
         elif "gait" in settings["pipelines"]:
             # Gait already requires every channel needed by tremor. Adding
@@ -406,24 +392,12 @@ class AnalysisController(QObject):
             "gyroscope_units": cast("GyroscopeUnit", self.view.gyro.currentText()),
             "time_input_unit": cast("TimeInputUnit", self.view.time.currentText()),
             "device_orientation": ["x", "y", "z"],
-            "axis_inversions": []
-            if self.view.prepared.isChecked()
-            else self.view.mapping.axis_inversions(),
+            "axis_inversions": self.view.mapping.axis_inversions(),
             "signal_columns": self.view.mapping.signal_columns(),
-            "skip_preparation": self.view.prepared.isChecked(),
             "split_by_gaps": self.view.gaps.isChecked(),
             "max_gap_seconds": self.view.max_gap.value(),
             "min_segment_seconds": self.view.min_segment.value(),
         }
-        if self.view.prepared.isChecked():
-            preparation.update(
-                {
-                    "accelerometer_units": "g",
-                    "gyroscope_units": "deg/s",
-                    "time_input_unit": "relative_s",
-                    "split_by_gaps": False,
-                }
-            )
         settings: AnalysisSettings = {
             "pipelines": pipelines,
             "watch_side": self.view.side.currentText(),
@@ -480,7 +454,7 @@ class AnalysisController(QObject):
     def use_run_parameters(self) -> None:
         if self.runs.selected_run is None or self.jobs.worker is not None:
             return
-        settings = self.runs.selected_run["settings"]
+        settings = _reusable_run_settings(self.runs.selected_run["settings"])
         self.file_defaults.mark_manual(
             [
                 title
@@ -512,7 +486,6 @@ class AnalysisController(QObject):
         finally:
             self.file_defaults.applying = False
         self._restore_signal_columns(settings)
-        self.view.prepared.setChecked(settings.get("skip_preparation", False))
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))
         self.view.drop_missing.setChecked(settings.get("drop_missing_samples", False))
         self.view.max_gap.setValue(
@@ -543,10 +516,23 @@ class AnalysisController(QObject):
         mapping = settings.get("column_mapping")
         inversions = settings.get("axis_inversions")
         if inversions is None:
-            # Prepared runs never applied legacy orientation. Renaming still did.
-            orientation = (
-                None if settings.get("skip_preparation") else settings.get("device_orientation")
+            mapping, inversions = migrate_legacy_orientation(
+                mapping, settings.get("device_orientation")
             )
-            mapping, inversions = migrate_legacy_orientation(mapping, orientation)
         self.view.mapping.set_mapping(mapping, signal_columns=settings.get("signal_columns"))
         self.view.mapping.set_axis_inversions(inversions)
+
+
+def _reusable_run_settings(settings: AnalysisSettings) -> AnalysisSettings:
+    """Restore effective input conventions without reviving the retired GUI bypass."""
+    restored = dict(settings)
+    if restored.pop("skip_preparation", False):
+        restored.update(
+            accelerometer_units="g",
+            gyroscope_units="deg/s",
+            time_input_unit="relative_s",
+            device_orientation=["x", "y", "z"],
+            axis_inversions=[],
+            split_by_gaps=False,
+        )
+    return restored

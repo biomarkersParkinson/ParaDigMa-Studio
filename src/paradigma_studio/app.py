@@ -540,7 +540,6 @@ class MainWindow(QMainWindow):
     def _connect(self):
         self._layout.result_graph_view.currentIndexChanged.connect(self._graph_controller.plot)
         self._layout.data_tabs.currentChanged.connect(self._data_controller.data_tab_changed)
-        self._layout.prepared.toggled.connect(self._analysis_controller.preparation_changed)
         self._layout.gaps.toggled.connect(self._analysis_controller.preparation_changed)
         self._layout.drop_missing.toggled.connect(self._analysis_controller.preparation_changed)
         for name, item in self._layout.module_buttons.items():
@@ -576,7 +575,7 @@ class MainWindow(QMainWindow):
         self._layout.clock_input.valueEdited.connect(self._analysis_controller.origin_edited)
         self._layout.mapping.changed.connect(self._analysis_controller.update_origin_default)
         self._layout.mapping.changed.connect(self._data_controller.input_plot_changed)
-        # Time, prepared and missing-sample edits already refresh defaults via
+        # Time and missing-sample edits already refresh defaults via
         # preparation_changed -> modules_changed -> update_origin_default.
         self._layout.sensor_channels.itemChanged.connect(self.plot_sensor)
         self._analysis_controller.preparation_changed()

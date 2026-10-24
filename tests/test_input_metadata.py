@@ -175,7 +175,6 @@ def test_real_device_imports_provide_units_even_when_equal_to_app_defaults(windo
     assert not badge(window, "Acceleration units").isHidden()
     assert not badge(window, "Time units").isHidden()
     assert badge(window, "Gyroscope units").isHidden() == ("gyroscope_x" not in frame)
-    assert not window.prepared.isChecked()
     assert window.mapping.axis_inversions() == []
 
 
@@ -256,25 +255,23 @@ def test_mapping_changes_use_selected_column_units_and_remove_stale_tags(window,
 @pytest.mark.parametrize(
     "sensors", [(), ("accelerometer",), ("gyroscope",), ("accelerometer", "gyroscope")]
 )
-def test_sensor_unit_fields_follow_available_mappings_and_preparation(
-    window, sensor_frame, sensors
-):
+def test_sensor_unit_fields_follow_available_mappings(window, sensor_frame, sensors):
     assert not window.acc.isEnabled() and not window.gyro.isEnabled()
     columns = ["time", "green", *(f"{sensor}_{axis}" for sensor in sensors for axis in "xyz")]
     load(window, sensor_frame[columns])
     window.set_modules(["pulse_rate"])
-    for prepared in (False, True, False):
-        window.prepared.setChecked(prepared)
+    for split_by_gaps in (False, True, False):
+        window.gaps.setChecked(split_by_gaps)
         for title, sensor, control in (
             ("Acceleration units", "accelerometer", window.acc),
             ("Gyroscope units", "gyroscope", window.gyro),
         ):
-            expected = sensor in sensors and not prepared
+            expected = sensor in sensors
             assert control.isEnabled() == expected
             assert (
                 window._analysis_controller.view.file_default_buttons[title].isEnabled() == expected
             )
-        assert window.time.isEnabled() == (not prepared)
+        assert window.time.isEnabled()
 
 
 @pytest.mark.parametrize(
@@ -301,8 +298,6 @@ def test_unassigning_and_remapping_axes_updates_units_without_losing_manual_choi
     assert not reset.isEnabled()
     assert badge(window, title).isHidden()
     window.set_modules(["pulse_rate"])
-    window.prepared.setChecked(True)
-    window.prepared.setChecked(False)
     assert not control.isEnabled()
     selector = window.mapping._combos[f"{sensor}_x"]
     selector.setCurrentIndex(selector.findData(f"{sensor}_y"))
@@ -440,7 +435,7 @@ def test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes(
             window.resize(width, height)
             QTest.qWait(30)
             assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
-            fields = (window.acc, window.gyro, window.time, window.clock_input, window.prepared)
+            fields = (window.acc, window.gyro, window.time, window.clock_input)
             for field in (
                 *fields,
                 *window._analysis_controller.view.file_badges.values(),

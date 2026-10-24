@@ -17,11 +17,8 @@ def selections(**sources):
     return {**dict.fromkeys(SIGNALS), **sources}
 
 
-@pytest.mark.parametrize("prepared", [False, True])
 @pytest.mark.parametrize("split_by_gaps", [False, True])
-def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(
-    window, prepared, split_by_gaps
-):
+def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(window, split_by_gaps):
     # Keep the selected 4 Hz signal above the default 1.5-second section minimum.
     samples = np.arange(8, dtype=float)
     frame = pd.DataFrame(
@@ -43,9 +40,9 @@ def test_manual_choices_replace_named_defaults_in_preparation_and_timelines(
         selector.setCurrentIndex(selector.findData(source))
         assert window.mapping._warnings[target].isHidden()
     window.gaps.setChecked(split_by_gaps)
-    window.prepared.setChecked(prepared)
     settings = window._analysis_controller._analysis_settings(["pulse_rate"])
-    assert settings["split_by_gaps"] == (split_by_gaps and not prepared)
+    assert settings["split_by_gaps"] == split_by_gaps
+    assert "skip_preparation" not in settings
     assert settings["signal_columns"] == selections(time="device_clock", green="optical")
     assert window.mapping.model.validate(["pulse_rate"]).compatible == 1
     actual, exclusion, count = core._prepare_recording(

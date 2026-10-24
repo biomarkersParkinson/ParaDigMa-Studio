@@ -82,7 +82,6 @@ def edit_all_settings(window):
     window.gaps.setChecked(False)
     window.max_gap.setValue(7.5)
     window.min_segment.setValue(9.0)
-    window.prepared.setChecked(True)
     window.clock_input.setText("2020-01-01T00:00:00Z")
     window.origin_edited()
     window.navigate(1)
@@ -128,7 +127,6 @@ def test_successful_new_load_resets_every_analyze_setting_and_uses_new_metadata(
     assert window.acc.currentData() == "m/s^2"
     assert window.gyro.currentText() == "rad/s"
     assert window.time.currentText() == "relative_s"
-    assert not window.prepared.isChecked()
     assert window.gaps.isChecked() and window.drop_missing.isChecked()
     assert window.max_gap.value() == DEFAULT_MAX_GAP_SECONDS
     assert window.min_segment.value() == DEFAULT_MIN_SECTION_SECONDS
@@ -182,7 +180,6 @@ def test_new_file_without_metadata_removes_all_previous_settings(
         "device_orientation": ["x", "y", "z"],
         "axis_inversions": [],
         "signal_columns": dict(zip(SIGNALS, SIGNALS, strict=True)),
-        "skip_preparation": False,
         "split_by_gaps": True,
         "max_gap_seconds": DEFAULT_MAX_GAP_SECONDS,
         "min_segment_seconds": DEFAULT_MIN_SECTION_SECONDS,

@@ -133,6 +133,3 @@ def test_raw_pulse_only_ui_requests_ppg_without_accelerometer(window):
     wait_for_previews(window)
     assert window.module_requirements.text() == "Raw green PPG required."
     assert window.run_button.isEnabled()
-    assert not window.prepared.isChecked()
-    window.prepared.setChecked(True)
-    assert window.module_requirements.text() == "Raw green PPG required."

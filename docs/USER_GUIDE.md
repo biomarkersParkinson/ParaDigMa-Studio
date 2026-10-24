@@ -81,8 +81,7 @@ the selected units apply to the whole batch. If the actual units differ, normali
 the inputs or analyze them separately. Watch side, axis directions and preparation
 policies remain user choices.
 Acceleration and gyroscope unit fields are greyed out when no axis for that sensor
-is mapped to an available column. Mapping an axis enables its unit field;
-**Already prepared** keeps both unit fields disabled.
+is mapped to an available column. Mapping an axis enables its unit field.
 Successfully loading a new recording or batch resets Analyze to its initial
 settings, including the default Gait module, automatic column matching,
 axis directions, preparation options, thresholds and automatic time origin.
@@ -101,7 +100,7 @@ The workflows retain independent sensor requirements and missing-sample exclusio
 If one fails, the other workflow's successful outputs remain available, and failed workflows appear under **Errors** in Runs.
 
 Pulse rate accepts `time` and `green` (raw PPG), with or without accelerometer
-channels. Keep preparation enabled to convert raw timestamps. In ParaDigMa 1.1.2,
+channels. Numeric timestamps are converted according to the selected time units. In ParaDigMa 1.1.2,
 the high-level pulse-rate pipeline assesses quality using PPG features only;
 its `pred_sqa_proba` does not include an accelerometer motion assessment.
 Complete optional accelerometer channels retain their existing unit conversion
@@ -162,13 +161,11 @@ and missing-sample checks during preparation.
   translated into equivalent column choices and inversions. Saved runs and exports
   retain the source-to-toolbox mapping dictionary and record inverted target channels
   separately; no JSON editing is needed in the app.
-- Keep preparation enabled for raw data. Use **Already prepared** only for data
-  already using relative seconds, acceleration in `g`, gyroscope values in `deg/s`
-  and the expected device axes. Unit and axis conversions, gap splitting and
-  minimum-section filtering are skipped. Column mapping and the missing-sample
-  policy still apply, as do official pipeline resampling, filtering and watch-side
-  correction. Inversion controls are disabled; unchecking **Already prepared**
-  restores your selections.
+- Studio always prepares inputs according to the selected columns, units and
+  axis inversions. Acceleration already in `g`, gyroscope values in `deg/s` and
+  relative-second timestamps retain their values when no axis change is selected.
+  Validation and the chosen missing-sample and gap policies still apply.
+  Official pipeline resampling, filtering and watch-side correction run as usual.
 - **Exclude missing sensor samples** removes rows with non-finite required sensor
   values from analysis. Counts are logged and recorded in exported metadata.
   It defaults to on; uncheck it for strict rejection. Non-finite relative or
@@ -177,8 +174,8 @@ and missing-sample checks during preparation.
 - **Split recordings at time gaps** runs continuous sections independently. The
   switch defaults to on. Maximum gap and minimum section duration both default
   to 1.5 seconds, matching ParaDigMa's preparation defaults.
-  Each **Default** button restores its field even when splitting or conversion
-  is disabled. Maximum gap is an interval between samples, not a feature window.
+  Each **Default** button restores its field even when splitting is disabled.
+  Maximum gap is an interval between samples, not a feature window.
   Outputs identify multiple sections using `file_key`.
 
 The source recording remains unchanged. Difference-based time preserves elapsed

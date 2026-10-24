@@ -129,7 +129,6 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
         lambda frame, settings, logger, cancel: desktop.analyze(frame, logger=logger, **settings),
     )
     window.set_modules(["tremor"])
-    window.prepared.setChecked(True)
     window.run_analysis()
     assert not window.input_recording.isEnabled()
     wait_for_worker(window)

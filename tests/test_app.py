@@ -93,7 +93,9 @@ def test_time_plot_handles_numeric_metric_names_without_using_row_numbers_as_tim
     window.close()
 
 
-def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypatch, tmp_path):
+def test_analyze_records_selected_units_and_inversions_without_a_preparation_bypass(
+    monkeypatch, tmp_path
+):
     _app = QApplication.instance() or QApplication([])
     window = MainWindow(history_dir=tmp_path / "runs")
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
@@ -102,19 +104,18 @@ def test_prepared_mode_disables_and_does_not_record_unused_conversions(monkeypat
     window.gyro.setCurrentText("rad/s")
     checkbox = window.mapping._inversions["gyroscope_y"]
     checkbox.setChecked(True)
-    window.prepared.setChecked(True)
-    assert not window.time.isEnabled()
-    assert not window.gyro.isEnabled()
-    assert not checkbox.isEnabled()
+    assert window.time.isEnabled()
+    assert window.gyro.isEnabled()
+    assert checkbox.isEnabled()
     assert window.mapping._combos["gyroscope_y"].isEnabled()
     monkeypatch.setattr(window, "start_job", lambda *args: None)
     window.run_analysis()
     settings = window._result_state.provenance["settings"]
-    assert settings["time_input_unit"] == "relative_s"
-    assert settings["gyroscope_units"] == "deg/s"
+    assert settings["time_input_unit"] == "relative_ms"
+    assert settings["gyroscope_units"] == "rad/s"
     assert settings["device_orientation"] == ["x", "y", "z"]
-    assert settings["axis_inversions"] == []
-    window.prepared.setChecked(False)
+    assert settings["axis_inversions"] == ["gyroscope_y"]
+    assert "skip_preparation" not in settings
     assert window.time.isEnabled()
     assert checkbox.isEnabled() and checkbox.isChecked()
     window.close()

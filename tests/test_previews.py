@@ -307,14 +307,6 @@ def test_module_clock_preview_reuses_equivalent_requirements_and_skips_full_alig
         window.set_modules(modules)
         assert window.clock_input.isEnabled() and not window._origin_preview.pending
         assert len(calls) == count and window.clock_input.text() == origin
-    window.drop_missing.setChecked(True)
-    window.prepared.setChecked(True)
-    wait_for_previews(window)
-    count = len(calls)
-    for modules in (["pulse_rate"], [], ["tremor"]):
-        window.set_modules(modules)
-        assert window.clock_input.isEnabled() and not window._origin_preview.pending
-        assert len(calls) == count and window.clock_input.text() == origin
     assert calls and all(thread != get_ident() for thread in calls)
 
 

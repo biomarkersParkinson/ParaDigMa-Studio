@@ -221,7 +221,6 @@ class AnalysisPage:
         self._build_analysis_segmentation(right)
         self.mapping = ColumnMappingEditor()
         left.addWidget(self.analysis_field("Signal columns", self.mapping))
-        left.addWidget(self.analysis_field("Already prepared", self.prepared, inline=True))
         left.addStretch()
         right.addStretch()
         parameters.addLayout(columns)
@@ -272,12 +271,11 @@ class AnalysisPage:
         form = QFormLayout()
         form.setVerticalSpacing(12)
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
-        self.prepared = QCheckBox("Already prepared (skip conversion)")
         self.gaps = QCheckBox("Split recordings at time gaps")
         self.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
         self.drop_missing = QCheckBox("Exclude missing sensor samples")
         self.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
-        for checkbox in (self.prepared, self.gaps, self.drop_missing):
+        for checkbox in (self.gaps, self.drop_missing):
             checkbox.setPalette(light_palette())
         form.addRow(
             self.analysis_field("Exclude missing sensor samples", self.drop_missing, inline=True)
@@ -476,7 +474,6 @@ class AnalysisPage:
             min_segment=self.min_segment,
             module_buttons=self.module_buttons,
             module_requirements=self.module_requirements,
-            prepared=self.prepared,
             run_button=self.run_button,
             side=self.side,
             status=status,

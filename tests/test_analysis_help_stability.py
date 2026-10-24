@@ -96,7 +96,7 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
     for section, width in ((0, 217), (2, 169)):
         header.setSectionResizeMode(section, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(section, width)
-    window.prepared.setMinimumWidth(472)
+    window.mapping.setMinimumWidth(472)
     window.drop_missing.setMinimumWidth(472)
     if large:
         configure_native_analysis_sizes(window, 44, True)
@@ -108,9 +108,6 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
     try:
         assert window.analysis_scroll.verticalScrollBar().maximum() == 0
         mapping = window.mapping.mapTo(window.settings_panel, QPoint())
-        prepared = window.prepared.mapTo(window.settings_panel, QPoint())
-        assert mapping.x() == prepared.x()
-        assert prepared.y() >= mapping.y() + window.mapping.height() + 12
         assert window.time.mapTo(window.settings_panel, QPoint()).x() > (
             mapping.x() + window.mapping.width()
         )
@@ -145,7 +142,6 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
     # Measured classic-Windows hints: the preferred spinner widths made the
     # columns require 1038 pixels in a 1036-pixel form. Their actual minima fit.
     window.mapping.setMinimumWidth(514)
-    window.prepared.setMinimumWidth(472)
     window.drop_missing.setMinimumWidth(472)
     for title, width in (("Maximum gap", 91), ("Minimum section duration", 104)):
         heading = next(
@@ -160,10 +156,7 @@ def test_native_spin_hints_do_not_stack_columns_that_fit_at_the_editor_minimum(
     window.show()
     QTest.qWait(30)
     try:
-        prepared = window.prepared.mapTo(window.analysis_parameter_fields, QPoint())
         mapping = window.mapping.mapTo(window.analysis_parameter_fields, QPoint())
-        assert mapping.x() == prepared.x()
-        assert prepared.y() >= mapping.y() + window.mapping.height() + 12
         assert window.max_gap.mapTo(window.analysis_parameter_fields, QPoint()).x() > (
             mapping.x() + window.mapping.width()
         )
@@ -191,13 +184,13 @@ def test_analyze_scroll_extent_shrinks_with_the_form_before_queued_parent_reques
     window.navigate(1)
     window.set_modules(["gait", "tremor", "pulse_rate"])
     window.resize(1450, 1050)
-    window.prepared.setMinimumHeight(900)
+    window.mapping.setMinimumHeight(900)
     window.show()
     QTest.qWait(40)
     try:
         bar = window.analysis_scroll.verticalScrollBar()
         assert bar.maximum() > 0
-        window.prepared.setMinimumHeight(36)
+        window.mapping.setMinimumHeight(0)
         # The child form can settle before Qt delivers the scroll area's
         # queued parent notification. Its old extent must be corrected too.
         QApplication.sendEvent(window.analysis_controls, QEvent(QEvent.Type.LayoutRequest))
@@ -206,8 +199,7 @@ def test_analyze_scroll_extent_shrinks_with_the_form_before_queued_parent_reques
         assert (
             window.analysis_scroll.widget().height() == window.analysis_scroll.viewport().height()
         )
-        for field in (window.prepared, window.mapping):
-            assert_fully_visible(field)
+        assert_fully_visible(window.mapping)
     finally:
         window.close()
         app.processEvents()
@@ -647,7 +639,6 @@ def _configure_native_analysis_fields(window, native_height, native_width, font_
         window.max_gap,
         window.min_segment,
         window.clock_input,
-        window.prepared,
         window.gaps,
         window.drop_missing,
         *window.module_buttons.values(),
@@ -693,7 +684,7 @@ def test_wrapped_grid_reserves_all_nested_control_bounds_and_editor_stays_fully_
             )
             if grid_width == 570:
                 form = window.analysis_parameter_fields
-                first_end = window.prepared.mapTo(form, QPoint(0, window.prepared.height()))
+                first_end = window.mapping.mapTo(form, QPoint(0, window.mapping.height()))
                 second_start = window.side.mapTo(form, QPoint(0, 0))
                 if size[0] == 960:
                     assert second_start.y() >= first_end.y() + 20
@@ -722,7 +713,6 @@ def _assert_nested_analysis_controls_fit(window):
         window.mapping,
         window.max_gap,
         window.min_segment,
-        window.prepared,
         window.gaps,
         window.drop_missing,
     ):

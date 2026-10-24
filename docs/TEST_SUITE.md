@@ -23,6 +23,7 @@ trigger and expected behavior still apply.
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
+| GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and reuse of retired bypass settings | `test_analysis_preparation.py` |
 | Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
 | File-derived unit/origin defaults, provenance label placement, mapping-dependent unit controls, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |
 | App-wide field wheel/trackpad page scrolling, unchanged focused numeric/calendar/dropdown values, embedded text editors, pinned graph fields, open-list scrolling and keyboard/button edits | `test_analysis_scrolling.py` |

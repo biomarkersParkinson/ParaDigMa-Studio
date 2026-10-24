@@ -231,10 +231,6 @@ class ColumnMappingEditor(QWidget):
         self.model.set_axis_inversions(inversions)
         self._refresh_inversions()
 
-    def set_preparation_enabled(self, enabled: bool) -> None:
-        for checkbox in self._inversions.values():
-            checkbox.setEnabled(enabled)
-
     def _refresh_inversions(self) -> None:
         for target, checkbox in self._inversions.items():
             blocked = checkbox.blockSignals(True)

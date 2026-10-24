@@ -37,7 +37,11 @@ with independent official preparation after source renaming, axis swaps and
 independent accelerometer/gyroscope inversions. The reference calls the official
 orientation function directly for each sensor. Separate migration checks exercise
 all 48 legacy signed permutations with canonical, aliased and mixed headers, and
-saved-run restoration checks distinguish raw from already prepared inputs.
+saved-run restoration checks distinguish raw settings from the effective input
+conventions of retired GUI bypass settings. All new GUI runs use normal
+preparation. Boundary tests compare native-unit inputs exactly, converted units
+and independent inversions numerically, and selected gap/duration policies.
+The Python API's explicit preparation bypass remains covered separately.
 
 TSDF import tests use real binary streams and an independent reference multiplication
 of each channel by its metadata `scale_factors`, following the

@@ -62,7 +62,6 @@ _PORTS = {
     "origin_reset": component_attribute("_layout"),
     "pages": component_attribute("_layout"),
     "plot_toolbar": component_attribute("_layout"),
-    "prepared": component_attribute("_layout"),
     "progress": component_attribute("_layout"),
     "recording_time_label": component_attribute("_layout"),
     "result_graph_view": component_attribute("_layout"),
