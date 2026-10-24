@@ -55,6 +55,7 @@ def inputs(tmp_path, *, clocks=True):
             frame["time_dt"] = pd.Timestamp(
                 f"2026-10-0{6 + index}T13:00:00+02:00"
             ) + pd.to_timedelta(frame.time, unit="s")
+            frame.attrs["desktop_recording_start"] = frame.time_dt.iloc[0].isoformat()
         frames[key], sources[key] = frame, str(tmp_path / f"sensor-{index}.parquet")
     return sources, frames
 
@@ -287,8 +288,12 @@ def test_unknown_or_incomparable_clocks_use_explicit_file_order_without_fabricat
     _, frames = inputs(tmp_path, clocks=bool(clocks))
     if clocks == "mixed":
         frames["recording_002"] = frames["recording_002"].drop(columns="time_dt")
+        frames["recording_002"].attrs.pop("desktop_recording_start")
     elif clocks == "incompatible":
         frames["recording_002"]["time_dt"] = frames["recording_002"].time_dt.dt.tz_localize(None)
+        frames["recording_002"].attrs["desktop_recording_start"] = (
+            frames["recording_002"].time_dt.iloc[0].isoformat()
+        )
     common, modules, offsets, clock, bases = align_recordings(
         frames, {"pipelines": ["tremor"], "skip_preparation": True}, output()
     )
@@ -322,6 +327,7 @@ def test_multiple_clocks_preserve_named_timezone_and_actual_dst_spacing(tmp_path
     for key, day in (("recording_001", 24), ("recording_002", 25)):
         start = pd.Timestamp(f"2026-10-{day}T13:00:00", tz="Europe/Amsterdam")
         frames[key]["time_dt"] = start + pd.to_timedelta(frames[key].time, unit="s")
+        frames[key].attrs["desktop_recording_start"] = start
     _, _, offsets, clock, _ = align_recordings(
         frames, {"pipelines": ["tremor"], "skip_preparation": True}, output()
     )

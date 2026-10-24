@@ -67,7 +67,12 @@ Hover over it, or open the field's existing **i** explanation, to see the source
 Defaults remain unmarked. Editing a value removes its label and keeps the manual
 choice for the current loaded recording or batch. The field's **Default** button
 restores the detected value; one **Default** button restores the whole Signal columns table.
-Time origin's **Default** button restores its automatic value.
+Time origin's **Default** button restores its automatic value. For absolute time,
+that value comes from the selected **Time** column. For relative or difference
+time, it comes from recording-start metadata when available (including TSDF,
+Axivity CWA and Empatica imports). Other date columns, including `time_dt`,
+`datetime` and `timestamp`, do not supply an origin. Without an available origin,
+the field stays empty and results use elapsed time.
 **Use parameters** keeps restored units explicit, including
 values equal to the current defaults. Unit detection follows the selected source
 columns. A single message summarizes conflicting or incomplete unit declarations
@@ -229,7 +234,8 @@ Results **Graphs** compares classifications and quantifications across modules.
 Check metrics in **Plot series**. Aligned plots share one time axis, with time and
 date on separate lines. Compact plot rows fit more graphs on screen. The axis
 stays visible while scrolling through graphs and follows the visible time range.
-Dates come from the original recording when available. **Time origin**
+Dates use the selected absolute Time column or declared recording-start metadata.
+**Time origin**
 in Analyze provides a calendar and clock for overriding analysis time zero;
 **Default** restores the derived value. Uncheck it to show elapsed seconds.
 This setting affects presentation only and is saved with run parameters. Known

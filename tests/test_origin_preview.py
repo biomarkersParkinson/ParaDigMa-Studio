@@ -15,7 +15,7 @@ def recording(unit="relative_s", *, day=0, clocks=True):
     seconds = np.arange(5, dtype=float)
     values = np.full(5, 0.125) if unit.startswith("difference") else seconds + 1000
     if unit.startswith("absolute"):
-        values = origin.timestamp() + seconds
+        values = origin.timestamp() + day * 86400 + seconds
     frame = pd.DataFrame(
         {
             "device_time": values * (1000 if unit.endswith("ms") else 1),
@@ -26,6 +26,7 @@ def recording(unit="relative_s", *, day=0, clocks=True):
     )
     if clocks:
         frame["time_dt"] = origin + pd.to_timedelta(day * 86400 + seconds, unit="s")
+        frame.attrs["desktop_recording_start"] = frame.time_dt.iloc[0].isoformat()
     return frame
 
 
@@ -64,9 +65,12 @@ def test_clock_only_preview_preserves_unknown_metadata_and_prepared_clocks(clock
     frames = {"first": recording(clocks=False), "second": recording(day=1, clocks=False)}
     if clock_kind == "mixed":
         frames["first"]["time_dt"] = pd.date_range("2026-10-24", periods=5, freq="s")
+        frames["first"].attrs["desktop_recording_start"] = "2026-10-24T00:00:00"
     elif clock_kind == "incompatible":
         frames["first"]["time_dt"] = pd.date_range("2026-10-24", periods=5, freq="s")
         frames["second"]["time_dt"] = pd.date_range("2026-10-25", periods=5, freq="s", tz="UTC")
+        frames["first"].attrs["desktop_recording_start"] = "2026-10-24T00:00:00"
+        frames["second"].attrs["desktop_recording_start"] = "2026-10-25T00:00:00Z"
     elif clock_kind in ("metadata", "prepared"):
         for index, frame in enumerate(frames.values()):
             frame.attrs["desktop_recording_start"] = f"2026-10-{24 + index}T12:00:00+02:00"

@@ -50,6 +50,8 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
         source["time_dt" if context else "time"] = pd.Timestamp(
             "2026-10-10T14:00:00+02:00"
         ) + pd.to_timedelta(times, unit="s")
+        if context:
+            source.attrs["desktop_recording_start"] = "2026-10-10T14:00:00+02:00"
     original = source.copy(deep=True)
     window.loaded(("recording.csv", source))
     if context:

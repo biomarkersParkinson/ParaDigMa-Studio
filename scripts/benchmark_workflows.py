@@ -92,6 +92,7 @@ def _benchmark_input_workflows(window, app, measure):
             },
         }
     )
+    frame.attrs["desktop_recording_start"] = frame.time_dt.iloc[0].isoformat()
     description = inspect_recording(frame, "relative_s")
     measure("LOAD UI", lambda: window.loaded(("sensor.csv", frame, description)))
     deadline = time.monotonic() + 30
@@ -122,6 +123,8 @@ def _benchmark_input_workflows(window, app, measure):
         key: frame.assign(time_dt=frame.time_dt + pd.Timedelta(hours=index))
         for index, key in enumerate(sources)
     }
+    for recording in recordings.values():
+        recording.attrs["desktop_recording_start"] = recording.time_dt.iloc[0].isoformat()
     descriptions = {
         key: inspect_recording(value, "relative_s") for key, value in recordings.items()
     }

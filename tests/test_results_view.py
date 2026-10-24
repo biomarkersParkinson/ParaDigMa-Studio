@@ -154,6 +154,7 @@ def setup(window, results, clock=True):
         raw["time_dt"] = pd.Timestamp("2026-10-07T23:59:55+02:00") + pd.to_timedelta(
             raw.time, unit="s"
         )
+        raw.attrs["desktop_recording_start"] = raw.time_dt.iloc[0].isoformat()
     window.loaded(("sensor.csv", raw))
     window._result_state.provenance = {
         "source": "sensor.csv",

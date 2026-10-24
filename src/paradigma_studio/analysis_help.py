@@ -12,8 +12,9 @@ DEFAULT_MIN_SECTION_SECONDS = 1.5
 
 FIELD_HELP = {
     "Time origin": (
-        "Calendar date and time corresponding to analysis time zero. The default comes from the file's "
-        "timestamps or recording metadata when available. Use Default to restore it. Uncheck to show "
+        "Calendar date and time corresponding to analysis time zero. The default comes from the selected "
+        "absolute Time column or recording-start metadata for relative/difference time. Other date columns "
+        "are ignored. Use Default to restore it. Uncheck to show "
         "elapsed seconds. This desktop display setting does not change the sensor times or scientific analysis.",
         "util.py",
     ),

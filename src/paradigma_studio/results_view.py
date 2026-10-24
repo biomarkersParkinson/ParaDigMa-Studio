@@ -369,7 +369,11 @@ def detail_timing(results, name, frame):
 
 
 def recording_clock(frame, settings, timeline=None):
-    """Return the clock at analysis second zero, keeping known timezone context."""
+    """Resolve analysis zero from selected absolute time or declared recording start.
+
+    Unselected date columns never establish a clock. Device importers record
+    their explicit start metadata separately from the sample table.
+    """
     import pandas as pd
 
     if frame is None or frame.empty:
@@ -379,25 +383,6 @@ def recording_clock(frame, settings, timeline=None):
         mapped = apply_signal_columns(
             frame, settings.get("column_mapping"), settings.get("signal_columns")
         )
-        candidates = [
-            column
-            for column in frame
-            if str(column).lower() in ("time_dt", "datetime", "timestamp")
-            or pd.api.types.is_datetime64_any_dtype(frame[column].dtype)
-        ]
-        for column in candidates:
-            if pd.api.types.is_numeric_dtype(frame[column].dtype):
-                continue
-            stamps = pd.to_datetime(frame[column], errors="coerce")
-            valid = stamps.notna().to_numpy() & np.isfinite(timeline)
-            if valid.any():
-                index = np.flatnonzero(valid)[0]
-                origin = stamps.iloc[index] - pd.to_timedelta(timeline[index], unit="s")
-                return {
-                    "origin": origin.isoformat(),
-                    "source": str(column),
-                    "timezone": str(origin.tz) if origin.tz is not None else None,
-                }
         unit = settings.get("time_input_unit", "relative_s")
         if unit.startswith("absolute") and not settings.get("skip_preparation", False):
             raw = pd.to_numeric(mapped["time"], errors="coerce").to_numpy(
@@ -411,9 +396,13 @@ def recording_clock(frame, settings, timeline=None):
                 )
                 origin -= pd.to_timedelta(timeline[index], unit="s")
                 return {"origin": origin.isoformat(), "source": unit, "timezone": "UTC"}
+        if unit.startswith("absolute"):
+            return None
         start = frame.attrs.get("desktop_recording_start")
         if start is not None and np.isfinite(timeline[0]):
             origin = pd.Timestamp(start) - pd.to_timedelta(timeline[0], unit="s")
+            if pd.isna(origin):
+                return None
             return {
                 "origin": origin.isoformat(),
                 "source": "Recording metadata",

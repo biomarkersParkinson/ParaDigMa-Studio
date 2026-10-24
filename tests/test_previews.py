@@ -175,6 +175,7 @@ def test_analyze_options_reuse_clock_and_match_current_alignment_without_mutatin
             **{f"gyroscope_{axis}": [np.nan, 1.0, 2.0] for axis in "xyz"},
         }
     )
+    frame.attrs["desktop_recording_start"] = start.isoformat()
     original = frame.copy(deep=True)
     calls = []
     gui_thread = get_ident()
@@ -283,6 +284,7 @@ def test_module_clock_preview_reuses_equivalent_requirements_and_skips_full_alig
             },
         }
     )
+    frame.attrs["desktop_recording_start"] = "2026-10-07T12:00:00Z"
     if batch:
         frames = {"first": frame, "second": frame.copy(deep=True)}
         descriptions = {

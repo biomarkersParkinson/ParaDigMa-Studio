@@ -20,6 +20,7 @@ def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments
             **{f"gyroscope_{axis}": [1.0, 2.0, 3.0] for axis in "xyz"},
         }
     )
+    original.attrs["desktop_recording_start"] = original.time_dt.iloc[0].isoformat()
     window.loaded(("sensor.csv", original))
     window.set_modules(["tremor"])
     wait_for_previews(window)
@@ -187,6 +188,7 @@ def test_analyze_calendar_default_preserves_source_precision_and_results(window)
     raw = pd.DataFrame(
         {"time": [0.0, 1.0, 2.0], "time_dt": start + pd.to_timedelta([0.0, 1.0, 2.0], unit="s")}
     )
+    raw.attrs["desktop_recording_start"] = start.isoformat()
     window.loaded(("sensor.csv", raw))
     wait_for_previews(window)
     assert window.clock_input.text() == start.isoformat()

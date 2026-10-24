@@ -103,6 +103,7 @@ def load_empatica_imu(path):
             frame[f"gyroscope_{axis}"] = gyro_values[:, index]
     frame.attrs.update(
         source_format="empatica",
+        desktop_recording_start=pd.to_datetime(start, unit="us").isoformat(),
         sampling_frequency=frequency,
         timestamp_start_us=start,
         schema_version=version,

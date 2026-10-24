@@ -21,6 +21,7 @@ trigger and expected behavior still apply.
 | Pulse estimate availability over the full recording timespan, compact overview, readable plot labels and saved-result reopening | `test_pulse_availability.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
+| Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
 | Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
 | File-derived unit/origin defaults, provenance label placement, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |

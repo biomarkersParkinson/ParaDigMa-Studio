@@ -104,9 +104,14 @@ def load_sensor_file(path: PathInput, *, allow_pickle: bool = False) -> pd.DataF
             frame.attrs["desktop_recording_start"] = str(start)
     else:
         _, frame, start = load_single_data_file(path)
-        if start is not None:
-            frame.attrs["desktop_recording_start"] = str(start)
         if path.suffix.lower() == ".cwa":
+            # Only this device loader defines time_dt as its sample clock.
+            # Generic table loaders infer start from arbitrary time_dt columns;
+            # never promote that inference to recording-start metadata.
+            if "time_dt" in frame and not frame.empty:
+                frame.attrs["desktop_recording_start"] = str(frame["time_dt"].iloc[0])
+            elif start is not None:
+                frame.attrs["desktop_recording_start"] = str(start)
             record_import_units(frame, "cwa")
     if not isinstance(frame, pd.DataFrame) or frame.empty:
         raise ValueError("The sensor file contains no tabular samples.")

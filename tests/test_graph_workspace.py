@@ -371,14 +371,11 @@ def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window
 
 def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks_zoom(window):
     start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
-    window.loaded(
-        (
-            "sensor.csv",
-            pd.DataFrame(
-                {"time": [0.0, 1.0, 2.0], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s")}
-            ),
-        )
+    raw = pd.DataFrame(
+        {"time": [0.0, 1.0, 2.0], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s")}
     )
+    raw.attrs["desktop_recording_start"] = start.isoformat()
+    window.loaded(("sensor.csv", raw))
     window._result_state.provenance = {"settings": {"skip_preparation": True}}
     frame = pd.DataFrame(
         {"time": [0.0, 1.0, 2.0], **{f"metric_{i}": [2.0, 3.0, 4.0] for i in range(8)}}
@@ -586,6 +583,7 @@ def test_selected_result_is_marked_across_date_plots_without_changing_zoom_or_da
             "gyroscope_x": np.arange(4.0),
         }
     )
+    raw.attrs["desktop_recording_start"] = start.isoformat()
     window.loaded(("sensor.csv", raw))
     window._result_state.provenance = {"settings": {"skip_preparation": True}}
     states = pd.DataFrame({"time": np.arange(4.0), "pred_tremor": [0.0, 1.0, np.nan, 0.0]})

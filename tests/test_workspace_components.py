@@ -142,6 +142,7 @@ def test_result_component_falls_back_from_invalid_stored_clock(result_workspace,
             "gyroscope_x": [1.0, 2.0, 3.0],
         }
     )
+    workspace.inputs.frame.attrs["desktop_recording_start"] = "2026-10-11T12:00:00Z"
     workspace.state.provenance = {
         "settings": {"skip_preparation": True},
         "display_clock": {"origin": "invalid"},

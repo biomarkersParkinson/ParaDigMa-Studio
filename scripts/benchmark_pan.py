@@ -564,6 +564,7 @@ def _synthetic_pan_sensors():
             "green": 1000 + 20 * np.cos(times),
         }
     )
+    sensor.attrs["desktop_recording_start"] = sensor.time_dt.iloc[0].isoformat()
     return sensor
 
 
