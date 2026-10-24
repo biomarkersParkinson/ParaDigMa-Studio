@@ -37,7 +37,11 @@ class TimeField(QWidget):
         self.calendar.calendarWidget().setMinimumSize(330, 260)
         self.calendar.setMinimumHeight(38)
         self.calendar.setTimeZone(QTimeZone.utc())
-        self.calendar.setDateTime(QDateTime.currentDateTimeUtc())
+        if origin:
+            self.calendar.setSpecialValueText("Not set")
+            self.calendar.setDateTime(self.calendar.minimumDateTime())
+        else:
+            self.calendar.setDateTime(QDateTime.currentDateTimeUtc())
         self.seconds = PageDoubleSpinBox(self)
         self.seconds.setMinimumHeight(38)
         self.seconds.setRange(-1e12, 1e12)
@@ -74,7 +78,10 @@ class TimeField(QWidget):
         self.editors.setEnabled(checked)
         if not self._changing:
             if checked:
-                if self._default_seconds is not None:
+                if self.origin and not self._text:
+                    self.setText(QDateTime.currentDateTimeUtc().toString(Qt.ISODateWithMs))
+                    self.valueEdited.emit()
+                elif self._default_seconds is not None:
                     self._text = str(self._default_seconds)
                 else:
                     self._edited()
@@ -107,6 +114,9 @@ class TimeField(QWidget):
             self.use.setChecked(bool(self._text))
             self.editors.setEnabled(bool(self._text))
             if not self._text:
+                if self.origin:
+                    # An unchecked origin must not display a previous file's date.
+                    self.calendar.setDateTime(self.calendar.minimumDateTime())
                 return
             try:
                 seconds = float(self._text)

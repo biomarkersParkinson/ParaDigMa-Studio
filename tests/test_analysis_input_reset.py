@@ -152,25 +152,69 @@ def test_successful_new_load_resets_every_analyze_setting_and_uses_new_metadata(
     pd.testing.assert_frame_equal(original, recording())
 
 
-def test_new_file_without_metadata_removes_previous_detected_values_and_origin(window):
+@pytest.mark.parametrize("load_mode", ["single", "one_file_batch", "batch"])
+@pytest.mark.parametrize("parameter_source", ["manual", "saved_run"])
+def test_new_file_without_metadata_removes_all_previous_settings(
+    window, load_mode, parameter_source
+):
     window.loaded(("old.json", recording()))
     edit_all_settings(window)
-    plain = pd.DataFrame({"time": [0.0, 1.0, 2.0], "green": [1.0, 2.0, 3.0]})
-    window.loaded(("new.csv", plain))
+    if parameter_source == "saved_run":
+        window._run_state.selected_run = {
+            "settings": window._analysis_controller._analysis_settings(window.selected_modules())
+        }
+        window.use_run_parameters()
+    plain = pd.DataFrame({column: [0.0, 1.0, 2.0] for column in SIGNALS})
+    if load_mode == "single":
+        window.loaded(("new.csv", plain))
+    else:
+        frames = {"first": plain}
+        if load_mode == "batch":
+            frames["second"] = plain.copy(deep=True)
+        load_batch(window, frames)
     wait_for_previews(window)
-    assert window.acc.currentData() == "g"
-    assert window.gyro.currentText() == "deg/s"
-    assert window.time.currentText() == "relative_s"
+    assert window._analysis_controller._analysis_settings(window.selected_modules()) == {
+        "pipelines": ["gait"],
+        "watch_side": "left",
+        "accelerometer_units": "g",
+        "gyroscope_units": "deg/s",
+        "time_input_unit": "relative_s",
+        "device_orientation": ["x", "y", "z"],
+        "axis_inversions": [],
+        "signal_columns": dict(zip(SIGNALS, SIGNALS, strict=True)),
+        "skip_preparation": False,
+        "split_by_gaps": True,
+        "max_gap_seconds": DEFAULT_MAX_GAP_SECONDS,
+        "min_segment_seconds": DEFAULT_MIN_SECTION_SECONDS,
+        "column_mapping": {},
+        "drop_missing_samples": True,
+        "plot_time_origin": {"mode": "automatic"},
+    }
     assert window.clock_input.text() == ""
-    assert window.origin_setting() == {"mode": "automatic"}
+    assert window.clock_input.calendar.text() == "Not set"
+    assert not window.clock_input.use.isChecked()
+    assert window.mapping.axis_inversions() == []
+    assert not window._analysis_controller.file_defaults.manual
     assert all(badge.isHidden() for badge in window._analysis_controller.view.file_badges.values())
+    assert all(
+        button.isHidden()
+        for button in window._analysis_controller.view.file_default_buttons.values()
+    )
     assert window._analysis_controller.view.metadata_notice.isHidden()
     assert "No supported unit metadata" in window.analysis_help["Time units"][1].text()
+    assert all(
+        "Selected manually" not in description.text()
+        and "Restored from saved run" not in description.text()
+        for _info, description in window.analysis_help.values()
+    )
     assert window.mapping.signal_columns()["green"] == "green"
 
 
-def test_pending_clock_from_previous_input_cannot_replace_the_new_origin(window):
+@pytest.mark.parametrize("new_has_origin", [False, True])
+def test_pending_clock_from_previous_input_cannot_replace_the_new_origin(window, new_has_origin):
     old, new = recording(), recording(start="2026-10-23T08:00:00Z")
+    if not new_has_origin:
+        new.attrs.pop("desktop_recording_start")
     entered, release = Event(), Event()
     seen = []
     controller = window._analysis_controller
@@ -180,6 +224,8 @@ def test_pending_clock_from_previous_input_cannot_replace_the_new_origin(window)
         if frame is old:
             entered.set()
             assert release.wait(10)
+        if "desktop_recording_start" not in frame.attrs:
+            return None
         return {
             "origin": frame.attrs["desktop_recording_start"],
             "timezone": "UTC",
@@ -200,7 +246,12 @@ def test_pending_clock_from_previous_input_cannot_replace_the_new_origin(window)
         release.set()
         wait_for_previews(window)
         assert len(seen) == 2 and seen[0] is old and seen[1] is new
-        assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-23T08:00:00Z")
+        if new_has_origin:
+            assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-23T08:00:00Z")
+        else:
+            assert window.clock_input.text() == ""
+            assert window.clock_input.calendar.text() == "Not set"
+            assert window._analysis_controller.view.file_badges["Time origin"].isHidden()
         assert window.origin_setting() == {"mode": "automatic"}
     finally:
         release.set()

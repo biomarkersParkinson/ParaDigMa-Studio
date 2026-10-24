@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from conftest import wait_for_previews
+from PySide6.QtCore import QDateTime
 
 from paradigma_studio.column_mapping import SIGNALS
 from paradigma_studio.core import load_sensor_file
@@ -166,3 +167,36 @@ def test_analyze_prefill_default_manual_override_and_results_share_the_selected_
     window.reset_origin()
     wait_for_previews(window)
     assert window.clock_input.text() == "" and badge.isHidden()
+
+
+@pytest.mark.parametrize("previous_device_file", [False, True])
+def test_parquet_without_start_displays_unset_origin(window, tmp_path, previous_device_file):
+    if previous_device_file:
+        previous = files("paradigma_studio") / "data" / "test_data.avro"
+        window.loaded((str(previous), load_sensor_file(previous)))
+        wait_for_previews(window)
+        assert window.clock_input.calendar.text().endswith("10:41:54.256")
+    path = tmp_path / "relative.parquet"
+    pd.DataFrame({"time": [0.0, 0.01, 0.02], "green": [1.0, 2.0, 3.0]}).to_parquet(path)
+    window.loaded((str(path), load_sensor_file(path)))
+    wait_for_previews(window)
+    assert window.clock_input.calendar.text() == "Not set"
+    assert window.clock_input.text() == ""
+    assert not window.clock_input.use.isChecked()
+    assert not window.clock_input.calendar.isEnabled()
+    assert window.origin_setting() == {"mode": "automatic"}
+    assert window._analysis_controller.view.file_badges["Time origin"].isHidden()
+
+
+def test_enabling_unset_origin_selects_an_editable_current_date(window):
+    field = window.clock_input
+    before = QDateTime.currentDateTimeUtc()
+    field.use.click()
+    after = QDateTime.currentDateTimeUtc()
+    assert before <= field.calendar.dateTime() <= after
+    assert field.calendar.isEnabled()
+    assert field.text() and window.origin_setting()["mode"] == "custom"
+    assert window._analysis_controller.view.file_badges["Time origin"].isHidden()
+    field.use.click()
+    assert field.calendar.text() == "Not set" and field.text() == ""
+    assert window.origin_setting() == {"mode": "elapsed"}

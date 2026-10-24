@@ -82,6 +82,7 @@ and missing-sample policies remain user choices.
 Successfully loading a new recording or batch resets Analyze to its initial
 settings, including the default Gait module, automatic column matching,
 axis directions, preparation options, thresholds and automatic time origin.
+This clears both manual entries and parameters restored from a previous run.
 The new input's supported metadata then fills the relevant fields. Help and
 mapping details collapse. Switching the inspected recording within an already
 loaded batch preserves the shared settings. Cancelling a file selection or a
@@ -238,6 +239,7 @@ Dates use the selected absolute Time column or declared recording-start metadata
 **Time origin**
 in Analyze provides a calendar and clock for overriding analysis time zero;
 **Default** restores the derived value. Uncheck it to show elapsed seconds.
+An unset origin displays **Not set**, rather than a date from a previous recording.
 This setting affects presentation only and is saved with run parameters. Known
 timezones, clock precision and daylight-saving offsets are retained.
 Pulse-rate series use **Pulse rate** and **High-quality PPG (probability)**;
