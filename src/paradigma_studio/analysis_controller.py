@@ -270,17 +270,29 @@ class AnalysisController(QObject):
         prepared = self.view.prepared.isChecked()
         widget: QWidget
         for widget in (
-            self.view.acc,
-            self.view.gyro,
             self.view.time,
             *self.view.file_default_buttons.values(),
             self.view.gaps,
         ):
             widget.setEnabled(not prepared)
+        self._update_sensor_units()
         self.view.mapping.set_preparation_enabled(not prepared)
         for widget in (self.view.max_gap, self.view.min_segment):
             widget.setEnabled(not prepared and self.view.gaps.isChecked())
         self.modules_changed()
+
+    def _update_sensor_units(self) -> None:
+        prepared = self.view.prepared.isChecked()
+        columns = set(self.view.mapping.model.columns)
+        for title, sensor, control in (
+            ("Acceleration units", "accelerometer", self.view.acc),
+            ("Gyroscope units", "gyroscope", self.view.gyro),
+        ):
+            mapped = any(
+                self.view.mapping.model.choices[f"{sensor}_{axis}"] in columns for axis in "xyz"
+            )
+            control.setEnabled(not prepared and mapped)
+            self.view.file_default_buttons[title].setEnabled(not prepared and mapped)
 
     def origin_edited(self) -> None:
         self.analysis._origin_override = True
@@ -293,6 +305,7 @@ class AnalysisController(QObject):
         self.update_origin_default()
 
     def update_origin_default(self, *_: object) -> None:
+        self._update_sensor_units()
         if self.file_defaults.applying:
             return
         if self.inputs.frame is not None:

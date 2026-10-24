@@ -42,8 +42,8 @@ def send_wheel(widget, *, trackpad=False, upward=False):
 def test_wheel_over_analyze_dropdowns_scrolls_page_without_changing_values(
     window, focused, trackpad, upward
 ):
+    window.loaded(("sensor.csv", pd.DataFrame({column: [0.0, 1.0] for column in SIGNALS})))
     window.set_modules(["gait", "tremor", "pulse_rate"])
-    window.mapping.set_recordings({"one": list(SIGNALS)}, {})
     window.navigate(1)
     window.resize(960, 650)
     QTest.qWait(40)

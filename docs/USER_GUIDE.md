@@ -79,6 +79,9 @@ columns. A single message summarizes conflicting or incomplete unit declarations
 across recordings, without listing filenames; normalize differing inputs or
 analyze them separately. Watch side, axis directions, Already prepared and gap
 and missing-sample policies remain user choices.
+Acceleration and gyroscope unit fields are greyed out when no axis for that sensor
+is mapped to an available column. Mapping an axis enables its unit field;
+**Already prepared** keeps both unit fields disabled.
 Successfully loading a new recording or batch resets Analyze to its initial
 settings, including the default Gait module, automatic column matching,
 axis directions, preparation options, thresholds and automatic time origin.

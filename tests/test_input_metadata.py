@@ -253,6 +253,80 @@ def test_mapping_changes_use_selected_column_units_and_remove_stale_tags(window,
     assert "No supported unit metadata" in window.analysis_help["Time units"][1].text()
 
 
+@pytest.mark.parametrize(
+    "sensors", [(), ("accelerometer",), ("gyroscope",), ("accelerometer", "gyroscope")]
+)
+def test_sensor_unit_fields_follow_available_mappings_and_preparation(
+    window, sensor_frame, sensors
+):
+    assert not window.acc.isEnabled() and not window.gyro.isEnabled()
+    columns = ["time", "green", *(f"{sensor}_{axis}" for sensor in sensors for axis in "xyz")]
+    load(window, sensor_frame[columns])
+    window.set_modules(["pulse_rate"])
+    for prepared in (False, True, False):
+        window.prepared.setChecked(prepared)
+        for title, sensor, control in (
+            ("Acceleration units", "accelerometer", window.acc),
+            ("Gyroscope units", "gyroscope", window.gyro),
+        ):
+            expected = sensor in sensors and not prepared
+            assert control.isEnabled() == expected
+            assert (
+                window._analysis_controller.view.file_default_buttons[title].isEnabled() == expected
+            )
+        assert window.time.isEnabled() == (not prepared)
+
+
+@pytest.mark.parametrize(
+    "sensor,title,field_name,other_name,manual_value,file_value",
+    [
+        ("accelerometer", "Acceleration units", "acc", "gyro", "g", "m/s^2"),
+        ("gyroscope", "Gyroscope units", "gyro", "acc", "deg/s", "rad/s"),
+    ],
+)
+def test_unassigning_and_remapping_axes_updates_units_without_losing_manual_choice(
+    window, sensor_frame, sensor, title, field_name, other_name, manual_value, file_value
+):
+    load(window, sensor_frame)
+    control = getattr(window, field_name)
+    control.setCurrentIndex(
+        control.findData(manual_value) if field_name == "acc" else control.findText(manual_value)
+    )
+    reset = window._analysis_controller.view.file_default_buttons[title]
+    for axis in "xyz":
+        selector = window.mapping._combos[f"{sensor}_{axis}"]
+        selector.setCurrentIndex(selector.findData(None))
+        assert control.isEnabled() == (axis != "z")
+        assert getattr(window, other_name).isEnabled()
+    assert not reset.isEnabled()
+    assert badge(window, title).isHidden()
+    window.set_modules(["pulse_rate"])
+    window.prepared.setChecked(True)
+    window.prepared.setChecked(False)
+    assert not control.isEnabled()
+    selector = window.mapping._combos[f"{sensor}_x"]
+    selector.setCurrentIndex(selector.findData(f"{sensor}_y"))
+    assert control.isEnabled() and reset.isEnabled()
+    assert (control.currentData() if field_name == "acc" else control.currentText()) == manual_value
+    reset.click()
+    assert (control.currentData() if field_name == "acc" else control.currentText()) == file_value
+    assert not badge(window, title).isHidden()
+    window.mapping.default_button.click()
+    assert window.acc.isEnabled() and window.gyro.isEnabled()
+
+
+def test_unavailable_saved_sources_do_not_enable_sensor_unit_fields(window, sensor_frame):
+    load(window, sensor_frame[["time", "green"]])
+    window.mapping.set_mapping(
+        {
+            f"missing_{sensor}_{axis}": f"{sensor}_{axis}"
+            for sensor in ("accelerometer", "gyroscope")
+            for axis in "xyz"
+        }
+    )
+    assert not window.acc.isEnabled() and not window.gyro.isEnabled()
+
+
 def test_conflicting_batch_metadata_is_summarized_once_without_source_names(window, sensor_frame):
     second = sensor_frame.copy(deep=True)
     units(second)["time"] = "relative_s"
