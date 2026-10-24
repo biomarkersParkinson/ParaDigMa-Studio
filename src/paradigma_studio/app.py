@@ -350,9 +350,6 @@ class MainWindow(QMainWindow):
     def _compose_data(self):
         callbacks = DataCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
-            modules_changed=lambda *args, **kwargs: self._analysis_controller.modules_changed(
-                *args, **kwargs
-            ),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             reset_analysis=lambda: self._analysis_controller.reset_for_input(),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
@@ -395,6 +392,9 @@ class MainWindow(QMainWindow):
             refresh_runs=lambda *args, **kwargs: self._run_controller.refresh_runs(*args, **kwargs),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
+            sync_input=lambda unit, mapping: self._data_controller.sync_analysis_settings(
+                unit, mapping
+            ),
         )
         services = AnalysisServices(
             recording_clock=lambda *args, **kwargs: recording_clock(*args, **kwargs),
@@ -421,12 +421,7 @@ class MainWindow(QMainWindow):
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
             close=lambda *args, **kwargs: self.close(*args, **kwargs),
             finish_run=lambda *args, **kwargs: self._run_controller.finish_run(*args, **kwargs),
-            modules_changed=lambda *args, **kwargs: self._analysis_controller.modules_changed(
-                *args, **kwargs
-            ),
-            preparation_changed=lambda *args, **kwargs: (
-                self._analysis_controller.preparation_changed(*args, **kwargs)
-            ),
+            refresh_analysis=lambda: self._analysis_controller.refresh(),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             update_run_actions=lambda *args, **kwargs: self._run_controller.update_run_actions(
                 *args, **kwargs
@@ -540,19 +535,15 @@ class MainWindow(QMainWindow):
     def _connect(self):
         self._layout.result_graph_view.currentIndexChanged.connect(self._graph_controller.plot)
         self._layout.data_tabs.currentChanged.connect(self._data_controller.data_tab_changed)
-        self._layout.gaps.toggled.connect(self._analysis_controller.preparation_changed)
-        self._layout.drop_missing.toggled.connect(self._analysis_controller.preparation_changed)
-        for name, item in self._layout.module_buttons.items():
-            item.toggled.connect(
-                lambda checked, n=name: self._analysis_controller.modules_changed(n, checked)
-            )
-        for combo in (self._layout.acc, self._layout.gyro, self._layout.time):
-            combo.currentTextChanged.connect(self._analysis_controller.preparation_changed)
+        self._layout.gaps.toggled.connect(self._analysis_controller.update_gap_controls)
+        self._layout.drop_missing.toggled.connect(self._analysis_controller.update_origin_default)
+        for item in self._layout.module_buttons.values():
+            item.toggled.connect(self._analysis_controller.modules_changed)
+        self._layout.time.currentTextChanged.connect(self._analysis_controller.time_unit_changed)
         self._layout.data_channels.itemChanged.connect(self._data_controller.plot_input)
         self._layout.data_time_channel.currentIndexChanged.connect(
             self._data_controller.refresh_data_descriptives
         )
-        self._layout.time.currentTextChanged.connect(self._layout.data_time_unit.setCurrentText)
         self._layout.data_time_unit.currentTextChanged.connect(
             self._data_controller.update_time_statistics
         )
@@ -573,12 +564,9 @@ class MainWindow(QMainWindow):
             self._workspace_controller.select_plot_series
         )
         self._layout.clock_input.valueEdited.connect(self._analysis_controller.origin_edited)
-        self._layout.mapping.changed.connect(self._analysis_controller.update_origin_default)
-        self._layout.mapping.changed.connect(self._data_controller.input_plot_changed)
-        # Time and missing-sample edits already refresh defaults via
-        # preparation_changed -> modules_changed -> update_origin_default.
+        self._layout.mapping.changed.connect(self._analysis_controller.mapping_changed)
         self._layout.sensor_channels.itemChanged.connect(self.plot_sensor)
-        self._analysis_controller.preparation_changed()
+        self._analysis_controller.refresh()
 
     def _connect_worker(self, worker, completed):
         worker.completed.connect(completed)

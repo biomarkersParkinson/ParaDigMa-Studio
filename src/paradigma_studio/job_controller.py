@@ -50,8 +50,7 @@ class JobCallbacks:
     append_log: Callable[[str], None]
     close: Callable[[], object]
     finish_run: FinishRunCallback
-    modules_changed: Callable[[], None]
-    preparation_changed: Callable[[], None]
+    refresh_analysis: Callable[[], None]
     show_notice: NoticeCallback
     update_run_actions: Callable[[], None]
 
@@ -115,8 +114,7 @@ class JobController(QObject):
         self.view.data_time_channel.setEnabled(True)
         self.view.data_time_unit.setEnabled(True)
         self.view.input_recording.setEnabled(True)
-        self.callbacks.modules_changed()
-        self.callbacks.preparation_changed()
+        self.callbacks.refresh_analysis()
         self.view.export_button.setEnabled(self.results.results is not None)
         self.view.save_results_button.setEnabled(
             self.results.results is not None and self.runs.current_run is not None

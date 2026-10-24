@@ -118,7 +118,6 @@ _PORTS = {
     "selected_modules": component_attribute("_analysis_controller"),
     "set_modules": component_attribute("_analysis_controller"),
     "modules_changed": component_attribute("_analysis_controller"),
-    "preparation_changed": component_attribute("_analysis_controller"),
     "origin_edited": component_attribute("_analysis_controller"),
     "reset_origin": component_attribute("_analysis_controller"),
     "origin_setting": component_attribute("_analysis_controller"),

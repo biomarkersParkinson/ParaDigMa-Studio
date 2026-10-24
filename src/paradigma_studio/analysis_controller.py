@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable
-from contextlib import ExitStack
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from importlib.metadata import version
 from threading import Event
@@ -110,6 +110,7 @@ class AnalysisCallbacks:
     refresh_runs: Callable[[], None]
     show_notice: NoticeCallback
     start_job: StartJobCallback
+    sync_input: Callable[[str | None, bool], None]
 
 
 @dataclass(frozen=True)
@@ -156,7 +157,7 @@ class AnalysisController(QObject):
             view.file_default_buttons,
             view.analysis_help,
             view.metadata_notice,
-            self.update_origin_default,
+            self._file_default_restored,
         )
 
     def toggle_analysis_help(self, title: str, checked: bool) -> None:
@@ -196,9 +197,10 @@ class AnalysisController(QObject):
             if item.isChecked()
         ]
 
-    def reset_for_input(self) -> None:
-        """Start a new input with fresh controls, then apply only its metadata."""
-        self.previews._origin_preview.clear()
+    @contextmanager
+    def _applying_settings(self) -> Iterator[None]:
+        """Install a complete configuration before notifying previews and other pages."""
+        self.previews._origin_preview.cancel_pending()
         controls = (
             self.view.side,
             self.view.acc,
@@ -213,29 +215,35 @@ class AnalysisController(QObject):
             *self.view.module_buttons.values(),
             *(info for info, _description in self.view.analysis_help.values()),
         )
+        was_applying = self.file_defaults.applying
         self.file_defaults.applying = True
         try:
             with ExitStack() as stack:
                 for control in controls:
                     stack.enter_context(QSignalBlocker(control))
-                self.analysis._origin_override = False
-                self.file_defaults.reset()
-                self.view.side.setCurrentText("left")
-                self.view.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
-                self.view.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
-                self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
-                self.view.min_segment.setValue(DEFAULT_MIN_SECTION_SECONDS)
-                self.view.clock_input.set_clock(None)
-                self.view.clock_input.clear()
-                self.view.mapping.reset_for_input()
-                for name, item in self.view.module_buttons.items():
-                    item.setChecked(self.modules[name] == "gait")
-                for info, _description in self.view.analysis_help.values():
-                    info.setChecked(False)
+                yield
         finally:
-            self.file_defaults.applying = False
+            self.file_defaults.applying = was_applying
+
+    def reset_for_input(self) -> None:
+        """Start a new input with fresh controls, then apply only its metadata."""
+        self.previews._origin_preview.clear()
+        with self._applying_settings():
+            self.analysis._origin_override = False
+            self.file_defaults.reset()
+            self.view.side.setCurrentText("left")
+            self.view.gaps.setChecked(DEFAULT_SPLIT_BY_GAPS)
+            self.view.drop_missing.setChecked(DEFAULT_DROP_MISSING_SAMPLES)
+            self.view.max_gap.setValue(DEFAULT_MAX_GAP_SECONDS)
+            self.view.min_segment.setValue(DEFAULT_MIN_SECTION_SECONDS)
+            self.view.clock_input.set_clock(None)
+            self.view.clock_input.clear()
+            self.view.mapping.reset_for_input()
+            self.set_modules(["gait"])
+            for info, _description in self.view.analysis_help.values():
+                info.setChecked(False)
         self.toggle_analysis_help("", False)
-        self.preparation_changed()
+        self.refresh(mapping_changed=True)
         self.view.analysis_scroll.verticalScrollBar().setValue(0)
 
     def set_modules(self, pipelines: Iterable[str]) -> None:
@@ -246,7 +254,60 @@ class AnalysisController(QObject):
             item.blockSignals(blocked)
         self.modules_changed()
 
-    def modules_changed(self, changed: str | None = None, checked: bool = False) -> None:
+    def refresh(
+        self, *, previous_time_unit: str | None = None, mapping_changed: bool = False
+    ) -> None:
+        """Refresh a complete input after loading, restoring settings or finishing a job."""
+        if self.file_defaults.applying:
+            return
+        if previous_time_unit is None:
+            previous_time_unit = self.view.time.currentText()
+        self._refresh_file_defaults()
+        self._update_module_controls()
+        self._update_sensor_units()
+        self.update_gap_controls()
+        self.update_origin_default()
+        self._sync_input(previous_time_unit, mapping_changed)
+
+    def modules_changed(self, *_: object) -> None:
+        if self.file_defaults.applying:
+            return
+        self._update_module_controls()
+        self.update_origin_default()
+
+    def mapping_changed(self, *_: object) -> None:
+        if self.file_defaults.applying:
+            return
+        previous_time_unit = self.view.time.currentText()
+        self._refresh_file_defaults()
+        self._update_sensor_units()
+        self.update_origin_default()
+        self._sync_input(previous_time_unit, True)
+
+    def time_unit_changed(self, *_: object) -> None:
+        if self.file_defaults.applying:
+            return
+        self.update_origin_default()
+        self.callbacks.sync_input(self.view.time.currentText(), False)
+
+    def _file_default_restored(self, title: str, changed: bool) -> None:
+        if title == "Time units":
+            self.update_origin_default()
+            if changed:
+                self.callbacks.sync_input(self.view.time.currentText(), False)
+
+    def _refresh_file_defaults(self) -> None:
+        if self.inputs.frame is not None:
+            self.file_defaults.refresh(
+                self.inputs.recordings or {"recording_001": self.inputs.frame},
+                self.view.mapping.model.choices,
+            )
+
+    def _sync_input(self, previous_time_unit: str, mapping_changed: bool) -> None:
+        unit = self.view.time.currentText()
+        self.callbacks.sync_input(unit if unit != previous_time_unit else None, mapping_changed)
+
+    def _update_module_controls(self) -> None:
         selected = self.selected_modules()
         self.view.mapping.set_modules(selected)
         self.view.side.set_relevant("gait" in selected)
@@ -264,12 +325,10 @@ class AnalysisController(QObject):
         self.view.run_button.setEnabled(
             self.inputs.frame is not None and bool(selected) and self.jobs.worker is None
         )
-        self.update_origin_default()
 
-    def preparation_changed(self, *_: object) -> None:
+    def update_gap_controls(self, *_: object) -> None:
         for widget in (self.view.max_gap, self.view.min_segment):
             widget.setEnabled(self.view.gaps.isChecked())
-        self.modules_changed()
 
     def _update_sensor_units(self) -> None:
         columns = set(self.view.mapping.model.columns)
@@ -294,17 +353,12 @@ class AnalysisController(QObject):
         self.update_origin_default()
 
     def update_origin_default(self, *_: object) -> None:
-        # Mapping changes and preparation edits share this defaults refresh.
-        # Update availability even when a manual origin suppresses its preview.
-        self._update_sensor_units()
-        if self.file_defaults.applying:
-            return
-        if self.inputs.frame is not None:
-            self.file_defaults.refresh(
-                self.inputs.recordings or {"recording_001": self.inputs.frame},
-                self.view.mapping.model.choices,
-            )
-        if self.analysis._origin_override or self.inputs.frame is None:
+        """Request only the automatic origin, preserving manual edits and cached work."""
+        if (
+            self.file_defaults.applying
+            or self.analysis._origin_override
+            or self.inputs.frame is None
+        ):
             return
         try:
             settings: AnalysisSettings = {
@@ -455,6 +509,20 @@ class AnalysisController(QObject):
         if self.runs.selected_run is None or self.jobs.worker is not None:
             return
         settings = _reusable_run_settings(self.runs.selected_run["settings"])
+        previous_time_unit = self.view.time.currentText()
+        with self._applying_settings():
+            self.set_modules(settings.get("pipelines", ["gait"]))
+            self._restore_units_and_side(settings)
+            self._restore_signal_columns(settings)
+            self._restore_segmentation(settings)
+            self._restore_origin(settings)
+        self.refresh(previous_time_unit=previous_time_unit, mapping_changed=True)
+        self.callbacks.navigate(1)
+        self.view.status.setText(
+            "Run parameters restored. Check the selected input before running."
+        )
+
+    def _restore_units_and_side(self, settings: AnalysisSettings) -> None:
         self.file_defaults.mark_manual(
             [
                 title
@@ -467,25 +535,18 @@ class AnalysisController(QObject):
             ],
             "Restored from saved run parameters.",
         )
-        self.set_modules(settings.get("pipelines", ["gait"]))
-        self.file_defaults.applying = True
-        try:
-            for widget, key in (
-                (self.view.side, "watch_side"),
-                (self.view.acc, "accelerometer_units"),
-                (self.view.gyro, "gyroscope_units"),
-                (self.view.time, "time_input_unit"),
-            ):
-                if key in settings:
-                    value = str(settings[key])
-                    index = widget.findData(value)
-                    if index >= 0:
-                        widget.setCurrentIndex(index)
-                    else:
-                        widget.setCurrentText(value)
-        finally:
-            self.file_defaults.applying = False
-        self._restore_signal_columns(settings)
+        for widget, key in (
+            (self.view.side, "watch_side"),
+            (self.view.acc, "accelerometer_units"),
+            (self.view.gyro, "gyroscope_units"),
+            (self.view.time, "time_input_unit"),
+        ):
+            if key in settings:
+                value = str(settings[key])
+                index = widget.findData(value)
+                widget.setCurrentIndex(index if index >= 0 else widget.findText(value))
+
+    def _restore_segmentation(self, settings: AnalysisSettings) -> None:
         self.view.gaps.setChecked(settings.get("split_by_gaps", False))
         self.view.drop_missing.setChecked(settings.get("drop_missing_samples", False))
         self.view.max_gap.setValue(
@@ -495,22 +556,17 @@ class AnalysisController(QObject):
             settings.get("min_segment_seconds", DEFAULT_MIN_SECTION_SECONDS)
             or DEFAULT_MIN_SECTION_SECONDS
         )
+
+    def _restore_origin(self, settings: AnalysisSettings) -> None:
         origin = settings.get("plot_time_origin", {"mode": "automatic"})
         self.analysis._origin_override = origin.get("mode") != "automatic"
         if self.analysis._origin_override:
-            self.origin_edited()
+            self.file_defaults.mark_manual(["Time origin"], "Restored from saved run parameters.")
         if origin.get("mode") == "custom":
             self.view.clock_input.set_clock(origin["clock"])
             self.view.clock_input.setText(origin["clock"]["origin"])
         elif origin.get("mode") == "elapsed":
             self.view.clock_input.clear()
-        else:
-            self.update_origin_default()
-        self.preparation_changed()
-        self.callbacks.navigate(1)
-        self.view.status.setText(
-            "Run parameters restored. Check the selected input before running."
-        )
 
     def _restore_signal_columns(self, settings: AnalysisSettings) -> None:
         mapping = settings.get("column_mapping")

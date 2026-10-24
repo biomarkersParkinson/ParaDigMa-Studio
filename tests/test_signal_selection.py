@@ -179,7 +179,7 @@ def test_official_pipeline_receives_only_selected_signals_without_studio_setting
 
 @pytest.mark.parametrize("split_by_gaps", [False, True])
 def test_saved_selections_restore_atomically_and_keep_not_included(
-    window, tmp_path, synthetic_imu, split_by_gaps
+    window, tmp_path, synthetic_imu, split_by_gaps, monkeypatch
 ):
     frame = synthetic_imu.assign(device_clock=synthetic_imu.time, device_gyro=2.0, green=np.nan)
     window.loaded(("sensor.csv", frame))
@@ -204,9 +204,20 @@ def test_saved_selections_restore_atomically_and_keep_not_included(
     window.mapping.auto_match()
     window.gaps.setChecked(not split_by_gaps)
     changes = QSignalSpy(window.mapping.changed)
+    notifications = []
+    sync = window._data_controller.sync_analysis_settings
+
+    def observe_sync(unit, mapping_changed):
+        assert window.mapping.signal_columns() == settings["signal_columns"]
+        assert window.gaps.isChecked() == split_by_gaps
+        notifications.append((unit, mapping_changed))
+        sync(unit, mapping_changed)
+
+    monkeypatch.setattr(window._data_controller, "sync_analysis_settings", observe_sync)
     window._run_state.selected_run = record
     window.use_run_parameters()
-    assert changes.count() == 1
+    assert changes.count() == 0  # Widget signals stay blocked throughout restoration.
+    assert notifications == [(None, True)]
     assert window.mapping.signal_columns() == settings["signal_columns"]
     assert window.mapping._combos["green"].currentText() == "Not included"
     restored = window._analysis_controller._analysis_settings(["tremor"])

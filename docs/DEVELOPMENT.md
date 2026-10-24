@@ -236,8 +236,9 @@ existing source-to-target dictionary, including additional legacy entries.
 New run settings also store `signal_columns`, the complete canonical-signal to
 source-column dictionary, with `null` for unassigned signals. These selections are
 authoritative for preparation, validation and clock previews: unselected canonical
-signal columns cannot supply fallback inputs. Selection metadata is restored in
-the editor's existing single-change update and is not forwarded to ParaDigMa.
+signal columns cannot supply fallback inputs. Selection metadata is restored
+with the rest of the Analyze settings under one signal guard and is not
+forwarded to ParaDigMa. Normal editor changes still emit one `changed` signal.
 Older runs and direct API calls without `signal_columns` retain literal renaming
 semantics. Original frames remain available for raw-data inspection.
 `axis_inversions` stores inverted canonical IMU target channels separately. The
@@ -258,6 +259,32 @@ conventions. New GUI settings do not contain `skip_preparation`. The Python API
 retains that option for explicit callers and stored-result interpretation.
 After Studio prepares inputs, its internal call to the official orchestrator
 still sets `skip_preparation=True` to prevent a second preparation pass.
+
+Analyze separates file defaults, derived control state and origin-preview requests.
+Its event handlers call the relevant operations directly:
+
+| Event | Updates |
+| --- | --- |
+| Module selection | Required signals, watch-side relevance, run action and origin preview |
+| Column selection or Signal columns Default | File unit defaults, sensor-unit availability, origin preview and Data plots |
+| Time-unit edit or Time units Default | Origin preview; Data's time format changes only when the unit value changes |
+| Acceleration/gyroscope unit edit or Default | Manual/file provenance; the input clock is unchanged |
+| Gap-splitting switch | Availability of gap and minimum-section fields |
+| Missing-sample policy | Origin preview |
+| Input reset, saved parameters or job completion | One complete `AnalysisController.refresh` |
+
+Input resets and saved-parameter restoration share a guarded settings operation.
+It cancels superseded origin requests and blocks widget signals while modules,
+units, mappings, policies and origins are installed. Named restoration helpers
+apply each group; the controller refreshes once after the guard ends. Pending
+preview results still follow the existing generation/key and manual-origin rules.
+
+`AnalysisCallbacks.sync_input` synchronizes the Data page after final settings are
+available. A changed Analyze time unit updates Data's format; an unchanged unit
+preserves Data's independent inspection format. A mapping change refreshes the
+plots once, including when the time format also changes. File-default application
+uses its own guard so automatic unit selections cannot become manual edits or
+start intermediate origin previews.
 
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`

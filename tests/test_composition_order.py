@@ -191,8 +191,7 @@ def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_contro
             assert window.open_button.isEnabled() and window.settings_panel.isEnabled()
             events.append(name)
 
-        monkeypatch.setattr(window, "modules_changed", lambda: restored("modules"))
-        monkeypatch.setattr(window, "preparation_changed", lambda: restored("preparation"))
+        monkeypatch.setattr(window._analysis_controller, "refresh", lambda: restored("refresh"))
         monkeypatch.setattr(window, "update_run_actions", lambda: events.append("run actions"))
         if outcome == "completed":
             worker.completed.emit("output")
@@ -204,7 +203,7 @@ def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_contro
             worker.cancelled.emit()
             terminal = "cancelled"
         worker.finished.emit()
-        assert events == [terminal, "modules", "preparation", "delete worker", "run actions"]
+        assert events == [terminal, "refresh", "delete worker", "run actions"]
         assert window._job_state.worker is None and window._job_state._analysis_stop is None
         assert not window.stop_button.isEnabled() and window.progress.isHidden()
     finally:
@@ -229,13 +228,13 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
     application = QApplication.instance() or QApplication([])
     events = []
     names = (
-        "preparation_changed",
+        "mapping_changed",
         "update_time_statistics",
         "input_plot_changed",
         "update_origin_default",
     )
     owners = {
-        "preparation_changed": desktop.AnalysisController,
+        "mapping_changed": desktop.AnalysisController,
         "update_time_statistics": desktop.DataController,
         "input_plot_changed": desktop.DataController,
         "update_origin_default": desktop.AnalysisController,
@@ -258,7 +257,7 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
         assert events == ["update_time_statistics", "input_plot_changed"]
         events.clear()
         window.mapping.set_mapping({"time": "time"})
-        assert events == ["update_origin_default", "input_plot_changed"]
+        assert events == ["mapping_changed", "update_origin_default", "input_plot_changed"]
     finally:
         window.close()
         application.processEvents()

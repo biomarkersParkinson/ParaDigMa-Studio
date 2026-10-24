@@ -1,5 +1,5 @@
 {
-  "max_lines": 166,
+  "max_lines": 165,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
@@ -84,7 +84,6 @@
     "plot_toolbar",
     "populate_input_channels",
     "populate_sensor_channels",
-    "preparation_changed",
     "progress",
     "record_output",
     "recording_time_label",

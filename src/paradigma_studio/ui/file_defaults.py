@@ -27,11 +27,11 @@ class FileDefaults:
         buttons: dict[str, QPushButton],
         help_fields: dict[str, tuple[QPushButton, QLabel]],
         notice: QLabel,
-        changed: Callable[[], None],
+        restored: Callable[[str, bool], None],
     ) -> None:
         self.controls, self.badges, self.notice = controls, badges, notice
         self.buttons = buttons
-        self.changed = changed
+        self.restored = restored
         self.applying = False
         self.manual: dict[str, str] = {}
         self.detected: dict[str, UnitDefault] = {}
@@ -105,6 +105,8 @@ class FileDefaults:
         detected = self.detected.get(title)
         if detected is None or detected.value is None:
             return
+        control = self.controls[title]
+        previous = control.currentData() or control.currentText()
         self.manual.pop(title, None)
         self.applying = True
         try:
@@ -112,7 +114,8 @@ class FileDefaults:
         finally:
             self.applying = False
         self.render()
-        self.changed()
+        changed = (control.currentData() or control.currentText()) != previous
+        self.restored(title, changed)
 
     def _set_value(self, title: str, value: str) -> None:
         control = self.controls[title]

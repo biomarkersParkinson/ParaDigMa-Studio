@@ -94,7 +94,6 @@ class DataView:
 @dataclass(frozen=True)
 class DataCallbacks:
     append_log: Callable[[str], None]
-    modules_changed: Callable[[], None]
     navigate: Callable[[int], None]
     reset_analysis: Callable[[], None]
     show_notice: NoticeCallback
@@ -196,7 +195,6 @@ class DataController(QObject):
         self.state._input_descriptions = descriptions
         self.inspect_input_recording(new_selection=True)
         self.callbacks.reset_analysis()
-        self.callbacks.modules_changed()
         self.view.status.setText(f"{len(recordings)} recordings loaded for one subject.")
 
     def inspect_input_recording(self, *_: object, new_selection: bool = False) -> None:
@@ -236,7 +234,6 @@ class DataController(QObject):
         )
         self.display_input_recording(description, new_selection=True)
         self.callbacks.reset_analysis()
-        self.callbacks.modules_changed()
         self.callbacks.show_notice("")
         self.callbacks.navigate(0)
         if self.inputs.frame.attrs.get("source_format") == "empatica" and not any(
@@ -318,6 +315,13 @@ class DataController(QObject):
     def data_tab_changed(self, index: int) -> None:
         if index == 1 and self.state._data_plot_dirty:
             self.plot_input()
+
+    def sync_analysis_settings(self, time_unit: str | None, mapping_changed: bool) -> None:
+        """Refresh inspection once after Analyze has installed its complete settings."""
+        if time_unit is not None and time_unit != self.view.data_time_unit.currentText():
+            self.view.data_time_unit.setCurrentText(time_unit)
+        elif mapping_changed:
+            self.input_plot_changed()
 
     def update_time_unit_control(self) -> None:
         import pandas as pd
