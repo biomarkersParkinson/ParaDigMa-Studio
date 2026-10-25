@@ -8,25 +8,29 @@ separately. [Evidence](docs/security-review.json) records scope and limitations;
 this is not a security certification. The dependency update below is a separate,
 later check; the broad review and its historical test counts remain dated above.
 
-## Dependency reproducibility — 25 October 2026
+## Dependency reproducibility — 26 October 2026
 
 The owner's latest Windows Actions reports identify commit `04b61d4`, Python
 3.12.10 and no blocking audit findings. They already contain Pillow 13.0.0 and
 updated certifi, filelock and setuptools. Advisories observed in an older Linux
 review environment did not establish the same findings in this Windows build.
 
-Official build jobs now install [committed dependency locks](requirements/README.md)
-in a clean virtual environment. Registry packages and isolated build dependencies
-require SHA-256 hashes; the patched Open Movement source is bound to its full Git
-commit. Verification rejects stale lock inputs, missing/extra packages, version
-drift and a substituted reader source. The latest Windows numerical versions are
-preserved; a supplemental Linux lock supports source validation.
+Official build jobs install one [native uv lock](docs/DEPENDENCIES.md) in a clean
+virtual environment, using the commit-pinned standard setup action and uv 0.13.5.
+Registry artifacts are verified against native lock hashes; isolated builds
+require hashed constraints. The patched Open Movement source is bound to its
+full Git commit. Native lock/sync/check commands reject stale inputs and
+environment drift. The reviewed scientific versions are preserved for Windows
+and the supplemental Linux target, without a custom requirements parser or
+split installer.
 
 Manifest generation and publication require an audit of the same package/version
-set and carry the lock evidence into the download. The fresh locked Linux
-environment's 99-package audit has no blockers beyond the existing documented
-PyArrow exception. The Windows workflow separately validates its target lock and
-packaged executable. No new advisory exceptions were introduced.
+set and carry the native lock evidence into the download. The fresh native Linux
+environment has 98 third-party packages plus Studio; uv now runs separately as
+the pinned installer. Its audit has no blockers beyond the existing documented
+PyArrow exception. The adapter retains raw findings and rejects incomplete or
+mismatched evidence. The Windows workflow separately validates its selected
+graph and packaged executable. No new advisory exceptions were introduced.
 
 ## Verification
 

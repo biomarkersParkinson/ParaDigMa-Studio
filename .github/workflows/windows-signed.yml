@@ -20,13 +20,19 @@ jobs:
         run: python scripts/check_module_size.py
       - name: Check shrinking workspace facade
         run: python scripts/check_workspace_facade.py
-      - name: Create isolated build environment
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.5'
+      - name: Install the native uv lock in an isolated environment
         run: |
-          python -m venv .venv
+          uv lock --check
+          uv sync --locked --all-groups
           "$pwd\.venv\Scripts" >> $env:GITHUB_PATH
           "VIRTUAL_ENV=$pwd\.venv" >> $env:GITHUB_ENV
-      - name: Install and verify the committed Windows dependency lock
-        run: python scripts/sync_dependencies.py --report dependency-environment.json
+      - name: Verify the environment and retain its inventory
+        run: |
+          uv sync --locked --all-groups --check
+          uv pip list --format json > dependency-environment.json
       - run: python scripts/audit_dependencies.py dependency-audit.json
       - name: Save dependency verification reports
         if: always()

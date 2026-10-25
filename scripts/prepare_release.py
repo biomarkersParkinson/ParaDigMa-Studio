@@ -10,9 +10,11 @@ import zipfile
 from pathlib import Path
 
 if __package__:
-    from .dependency_lock import canonical, read_lock, verify_audit_environment, verify_locks
+    from .audit_dependencies import verify_audit_environment
+    from .dependency_evidence import locked_packages, verify_package_evidence
 else:
-    from dependency_lock import canonical, read_lock, verify_audit_environment, verify_locks
+    from audit_dependencies import verify_audit_environment
+    from dependency_evidence import locked_packages, verify_package_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_PATTERN = r"\d+\.\d+\.\d+(?:(a|b|rc)\d+)?"
@@ -67,37 +69,20 @@ def verify_bundle(bundle, version, source_commit, root=ROOT):
 
 
 def verify_dependency_evidence(bundle, info, audit, root):
-    verify_locks(root)
-    name = "requirements/windows-py312.lock"
-    expected = read_lock(root / name)
-    metadata = json.loads((root / "requirements/lock-metadata.json").read_text())
+    expected = locked_packages(root, "x86_64-pc-windows-msvc")
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     evidence = info.get("dependency_lock", {})
     if (
-        evidence.get("lock_file") != name
-        or evidence.get("lock_sha256") != metadata["locks"][name]
-        or evidence.get("inputs_sha256") != metadata["inputs_sha256"]
-        or info.get("python") != metadata["windows_python"]
+        evidence.get("lock_file") != "uv.lock"
+        or evidence.get("lock_sha256") != sha256(root / "uv.lock")
+        or "==" + evidence.get("uv_version", "") != project["tool"]["uv"]["required-version"]
+        or info.get("python") != (root / ".python-version").read_text().strip()
     ):
         raise ValueError("Release artifact does not match the tagged Windows dependency lock.")
-    for packaged, original in (
-        ("dependencies.lock", name),
-        ("build-dependencies.lock", "requirements/build.lock"),
-        ("dependency-lock.json", "requirements/lock-metadata.json"),
-    ):
-        if sha256(bundle / "security" / packaged) != sha256(root / original):
-            raise ValueError(f"Release dependency evidence differs from source: {packaged}")
-    packages = {canonical(name): version for name, version in info["packages"]}
-    if packages.keys() != expected.keys() | {"paradigma-studio"}:
-        raise ValueError("Release package inventory differs from the Windows dependency lock.")
-    revisions = {
-        canonical(name): commit for name, commit in info.get("package_vcs_revisions", {}).items()
-    }
-    for package, requirement in expected.items():
-        if "version" in requirement and packages[package] != requirement["version"]:
-            raise ValueError(f"Release package version differs from lock: {package}")
-        if "commit" in requirement and revisions.get(package) != requirement["commit"]:
-            raise ValueError(f"Release Git revision differs from lock: {package}")
-    verify_audit_environment(audit, [(name, packages[name]) for name in expected])
+    if sha256(bundle / "security/uv.lock") != sha256(root / "uv.lock"):
+        raise ValueError("Release dependency evidence differs from source: uv.lock")
+    verify_package_evidence(info["packages"], info.get("package_sources", {}), expected)
+    verify_audit_environment(audit, info["packages"])
 
 
 def verify_file_inventory(bundle):

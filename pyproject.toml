@@ -18,7 +18,7 @@ dependencies = [
     "openmovement @ git+https://github.com/digitalinteraction/openmovement-python.git@087ac7b5a80b866c400d8021b7a2716d247fc034",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest==9.1.1",
     "PyYAML==6.0.3",
@@ -28,6 +28,13 @@ dev = [
     "ruff==0.16.10",
     "mypy==2.4.0",
     "pandas-stubs==2.3.3.260113",
+    "pip==26.2.2",
+    "pip-audit==2.10.1",
+    "certifi==2026.10.23",
+    "filelock==4.2.4",
+    "setuptools==84.2.1",
+    "wheel==0.48.0",
+    "packaging==26.3",
 ]
 
 [project.gui-scripts]
@@ -38,6 +45,31 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 paradigma_studio = ["py.typed", "data/*", "data/notices/*"]
+
+
+[tool.uv]
+required-version = "==0.13.5"
+preview-features = ["build-dependency-hashes", "json-output"]
+# Reviewed environments; general package Python compatibility stays above.
+environments = [
+    "python_version == '3.12' and sys_platform == 'win32' and (platform_machine == 'AMD64' or platform_machine == 'x86_64')",
+    "python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+require-build-hashes = true
+# Preserve the reviewed numerical stack; upgrades require scientific validation.
+constraint-dependencies = [
+    "numpy==2.5.4",
+    "pandas==2.3.3",
+    "scipy==1.18.1",
+    "scikit-learn==1.6.0",
+    "pyarrow==22.0.0",
+]
+# Native uv records these isolated-build hashes in uv.lock.
+build-constraint-dependencies = [
+    { requirement = "packaging==26.3", hashes = ["sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"] },
+    { requirement = "setuptools==84.2.1", hashes = ["sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc", "sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2"] },
+    { requirement = "wheel==0.48.0", hashes = ["sha256:3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab", "sha256:94800765601e9171bf5d58d066e640662842bcedcbab982b2c90787a2c987322"] },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

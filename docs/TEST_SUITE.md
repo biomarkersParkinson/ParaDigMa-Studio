@@ -45,7 +45,7 @@ trigger and expected behavior still apply.
 | Run history, validated record/output metadata, transient-cache exclusion, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | Run identity and exact-byte checksums, rejected replacements/edits, isolated verification, unchanged displayed results on failure and snapshot/history consistency | `test_result_integrity.py`; export receipts in `test_saved_results.py` |
 | File protection, unsafe loading and dependency-audit checks | `test_security.py` |
-| Fully pinned/hash-checked installs, dependency-input freshness, exact package inventory, immutable reader source, audit/environment agreement and CI ordering | `test_dependency_lock.py`; packaged lock evidence in `test_release.py` |
+| Native uv freshness gates and target graphs, release package/source inventory, scoped exceptions, raw-finding and audit/environment agreement, CI ordering | `test_dependency_evidence.py`; packaged lock evidence in `test_release.py` |
 | Deferred startup imports, first-use graph construction, packaged execution, notices and signatures | `test_startup.py`, `test_smoke.py`, `test_packaging.py`, `test_acknowledgements.py`, `test_signing.py` |
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
 | Versioned history/results, rejection without migration, required fields and explicit export completeness | `test_saved_format.py` |

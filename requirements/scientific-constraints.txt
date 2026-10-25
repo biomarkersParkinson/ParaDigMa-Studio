@@ -1,7 +1,0 @@
-# Preserve the numerical stack from the current Windows Actions build reports.
-# Change deliberately and rerun independent scientific comparisons.
-numpy==2.5.4
-pandas==2.3.3
-scipy==1.18.1
-scikit-learn==1.6.0
-pyarrow==22.0.0

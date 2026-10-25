@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from scripts.dependency_lock import INPUTS, LOCKS, lock_metadata
 from scripts.prepare_release import (
     prepare_assets,
     release_notes,
@@ -20,6 +19,22 @@ COMMIT = "a" * 40
 VERSION = "0.6.0a1"
 
 
+@pytest.fixture(autouse=True)
+def native_graph(monkeypatch):
+    # Artifact tests isolate release policy; uv's real graph is exercised by
+    # dependency-evidence integration checks and the build workflow.
+    def expected(root, platform):
+        import tomllib
+
+        version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+        return {
+            "paradigma-studio": {"version": version, "source": {"editable": "."}},
+            "paradigma": {"version": "1.1.2", "source": {"registry": "PyPI"}},
+        }
+
+    monkeypatch.setattr("scripts.prepare_release.locked_packages", expected)
+
+
 def metadata_root(tmp_path, version=VERSION):
     root = tmp_path / "source"
     root.mkdir(exist_ok=True)
@@ -27,15 +42,11 @@ def metadata_root(tmp_path, version=VERSION):
         f'[build-system]\nrequires = ["setuptools>=77"]\nbuild-backend = "setuptools.build_meta"\n'
         f'[project]\nname = "paradigma-studio"\nversion = "{version}"\n'
         'requires-python = ">=3.11,<3.14"\ndependencies = ["paradigma==1.1.2"]\n'
-        "[project.optional-dependencies]\ndev = []\n"
+        "[dependency-groups]\ndev = []\n"
+        '[tool.uv]\nrequired-version = "==0.13.5"\n'
     )
-    for name in INPUTS:
-        path = root / name
-        path.parent.mkdir(exist_ok=True)
-        path.write_text("# Test input\n")
-    for name in LOCKS:
-        (root / name).write_text("paradigma==1.1.2 --hash=sha256:" + "c" * 64 + "\n")
-    (root / "requirements/lock-metadata.json").write_text(json.dumps(lock_metadata(root)))
+    (root / "uv.lock").write_text("version = 1\n# Native lock evidence\n")
+    (root / ".python-version").write_text("3.12.10\n")
     (root / "CHANGELOG.md").write_text(
         f"# Changelog\n\n## {version} — 2026-10-13\n\nPreview notes.\n\n## 0.1.0 — 2025-01-01\n\nOld notes.\n",
         encoding="utf-8",
@@ -45,7 +56,6 @@ def metadata_root(tmp_path, version=VERSION):
 
 def windows_bundle(tmp_path):
     root = metadata_root(tmp_path)
-    metadata = lock_metadata(root)
     bundle = tmp_path / "bundle"
     libraries = bundle / "_internal" / "sklearn" / ".libs"
     libraries.mkdir(parents=True)
@@ -59,27 +69,23 @@ def windows_bundle(tmp_path):
             {
                 "source_commit": COMMIT,
                 "platform": "Windows-10",
-                "python": metadata["windows_python"],
+                "python": "3.12.10",
                 "packages": [["paradigma-studio", VERSION], ["paradigma", "1.1.2"]],
                 "dependency_lock": {
-                    "lock_file": "requirements/windows-py312.lock",
-                    "lock_sha256": metadata["locks"]["requirements/windows-py312.lock"],
-                    "inputs_sha256": metadata["inputs_sha256"],
+                    "lock_file": "uv.lock",
+                    "lock_sha256": sha256(root / "uv.lock"),
+                    "uv_version": "0.13.5",
                 },
             }
         )
     )
-    for packaged, source in (
-        ("dependencies.lock", "windows-py312.lock"),
-        ("build-dependencies.lock", "build.lock"),
-        ("dependency-lock.json", "lock-metadata.json"),
-    ):
-        shutil.copyfile(root / "requirements" / source, security / packaged)
+    shutil.copyfile(root / "uv.lock", security / "uv.lock")
     (security / "dependency-audit.json").write_text(
         json.dumps(
             {
                 "dependencies": [{"name": "paradigma", "version": "1.1.2", "vulns": []}],
                 "blocking_findings": [],
+                "reviewed_exceptions": [],
             }
         )
     )
@@ -141,7 +147,6 @@ def test_release_zip_contains_complete_bundle_hidden_libraries_and_independent_c
         "extra",
         "missing",
         "lock",
-        "lock-metadata",
         "package-version",
         "audit-environment",
     ],
@@ -165,9 +170,8 @@ def test_publication_rejects_wrong_or_modified_build_artifacts(tmp_path, change)
             '{"dependencies": [], "blocking_findings": []}'
         )
         update_manifest(bundle)
-    elif change in ("lock", "lock-metadata"):
-        filename = "dependencies.lock" if change == "lock" else "dependency-lock.json"
-        (bundle / "security" / filename).write_text("changed")
+    elif change == "lock":
+        (bundle / "security/uv.lock").write_text("changed")
         update_manifest(bundle)
     elif change == "package-version":
         path = bundle / "security/build-info.json"
@@ -188,6 +192,19 @@ def test_publication_rejects_wrong_or_modified_build_artifacts(tmp_path, change)
     else:
         (bundle / "LICENSE-studio.txt").unlink()
     with pytest.raises(ValueError):
+        prepare_assets("v" + VERSION, COMMIT, bundle, tmp_path / "assets", root)
+
+
+@pytest.mark.parametrize("field", ["lock_sha256", "uv_version"])
+def test_publication_rejects_wrong_lock_or_installer_identity(tmp_path, field):
+    root = metadata_root(tmp_path)
+    bundle = windows_bundle(tmp_path)
+    path = bundle / "security/build-info.json"
+    values = json.loads(path.read_text())
+    values["dependency_lock"][field] = "0" * 64
+    path.write_text(json.dumps(values))
+    update_manifest(bundle)
+    with pytest.raises(ValueError, match="dependency lock"):
         prepare_assets("v" + VERSION, COMMIT, bundle, tmp_path / "assets", root)
 
 

@@ -26,13 +26,19 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/prepare_release.py version --tag "$env:RELEASE_TAG"
-      - name: Create isolated build environment
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.5'
+      - name: Install the native uv lock in an isolated environment
         run: |
-          python -m venv .venv
+          uv lock --check
+          uv sync --locked --all-groups
           "$pwd\.venv\Scripts" >> $env:GITHUB_PATH
           "VIRTUAL_ENV=$pwd\.venv" >> $env:GITHUB_ENV
-      - name: Install and verify the committed Windows dependency lock
-        run: python scripts/sync_dependencies.py --report dependency-environment.json
+      - name: Verify the environment and retain its inventory
+        run: |
+          uv sync --locked --all-groups --check
+          uv pip list --format json > dependency-environment.json
       - name: Audit installed dependencies
         run: python scripts/audit_dependencies.py dependency-audit.json
       - name: Save dependency verification reports
@@ -139,6 +145,9 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.5'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ParaDigMaStudio-Windows

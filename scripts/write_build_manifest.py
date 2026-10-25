@@ -10,18 +10,24 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 if __package__:
-    from .dependency_lock import verify_audit_environment, verify_environment
+    from .audit_dependencies import verify_audit_environment
+    from .dependency_evidence import canonical
 else:
-    from dependency_lock import verify_audit_environment, verify_environment
+    from audit_dependencies import verify_audit_environment
+    from dependency_evidence import canonical
 
 
 def main(bundle, audit_report):
     bundle = Path(bundle).resolve()
     root = Path(__file__).resolve().parents[1]
-    environment = verify_environment(root)
-    verify_audit_environment(
-        json.loads(Path(audit_report).read_text(encoding="utf-8")), environment["packages"]
+    subprocess.run(["uv", "sync", "--locked", "--all-groups", "--check"], cwd=root, check=True)
+    inventory = json.loads(
+        subprocess.check_output(
+            ["uv", "pip", "list", "--python", sys.executable, "--format", "json"], encoding="utf-8"
+        )
     )
+    packages = sorted((package["name"], package["version"]) for package in inventory)
+    verify_audit_environment(json.loads(Path(audit_report).read_text(encoding="utf-8")), packages)
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
     ).stdout.strip()
@@ -29,11 +35,15 @@ def main(bundle, audit_report):
         "source_commit": commit,
         "python": platform.python_version(),
         "platform": platform.platform(),
-        "packages": sorted({d.metadata["Name"]: d.version for d in distributions()}.items()),
+        "packages": packages,
         # Source builds can keep the same package version as an older PyPI
         # release. Record their commit, without copying URLs or local paths.
-        "package_vcs_revisions": {},
-        "dependency_lock": {key: value for key, value in environment.items() if key != "packages"},
+        "package_sources": {},
+        "dependency_lock": {
+            "lock_file": "uv.lock",
+            "lock_sha256": hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest(),
+            "uv_version": subprocess.check_output(["uv", "--version"], encoding="utf-8").split()[1],
+        },
         "notice": "Hashes detect changes; they are not a digital signature or a security guarantee.",
     }
     for package in distributions():
@@ -41,13 +51,14 @@ def main(bundle, audit_report):
         if direct_url:
             revision = json.loads(direct_url).get("vcs_info", {}).get("commit_id")
             if revision:
-                metadata["package_vcs_revisions"][package.metadata["Name"]] = revision
+                metadata["package_sources"][canonical(package.metadata["Name"])] = {
+                    "url": json.loads(direct_url)["url"],
+                    "commit": revision,
+                }
     security = bundle / "security"
     security.mkdir(exist_ok=True)
     shutil.copyfile(audit_report, security / "dependency-audit.json")
-    shutil.copyfile(root / environment["lock_file"], security / "dependencies.lock")
-    shutil.copyfile(root / "requirements/build.lock", security / "build-dependencies.lock")
-    shutil.copyfile(root / "requirements/lock-metadata.json", security / "dependency-lock.json")
+    shutil.copyfile(root / "uv.lock", security / "uv.lock")
     (security / "build-info.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     lines = []
     for path in sorted(bundle.rglob("*")):

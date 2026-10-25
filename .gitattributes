@@ -1,2 +1,2 @@
-# Lock digests must remain identical in Linux and Windows checkouts.
-requirements/* text eol=lf
+uv.lock text eol=lf
+.python-version text eol=lf

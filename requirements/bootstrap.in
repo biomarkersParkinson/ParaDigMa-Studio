@@ -1,2 +1,0 @@
-# Compiler/installer used to generate and consume the committed locks.
-uv==0.13.5

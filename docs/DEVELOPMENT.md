@@ -1,9 +1,9 @@
 # Development and building
 
-Use 64-bit Python 3.12 and Git. Windows build jobs pin Python 3.12.10 and use a
+Use uv 0.13.5, 64-bit Python 3.12 and Git. Windows build jobs pin Python 3.12.10 and use a
 complete dependency lock, including official ParaDigMa 1.1.2 and the Open Movement
 reader revision compatible with NumPy 2 CWA timestamps. See the
-[dependency policy and update procedure](../requirements/README.md).
+[dependency policy and update procedure](DEPENDENCIES.md).
 
 The Python distribution and launcher are `paradigma-studio`; the importable
 package and its `_internal` folder are `paradigma_studio`. User data goes to
@@ -23,8 +23,7 @@ Clone the repository and run these commands in PowerShell:
 ```powershell
 git clone https://github.com/biomarkersParkinson/ParaDigMa-Studio.git
 cd ParaDigMa-Studio
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe scripts/sync_dependencies.py
+uv sync --locked --all-groups
 .\.venv\Scripts\python.exe desktop.py
 ```
 
@@ -37,7 +36,8 @@ still check or block native dependencies. See [signing](../SIGNING.md) and
 Build on Windows; a Linux build does not generate a Windows executable.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/sync_dependencies.py --check --report dependency-environment.json
+uv sync --locked --all-groups --check
+uv pip list --format json > dependency-environment.json
 .\.venv\Scripts\python.exe scripts/check_module_size.py
 .\.venv\Scripts\python.exe scripts/check_workspace_facade.py
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
@@ -167,8 +167,7 @@ do not replace a publisher signature.
 ## Run development checks on Linux
 
 ```bash
-python -m venv .venv
-.venv/bin/python scripts/sync_dependencies.py
+uv sync --locked --all-groups
 .venv/bin/python scripts/check_module_size.py
 .venv/bin/python scripts/check_workspace_facade.py
 .venv/bin/python -m ruff check src scripts tests desktop.py

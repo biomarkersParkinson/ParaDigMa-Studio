@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Replace the custom dependency compiler, parser, input stamps and split
+  installation with one native `uv.lock` and standard lock/sync/check commands.
+  Preserve the reviewed scientific versions, patched reader commit and hashed
+  isolated builds. Let pip-audit collect the environment; retain the scoped
+  exception and artifact/audit/source verification. An unchanged sync now keeps
+  Studio and Open Movement installed.
+
 - Record Studio and official ParaDigMa versions when each run starts, plus the
   Studio build commit when available. Preserve that identity in saved results,
   JSON/ZIP exports and companion metadata for single-table/selected-row CSVs.

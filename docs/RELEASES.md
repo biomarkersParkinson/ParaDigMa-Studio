@@ -5,8 +5,9 @@ Public versions use Python-compatible version numbers and matching Git tags:
 versions are published as GitHub prereleases; ordinary versions are stable releases.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
-2. Install the [reviewed dependency lock](../requirements/README.md) in a clean
-   environment; verify it with `python scripts/sync_dependencies.py --check` and
+   Run `uv lock` to refresh the root project version while retaining dependency pins.
+2. Install the [reviewed dependency lock](DEPENDENCIES.md) in a clean
+   environment; verify it with `uv sync --locked --all-groups --check` and
    run the dependency audit. Run the [development checks](DEVELOPMENT.md):
    module-size, Ruff/format, mypy and the full suite with branch coverage and its
    configured floor. The tagged workflow also verifies the packaged executable.
