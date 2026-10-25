@@ -9,6 +9,11 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+if __package__:
+    from .dependency_lock import canonical, read_lock, verify_audit_environment, verify_locks
+else:
+    from dependency_lock import canonical, read_lock, verify_audit_environment, verify_locks
+
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_PATTERN = r"\d+\.\d+\.\d+(?:(a|b|rc)\d+)?"
 
@@ -37,7 +42,7 @@ def sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def verify_bundle(bundle, version, source_commit):
+def verify_bundle(bundle, version, source_commit, root=ROOT):
     bundle = Path(bundle).resolve()
     with (bundle / "ParaDigMaStudio.exe").open("rb") as stream:
         if stream.read(2) != b"MZ":
@@ -57,7 +62,42 @@ def verify_bundle(bundle, version, source_commit):
     audit = json.loads((bundle / "security" / "dependency-audit.json").read_text(encoding="utf-8"))
     if not audit.get("dependencies") or audit.get("blocking_findings") != []:
         raise ValueError("Release artifact lacks a passing dependency audit.")
+    verify_dependency_evidence(bundle, info, audit, root)
     return verify_file_inventory(bundle)
+
+
+def verify_dependency_evidence(bundle, info, audit, root):
+    verify_locks(root)
+    name = "requirements/windows-py312.lock"
+    expected = read_lock(root / name)
+    metadata = json.loads((root / "requirements/lock-metadata.json").read_text())
+    evidence = info.get("dependency_lock", {})
+    if (
+        evidence.get("lock_file") != name
+        or evidence.get("lock_sha256") != metadata["locks"][name]
+        or evidence.get("inputs_sha256") != metadata["inputs_sha256"]
+        or info.get("python") != metadata["windows_python"]
+    ):
+        raise ValueError("Release artifact does not match the tagged Windows dependency lock.")
+    for packaged, original in (
+        ("dependencies.lock", name),
+        ("build-dependencies.lock", "requirements/build.lock"),
+        ("dependency-lock.json", "requirements/lock-metadata.json"),
+    ):
+        if sha256(bundle / "security" / packaged) != sha256(root / original):
+            raise ValueError(f"Release dependency evidence differs from source: {packaged}")
+    packages = {canonical(name): version for name, version in info["packages"]}
+    if packages.keys() != expected.keys() | {"paradigma-studio"}:
+        raise ValueError("Release package inventory differs from the Windows dependency lock.")
+    revisions = {
+        canonical(name): commit for name, commit in info.get("package_vcs_revisions", {}).items()
+    }
+    for package, requirement in expected.items():
+        if "version" in requirement and packages[package] != requirement["version"]:
+            raise ValueError(f"Release package version differs from lock: {package}")
+        if "commit" in requirement and revisions.get(package) != requirement["commit"]:
+            raise ValueError(f"Release Git revision differs from lock: {package}")
+    verify_audit_environment(audit, [(name, packages[name]) for name in expected])
 
 
 def verify_file_inventory(bundle):
@@ -98,7 +138,7 @@ def write_archive(bundle, entries, destination):
 def prepare_assets(tag, source_commit, bundle, output_dir, root=ROOT):
     version, prerelease = release_version(tag, root)
     bundle = Path(bundle).resolve()
-    entries = verify_bundle(bundle, version, source_commit)
+    entries = verify_bundle(bundle, version, source_commit, root)
     output_dir = Path(output_dir).resolve()
     if output_dir == bundle or bundle in output_dir.parents:
         raise ValueError("Release assets must be written outside the application bundle.")

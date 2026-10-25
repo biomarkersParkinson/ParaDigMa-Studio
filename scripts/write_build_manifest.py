@@ -9,10 +9,19 @@ import sys
 from importlib.metadata import distributions
 from pathlib import Path
 
+if __package__:
+    from .dependency_lock import verify_audit_environment, verify_environment
+else:
+    from dependency_lock import verify_audit_environment, verify_environment
+
 
 def main(bundle, audit_report):
     bundle = Path(bundle).resolve()
     root = Path(__file__).resolve().parents[1]
+    environment = verify_environment(root)
+    verify_audit_environment(
+        json.loads(Path(audit_report).read_text(encoding="utf-8")), environment["packages"]
+    )
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
     ).stdout.strip()
@@ -24,6 +33,7 @@ def main(bundle, audit_report):
         # Source builds can keep the same package version as an older PyPI
         # release. Record their commit, without copying URLs or local paths.
         "package_vcs_revisions": {},
+        "dependency_lock": {key: value for key, value in environment.items() if key != "packages"},
         "notice": "Hashes detect changes; they are not a digital signature or a security guarantee.",
     }
     for package in distributions():
@@ -35,6 +45,9 @@ def main(bundle, audit_report):
     security = bundle / "security"
     security.mkdir(exist_ok=True)
     shutil.copyfile(audit_report, security / "dependency-audit.json")
+    shutil.copyfile(root / environment["lock_file"], security / "dependencies.lock")
+    shutil.copyfile(root / "requirements/build.lock", security / "build-dependencies.lock")
+    shutil.copyfile(root / "requirements/lock-metadata.json", security / "dependency-lock.json")
     (security / "build-info.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     lines = []
     for path in sorted(bundle.rglob("*")):

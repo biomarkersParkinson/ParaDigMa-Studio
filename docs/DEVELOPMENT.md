@@ -1,8 +1,9 @@
 # Development and building
 
-Use 64-bit Python 3.12 and Git, matching the Windows workflows. Dependencies pin
-official ParaDigMa 1.1.2 and an official Open Movement reader revision compatible
-with NumPy 2 CWA timestamps.
+Use 64-bit Python 3.12 and Git. Windows build jobs pin Python 3.12.10 and use a
+complete dependency lock, including official ParaDigMa 1.1.2 and the Open Movement
+reader revision compatible with NumPy 2 CWA timestamps. See the
+[dependency policy and update procedure](../requirements/README.md).
 
 The Python distribution and launcher are `paradigma-studio`; the importable
 package and its `_internal` folder are `paradigma_studio`. User data goes to
@@ -17,8 +18,7 @@ Clone the repository and run these commands in PowerShell:
 git clone https://github.com/biomarkersParkinson/ParaDigMa-Studio.git
 cd ParaDigMa-Studio
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2,<27"
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe scripts/sync_dependencies.py
 .\.venv\Scripts\python.exe desktop.py
 ```
 
@@ -31,6 +31,7 @@ still check or block native dependencies. See [signing](../SIGNING.md) and
 Build on Windows; a Linux build does not generate a Windows executable.
 
 ```powershell
+.\.venv\Scripts\python.exe scripts/sync_dependencies.py --check --report dependency-environment.json
 .\.venv\Scripts\python.exe scripts/check_module_size.py
 .\.venv\Scripts\python.exe scripts/check_workspace_facade.py
 .\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
@@ -49,8 +50,10 @@ scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
 The build also places Studio's Apache 2.0 licence and the ParaDigMa
 acknowledgement, licence and citation files
 beside the executable; keep these with any redistributed bundle.
-CI additionally generates the dependency audit, source/package provenance and
-checksums; `build_desktop.py` alone does not create those security reports.
+CI additionally generates the dependency audit, source/package provenance,
+lock evidence and checksums; `build_desktop.py` alone does not create those
+reports. The manifest writer rejects environment drift and audit reports from a
+different package/version set.
 
 Builds recreate only `dist/ParaDigMaStudio` and `build/desktop` from scratch.
 Python modules are packaged in the executable, without duplicate loose `.py`
@@ -159,8 +162,7 @@ do not replace a publisher signature.
 
 ```bash
 python -m venv .venv
-.venv/bin/python -m pip install --upgrade 'pip>=26.2,<27'
-.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python scripts/sync_dependencies.py
 .venv/bin/python scripts/check_module_size.py
 .venv/bin/python scripts/check_workspace_facade.py
 .venv/bin/python -m ruff check src scripts tests desktop.py

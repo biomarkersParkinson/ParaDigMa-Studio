@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "compiler": "uv 0.13.5",
+  "python": "3.12",
+  "windows_python": "3.12.10",
+  "targets": {
+    "windows-py312.lock": "x86_64-pc-windows-msvc",
+    "linux-py312.lock": "x86_64-manylinux_2_34"
+  },
+  "inputs_sha256": "5f8db872c75e99df599087827c72146dfad1e26ece75b36d99ea2a4da18320d6",
+  "locks": {
+    "requirements/bootstrap.lock": "7d890b06e950a4e1e60f3aee448d024899d39fe340b35c5dca28ce936d50137c",
+    "requirements/build.lock": "d559b83cb1fbbcf050e2c0fe0678ed5c6b4193fba15ed6f208c4c17e24ef0023",
+    "requirements/windows-py312.lock": "21fdd8ed15a23e31fa7fdfe540c760b9617f4b4048f849368407ec49729c9526",
+    "requirements/linux-py312.lock": "7c964ca9acc0a0b299142f9f4f73f3630da179c28c152f8c1f4af93f5f076fab"
+  }
+}

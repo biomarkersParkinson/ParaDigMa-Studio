@@ -1,0 +1,7 @@
+-r bootstrap.in
+-r build.in
+pip==26.2.2
+pip-audit==2.10.1
+# Preserve the clean current Windows build's security-tool dependencies.
+certifi==2026.10.23
+filelock==4.2.4

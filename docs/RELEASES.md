@@ -5,7 +5,9 @@ Public versions use Python-compatible version numbers and matching Git tags:
 versions are published as GitHub prereleases; ordinary versions are stable releases.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
-2. Run the [development checks](DEVELOPMENT.md):
+2. Install the [reviewed dependency lock](../requirements/README.md) in a clean
+   environment; verify it with `python scripts/sync_dependencies.py --check` and
+   run the dependency audit. Run the [development checks](DEVELOPMENT.md):
    module-size, Ruff/format, mypy and the full suite with branch coverage and its
    configured floor. The tagged workflow also verifies the packaged executable.
 3. Merge the preparation into `main`; create an annotated `v<version>` tag on that
@@ -13,7 +15,8 @@ versions are published as GitHub prereleases; ordinary versions are stable relea
 4. The tagged **Windows desktop** workflow audits dependencies, runs tests, builds
    and launches the executable, checks the bundle, and records provenance/checksums.
 5. Its release job downloads that run's Windows artifact, verifies its source
-   commit, version, file inventory and hashes, and packages the complete portable folder.
+   commit, version, locked dependency versions, matching audit, file inventory
+   and hashes, and packages the complete portable folder.
    It uploads the ZIP and ZIP checksum to a draft, verifies the uploaded asset
    digests, then publishes. A failed build or verification leaves the release unpublished.
 

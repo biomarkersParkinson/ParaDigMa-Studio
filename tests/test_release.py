@@ -1,11 +1,13 @@
 """Release artifacts retain all runtime files and match the tagged, audited build."""
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
 import pytest
 
+from scripts.dependency_lock import INPUTS, LOCKS, lock_metadata
 from scripts.prepare_release import (
     prepare_assets,
     release_notes,
@@ -20,8 +22,20 @@ VERSION = "0.6.0a1"
 
 def metadata_root(tmp_path, version=VERSION):
     root = tmp_path / "source"
-    root.mkdir()
-    (root / "pyproject.toml").write_text(f'[project]\nversion = "{version}"\n')
+    root.mkdir(exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        f'[build-system]\nrequires = ["setuptools>=77"]\nbuild-backend = "setuptools.build_meta"\n'
+        f'[project]\nname = "paradigma-studio"\nversion = "{version}"\n'
+        'requires-python = ">=3.11,<3.14"\ndependencies = ["paradigma==1.1.2"]\n'
+        "[project.optional-dependencies]\ndev = []\n"
+    )
+    for name in INPUTS:
+        path = root / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("# Test input\n")
+    for name in LOCKS:
+        (root / name).write_text("paradigma==1.1.2 --hash=sha256:" + "c" * 64 + "\n")
+    (root / "requirements/lock-metadata.json").write_text(json.dumps(lock_metadata(root)))
     (root / "CHANGELOG.md").write_text(
         f"# Changelog\n\n## {version} — 2026-10-13\n\nPreview notes.\n\n## 0.1.0 — 2025-01-01\n\nOld notes.\n",
         encoding="utf-8",
@@ -30,6 +44,8 @@ def metadata_root(tmp_path, version=VERSION):
 
 
 def windows_bundle(tmp_path):
+    root = metadata_root(tmp_path)
+    metadata = lock_metadata(root)
     bundle = tmp_path / "bundle"
     libraries = bundle / "_internal" / "sklearn" / ".libs"
     libraries.mkdir(parents=True)
@@ -43,10 +59,22 @@ def windows_bundle(tmp_path):
             {
                 "source_commit": COMMIT,
                 "platform": "Windows-10",
-                "packages": [["paradigma-studio", VERSION]],
+                "python": metadata["windows_python"],
+                "packages": [["paradigma-studio", VERSION], ["paradigma", "1.1.2"]],
+                "dependency_lock": {
+                    "lock_file": "requirements/windows-py312.lock",
+                    "lock_sha256": metadata["locks"]["requirements/windows-py312.lock"],
+                    "inputs_sha256": metadata["inputs_sha256"],
+                },
             }
         )
     )
+    for packaged, source in (
+        ("dependencies.lock", "windows-py312.lock"),
+        ("build-dependencies.lock", "build.lock"),
+        ("dependency-lock.json", "lock-metadata.json"),
+    ):
+        shutil.copyfile(root / "requirements" / source, security / packaged)
     (security / "dependency-audit.json").write_text(
         json.dumps(
             {
@@ -103,7 +131,20 @@ def test_release_zip_contains_complete_bundle_hidden_libraries_and_independent_c
 
 
 @pytest.mark.parametrize(
-    "change", ["source", "version", "platform", "audit", "modified", "extra", "missing"]
+    "change",
+    [
+        "source",
+        "version",
+        "platform",
+        "audit",
+        "modified",
+        "extra",
+        "missing",
+        "lock",
+        "lock-metadata",
+        "package-version",
+        "audit-environment",
+    ],
 )
 def test_publication_rejects_wrong_or_modified_build_artifacts(tmp_path, change):
     root = metadata_root(tmp_path)
@@ -123,6 +164,22 @@ def test_publication_rejects_wrong_or_modified_build_artifacts(tmp_path, change)
         (bundle / "security" / "dependency-audit.json").write_text(
             '{"dependencies": [], "blocking_findings": []}'
         )
+        update_manifest(bundle)
+    elif change in ("lock", "lock-metadata"):
+        filename = "dependencies.lock" if change == "lock" else "dependency-lock.json"
+        (bundle / "security" / filename).write_text("changed")
+        update_manifest(bundle)
+    elif change == "package-version":
+        path = bundle / "security/build-info.json"
+        values = json.loads(path.read_text())
+        values["packages"][1][1] = "1.1.3"
+        path.write_text(json.dumps(values))
+        update_manifest(bundle)
+    elif change == "audit-environment":
+        path = bundle / "security/dependency-audit.json"
+        values = json.loads(path.read_text())
+        values["dependencies"][0]["version"] = "1.1.3"
+        path.write_text(json.dumps(values))
         update_manifest(bundle)
     elif change == "modified":
         (bundle / "LICENSE-studio.txt").write_text("changed")

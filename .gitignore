@@ -10,6 +10,7 @@ release-assets/
 dist/
 *.spec
 dependency-audit.json
+dependency-environment.json
 test-results.xml
 test-reports/
 

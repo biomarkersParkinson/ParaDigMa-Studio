@@ -1,0 +1,2 @@
+# Lock digests must remain identical in Linux and Windows checkouts.
+requirements/* text eol=lf

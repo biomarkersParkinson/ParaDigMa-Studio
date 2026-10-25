@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Lock complete Windows/Python 3.12 and supplemental Linux dependency environments
+  from the current clean Windows build reports. Verify registry hashes, isolated
+  build dependencies, the pinned reader commit and exact installed versions.
+  Tie packaged manifests and audits to the committed locks, and reject mismatched
+  evidence before publishing. Preserve the numerical-library versions.
+
 - Use the visible Signal columns selections for new analyses and clock previews.
   Manual choices replace standard-name inputs; **Not included** stays unassigned
   even when a matching column exists. Save and restore the complete selections.
