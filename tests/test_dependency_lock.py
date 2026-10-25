@@ -3,6 +3,7 @@
 import copy
 import json
 import shutil
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -90,7 +91,8 @@ def test_stale_inputs_and_modified_locks_cannot_be_used(source, change):
     verify_locks(source)
     if change == "project":
         path = source / "pyproject.toml"
-        path.write_text(path.read_text().replace("matplotlib==3.11.2", "matplotlib==3.11.1"))
+        requirement = tomllib.loads(path.read_text())["project"]["dependencies"][0]
+        path.write_text(path.read_text().replace(requirement, "unreviewed-package==1.0"))
     else:
         name = "tools.in" if change == "input" else "windows-py312.lock"
         path = source / "requirements" / name
@@ -101,7 +103,8 @@ def test_stale_inputs_and_modified_locks_cannot_be_used(source, change):
 
 def test_version_only_release_bump_does_not_require_dependency_resolution(source):
     path = source / "pyproject.toml"
-    path.write_text(path.read_text().replace('version = "0.6.0a3"', 'version = "0.6.0rc1"'))
+    version = tomllib.loads(path.read_text())["project"]["version"]
+    path.write_text(path.read_text().replace(f'version = "{version}"', 'version = "99.0.0"'))
     verify_locks(source)
 
 
