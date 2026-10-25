@@ -64,6 +64,7 @@ class RunOutput(TypedDict):
 
     kind: OutputKind
     path: str
+    metadata_path: NotRequired[str]
     saved: str
     dataset: NotRequired[str]
     local: NotRequired[bool]
@@ -74,7 +75,15 @@ class RunOutput(TypedDict):
     selection: NotRequired[dict[str, JSONValue]]
 
 
-class RunRecord(TypedDict):
+class SoftwareVersions(TypedDict):
+    """Software that performed the analysis, captured once when a run starts."""
+
+    studio_version: str
+    paradigma_version: str
+    studio_build_commit: NotRequired[str]
+
+
+class RunRecord(SoftwareVersions):
     """Normalized run history plus optional, never-persisted workspace caches."""
 
     format: str
@@ -85,7 +94,6 @@ class RunRecord(TypedDict):
     status: RunStatus
     source: str
     settings: AnalysisSettings
-    paradigma_version: str
     warnings: list[str]
     errors: list[str]
     outputs: list[RunOutput]

@@ -71,9 +71,9 @@ Pickle files can execute code: open only trusted files.
 | Gait | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z`, `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
 | Pulse rate | `time`, `green` (raw PPG); accelerometer channels are optional |
 
-Saved history and result JSON require Studio format version 1. Earlier unversioned
-saved runs are unsupported and remain untouched; re-analyze the original recordings
-to create current runs.
+Saved history and result JSON require Studio format version 2. Earlier versioned
+or unversioned saved runs are unsupported and remain untouched; re-analyze the
+original recordings to create current runs.
 
 ## More information
 

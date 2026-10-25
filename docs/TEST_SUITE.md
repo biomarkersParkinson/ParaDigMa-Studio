@@ -40,6 +40,7 @@ trigger and expected behavior still apply.
 | Plot reuse, redraw avoidance, exact shared time coordinates and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py`, `test_result_plot_cache.py`, `test_result_coordinates.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |
 | Export selection, exact JSON precision, bounded batches, source integrity, atomic failures and background completion | `test_result_exports.py` |
+| Analysis-time Studio/ParaDigMa versions and build commits, preserved identity after reopening/upgrades, JSON/ZIP/CSV metadata, checksum-matched CSV companions and safe deletion | `test_run_provenance.py`; packaged probe in `test_smoke.py` |
 | Complete local snapshots, responsive background reopening, isolated-reader cleanup/failure, exact restored values, deferred graphs, unsaved-close warnings and mixed-success bulk saves | `test_saved_results.py` |
 | Run history, validated record/output metadata, transient-cache exclusion, cancellation and confirmed deletion | `test_run_management.py`, `test_bulk_runs.py`; cross-page history integration in `test_workspace.py` |
 | Run identity and exact-byte checksums, rejected replacements/edits, isolated verification, unchanged displayed results on failure and snapshot/history consistency | `test_result_integrity.py`; export receipts in `test_saved_results.py` |

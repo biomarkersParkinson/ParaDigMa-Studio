@@ -42,8 +42,22 @@ def test_history_never_persists_or_restores_transient_workspace_caches(tmp_path,
 
 @pytest.mark.parametrize(
     "invalid",
-    [{"status": "Unknown"}, {"paradigma_version": 112}, {"finished": False}],
-    ids=["unknown-status", "numeric-version", "boolean-finish-time"],
+    [
+        {"status": "Unknown"},
+        {"paradigma_version": 112},
+        {"studio_version": ""},
+        {"studio_version": 12},
+        {"studio_build_commit": "bad"},
+        {"finished": False},
+    ],
+    ids=[
+        "unknown-status",
+        "numeric-paradigma-version",
+        "empty-studio-version",
+        "numeric-studio-version",
+        "invalid-build-commit",
+        "boolean-finish-time",
+    ],
 )
 def test_malformed_run_fields_skip_only_the_damaged_history_entry(tmp_path, invalid):
     history = RunHistory(tmp_path / "runs")

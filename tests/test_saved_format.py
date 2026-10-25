@@ -41,7 +41,7 @@ def test_current_run_and_result_contracts_round_trip_without_rewriting_files(tmp
     )
 
 
-@pytest.mark.parametrize("version", [None, 0, 2, True, 1.0, "1"])
+@pytest.mark.parametrize("version", [None, 0, 1, FORMAT_VERSION + 1, True, 2.0, "2"])
 def test_unsupported_history_is_reported_without_hiding_current_runs_or_touching_files(
     tmp_path, version
 ):
@@ -65,7 +65,9 @@ def test_unsupported_history_is_reported_without_hiding_current_runs_or_touching
     assert path.read_bytes() == before
 
 
-@pytest.mark.parametrize("field", ["finished", "paradigma_version", "errors", "log"])
+@pytest.mark.parametrize(
+    "field", ["finished", "studio_version", "paradigma_version", "errors", "log"]
+)
 def test_current_history_requires_fields_instead_of_filling_them_in(tmp_path, field):
     history = RunHistory(tmp_path)
     record = make_run()
@@ -120,7 +122,7 @@ def test_retired_or_inconsistent_settings_are_not_interpreted(tmp_path, settings
 
 
 @pytest.mark.parametrize("isolate_bytes", [0, 10**9])
-@pytest.mark.parametrize("version", [None, 2])
+@pytest.mark.parametrize("version", [None, 1, FORMAT_VERSION + 1])
 def test_unsupported_results_are_rejected_even_with_correct_owner_and_checksum(
     tmp_path, isolate_bytes, version
 ):

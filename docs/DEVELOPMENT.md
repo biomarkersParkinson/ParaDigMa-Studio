@@ -8,7 +8,13 @@ reader revision compatible with NumPy 2 CWA timestamps. See the
 The Python distribution and launcher are `paradigma-studio`; the importable
 package and its `_internal` folder are `paradigma_studio`. User data goes to
 `%LOCALAPPDATA%\ParaDigMaStudio`; earlier `ParaDigMaDesktop` storage is not
-discovered. Saved history and result JSON require Studio format version 1.
+discovered. Saved history and result JSON require Studio format version 2.
+Runs capture `studio_version`, `paradigma_version` and an available
+`studio_build_commit` at creation. Frozen builds read the commit from their
+`security/build-info.json`; source runs use the app checkout's Git HEAD.
+Reopening and exporting use the recorded identity, never the current environment.
+Standalone CSVs have a `<filename>.csv.metadata.json` companion with analysis
+provenance and the CSV SHA-256; receipts track both files for safe deletion.
 
 ## Run from source on Windows
 

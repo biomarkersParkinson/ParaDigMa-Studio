@@ -4,7 +4,7 @@ from __future__ import annotations
 
 RUN_FORMAT = "paradigma-studio.run"
 RESULT_FORMAT = "paradigma-studio.results"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 
 def validate_saved_format(value: object, expected: str) -> None:

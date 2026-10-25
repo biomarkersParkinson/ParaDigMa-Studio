@@ -558,7 +558,13 @@ and choose a format:
 | Format | Contents |
 | --- | --- |
 | **JSON** | One structured file with selected outputs and provenance. Non-finite numbers become null. Select all outputs and metadata to preserve complete timing and drill-down information. A complete JSON export recorded for the run can reopen through Runs. |
-| **CSV** | One selected table becomes a CSV file. Multiple tables or metadata selections produce a ZIP with separate CSVs, selected metadata JSON and provenance. |
+| **CSV** | One selected table becomes a CSV file plus a `.csv.metadata.json` companion. Multiple tables or metadata selections produce a ZIP with separate CSVs, selected metadata JSON and provenance. |
+
+Saved results and export metadata record both the **Studio version** and the
+official **ParaDigMa version** that performed the analysis, plus the Studio build
+commit when available. These stay unchanged when you reopen or export a run in
+a newer app. Keep a standalone CSV and its metadata companion together; the
+companion also contains a checksum identifying the exact exported CSV.
 
 Scientific tables retain original columns and values. Formula-like CSV text is
 neutralized for spreadsheet safety. Exports cannot overwrite selected source
@@ -592,6 +598,9 @@ user exports separately. Run history stores status, parameters, diagnostics and
 these locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
 History alone does not preserve unsaved result tables.
 
+The run summary displays the Studio and official ParaDigMa versions used for
+that analysis. The **Exports** detail also lists CSV metadata companions.
+
 A completed run can contain warnings; partial results can include both successful
 outputs and failed workflows. **Cancelled** records a requested stop without
 treating it as an analysis error. Inspect the messages before interpreting
@@ -609,7 +618,7 @@ file's SHA-256 checksum. Opening verifies both. A replaced, edited or unrelated
 file cannot reopen under the original run; a failed open leaves displayed
 results intact.
 
-Current history and result JSON use **Studio format version 1**, separately from
+Current history and result JSON use **Studio format version 2**, separately from
 the app and ParaDigMa versions. Unversioned or unsupported files cannot reopen;
 re-analyze the original recordings to create new results. Unsupported history
 entries are reported without changing or deleting their files, while supported

@@ -26,8 +26,8 @@ from .contracts import (
     RunStatus,
 )
 from .core import validate_column_mapping
+from .provenance import provenance_for_record, software_versions
 from .result_integrity import (
-    provenance_for_run,
     read_verified_text,
     validate_checksum,
     verify_run_id,
@@ -51,7 +51,7 @@ def new_run(source: str, settings: AnalysisSettings) -> RunRecord:
         "status": "Running",
         "source": source,
         "settings": settings,
-        "paradigma_version": "",
+        **software_versions(),
         "warnings": [],
         "errors": [],
         "outputs": [],
@@ -141,10 +141,16 @@ def _read_run_record(path: Path) -> RunRecord:
         raise ValueError("Invalid run metadata.")
     # Caches are created from live frames/results, never restored from history JSON.
     record = {key: value for key, value in record.items() if not key.startswith("_")}
-    if record["status"] not in get_args(RunStatus) or not isinstance(
-        record.get("paradigma_version"), str
+    if record["status"] not in get_args(RunStatus) or not all(
+        isinstance(record.get(key), str) and record[key]
+        for key in ("studio_version", "paradigma_version")
     ):
         raise ValueError("Invalid run status or version.")
+    if "studio_build_commit" in record and (
+        not isinstance(record["studio_build_commit"], str)
+        or not re.fullmatch(r"[0-9a-f]{40}", record["studio_build_commit"])
+    ):
+        raise ValueError("Invalid Studio build commit.")
     settings = record["settings"]
     sources = record.get("sources", {})
     if not isinstance(sources, dict) or not all(
@@ -184,10 +190,18 @@ def _validate_run_output(output: object) -> None:
         or not isinstance(output.get("complete"), bool)
         or ("dataset" in output and not isinstance(output["dataset"], str))
         or ("local" in output and not isinstance(output["local"], bool))
+        or ("metadata_path" in output and not isinstance(output["metadata_path"], str))
     ):
         raise ValueError("Invalid run output.")
     if output["kind"] == "JSON" or "sha256" in output:
         validate_checksum(output.get("sha256"))
+    if "metadata_path" in output:
+        from .serialization import csv_metadata_path
+
+        if output["kind"] != "CSV" or Path(output["metadata_path"]) != csv_metadata_path(
+            output["path"]
+        ):
+            raise ValueError("Invalid CSV metadata companion.")
     if (output.get("local") or output["complete"]) and (
         output["kind"] != "JSON" or not output["complete"]
     ):
@@ -200,6 +214,13 @@ def _validate_run_output(output: object) -> None:
         raise ValueError("Invalid exported row count.")
     if not isinstance(output.get("selection", {}), dict):
         raise ValueError("Invalid export selection metadata.")
+
+
+def _output_paths(output: RunOutput) -> list[Path]:
+    paths = [Path(output["path"])]
+    if "metadata_path" in output:
+        paths.append(Path(output["metadata_path"]))
+    return paths
 
 
 def validate_run_settings(settings: AnalysisSettings) -> None:
@@ -337,7 +358,7 @@ class RunHistory:
         checksum = export_results(
             path,
             results,
-            provenance_for_run(provenance, record["id"]),
+            provenance_for_record(provenance, record),
             protected_sources=[
                 record["source"],
                 *record.get("sources", {}).values(),
@@ -421,19 +442,20 @@ class RunHistory:
         protected = recording_files(sources)
         deleting = {record["id"], *(run["id"] for run in removing)}
         shared = [
-            Path(item["path"])
+            path
             for run in records
             if run["id"] not in deleting
             for item in run["outputs"]
+            for path in _output_paths(item)
         ]
 
         files: list[Path] = []
         for output in record["outputs"]:
-            path = Path(output["path"])
-            if (path.is_file() or path.is_symlink()) and not any(
-                same_file(path, keep) for keep in [*protected, *shared, *files]
-            ):
-                files.append(path)
+            for path in _output_paths(output):
+                if (path.is_file() or path.is_symlink()) and not any(
+                    same_file(path, keep) for keep in [*protected, *shared, *files]
+                ):
+                    files.append(path)
         return files
 
     def remove(

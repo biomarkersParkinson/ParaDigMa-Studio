@@ -69,3 +69,19 @@ class DigestTextWriter:
 
     def hexdigest(self) -> str:
         return self.digest.hexdigest()
+
+    @property
+    def mode(self) -> str:
+        return self.stream.mode
+
+    def flush(self) -> None:
+        self.stream.flush()
+
+    def seekable(self) -> bool:
+        return False
+
+    def seek(self, offset: int, whence: int = 0, /) -> int:
+        raise OSError("A checksum writer cannot seek after hashing text.")
+
+    def tell(self) -> int:
+        return self.stream.tell()

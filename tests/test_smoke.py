@@ -47,6 +47,9 @@ def test_desktop_smoke_entrypoint(tmp_path):
     )
     data = json.loads(report.read_text())
     assert data["status"] == "passed"
+    assert data["studio_version"]
+    assert data["run_software_provenance_verified"]
+    assert data["csv_metadata_verified"]
     assert data["app_icon_rendered"]
     assert data["workspace_navigation_verified"]
     assert data["integrated_page_controls_verified"]

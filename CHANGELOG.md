@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Record Studio and official ParaDigMa versions when each run starts, plus the
+  Studio build commit when available. Preserve that identity in saved results,
+  JSON/ZIP exports and companion metadata for single-table/selected-row CSVs.
+  Show both versions in Runs and track CSV companions during export/deletion.
+  Saved history and result JSON now use format version 2; older formats are not
+  migrated or supported.
+
 - Lock complete Windows/Python 3.12 and supplemental Linux dependency environments
   from the current clean Windows build reports. Verify registry hashes, isolated
   build dependencies, the pinned reader commit and exact installed versions.

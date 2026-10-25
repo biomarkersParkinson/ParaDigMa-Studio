@@ -22,6 +22,7 @@ from .history import (
     run_status,
     saved_result_output,
 )
+from .provenance import provenance_for_record, run_provenance
 from .result_integrity import provenance_for_run, validate_checksum
 from .result_preparation import PreparedResults
 from .result_reopening import load_saved_results
@@ -257,6 +258,7 @@ class RunController:
         self.view.run_outputs.setPlainText(
             "\n\n".join(
                 f"{item.get('kind', 'Export')}: {item.get('path', '')}"
+                + (f"\nMetadata: {item['metadata_path']}" if "metadata_path" in item else "")
                 for item in run_exports(record)
             )
             or "No exports."
@@ -282,7 +284,8 @@ class RunController:
             else "—"
         )
         return (
-            f"{started} – {finished} · ParaDigMa {record.get('paradigma_version', '—')} · "
+            f"{started} – {finished} · Studio {record['studio_version']} · "
+            f"ParaDigMa {record['paradigma_version']} · "
             f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)"
         )
 
@@ -458,13 +461,7 @@ class RunController:
 
     @staticmethod
     def _run_provenance(record: RunRecord) -> Provenance:
-        return {
-            "run_id": record["id"],
-            "source": record["source"],
-            "settings": record["settings"],
-            "paradigma_version": record["paradigma_version"],
-            "sources": record.get("sources", {}),
-        }
+        return run_provenance(record)
 
     def _restore_prepared_run(self, payload):
         run_id, prepared = payload
@@ -494,7 +491,7 @@ class RunController:
 
     def _restore_record(self, run_id, provenance, results):
         record = next(record for record in self.state.runs if record["id"] == run_id)
-        provenance = provenance_for_run(provenance or self._run_provenance(record), run_id)
+        provenance = provenance_for_record(provenance or self._run_provenance(record), record)
         self.state.current_run = record
         self.results.provenance = provenance
         self.results.result_source_frame = record.get("_frame")
@@ -504,7 +501,12 @@ class RunController:
         self.callbacks.show_notice("")
 
     def record_output(
-        self, path: PathInput, kind: OutputKind, *, checksum: str | None = None
+        self,
+        path: PathInput,
+        kind: OutputKind,
+        *,
+        checksum: str | None = None,
+        metadata_path: PathInput | None = None,
     ) -> None:
         if self.state.current_run is not None:
             if kind == "JSON":
@@ -524,6 +526,10 @@ class RunController:
                     sha256=validate_checksum(checksum), complete=True
                 )
             if kind == "CSV":
+                if metadata_path is not None:
+                    self.state.current_run["outputs"][-1]["metadata_path"] = str(
+                        Path(metadata_path).resolve()
+                    )
                 aggregation = name.startswith("aggregations/")
                 self.state.current_run["outputs"][-1].update(
                     selected_rows=len(frame),

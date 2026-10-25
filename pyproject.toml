@@ -67,6 +67,7 @@ include = [
     "src/paradigma_studio/result_preparation.py",
     "src/paradigma_studio/result_reopening.py",
     "src/paradigma_studio/result_integrity.py",
+    "src/paradigma_studio/provenance.py",
     "src/paradigma_studio/saved_format.py",
     "src/paradigma_studio/raw_signals.py",
 ]
@@ -163,6 +164,7 @@ module = [
     "paradigma_studio.preparation_contracts",
     "paradigma_studio.paradigma_api",
     "paradigma_studio.result_integrity",
+    "paradigma_studio.provenance",
     "paradigma_studio.saved_format",
 ]
 # These small services have complete annotations; retain explicit container types

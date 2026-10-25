@@ -6,7 +6,6 @@ import json
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from importlib.metadata import version
 from threading import Event
 from typing import TYPE_CHECKING, cast
 
@@ -32,6 +31,7 @@ from .analysis_help import (
 from .contracts import TimeConfiguration
 from .core import validate_column_mapping
 from .history import new_run, validate_run_settings
+from .provenance import run_provenance
 from .results_view import normalise_clock
 from .time_controls import TimeField
 from .ui.column_mapping import ColumnMappingEditor
@@ -486,19 +486,13 @@ class AnalysisController(QObject):
         record = new_run(self.inputs.source, settings)
         if self.inputs.recordings:
             record["sources"] = dict(self.inputs.sources)
-        record["paradigma_version"] = version("paradigma")
         frame = cast(
             "SensorInput", self.inputs.recordings if self.inputs.recordings else self.inputs.frame
         )
         record["_frame"] = frame
         self.runs.runs.insert(0, record)
         self.runs.active_run = self.runs.current_run = self.runs.selected_run = record
-        self.results.provenance = {
-            "source": self.inputs.source,
-            "paradigma_version": record["paradigma_version"],
-            "settings": settings,
-            "run_id": record["id"],
-        }
+        self.results.provenance = run_provenance(record)
         self.results.result_source_frame = frame
         self.results.result_timeline = None
         self.callbacks.clear_results()
@@ -507,8 +501,6 @@ class AnalysisController(QObject):
         self.callbacks.refresh_runs()
         self.view.status.setText("Running ParaDigMa… Review progress in Runs.")
         self.callbacks.navigate(1)
-        if self.inputs.recordings:
-            self.results.provenance["sources"] = dict(self.inputs.sources)
         return frame
 
     def _start_analysis_job(self, frame: SensorInput, settings: AnalysisSettings) -> None:

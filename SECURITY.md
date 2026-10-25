@@ -53,6 +53,12 @@ packaged executable. No new advisory exceptions were introduced.
 | UI and caches | Explicit controller dependencies; fixed internal driver ports. Preview/display caches stay in memory and are bounded, with context invalidation; they do not cap total app memory. |
 | Network | No automatic recording upload or telemetry in the wrapper. Documentation links open a browser. |
 
+Runs retain the Studio and ParaDigMa versions used for analysis, plus the Studio
+build commit when available. CSV exports have a metadata companion with the
+CSV's SHA-256. Both files are staged before replacement, but replacing two files
+is not one filesystem transaction; a checksum mismatch identifies a separated
+or partially replaced pair. These checks provide no authentication.
+
 ## Dependencies and distribution
 
 PyArrow 22.0.0 has two audit entries for **CVE-2026-25087 / PYSEC-2026-113**.

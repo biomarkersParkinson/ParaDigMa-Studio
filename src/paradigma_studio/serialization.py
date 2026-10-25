@@ -50,13 +50,17 @@ def json_value(value: Any) -> JSONValue:
     return str(value)
 
 
-def _write_export(path, writer, *, source=None, protected_sources=(), binary=False):
-    target = Path(path)
+def _validate_export_destination(path, source=None, protected_sources=()):
     for original in recording_files([source, *protected_sources]):
-        if same_file(target, original):
+        if same_file(path, original):
             raise ValueError(
                 "An export cannot overwrite the loaded sensor file or its companion binaries. Choose another filename."
             )
+
+
+def _write_export(path, writer, *, source=None, protected_sources=(), binary=False):
+    target = Path(path)
+    _validate_export_destination(target, source, protected_sources)
     with atomic_file(target, binary=binary, newline="") as stream:
         return writer(stream)
 
@@ -146,19 +150,46 @@ def _spreadsheet_text(value):
     return value
 
 
+def csv_metadata_path(path: PathInput) -> Path:
+    """Keep table and companion names unambiguous even with unusual extensions."""
+    return Path(str(path) + ".metadata.json")
+
+
 def export_table_csv(
     path: PathInput,
     frame: pd.DataFrame,
     *,
     source: PathInput | None = None,
     protected_sources: Iterable[PathInput] = (),
+    provenance: Provenance | None = None,
 ) -> None:
-    """Neutralize formula-like text while retaining actual numeric values."""
+    """Write a spreadsheet-safe table and, for app exports, its analysis metadata."""
     safe = frame.map(_spreadsheet_text)
     safe.columns = [_spreadsheet_text(str(column)) for column in frame.columns]
-    _write_export(
-        path,
-        lambda stream: safe.to_csv(stream, index=False, quoting=csv.QUOTE_ALL),
-        source=source,
-        protected_sources=protected_sources,
-    )
+    protected = tuple(protected_sources)
+    if provenance is None:
+        _write_export(
+            path,
+            lambda stream: safe.to_csv(stream, index=False, quoting=csv.QUOTE_ALL),
+            source=source,
+            protected_sources=protected,
+        )
+        return
+    source = source or provenance.get("source")
+    protected = (*protected, *provenance.get("sources", {}).values())
+    metadata = csv_metadata_path(path)
+    # Validate both destinations before staging either file. Both writes must
+    # finish before replacement; the checksum also detects a mismatched pair
+    # if a filesystem failure interrupts the two separate replacements.
+    _validate_export_destination(path, source, protected)
+    _validate_export_destination(metadata, source, protected)
+    with atomic_file(metadata, newline="") as meta_stream, atomic_file(path, newline="") as stream:
+        writer = DigestTextWriter(stream)
+        safe.to_csv(writer, index=False, quoting=csv.QUOTE_ALL)
+        _write_json(
+            meta_stream,
+            {
+                "analysis": provenance,
+                "csv": {"file": Path(path).name, "sha256": writer.hexdigest()},
+            },
+        )

@@ -22,6 +22,7 @@ from run_fixtures import make_run
 from paradigma_studio.app import MainWindow
 from paradigma_studio.exports import ExportDialog, export_items
 from paradigma_studio.history import load_result_export
+from paradigma_studio.provenance import recorded_software
 from paradigma_studio.result_reopening import load_saved_results
 
 
@@ -37,7 +38,7 @@ def analyzed_run(window, results, tmp_path, name="sensor.csv"):
     window._result_state.provenance = {
         "source": str(source),
         "settings": record["settings"],
-        "paradigma_version": "1.1.2",
+        **recorded_software(record),
         "run_id": record["id"],
         "display_clock": {"origin": "2026-10-10T12:00:00+00:00", "timezone": "UTC"},
     }
@@ -303,10 +304,12 @@ def test_reopen_replaces_existing_graphs_when_graphs_are_shown(window, monkeypat
 
 
 def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tabs(
-    window, tremor_outputs, tmp_path
+    window, tremor_outputs, tmp_path, monkeypatch
 ):
     tremor_outputs["metadata"]["desktop_preparation"] = {"excluded_samples": 2}
     record = analyzed_run(window, tremor_outputs, tmp_path)
+    record["studio_version"] = "0.7.0"
+    window._result_state.provenance.update(recorded_software(record))
     for tab in range(3):
         window.result_tabs.setCurrentIndex(tab)
         assert window.save_results_button.isVisible() and window.save_results_button.isEnabled()
@@ -328,6 +331,7 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
     assert results["errors"] == []
     assert not any(key.startswith("_") for key in json.loads(saved.read_text()))
     window.close()
+    monkeypatch.setattr("paradigma_studio.provenance.version", lambda _: "9.9.9")
     reopened = MainWindow(window.history.directory)
     reopened.show()
     try:
@@ -339,6 +343,8 @@ def test_save_all_outputs_reopens_after_restart_and_remains_available_across_tab
         assert not reopened.unsaved_result_runs()
         assert reopened._result_state.result_source_frame is None
         assert reopened._result_state.display_clock == window._result_state.display_clock
+        assert reopened._result_state.provenance["studio_version"] == "0.7.0"
+        assert "Studio 0.7.0" in reopened.run_summary.text()
         pd.testing.assert_frame_equal(
             reopened._result_state.results["quantifications"]["tremor"],
             tremor_outputs["quantifications"]["tremor"],

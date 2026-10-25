@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -411,14 +412,27 @@ def _verify_official_result_tables(window, results, classification):
 def _verify_result_export(directory, source, results, quantified):
     from .core import export_results
     from .history import new_run
+    from .provenance import run_provenance
+    from .serialization import csv_metadata_path, export_table_csv
 
     export = directory / "results.json"
-    run_id = new_run(str(source), {"pipelines": ["tremor"]})["id"]
-    checksum = export_results(export, results, {"source": source.name, "run_id": run_id})
+    record = new_run(str(source), {"pipelines": ["tremor"]})
+    origin = run_provenance(record)
+    checksum = export_results(export, results, origin)
     saved = json.loads(export.read_text(encoding="utf-8"))
     if len(saved["results"]["quantifications"]["tremor"]["data"]) != len(quantified):
         raise RuntimeError("Result export lost quantified rows")
-    return export, run_id, checksum
+    if saved["analysis"] != origin:
+        raise RuntimeError("Result export lost analysis-time software provenance")
+    csv_path = directory / "results.csv"
+    export_table_csv(csv_path, quantified, provenance=origin)
+    metadata = json.loads(csv_metadata_path(csv_path).read_text(encoding="utf-8"))
+    if (
+        metadata["analysis"] != origin
+        or metadata["csv"]["sha256"] != hashlib.sha256(csv_path.read_bytes()).hexdigest()
+    ):
+        raise RuntimeError("CSV metadata differs from the run or exported table")
+    return export, record["id"], checksum
 
 
 def _run_cwa_example():
@@ -704,9 +718,13 @@ def _verify_isolated_result_reader(export, quantified, run_id, checksum):
 def _successful_smoke_report(
     models, quantified, cwa_frame, cwa_quantified, avro_frame, details, physilog_gait
 ):
+    from .provenance import software_versions
+
     return {
         "status": "passed",
-        "paradigma_version": version("paradigma"),
+        **software_versions(),
+        "run_software_provenance_verified": True,
+        "csv_metadata_verified": True,
         "app_icon_rendered": True,
         "workspace_navigation_verified": True,
         "integrated_page_controls_verified": True,

@@ -21,11 +21,14 @@ from .contracts import (
     OutputKind,
     PathInput,
     Provenance,
+    RunOutput,
     RunRecord,
     StartJobCallback,
 )
 from .history import RunHistory, now, run_is_saved
+from .provenance import provenance_for_record
 from .result_integrity import provenance_for_run, validate_checksum, validate_run_id
+from .serialization import csv_metadata_path
 from .theme import STYLESHEET, light_palette
 from .workspace_state import (
     InputState,
@@ -62,6 +65,7 @@ class TableExporter(Protocol):
         *,
         source: PathInput | None = None,
         protected_sources: Iterable[PathInput] = (),
+        provenance: Provenance | None = None,
     ) -> None: ...
 
 
@@ -70,7 +74,14 @@ class SaveRunResultsCallback(Protocol):
 
 
 class RecordOutputCallback(Protocol):
-    def __call__(self, path: str, kind: OutputKind, *, checksum: str | None = None) -> None: ...
+    def __call__(
+        self,
+        path: str,
+        kind: OutputKind,
+        *,
+        checksum: str | None = None,
+        metadata_path: PathInput | None = None,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -177,14 +188,23 @@ class ExportController(QObject):
         )
         tables, metadata = export_items(results)
         complete = format_name == "JSON" and set(selected) == set(tables) | set(metadata)
+        companion = (
+            csv_metadata_path(path)
+            if format_name == "CSV" and len(selected) == 1 and selected[0] in tables
+            else None
+        )
         protected = [*self.inputs.sources.values(), *provenance.get("sources", {}).values()]
 
         def write(logger: logging.Logger) -> tuple[str, str | None]:
             self.history.validate_export_destination(path, self.runs.runs)
+            if companion is not None:
+                self.history.validate_export_destination(companion, self.runs.runs)
             checksum = export_selection(
                 path,
                 results,
-                self._owned_provenance(provenance, run) if format_name == "JSON" else provenance,
+                self._owned_provenance(provenance, run)
+                if run is not None or format_name == "JSON"
+                else provenance,
                 selected,
                 format_name,
                 protected_sources=protected,
@@ -194,30 +214,48 @@ class ExportController(QObject):
             return str(Path(path).resolve()), checksum
 
         def completed(payload: tuple[str, str | None]) -> None:
-            output_path, checksum = payload
-            if run is not None:
-                run["outputs"].append(
-                    {
-                        "kind": format_name,
-                        "path": output_path,
-                        "saved": now(),
-                        "selected": selected,
-                        "complete": complete,
-                    }
-                )
-                if checksum is not None:
-                    run["outputs"][-1]["sha256"] = checksum
-                self.callbacks.persist_run(run)
-                self.callbacks.refresh_runs()
-            self.view.status.setText(f"Results exported to {output_path}")
+            self._complete_selection_export(
+                payload, run, format_name, selected, complete, companion
+            )
 
         self.view.status.setText("Exporting results…")
         self.callbacks.start_job(write, completed)
 
+    def _complete_selection_export(
+        self,
+        payload: tuple[str, str | None],
+        run: RunRecord | None,
+        format_name: OutputKind,
+        selected: list[str],
+        complete: bool,
+        companion: Path | None,
+    ) -> None:
+        output_path, checksum = payload
+        if run is not None:
+            output: RunOutput = {
+                "kind": format_name,
+                "path": output_path,
+                "saved": now(),
+                "selected": selected,
+                "complete": complete,
+            }
+            if checksum is not None:
+                output["sha256"] = checksum
+            if companion is not None:
+                output["metadata_path"] = str(companion.resolve())
+            run["outputs"].append(output)
+            self.callbacks.persist_run(run)
+            self.callbacks.refresh_runs()
+        self.view.status.setText(
+            f"Results exported to {output_path}"
+            + (f" (metadata: {companion.name})" if companion is not None else "")
+        )
+
     @staticmethod
     def _owned_provenance(provenance: Provenance, run: RunRecord | None) -> Provenance:
-        run_id = run["id"] if run is not None else validate_run_id(provenance.get("run_id"))
-        return provenance_for_run(provenance, run_id)
+        if run is not None:
+            return provenance_for_record(provenance, run)
+        return provenance_for_run(provenance, validate_run_id(provenance.get("run_id")))
 
     def export_csv(self) -> None:
         name, frame = self.callbacks.selected_export_table()
@@ -229,6 +267,11 @@ class ExportController(QObject):
         if path:
             try:
                 self.history.validate_export_destination(path, self.runs.runs)
+                companion = csv_metadata_path(path)
+                self.history.validate_export_destination(companion, self.runs.runs)
+                provenance = self.results.provenance
+                if self.runs.current_run is not None:
+                    provenance = self._owned_provenance(provenance, self.runs.current_run)
                 self.services.export_table_csv(
                     path,
                     frame,
@@ -237,9 +280,12 @@ class ExportController(QObject):
                         *self.inputs.sources.values(),
                         *self.results.provenance.get("sources", {}).values(),
                     ],
+                    provenance=provenance,
                 )
-                self.callbacks.record_output(path, "CSV")
-                self.view.status.setText(f"{len(frame):,} rows from {name} exported to {path}")
+                self.callbacks.record_output(path, "CSV", metadata_path=companion)
+                self.view.status.setText(
+                    f"{len(frame):,} rows from {name} exported to {path} (metadata: {companion.name})"
+                )
             except Exception as exc:  # noqa: BLE001 -- Final export UI error reporting.
                 # Final UI boundary for file writers and run-history callbacks.
                 self.callbacks.append_log(traceback.format_exc())

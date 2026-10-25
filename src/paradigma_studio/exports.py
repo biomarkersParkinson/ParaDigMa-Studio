@@ -88,6 +88,7 @@ def export_selection(
             tables[selected[0]],
             source=provenance.get("source"),
             protected_sources=protected_sources,
+            provenance=provenance,
         )
     elif format == "CSV":
 
