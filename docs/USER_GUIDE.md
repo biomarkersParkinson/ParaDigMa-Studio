@@ -190,17 +190,25 @@ remain those of the official package. See [scientific tests](SCIENTIFIC_TESTS.md
 
 ### Data
 
-Data **Overview** separates sensor and time statistics:
+Data **Overview** separates sensor and time statistics. In smaller windows, scroll
+the overview to reach all controls and statistics:
 
 - Sensor range is minimum–maximum; median and IQR (75th minus 25th percentile)
   use finite values. Missing and infinite values are counted separately.
 - Estimated sampling rate is the inverse median positive time interval. Gaps
   are intervals longer than 1.5 times that median. Invalid timestamps are not
   bridged. Zero-length and backward intervals are reported separately.
-- The numeric time format on Data applies to all loaded recordings and affects
-  inspection only. Switching recordings keeps the selected format for statistics
-  and graphs. Set analysis units separately on Analyze. Native datetime values
-  carry their own time representation.
+- **Time column** and numeric **Time format** share their settings with Analyze's
+  Time signal and Time units. Editing either page updates both pages, sampling
+  statistics, raw graphs and the automatic time-origin preview. Recognized column
+  names and supported file unit metadata prefill both pages, with **From file**
+  labels directly below the field names. An explicit selection, including confirming
+  the current value, marks that field as manual on both pages. Analyze's **Default**
+  controls restore the file-derived settings.
+- These time settings apply to the whole batch and stay unchanged when switching
+  the recording to inspect. A missing or unassigned time column leaves sampling
+  diagnostics unavailable; Studio does not switch to another column. Native
+  datetime values carry their own time representation.
 
 Data **Graphs** overlays checked channels of the same modality with stable colors
 and a legend. Each modality has its own value axis and shares the time axis.

@@ -352,6 +352,8 @@ class MainWindow(QMainWindow):
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             reset_analysis=lambda: self._analysis_controller.reset_for_input(),
+            choose_time_column=lambda column: self._analysis_controller.choose_time_column(column),
+            choose_time_unit=lambda unit: self._analysis_controller.choose_time_unit(unit),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )
@@ -392,8 +394,8 @@ class MainWindow(QMainWindow):
             refresh_runs=lambda *args, **kwargs: self._run_controller.refresh_runs(*args, **kwargs),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
-            sync_input=lambda unit, mapping: self._data_controller.sync_analysis_settings(
-                unit, mapping
+            sync_input=lambda configuration, mapping: self._data_controller.sync_analysis_settings(
+                configuration, mapping
             ),
         )
         services = AnalysisServices(
@@ -540,16 +542,16 @@ class MainWindow(QMainWindow):
         for item in self._layout.module_buttons.values():
             item.toggled.connect(self._analysis_controller.modules_changed)
         self._layout.time.currentTextChanged.connect(self._analysis_controller.time_unit_changed)
+        self._layout.time.activated.connect(self._analysis_controller.confirm_time_unit)
         self._layout.data_channels.itemChanged.connect(self._data_controller.plot_input)
         self._layout.data_time_channel.currentIndexChanged.connect(
-            self._data_controller.refresh_data_descriptives
+            self._data_controller.choose_time_column
         )
+        self._layout.data_time_channel.activated.connect(self._data_controller.choose_time_column)
         self._layout.data_time_unit.currentTextChanged.connect(
-            self._data_controller.update_time_statistics
+            self._data_controller.choose_time_unit
         )
-        self._layout.data_time_unit.currentTextChanged.connect(
-            self._data_controller.input_plot_changed
-        )
+        self._layout.data_time_unit.activated.connect(self._data_controller.choose_time_unit)
         self._layout.dataset.currentTextChanged.connect(self._workspace_controller.select_dataset)
         self._layout.table_dataset.currentIndexChanged.connect(
             self._workspace_controller.select_output_table

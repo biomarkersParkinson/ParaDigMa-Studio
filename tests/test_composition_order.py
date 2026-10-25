@@ -252,9 +252,10 @@ def test_data_time_and_mapping_connection_order(tmp_path, monkeypatch):
         monkeypatch.setattr(owner, name, observed)
     window = desktop.MainWindow(history_dir=tmp_path)
     try:
+        window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0], "gyroscope_x": [1.0, 2.0]})))
         events.clear()
         window.data_time_unit.setCurrentText("relative_ms")
-        assert events == ["update_time_statistics", "input_plot_changed"]
+        assert events == ["update_origin_default", "update_time_statistics", "input_plot_changed"]
         events.clear()
         window.mapping.set_mapping({"time": "time"})
         assert events == ["mapping_changed", "update_origin_default", "input_plot_changed"]

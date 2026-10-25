@@ -16,14 +16,14 @@ trigger and expected behavior still apply.
 | Multiple recordings, source clocks and identifiers | `test_recordings.py` |
 | Spawned recording workers, CPU/RAM policy, CPU affinity, cancellation and official batch equivalence | `test_parallel_execution.py`, `test_parallel_scientific.py` |
 | Exact Data-page statistics, bounded batch concurrency, CPU/RAM fallbacks, recording order, worker cleanup and recording previews | `test_inspection.py`, `test_previews.py` |
-| Shared Data time formats, cached multi-recording statistics, cumulative differences and unchanged source samples | `test_input_time_plot.py` |
+| Shared Data/Analyze time selections and provenance, two-way edits, batch switching, compact layout/page scrolling, cached diagnostics, cumulative differences and unchanged source samples | `test_shared_time_configuration.py`, `test_input_time_plot.py` |
 | Raw PPG-only preparation, official pulse equivalence across numeric time formats, required-value checks and source-clock alignment | `test_pulse_input.py` |
 | Pulse estimate availability over the full recording timespan, compact overview, readable plot labels and saved-result reopening | `test_pulse_availability.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
-| Dependency-specific updates, complete saved settings before previews/Data notifications, one load refresh, independent Data formats and metadata updates with manual origins | `test_analysis_refresh.py`; lifecycle order in `test_composition_order.py` |
+| Dependency-specific updates, complete saved settings before previews/Data notifications, one load refresh, shared time formats and metadata updates with manual origins | `test_analysis_refresh.py`; lifecycle order in `test_composition_order.py` |
 | GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and rejection of retired bypass settings | `test_analysis_preparation.py` |
 | Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
 | File-derived unit/origin defaults, provenance label placement, mapping-dependent unit controls, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |

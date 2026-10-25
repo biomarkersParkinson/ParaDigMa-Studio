@@ -303,14 +303,23 @@ class ColumnMappingEditor(QWidget):
         self.auto_match()
 
     def _choose(self, target: str) -> None:
-        self.model.choose(target, self._combos[target].currentData())
+        self.choose(target, self._combos[target].currentData())
+
+    def choose(self, target: str, source: str | None) -> None:
+        """Apply an explicit choice from either page through the same editor path."""
+        if (
+            self.model.choices[target] == source
+            and self.selection_source(target, source) == "Selected manually"
+        ):
+            return
+        self.model.choose(target, source)
         self._choice_sources[target] = (self.model.choices[target], "Selected manually")
         self._refresh()
         self.changed.emit()
 
     def _confirm_choice(self, target: str) -> None:
         # Selecting the existing file value is still an explicit manual choice.
-        if self._selection_source(target, self.model.choices[target]) != "Selected manually":
+        if self.selection_source(target, self.model.choices[target]) != "Selected manually":
             self._choose(target)
 
     def _refresh(self) -> None:
@@ -348,15 +357,9 @@ class ColumnMappingEditor(QWidget):
                 else "Optional for the selected modules."
             )
             selected = self.model.choices[target]
-            reason = self._selection_source(target, selected)
-            from_file = (
-                selected is not None
-                and selected == automatic[target]
-                and reason.startswith("From file:")
-            )
+            from_file, detail = self.value_source(target, automatic)
             badge = self._file_badges[target]
             badge.setVisible(from_file)
-            detail = f"{reason}. Column: {selected}. Shared by all {total} recording(s)."
             badge.setToolTip(tooltip_text(detail) if from_file else "")
             badge.setAccessibleDescription(detail if from_file else "")
             status, tooltip = self._status(target, selected, total, conflicts, suggestions)
@@ -403,11 +406,26 @@ class ColumnMappingEditor(QWidget):
     def _selection_details(self) -> list[str]:
         return [
             f"{SIGNALS[target]}: {source or 'Not included'} "
-            f"({self._selection_source(target, source)})"
+            f"({self.selection_source(target, source)})"
             for target, source in self.model.choices.items()
         ]
 
-    def _selection_source(self, target: str, source: str | None) -> str:
+    def value_source(
+        self, target: str, automatic: Mapping[str, str | None] | None = None
+    ) -> tuple[bool, str]:
+        """Share the same file provenance with other views of a signal choice."""
+        selected = self.model.choices[target]
+        reason = self.selection_source(target, selected)
+        matches = self.model.automatic_choices() if automatic is None else automatic
+        from_file = (
+            selected is not None and selected == matches[target] and reason.startswith("From file:")
+        )
+        detail = f"{reason}. Column: {selected}."
+        if from_file:
+            detail += f" Shared by all {len(self.model.schemas)} recording(s)."
+        return from_file, detail
+
+    def selection_source(self, target: str, source: str | None) -> str:
         fallback = "From file: exact column name" if source == target else "Not assigned"
         previous, reason = self._choice_sources.get(target, (source, fallback))
         return reason if previous == source else fallback

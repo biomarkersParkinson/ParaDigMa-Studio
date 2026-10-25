@@ -8,9 +8,15 @@ from dataclasses import dataclass
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QComboBox,
+    QFrame,
     QHBoxLayout,
+    QLabel,
+    QLayout,
     QListWidget,
     QMainWindow,
+    QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -79,38 +85,17 @@ class DataPage:
         content.addWidget(self.channel_table, 1)
         details.addWidget(panel)
         panel, content = card()
-        time_controls = QHBoxLayout()
-        content.addWidget(label("Time channel", "sectionTitle"))
-        self.data_time_channel = self.combo()
-        self.data_time_channel.setPlaceholderText("Select time column")
-        self.data_time_channel.setToolTip(
-            tooltip_text("Time column inspected here. Analysis uses its column mapping.")
-        )
-        time_controls.addWidget(self.data_time_channel, 1)
-        self.data_time_unit = self.combo(
-            [
-                "relative_s",
-                "relative_ms",
-                "absolute_s",
-                "absolute_ms",
-                "difference_s",
-                "difference_ms",
-            ]
-        )
-        self.data_time_unit.setToolTip(
-            tooltip_text(
-                "Time format for inspecting all loaded recordings. "
-                "Analysis parameters are set on Analyze."
-            )
-        )
-        time_controls.addWidget(self.data_time_unit)
-        content.addLayout(time_controls)
+        self._build_time_controls(content)
         self.time_table = table()
         content.addWidget(self.time_table, 1)
         details.addWidget(panel)
         details.setSizes([660, 400])
         overview_layout.addWidget(details, 1)
-        self.data_tabs.addTab(overview, "Overview")
+        self.data_overview_scroll = QScrollArea()
+        self.data_overview_scroll.setWidgetResizable(True)
+        self.data_overview_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.data_overview_scroll.setWidget(overview)
+        self.data_tabs.addTab(self.data_overview_scroll, "Overview")
         preview, self.data_channels, self._data_graph = self.channel_graph(
             self.callbacks.set_input_channels, "Sensor channels to plot", "data"
         )
@@ -121,6 +106,62 @@ class DataPage:
         self.continue_button = button("Configure analysis  →", lambda: self.callbacks.navigate(1))
         self.continue_button.setEnabled(False)
         self.status_layout.addWidget(self.continue_button)
+
+    def _build_time_controls(self, content: QVBoxLayout) -> None:
+        controls = QHBoxLayout()
+        self.data_time_channel = self.combo()
+        self.data_time_channel.setPlaceholderText("Select time column")
+        self.data_time_channel.setAccessibleName("Time column (shared with Analyze)")
+        self.data_time_channel.setMinimumContentsLength(8)
+        self.data_time_channel.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.data_time_channel.setToolTip(
+            tooltip_text("Time column shared with Analyze. Changes apply to all loaded recordings.")
+        )
+        field, self.data_time_channel_badge = self._time_field(
+            "Time column", self.data_time_channel
+        )
+        controls.addWidget(field, 1)
+        self.data_time_unit = self.combo(
+            [
+                "relative_s",
+                "relative_ms",
+                "absolute_s",
+                "absolute_ms",
+                "difference_s",
+                "difference_ms",
+            ]
+        )
+        self.data_time_unit.setAccessibleName("Time format (shared with Analyze)")
+        self.data_time_unit.setToolTip(
+            tooltip_text("Time format shared with Analyze, sampling diagnostics and raw graphs.")
+        )
+        self.data_time_unit_field, self.data_time_unit_badge = self._time_field(
+            "Time format", self.data_time_unit
+        )
+        controls.addWidget(self.data_time_unit_field, 1)
+        content.addLayout(controls)
+
+    @staticmethod
+    def _time_field(title: str, control: QComboBox) -> tuple[QWidget, QLabel]:
+        field = QWidget()
+        field.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        layout = QVBoxLayout(field)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addWidget(label(title, "sectionTitle"))
+        badge = label("From file", "muted")
+        badge.setObjectName("fileDefaultBadge")
+        badge.setAccessibleName(f"{title}: from file")
+        policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        policy.setRetainSizeWhenHidden(True)
+        badge.setSizePolicy(policy)
+        badge.hide()
+        layout.addWidget(badge)
+        layout.addWidget(control)
+        return field, badge
 
     def _build_data_header(self, layout: QVBoxLayout) -> None:
         panel, content = card()

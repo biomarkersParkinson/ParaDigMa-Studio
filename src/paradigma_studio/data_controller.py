@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QObject, QSignalBlocker, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -21,8 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .contracts import TimeConfiguration
 from .inspection import inspect_recordings
 from .sensor_controller import ChannelServices
+from .theme import tooltip_text
 from .ui.column_mapping import ColumnMappingEditor
 from .ui.graph_views import ChannelCanvasView
 from .widgets import FrameModel, ReadableTable
@@ -67,7 +69,10 @@ class DataView:
     data_channels: QListWidget
     data_tabs: QTabWidget
     data_time_channel: QComboBox
+    data_time_channel_badge: QLabel
     data_time_unit: QComboBox
+    data_time_unit_badge: QLabel
+    data_time_unit_field: QWidget
     data_values: list[QLabel]
     file_label: QLabel
     input_recording: QComboBox
@@ -96,6 +101,8 @@ class DataCallbacks:
     append_log: Callable[[str], None]
     navigate: Callable[[int], None]
     reset_analysis: Callable[[], None]
+    choose_time_column: Callable[[str | None], None]
+    choose_time_unit: Callable[[str], None]
     show_notice: NoticeCallback
     start_job: StartJobCallback
 
@@ -134,6 +141,7 @@ class DataController(QObject):
         self.services = services
         self.channels = channels
         self.previews = previews
+        self._rendered_time: TimeConfiguration | None = None
 
     def open_file(self) -> None:
         if self.jobs.worker is not None:
@@ -284,27 +292,7 @@ class DataController(QObject):
         self.view.data_values[0].setText(f"{len(frame):,}")
         self.view.data_values[1].setText(str(len(frame.columns)))
         self.view.data_values[2].setText(f"{description['missing']:,}")
-        self.view.data_time_channel.blockSignals(True)
-        self.view.data_time_channel.clear()
-        for column in frame:
-            self.view.data_time_channel.addItem(str(column), column)
-        self.view.data_time_channel.setCurrentIndex(
-            self.view.data_time_channel.findData(description["time_column"])
-        )
-        self.view.data_time_channel.blockSignals(False)
-        # The Data format is shared by the batch; cached descriptions retain
-        # their load-time format and must never overwrite the user's selection.
-        self.view.channel_table.setModel(FrameModel(description["sensors"], compact=True))
-        self.view.time_table.setModel(
-            FrameModel(description["time"], compact=True)
-            if description["time"] is not None
-            and description["time_unit"] == self.view.data_time_unit.currentText()
-            else None
-        )
-        if description["time_unit"] != self.view.data_time_unit.currentText():
-            self.update_time_statistics()
-        else:
-            self.update_time_unit_control()
+        self._display_time_controls(description)
         self.populate_input_channels(channels)
         if new_selection or self.view.data_tabs.currentIndex() == 1:
             self.plot_input()
@@ -312,16 +300,79 @@ class DataController(QObject):
             self.state._data_plot_dirty = True
         self.view.continue_button.setEnabled(True)
 
+    def _display_time_controls(self, description: RecordingDescription) -> None:
+        column = self.view.mapping.model.choices["time"]
+        with QSignalBlocker(self.view.data_time_channel):
+            self.view.data_time_channel.clear()
+            self.view.data_time_channel.addItem("Not included", None)
+            for name in self.view.mapping.model.columns:
+                self.view.data_time_channel.addItem(name, name)
+            self.view.data_time_channel.setCurrentIndex(
+                self.view.data_time_channel.findData(column)
+            )
+        self.view.channel_table.setModel(FrameModel(description["sensors"], compact=True))
+        same_column = column == description["time_column"]
+        self.view.time_table.setModel(
+            FrameModel(description["time"], compact=True)
+            if same_column
+            and description["time"] is not None
+            and description["time_unit"] == self.view.data_time_unit.currentText()
+            else None
+        )
+        if not same_column:
+            self._request_sensor_statistics()
+        if not same_column or description["time_unit"] != self.view.data_time_unit.currentText():
+            self.update_time_statistics()
+        else:
+            self.update_time_unit_control()
+
     def data_tab_changed(self, index: int) -> None:
         if index == 1 and self.state._data_plot_dirty:
             self.plot_input()
 
-    def sync_analysis_settings(self, time_unit: str | None, mapping_changed: bool) -> None:
-        """Refresh inspection once after Analyze has installed its complete settings."""
-        if time_unit is not None and time_unit != self.view.data_time_unit.currentText():
-            self.view.data_time_unit.setCurrentText(time_unit)
-        elif mapping_changed:
-            self.input_plot_changed()
+    def choose_time_column(self, *_: object) -> None:
+        self.callbacks.choose_time_column(self.view.data_time_channel.currentData())
+
+    def choose_time_unit(self, *_: object) -> None:
+        self.callbacks.choose_time_unit(self.view.data_time_unit.currentText())
+
+    def sync_analysis_settings(self, settings: TimeConfiguration, mapping_changed: bool) -> None:
+        """Mirror the canonical values without treating synchronization as user input."""
+        previous = self._rendered_time or settings
+        column_changed = previous.column != settings.column
+        unit_changed = previous.unit != settings.unit
+        self._rendered_time = settings
+        with QSignalBlocker(self.view.data_time_channel), QSignalBlocker(self.view.data_time_unit):
+            self.view.data_time_channel.setCurrentIndex(
+                self.view.data_time_channel.findData(settings.column)
+            )
+            self.view.data_time_unit.setCurrentText(settings.unit)
+        for control, badge, from_file, source in (
+            (
+                self.view.data_time_channel,
+                self.view.data_time_channel_badge,
+                settings.column_from_file,
+                settings.column_source,
+            ),
+            (
+                self.view.data_time_unit,
+                self.view.data_time_unit_badge,
+                settings.unit_from_file,
+                settings.unit_source,
+            ),
+        ):
+            badge.setVisible(from_file)
+            badge.setToolTip(tooltip_text(source) if from_file else "")
+            badge.setAccessibleDescription(source)
+            control.setAccessibleDescription(source)
+            control.setToolTip(tooltip_text(f"Shared with Analyze. {source}"))
+        if column_changed:
+            self.refresh_data_descriptives()
+        else:
+            if unit_changed:
+                self.update_time_statistics()
+            if unit_changed or mapping_changed:
+                self.input_plot_changed()
 
     def update_time_unit_control(self) -> None:
         import pandas as pd
@@ -335,10 +386,20 @@ class DataController(QObject):
                 or pd.api.types.is_timedelta64_dtype(self.inputs.frame[column].dtype)
             )
         )
-        self.view.data_time_unit.setVisible(numeric_time)
+        self.view.data_time_unit_field.setVisible(numeric_time)
         self.view.data_time_unit.setEnabled(self.jobs.worker is None)
 
     def refresh_data_descriptives(self, *_: object) -> None:
+        if self.inputs.frame is not None:
+            self._request_sensor_statistics()
+            self.populate_input_channels(self.selected_input_channels())
+            self.update_time_statistics()
+            if self.view.data_tabs.currentIndex() == 1:
+                self.plot_input()
+            else:
+                self.state._data_plot_dirty = True
+
+    def _request_sensor_statistics(self) -> None:
         if self.inputs.frame is not None:
             frame, column = self.inputs.frame, self.view.data_time_channel.currentData()
             self.view.channel_table.setEnabled(False)
@@ -346,12 +407,6 @@ class DataController(QObject):
                 (self.inputs.source, column),
                 lambda: self.services.sensor_descriptives(frame, column),
             )
-            self.populate_input_channels(self.selected_input_channels())
-            self.update_time_statistics()
-            if self.view.data_tabs.currentIndex() == 1:
-                self.plot_input()
-            else:
-                self.state._data_plot_dirty = True
 
     def apply_sensor_preview(self, description: pd.DataFrame | None) -> None:
         self.view.channel_table.setModel(

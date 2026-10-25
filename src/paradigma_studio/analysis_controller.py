@@ -29,6 +29,7 @@ from .analysis_help import (
     DEFAULT_MIN_SECTION_SECONDS,
     DEFAULT_SPLIT_BY_GAPS,
 )
+from .contracts import TimeConfiguration
 from .core import validate_column_mapping
 from .history import new_run, validate_run_settings
 from .results_view import normalise_clock
@@ -109,7 +110,7 @@ class AnalysisCallbacks:
     refresh_runs: Callable[[], None]
     show_notice: NoticeCallback
     start_job: StartJobCallback
-    sync_input: Callable[[str | None, bool], None]
+    sync_input: Callable[[TimeConfiguration, bool], None]
 
 
 @dataclass(frozen=True)
@@ -253,20 +254,16 @@ class AnalysisController(QObject):
             item.blockSignals(blocked)
         self.modules_changed()
 
-    def refresh(
-        self, *, previous_time_unit: str | None = None, mapping_changed: bool = False
-    ) -> None:
+    def refresh(self, *, mapping_changed: bool = False) -> None:
         """Refresh a complete input after loading, restoring settings or finishing a job."""
         if self.file_defaults.applying:
             return
-        if previous_time_unit is None:
-            previous_time_unit = self.view.time.currentText()
         self._refresh_file_defaults()
         self._update_module_controls()
         self._update_sensor_units()
         self.update_gap_controls()
         self.update_origin_default()
-        self._sync_input(previous_time_unit, mapping_changed)
+        self._sync_input(mapping_changed)
 
     def modules_changed(self, *_: object) -> None:
         if self.file_defaults.applying:
@@ -277,23 +274,21 @@ class AnalysisController(QObject):
     def mapping_changed(self, *_: object) -> None:
         if self.file_defaults.applying:
             return
-        previous_time_unit = self.view.time.currentText()
         self._refresh_file_defaults()
         self._update_sensor_units()
         self.update_origin_default()
-        self._sync_input(previous_time_unit, True)
+        self._sync_input(True)
 
     def time_unit_changed(self, *_: object) -> None:
         if self.file_defaults.applying:
             return
         self.update_origin_default()
-        self.callbacks.sync_input(self.view.time.currentText(), False)
+        self._sync_input(False)
 
-    def _file_default_restored(self, title: str, changed: bool) -> None:
+    def _file_default_restored(self, title: str, _changed: bool) -> None:
         if title == "Time units":
             self.update_origin_default()
-            if changed:
-                self.callbacks.sync_input(self.view.time.currentText(), False)
+            self._sync_input(False)
 
     def _refresh_file_defaults(self) -> None:
         if self.inputs.frame is not None:
@@ -302,9 +297,34 @@ class AnalysisController(QObject):
                 self.view.mapping.model.choices,
             )
 
-    def _sync_input(self, previous_time_unit: str, mapping_changed: bool) -> None:
-        unit = self.view.time.currentText()
-        self.callbacks.sync_input(unit if unit != previous_time_unit else None, mapping_changed)
+    def choose_time_column(self, column: str | None) -> None:
+        self.view.mapping.choose("time", column)
+
+    def choose_time_unit(self, unit: str) -> None:
+        if unit != self.view.time.currentText():
+            self.view.time.setCurrentText(unit)
+        else:
+            self.file_defaults.edited("Time units")
+            self._sync_input(False)
+
+    def confirm_time_unit(self, *_: object) -> None:
+        self._sync_input(False)
+
+    def _sync_input(self, mapping_changed: bool) -> None:
+        column = self.view.mapping.model.choices["time"]
+        column_from_file, source = self.view.mapping.value_source("time")
+        from_file, unit_source = self.file_defaults.value_source("Time units")
+        self.callbacks.sync_input(
+            TimeConfiguration(
+                column=column,
+                unit=self.view.time.currentText(),
+                column_from_file=column_from_file,
+                column_source=source,
+                unit_from_file=from_file,
+                unit_source=unit_source,
+            ),
+            mapping_changed,
+        )
 
     def _update_module_controls(self) -> None:
         selected = self.selected_modules()
@@ -513,14 +533,13 @@ class AnalysisController(QObject):
         except ValueError as exc:
             self.callbacks.show_notice(f"Cannot restore run parameters: {exc}", "error")
             return
-        previous_time_unit = self.view.time.currentText()
         with self._applying_settings():
             self.set_modules(settings["pipelines"])
             self._restore_units_and_side(settings)
             self._restore_signal_columns(settings)
             self._restore_segmentation(settings)
             self._restore_origin(settings)
-        self.refresh(previous_time_unit=previous_time_unit, mapping_changed=True)
+        self.refresh(mapping_changed=True)
         self.callbacks.navigate(1)
         self.view.status.setText(
             "Run parameters restored. Check the selected input before running."

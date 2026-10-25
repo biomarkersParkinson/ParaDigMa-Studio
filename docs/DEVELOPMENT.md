@@ -266,8 +266,8 @@ Its event handlers call the relevant operations directly:
 | Event | Updates |
 | --- | --- |
 | Module selection | Required signals, watch-side relevance, run action and origin preview |
-| Column selection or Signal columns Default | File unit defaults, sensor-unit availability, origin preview and Data plots |
-| Time-unit edit or Time units Default | Origin preview; Data's time format changes only when the unit value changes |
+| Time-column edit on either page, other signal selection or Signal columns Default | File unit defaults, sensor-unit availability, origin preview and shared Data diagnostics/plots |
+| Time-unit edit on either page or Time units Default | Shared value/provenance and origin preview; Data diagnostics/plots when the value changes |
 | Acceleration/gyroscope unit edit or Default | Manual/file provenance; the input clock is unchanged |
 | Gap-splitting switch | Availability of gap and minimum-section fields |
 | Missing-sample policy | Origin preview |
@@ -279,12 +279,24 @@ units, mappings, policies and origins are installed. Named restoration helpers
 apply each group; the controller refreshes once after the guard ends. Pending
 preview results still follow the existing generation/key and manual-origin rules.
 
-`AnalysisCallbacks.sync_input` synchronizes the Data page after final settings are
-available. A changed Analyze time unit updates Data's format; an unchanged unit
-preserves Data's independent inspection format. A mapping change refreshes the
-plots once, including when the time format also changes. File-default application
-uses its own guard so automatic unit selections cannot become manual edits or
-start intermediate origin previews.
+`AnalysisCallbacks.sync_input` publishes an immutable `TimeConfiguration` after
+complete settings are available. It carries the selected source column, unit and
+both fields' file/manual provenance. Data edits call the Analyze controller's
+normal selection paths; Analyze remains the configuration owner. Both pages use
+`FileDefaults.value_source` and `ColumnMappingEditor.value_source` for provenance.
+Data applies snapshots under signal blockers so mirroring cannot feed back into
+manual-edit handlers. Its last-rendered snapshot detects effective changes even
+when a user has already changed the Data widget. Confirming an unchanged value
+updates provenance without recomputing sampling statistics.
+
+Data's time-column options match the batch's available signal columns and include
+an explicit Not included option. Switching the viewed recording preserves the
+shared choice, even if it is absent from that file; diagnostics then remain
+unavailable. Cached initial descriptives are reused only for the same source
+column and format. Time and sensor previews scan only the inspected recording and
+reuse their existing caches. New input resets both pages and applies the new
+file defaults through the existing guarded refresh. File-default application
+cannot become a manual edit or start intermediate origin previews.
 
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`

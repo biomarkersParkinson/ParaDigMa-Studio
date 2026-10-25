@@ -50,7 +50,7 @@ def test_sensor_units_and_gap_edits_do_not_republish_an_unchanged_origin(window)
     assert window.clock_input.text() == origin
 
 
-def test_time_unit_default_retries_origin_without_resetting_an_unchanged_data_format(window):
+def test_time_unit_default_restores_the_shared_format_and_retries_origin(window):
     window.loaded(("sensor.json", recording()))
     wait_for_previews(window)
     window.time.activated.emit(window.time.currentIndex())
@@ -59,7 +59,7 @@ def test_time_unit_default_retries_origin_without_resetting_an_unchanged_data_fo
     published = QSignalSpy(window._origin_preview.value_ready)
     window._analysis_controller.view.file_default_buttons["Time units"].click()
     assert published.count() == 1
-    assert window.data_time_unit.currentText() == "absolute_ms"
+    assert window.data_time_unit.currentText() == window.time.currentText() == "relative_s"
     assert not window._analysis_controller.view.file_badges["Time units"].isHidden()
 
 
@@ -73,8 +73,7 @@ def test_saved_settings_are_complete_before_one_preview_and_data_notification(
     frame["optical"] = frame.green
     window.loaded(("sensor.json", frame))
     wait_for_previews(window)
-    # Data's independent inspection format should survive when Analyze time is unchanged.
-    window.data_time_unit.setCurrentText("absolute_ms")
+    # Restore the mapping with either the same shared format or a different one.
     time_unit = "relative_ms" if change_time_unit else "relative_s"
     choices = {**dict.fromkeys(SIGNALS), "time": "device_clock", "green": "optical"}
     saved = {
@@ -117,10 +116,10 @@ def test_saved_settings_are_complete_before_one_preview_and_data_notification(
         requests.append(key)
         request(key, operation)
 
-    def observe_sync(unit, mapping_changed):
+    def observe_sync(configuration, mapping_changed):
         assert_final_values()
-        notifications.append((unit, mapping_changed))
-        sync(unit, mapping_changed)
+        notifications.append((configuration.unit, mapping_changed))
+        sync(configuration, mapping_changed)
 
     monkeypatch.setattr(window._origin_preview, "request", observe_request)
     controller.callbacks = replace(controller.callbacks, sync_input=observe_sync)
@@ -135,9 +134,9 @@ def test_saved_settings_are_complete_before_one_preview_and_data_notification(
     window._run_state.selected_run = {"settings": saved}
     window.use_run_parameters()
     assert len(requests) == (1 if mode == "automatic" else 0)
-    assert notifications == [(time_unit if change_time_unit else None, True)]
+    assert notifications == [(time_unit, True)]
     assert all(changes.count() == 0 for changes in widget_changes)
-    assert window.data_time_unit.currentText() == (time_unit if change_time_unit else "absolute_ms")
+    assert window.data_time_unit.currentText() == time_unit
     wait_for_previews(window)
     assert_final_values()
     if mode == "custom":

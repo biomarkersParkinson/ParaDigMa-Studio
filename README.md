@@ -28,6 +28,8 @@ A verified signing identity must be configured before the signed workflow can pr
 1. **Data:** Open one or more wrist sensor recordings for the same subject (Ctrl/Shift-select
    in the file picker). Use the recording selector to inspect each file's sensor and time statistics,
    overlay selected channels in Graphs, or view original samples in Tables.
+   Time column and time format are shared with Analyze; file-derived values show
+   **From file** labels.
 2. **Analyze:** Run any combination of gait, tremor and pulse rate analysis modules.
    Review units, time representation, watch side and channel mapping; use each
    field's **i** button for guidance. Then click **Run Analysis**.

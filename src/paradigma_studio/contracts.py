@@ -8,6 +8,7 @@ Preparation and official adapter keywords live in preparation_contracts.
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
+from dataclasses import dataclass
 from os import PathLike
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Protocol, TypeAlias, TypedDict
 
@@ -38,10 +39,24 @@ JobOperation: TypeAlias = "Callable[[logging.Logger], object]"
 JobCompletion: TypeAlias = Callable[[Any], None]
 TimeOffsets: TypeAlias = dict[str, float | dict[str, float]]
 JSONValue: TypeAlias = "None | bool | int | float | str | list[JSONValue] | dict[str, JSONValue]"
+
+
 AnalysisLogEvent: TypeAlias = tuple[Literal["log"], int, str] | tuple[Literal["log"], int, str, str]
 AnalysisEvent: TypeAlias = (
     AnalysisLogEvent | tuple[Literal["failed"], str] | tuple[Literal["completed"]]
 )
+
+
+@dataclass(frozen=True)
+class TimeConfiguration:
+    """One time selection and its provenance, rendered on Data and Analyze."""
+
+    column: str | None
+    unit: str
+    column_from_file: bool
+    column_source: str
+    unit_from_file: bool
+    unit_source: str
 
 
 class RunOutput(TypedDict):

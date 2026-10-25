@@ -43,7 +43,7 @@ def test_data_time_selection_refreshes_visible_and_hidden_graphs(window, unit):
     window.set_input_channels(["gyroscope_x", "accelerometer_x"])
     window.data_tabs.setCurrentIndex(1)
     window.data_time_unit.setCurrentText(unit)
-    assert window.time.currentText() == "relative_s"
+    assert window.time.currentText() == unit
     assert len(window.data_figure.axes) == 2
     for axes in window.data_figure.axes:
         line = axes.lines[0]
@@ -57,7 +57,7 @@ def test_data_time_selection_refreshes_visible_and_hidden_graphs(window, unit):
     window.data_tabs.setCurrentIndex(1)
     for axes in window.data_figure.axes:
         np.testing.assert_array_equal(axes.lines[0].get_xdata(), increments)
-    # Analyze's existing synchronization also updates Data when revisited.
+    # Edits on Analyze also update the shared format and invalidate Data graphs.
     window.navigate(1)
     window.time.setCurrentText(unit)
     assert window._data_state._data_plot_dirty
@@ -109,7 +109,7 @@ def test_data_time_format_is_shared_by_all_loaded_recordings(window, unit, raw, 
         line = window.data_figure.axes[0].lines[0]
         np.testing.assert_allclose(line.get_xdata(), expected)
         np.testing.assert_array_equal(line.get_ydata(), originals[key].gyroscope_x)
-    assert window.time.currentText() == "relative_s"
+    assert window.time.currentText() == unit
     for key in frames:
         pd.testing.assert_frame_equal(frames[key], originals[key], check_exact=True)
         pd.testing.assert_frame_equal(

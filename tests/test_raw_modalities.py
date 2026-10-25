@@ -186,7 +186,15 @@ def test_custom_mapping_groups_original_names_and_does_not_block_on_conflicting_
     ]
     window.mapping.set_mapping({"a": "time", "b": "green"})
     window.mapping._combos["green"].setCurrentIndex(window.mapping._combos["green"].findData("a"))
-    assert len(window.data_figure.axes) == 3
+    # The shared Time selection is excluded from plotted signals even when
+    # conflicting signal choices prevent grouping them by the Analyze mapping.
+    assert window.data_time_channel.currentData() == "a"
+    assert [[line.get_label() for line in signals(ax)] for ax in window.data_figure.axes] == [
+        ["b"],
+        ["c"],
+    ]
+    for ax in window.data_figure.axes:
+        np.testing.assert_array_equal(signals(ax)[0].get_xdata(), frame.a)
     window._result_state.provenance = {
         "source": "sensor.csv",
         "settings": {"column_mapping": mapping, "skip_preparation": True},

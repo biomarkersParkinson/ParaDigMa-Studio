@@ -251,7 +251,7 @@ def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(wi
     assert window.input_table.model().rowCount() == 60001
 
 
-def test_data_time_units_are_explicit_and_do_not_change_analysis_parameters(window):
+def test_data_time_units_and_columns_update_the_shared_analysis_parameters(window):
     window.loaded(
         (
             "milliseconds.csv",
@@ -261,7 +261,8 @@ def test_data_time_units_are_explicit_and_do_not_change_analysis_parameters(wind
     window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("device_ticks"))
     window.data_time_unit.setCurrentText("relative_ms")
     wait_for_previews(window)
-    assert window.time.currentText() == "relative_s"
+    assert window.time.currentText() == "relative_ms"
+    assert window.mapping.model.choices["time"] == "device_ticks"
     stats = window.time_table.model().frame.set_index("Statistic")
     assert stats.loc["Estimated sampling rate (Hz)", "Value"] == pytest.approx(100)
     assert window.channel_table.model().frame.Channel.tolist() == ["gyroscope_x"]

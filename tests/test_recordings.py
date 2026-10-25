@@ -156,7 +156,7 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
 
 
 @pytest.mark.parametrize("count", [1, 2], ids=["single", "multiple-recordings"])
-def test_open_recordings_uses_shared_data_time_format_for_initial_descriptives(
+def test_open_recordings_resets_shared_time_after_initial_descriptives(
     window, tmp_path, monkeypatch, count
 ):
     frame = pd.DataFrame({"time": [0, 10, 20, 10], "gyroscope_x": [1.0, 2.0, 3.0, 4.0]})
@@ -170,11 +170,11 @@ def test_open_recordings_uses_shared_data_time_format_for_initial_descriptives(
     window.open_file()
     wait_for_worker(window)
     wait_for_previews(window)
-    assert window.data_time_unit.currentText() == "difference_ms"
+    assert window.data_time_unit.currentText() == "relative_s"
     assert window.time.currentText() == "relative_s"
     assert set(window._input_state.sources.values()) == {str(path) for path in paths}
     pd.testing.assert_frame_equal(
-        window.time_table.model().frame, time_descriptives(frame.time, "difference_ms")
+        window.time_table.model().frame, time_descriptives(frame.time, "relative_s")
     )
     for description in window._data_state._input_descriptions.values():
         assert description["time_unit"] == "difference_ms"
@@ -184,7 +184,7 @@ def test_open_recordings_uses_shared_data_time_format_for_initial_descriptives(
     window.set_input_channels(["gyroscope_x"])
     window.data_tabs.setCurrentIndex(1)
     np.testing.assert_allclose(
-        window.data_figure.axes[0].lines[0].get_xdata(), [0.0, 0.01, 0.03, 0.04]
+        window.data_figure.axes[0].lines[0].get_xdata(), frame.time.to_numpy()
     )
     for path in paths:
         pd.testing.assert_frame_equal(pd.read_csv(path), frame, check_exact=True)

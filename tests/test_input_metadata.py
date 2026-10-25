@@ -172,7 +172,10 @@ def test_real_device_imports_provide_units_even_when_equal_to_app_defaults(windo
     window.loaded((name, frame))
     window.set_modules(["pulse_rate"])
     assert window.acc.currentData() == "g"
-    assert window.time.currentText() == "relative_s"
+    assert window.time.currentText() == window.data_time_unit.currentText() == "relative_s"
+    assert window.data_time_channel.currentData() == "time"
+    assert not window._data_controller.view.data_time_channel_badge.isHidden()
+    assert not window._data_controller.view.data_time_unit_badge.isHidden()
     assert not badge(window, "Acceleration units").isHidden()
     assert not badge(window, "Time units").isHidden()
     assert badge(window, "Gyroscope units").isHidden() == ("gyroscope_x" not in frame)
@@ -337,6 +340,8 @@ def test_conflicting_batch_metadata_is_summarized_once_without_source_names(wind
     assert notice.text().count("Time units differ") == 1
     assert all(name not in notice.text() for name in sources.values())
     assert badge(window, "Time units").isHidden()
+    assert window._data_controller.view.data_time_unit_badge.isHidden()
+    assert window.data_time_unit.currentText() == window.time.currentText()
     assert not badge(window, "Acceleration units").isHidden()
 
 

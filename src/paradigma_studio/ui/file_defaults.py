@@ -125,10 +125,8 @@ class FileDefaults:
     def render(self) -> None:
         for title, badge in self.badges.items():
             detected = self.detected.get(title)
-            manual = self.manual.get(title)
-            from_file = bool(detected and detected.value is not None and manual is None)
+            from_file, detail = self.value_source(title)
             badge.setVisible(from_file)
-            detail = self._detail(title, detected, manual)
             badge.setToolTip(tooltip_text(detail) if from_file else "")
             badge.setAccessibleDescription(detail)
             source = f"<p><b>Current value source:</b> {escape(detail)}</p>"
@@ -144,6 +142,13 @@ class FileDefaults:
             self.descriptions[title].setText(self.base_help[title] + source)
             if title in self.controls:
                 self.controls[title].setAccessibleDescription(detail)
+
+    def value_source(self, title: str) -> tuple[bool, str]:
+        detected, manual = self.detected.get(title), self.manual.get(title)
+        return (
+            bool(detected and detected.value is not None and manual is None),
+            self._detail(title, detected, manual),
+        )
 
     def _detail(self, title: str, detected: UnitDefault | None, manual: str | None) -> str:
         if manual:

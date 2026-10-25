@@ -208,17 +208,19 @@ def test_saved_selections_restore_atomically_and_keep_not_included(
     notifications = []
     sync = window._data_controller.sync_analysis_settings
 
-    def observe_sync(unit, mapping_changed):
+    def observe_sync(configuration, mapping_changed):
         assert window.mapping.signal_columns() == settings["signal_columns"]
         assert window.gaps.isChecked() == split_by_gaps
-        notifications.append((unit, mapping_changed))
-        sync(unit, mapping_changed)
+        notifications.append((configuration.unit, mapping_changed))
+        sync(configuration, mapping_changed)
 
     monkeypatch.setattr(window._data_controller, "sync_analysis_settings", observe_sync)
     window._run_state.selected_run = record
     window.use_run_parameters()
     assert changes.count() == 0  # Widget signals stay blocked throughout restoration.
-    assert notifications == [(None, True)]
+    assert notifications == [(settings["time_input_unit"], True)]
+    assert window.data_time_channel.currentData() == settings["signal_columns"]["time"]
+    assert window.data_time_unit.currentText() == settings["time_input_unit"]
     assert window.mapping.signal_columns() == settings["signal_columns"]
     assert window.mapping._combos["green"].currentText() == "Not included"
     restored = window._analysis_controller._analysis_settings(["tremor"])
