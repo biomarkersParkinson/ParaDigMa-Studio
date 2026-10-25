@@ -44,7 +44,12 @@ def observe_analysis_launch(controller, monkeypatch):
     def navigate(index):
         events.append(("navigate", index))
         assert controller.view.status.text() == "Running ParaDigMa… Review progress in Runs."
-        assert "sources" not in controller.results.provenance
+        record = controller.runs.current_run
+        origin = controller.results.provenance
+        assert origin["run_id"] == record["id"]
+        assert origin["studio_version"] == record["studio_version"]
+        assert origin["paradigma_version"] == record["paradigma_version"]
+        assert origin["sources"] == controller.inputs.sources
 
     def start_job(operation, completed):
         events.append("start")
