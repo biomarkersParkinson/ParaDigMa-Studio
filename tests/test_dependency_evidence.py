@@ -1,16 +1,60 @@
 """Native uv gates and the application-owned release/audit policy."""
 
 import copy
+import json
 import shutil
 import subprocess
 import sys
 import tomllib
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 from scripts.audit_dependencies import classify_findings, verify_audit_environment
 from scripts.dependency_evidence import ROOT, locked_packages, verify_package_evidence
+
+
+def test_manifest_verifies_the_process_environment_even_when_another_project_env_is_set(
+    tmp_path, monkeypatch
+):
+    from scripts import write_build_manifest
+
+    monkeypatch.setattr(write_build_manifest, "__file__", str(tmp_path / "scripts/manifest.py"))
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", str(tmp_path / "unrelated-env"))
+    monkeypatch.setattr(write_build_manifest, "distributions", lambda: [])
+    (tmp_path / "uv.lock").write_text("version = 1\n")
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    report = tmp_path / "audit.json"
+    report.write_text(
+        json.dumps(
+            {
+                "dependencies": [{"name": "numpy", "version": "2.5.4", "vulns": []}],
+                "reviewed_exceptions": [],
+                "blocking_findings": [],
+            }
+        )
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(stdout="a" * 40 + "\n")
+
+    def output(command, **kwargs):
+        if "list" in command:
+            return '[{"name":"numpy","version":"2.5.4"}]'
+        return "uv 0.13.5"
+
+    monkeypatch.setattr(write_build_manifest.subprocess, "run", run)
+    monkeypatch.setattr(write_build_manifest.subprocess, "check_output", output)
+    write_build_manifest.main(bundle, report)
+    checked = calls[0][1]["env"]
+    assert checked["UV_PROJECT_ENVIRONMENT"] == sys.prefix
+    assert checked["UV_PYTHON"] == sys.executable
+    saved = json.loads((bundle / "security/build-info.json").read_text())
+    assert saved["packages"] == [["numpy", "2.5.4"]]
 
 
 @pytest.mark.parametrize("platform", ["x86_64-pc-windows-msvc", "x86_64-manylinux_2_34"])

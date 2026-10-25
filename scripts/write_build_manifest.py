@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -20,7 +21,14 @@ else:
 def main(bundle, audit_report):
     bundle = Path(bundle).resolve()
     root = Path(__file__).resolve().parents[1]
-    subprocess.run(["uv", "sync", "--locked", "--all-groups", "--check"], cwd=root, check=True)
+    if sys.prefix == sys.base_prefix:
+        raise ValueError("Generate build evidence from the project's virtual environment.")
+    subprocess.run(
+        ["uv", "sync", "--locked", "--all-groups", "--check"],
+        cwd=root,
+        check=True,
+        env={**os.environ, "UV_PROJECT_ENVIRONMENT": sys.prefix, "UV_PYTHON": sys.executable},
+    )
     inventory = json.loads(
         subprocess.check_output(
             ["uv", "pip", "list", "--python", sys.executable, "--format", "json"], encoding="utf-8"
