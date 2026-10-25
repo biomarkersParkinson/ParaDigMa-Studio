@@ -1,546 +1,638 @@
 # Using ParaDigMa Studio
 
-See the [README](../README.md) for downloading the Windows app and the basic workflow.
-The sidebar has Data, Analyze, Results and Runs pages and expands on hover.
+Follow the app's four pages: [Data](#data), [Analyze](#analyze),
+[Results](#results) and [Runs](#runs). The sidebar expands when you hover over it;
+**Alt+1–4** switches between pages. For downloading and opening the Windows app,
+start with the [README](../README.md).
 
-**About** at the bottom of the sidebar (or **F1**) has **Overview**, **Citations**
-and **Licences** tabs. **Copy BibTeX**, in Citations, copies the 2026 JOSS paper
-reference; pipeline methods and validation publications are listed below it.
-Licences shows the complete Studio and ParaDigMa licences under separate headings.
+The screenshots follow one gait analysis of the public Axivity example included
+with Studio. Click an image to view it at full size. Your available signals
+and outputs depend on your recording and selected analysis modules.
 
-## Input and analysis settings
+<details>
+<summary>Navigation, help and keyboard shortcuts</summary>
 
-The app uses the official ParaDigMa loaders and processing functions, with an
-Empatica IMU import adapter and TSDF metadata scaling. TSDF's per-channel
-`scale_factors` are applied once on loading, for both display and analysis;
-absent or empty factors leave stored values unchanged. Analyze units describe
-these scaled physical values. ParaDigMa's preparation then performs unit conversion.
-**Open sensor files** accepts one or more recordings
-for the same subject. For several files, the Data recording selector inspects
-one original file at a time; Analyze reports the complete selection and sample
-count. One set of units, mappings, watch side and preparation settings applies
-to every file, so select files with compatible sensor conventions.
+**About**, at the bottom of the sidebar, or **F1**, opens Overview, Citations and
+Licences. **Copy BibTeX** in Citations copies the 2026 JOSS paper reference;
+pipeline-method and validation publications appear below it. Licences contains
+the full Studio and ParaDigMa licences under separate headings.
 
-Data's time-column format controls both its time statistics and graphs.
-With `difference_s` or `difference_ms`, graphs reconstruct cumulative elapsed
-seconds from the complete increment column before display sampling. Tables retain
-the original increments. Missing increments use sample positions rather than
-inventing elapsed times. Changing Data's selection does not change Analyze settings.
+| Shortcut | Action |
+| --- | --- |
+| **Alt+1–4** | Switch between Data, Analyze, Results and Runs. |
+| **Ctrl+O** | Open recordings. |
+| **Ctrl+Enter** | Run analysis. |
+| **Ctrl+S** | Save results locally. |
+| **Delete**, with run-list focus | Delete selected runs after confirmation. |
+| **F1** | Open About. |
 
-Each recording is validated and prepared separately. Feature windows and
-filtering never cross file boundaries. Multiple recordings can run in up to two
-workers when CPU and available RAM permit; a single recording always uses one
-worker, including its gap sections. The processing log reports the selected worker
-count and any fallback reason. Resource decisions show detected CPU count, free
-RAM after loading, largest recording size and estimated RAM per worker; installed
-RAM alone does not determine the worker count. Stop terminates every owned worker
-and removes temporary processing files. Classification and quantification tables
-are combined in input order with unique gait segments across files;
-aggregates are computed from the combined quantifications using ParaDigMa's own
-aggregation functions. They are not averages of per-file aggregate percentages.
-Detailed tables and CSV exports retain `file_key`; Runs and JSON exports retain
-the mapping from file identifiers to original paths. Exports protect every
-selected source file from overwriting. A load/preparation failure names the
-affected recording; processing errors retain available partial pipeline outputs.
+</details>
 
-Choose any combination of gait, tremor and pulse rate in **Analysis modules**.
-Set processing options in **Analysis parameters**. Each field's **i** button opens
-guidance below the parameters with a reference to the official ParaDigMa documentation.
-Only one explanation is shown at a time; opening another replaces it without
-moving the fields.
-Signal columns includes ParaDigMa's original reference figure and a direct link to its
-Coordinate System guide. The example explains source-axis selection and inversion.
-Signal columns appear on the left and parameter settings on the right; narrow
-windows stack the two sections.
-Analyze prefills time and sensor units when supported metadata agrees across
-all applicable recordings. TSDF supplies per-channel units after physical scaling;
-Axivity CWA and Empatica imports supply their decoded output conventions (`g`,
-`deg/s` where gyroscope is present, and `relative_s`). Plain CSV, Parquet and
-pickle tables do not establish units merely through their format or values.
-Only supported, explicit time representations are accepted: a declaration of
-seconds alone does not distinguish relative, absolute or difference-based time.
+## Data
 
-A small **From file** label beneath the parameter name identifies detected units
-and automatic time origins.
-In Signal columns, each automatically matched signal has its own label.
-Hover over it, or open the field's existing **i** explanation, to see the source.
-Defaults remain unmarked. Editing a value removes its label and keeps the manual
-choice for the current loaded recording or batch. The field's **Default** button
-restores the detected value; one **Default** button restores the whole Signal columns table.
-Time origin's **Default** button restores its automatic value. For absolute time,
-that value comes from the selected **Time** column. For relative or difference
-time, it comes from recording-start metadata when available (including TSDF,
-Axivity CWA and Empatica imports). Other date columns, including `time_dt`,
-`datetime` and `timestamp`, do not supply an origin. Without an available origin,
-the field displays **Not set** and results use elapsed time.
-**Use parameters** keeps restored units explicit, including
-values equal to the current defaults. Unit detection follows the selected source
-columns. A single message summarizes conflicting or incomplete unit declarations
-across recordings, without listing filenames. These warnings do not block analysis:
-the selected units apply to the whole batch. If the actual units differ, normalize
-the inputs or analyze them separately. Watch side, axis directions and preparation
-policies remain user choices.
-Acceleration and gyroscope unit fields are greyed out when no axis for that sensor
-is mapped to an available column. Mapping an axis enables its unit field.
-Successfully loading a new recording or batch resets Analyze to its initial
-settings, including the default Gait module, automatic column matching,
-axis directions, preparation options, thresholds and automatic time origin.
-This clears both manual entries and parameters restored from a previous run.
-The new input's supported metadata then fills the relevant fields. Help and
-mapping details collapse. Switching the inspected recording within an already
-loaded batch preserves the shared settings. Cancelling a file selection or a
-failed load preserves the current input and settings.
-The page preserves comfortable spacing. Parameters fit together at normal window
-sizes; smaller windows and expanded guidance can scroll. **Run Analysis** stays
-visible below the settings.
+Load recordings, confirm their time representation and inspect the original samples.
 
-When pulse rate is selected alongside gait or tremor, the desktop runs the
-official orchestrator twice in the background and combines their returned outputs.
-The workflows retain independent sensor requirements and missing-sample exclusions.
-If one fails, the other workflow's successful outputs remain available, and failed workflows appear under **Errors** in Runs.
+[![Data Overview with sensor statistics, time settings and sampling diagnostics](images/user-guide/data.png)](images/user-guide/data.png)
 
-Pulse rate accepts `time` and `green` (raw PPG), with or without accelerometer
-channels. Numeric timestamps are converted according to the selected time units. In ParaDigMa 1.1.2,
-the high-level pulse-rate pipeline assesses quality using PPG features only;
-its `pred_sqa_proba` does not include an accelerometer motion assessment.
-Complete optional accelerometer channels retain their existing unit conversion
-and missing-sample checks during preparation.
+*Data Overview after loading the example. The time column and format are read
+from the file and shared with Analyze.*
 
-- Check acceleration units, gyroscope units and time representation against the
-  recording. Acceleration is displayed as **g** or **m/s²**. Numeric time supports
-  relative, absolute or difference-based values
-  in seconds or milliseconds. CSV date strings need conversion to a supported
-  numeric representation before analysis.
-- For gait, set the actual wrist as watch side. The field is inactive for
-  tremor or pulse rate alone.
-  Watch-side inversion happens separately in official pipeline preprocessing.
-- Scrolling over dropdowns, numeric fields or date/time fields moves their
-  surrounding page without changing their values, including when a field has
-  focus. This applies throughout the app. Use typing, keyboard arrows or the
-  field's buttons to edit a value. An opened dropdown list can still scroll.
-- In **Signal columns**, choose a source column from the dropdown for each
-  required signal. Columns already named `time`, `green`, `accelerometer_x`, etc.
-  are recognized automatically and shown by their actual names. The dropdown
-  selections determine the signal inputs used in processing. Selecting a different
-  source replaces the standard-name source; an unselected standard-name column
-  does not fill a missing selection. Select **Not included** to leave any signal
-  unassigned, even if its standard-name column exists. This choice persists within
-  the current loaded recording or batch until you select a source or use **Default**.
-  Loading new files starts a fresh mapping. Missing signals required
-  by a selected module still show a warning. Automatic matching on load uses names shared
-  by every loaded recording. Exact ParaDigMa names take precedence, followed by
-  unambiguous familiar names such as `timestamp`, `gyr_x` and `ppg`.
-  The table's single **Default** button restores these matches for all signals, including
-  optional ones. It replaces manual selections and clears assignments without a confident match;
-  ambiguous names need a manual selection afterwards. Axis inversions are kept.
-  A **From file** label appears beneath each automatically matched signal name.
-  Manually selected values are not marked as file-derived.
-  **Show optional signals** exposes other channels;
-  **Show details** also explains whether column assignments came from exact names,
-  recognized aliases, manual selections or explicit saved mappings.
-  Selecting another module preserves all choices.
-  For axis swaps, choose the source column that should become each toolbox axis.
-  For example, select the device's Y column for **Accelerometer X** and its X column
-  for **Accelerometer Y**. Tick **Invert axis** to reverse the selected signal's
-  direction (multiply by −1). Accelerometer and gyroscope directions can be set
-  independently. There is no separate Device axes field.
-  One mapping and set of inversions applies to every loaded recording.
-  The compatibility summary covers every loaded recording. **Show details**
-  groups missing signals and conflicting names into messages shared across the
-  recordings, without listing filenames. Counts identify issues affecting only
-  some recordings. Warning icons beside affected dropdowns explain reused source
-  columns and how many recordings are missing a selected column.
-  Click a warning icon to read its full message, or focus it and press Space.
-  Valid rows need no status indicator. Existing per-recording and
-  per-module analysis validation still determines which workflows can run.
-  Source-column options list only columns present
-  in the loaded recordings; a missing saved choice shows the selection prompt and its warning
-  names the missing column so it can be corrected. **Use parameters** restores
-  the explicit signal choices and inversions from a supported saved run.
-  Saved runs and exports retain the source-to-toolbox mapping dictionary and record inverted target channels
-  separately; no JSON editing is needed in the app.
-- Studio always prepares inputs according to the selected columns, units and
-  axis inversions. Acceleration already in `g`, gyroscope values in `deg/s` and
-  relative-second timestamps retain their values when no axis change is selected.
-  Validation and the chosen missing-sample and gap policies still apply.
-  Official pipeline resampling, filtering and watch-side correction run as usual.
-- **Exclude missing sensor samples** removes rows with non-finite required sensor
-  values from analysis. Counts are logged and recorded in exported metadata.
-  It defaults to on; uncheck it for strict rejection. Non-finite relative or
-  absolute timestamps can also be excluded. Missing time differences cannot be
-  excluded, and retained timestamps must still be strictly increasing.
-- **Split recordings at time gaps** runs continuous sections independently. The
-  switch defaults to on. Maximum gap and minimum section duration both default
-  to 1.5 seconds, matching ParaDigMa's preparation defaults.
-  Each **Default** button restores its field even when splitting is disabled.
-  Maximum gap is an interval between samples, not a feature window.
-  Outputs identify multiple sections using `file_key`.
+### Load recordings
 
-The source recording remains unchanged. Difference-based time preserves elapsed
-time before missing sensor rows are excluded. The Python `analyze` API requires
-explicit `drop_missing_samples=True` to enable exclusion.
+1. Click **Open sensor files…** or press **Ctrl+O**.
+2. Select one recording, or use Ctrl/Shift to select several recordings from
+   **the same subject**.
+3. For a batch, use the recording selector to inspect each file. Analyze will
+   process the entire selection with one configuration.
 
-The wrapper calls official preparation and orientation functions before
-`run_paradigma` with prepared data. This applies the selected units and axes
-consistently and avoids interpolation across separate recordings. It also supplies
-gap settings required by ParaDigMa 1.1.2. Scientific configuration and algorithms
-remain those of the official package. See [scientific tests](SCIENTIFIC_TESTS.md).
+Use consistently formatted recordings within a batch: source column names,
+units, wrist side and axis conventions must support the same settings. Review
+the recording configuration even when Studio prefills it.
 
-## Inspecting data and results
+| Format | What Studio reads |
+| --- | --- |
+| CSV and Parquet | Table columns and original values. The format alone does not establish sensor units. |
+| Pickle (`.pkl`, `.pickle`) | Table data from a trusted source, after confirmation. Pickle files can execute code when opened. |
+| TSDF (`*_meta.json` with its binary companions) | Channels, supported units and recording-start metadata. Keep the metadata and referenced binaries together. |
+| Axivity CWA | Decoded accelerometer and gyroscope samples, their units and recording-start metadata. |
+| Empatica Avro | Supported IMU samples and metadata; gyroscope data may be absent. |
 
-### Data
+TSDF per-channel `scale_factors` are applied once during loading. Displayed
+values and the units you select for analysis refer to these scaled physical
+values; absent or empty scale factors leave stored values unchanged. Source
+files are never rewritten.
 
-Data **Overview** separates sensor and time statistics. In smaller windows, scroll
-the overview to reach all controls and statistics:
+Successfully loading new files resets the analysis configuration and applies
+their available defaults. Cancelling the picker or a failed load preserves the
+current input. Switching the recording inspected within a loaded batch keeps
+the batch's shared settings.
 
-- Sensor range is minimum–maximum; median and IQR (75th minus 25th percentile)
-  use finite values. Missing and infinite values are counted separately.
-- Estimated sampling rate is the inverse median positive time interval. Gaps
-  are intervals longer than 1.5 times that median. Invalid timestamps are not
-  bridged. Zero-length and backward intervals are reported separately.
-- **Time column** and numeric **Time format** share their settings with Analyze's
-  Time signal and Time units. Editing either page updates both pages, sampling
-  statistics, raw graphs and the automatic time-origin preview. Recognized column
-  names and supported file unit metadata prefill both pages, with **From file**
-  labels directly below the field names. An explicit selection, including confirming
-  the current value, marks that field as manual on both pages. Analyze's **Default**
-  controls restore the file-derived settings.
-- These time settings apply to the whole batch and stay unchanged when switching
-  the recording to inspect. A missing or unassigned time column leaves sampling
-  diagnostics unavailable; Studio does not switch to another column. Native
-  datetime values carry their own time representation.
+### Confirm the time column and format
 
-Data **Graphs** overlays checked channels of the same modality with stable colors
-and a legend. Each modality has its own value axis and shares the time axis.
-Values retain their file units. Data **Tables** shows original samples.
-Zoom in to inspect individual samples at their original timestamps. Wide views
-retain signal peaks; zooming restores the full detail in the visible time range.
+**Time column** and **Time format** are the same settings as Analyze's **Time**
+signal and **Time units**. Editing either page updates both pages, sampling
+diagnostics, raw graphs and the automatic time-origin preview. The selected
+column is the clock used for analysis; other date columns do not supply a
+replacement clock.
 
-### Results overview
+Recognized column names and supported unit metadata prefill the controls.
+**From file**, directly below a field name, identifies a file-derived value;
+hover over the label for its source. An explicit selection, including confirming
+the current value, marks it as manual on both pages. Analyze's **Default**
+controls restore file-derived settings.
 
-Results **Overview** shows official aggregates and relevant pipeline metadata in
-module cards. Recording summaries show the timespan, data coverage in days and
-hours plus its percentage of the timespan, and gaps, without duplicating
-identical workflows. Gait has **Quantity**, **Range of motion** and **Peak velocity**
-charts, grouped by filtered/unfiltered gait and then duration category. Quantity
-shows duration in minutes and integer segment counts; the count bins use original
-unfiltered segment durations, with 20 seconds in the ≥20-second bin. Other bar
-labels use one decimal, except CV ratios, which use two. Individual segment records
-remain in the metadata export; display rounding does not change official values.
+For numeric timestamps, choose the representation that matches the recording:
 
-Pulse rate places its individual measures directly beneath the module heading,
-without Aggregates/Metadata subheadings. **Pulse-rate estimate availability (%)**
-replaces the raw `nr_pr_est` count in Overview. It is the number of returned
-estimates divided by the number of complete 2-second epochs in the full
-**Recording timespan**, multiplied by 100. The timespan includes gaps and
-excluded edges, including between-file gaps; no quality or pipeline-boundary
-deductions are made. A final partial epoch is not counted. Hover over the value
-for both counts. This measures estimate availability, not the proportion of
-high-quality PPG samples. Unknown timing/counts or a timespan under two seconds
-show an unavailable value. The original metadata count remains in saved results
-and exports, and the overview percentage survives reopening without sensor files.
+| Representation | Seconds | Milliseconds |
+| --- | --- | --- |
+| Elapsed time relative to a recording origin | `relative_s` | `relative_ms` |
+| Absolute Unix timestamps | `absolute_s` | `absolute_ms` |
+| Time increments between samples | `difference_s` | `difference_ms` |
 
-### Results graphs
+A declaration of “seconds” alone cannot distinguish these representations.
+Native datetime values carry their own time representation; Data hides the
+numeric-format control for those columns. Convert CSV date strings to a supported
+numeric representation before analysis.
 
-Results **Graphs** compares classifications and quantifications across modules.
-Check metrics in **Plot series**. Aligned plots share one time axis, with time and
-date on separate lines. Compact plot rows fit more graphs on screen. The axis
-stays visible while scrolling through graphs and follows the visible time range.
-Dates use the selected absolute Time column or declared recording-start metadata.
-**Time origin**
-in Analyze provides a calendar and clock for overriding analysis time zero;
-**Default** restores the derived value. Uncheck it to show elapsed seconds.
-An unset origin displays **Not set**, rather than a date from a previous recording.
-This setting affects presentation only and is saved with run parameters. Known
-timezones, clock precision and daylight-saving offsets are retained.
-Pulse-rate series use **Pulse rate** and **High-quality PPG (probability)**;
-original column names remain unchanged in tables and exports.
-In Detailed view, pulse-rate estimates occupy 2-second intervals, while PPG
-quality probabilities occupy 1-second intervals. Missing outputs remain blank.
+The time selection applies to every loaded recording. If it is missing in the
+file currently inspected, or **Not included** is selected, sampling diagnostics
+are unavailable. Studio does not silently choose another column.
 
-Multiple recordings use actual clock offsets when all clocks are comparable.
-Otherwise plots use a labeled **File-order timeline**, without inventing dates or
-between-file gaps. Scientific timestamps remain unchanged. ParaDigMa's internal
-`nr_valid_days` uses its own quantification timestamps, independently of the display clock.
+### Read the sampling diagnostics
 
-Continuous outputs use individual bars at the output update cadence, with gaps for
-missing or non-finite measurements. Actual zero values remain visible at the baseline.
-No interpolation connects values across missing outputs or recording sections.
-When many bars fit inside one screen pixel, the plot combines their extents to
-keep peaks and density visible both while scrolling and at rest. Zoom in to
-resolve individual bars. Original tables and exports retain all values and intervals.
-Gait arm-swing positions are evenly spaced bin midpoints within the official segment
-start/end, with bars confined to those bins. Timing details and sensor context identify them as **Estimated**;
-unknown segment boundaries leave timing unavailable. Values and aggregates stay exact.
+**Overview** separates sensor and time statistics. Scroll the overview in smaller
+windows to reach all controls and statistics.
 
-Binary predictors show slim filled spans only when present. Spans run to the next
-output update, capped at the module's cadence (4 seconds for default tremor), rather
-than the full overlapping feature-window length. Zero and missing states remain blank;
-all output rows remain in tables. The overview retains the official tremor aggregates;
-graphs omit statistics text. `perc_windows_tremor` uses the resting-window denominator.
-The tremor overview shows percentage tremor during rest, official power measures
-and percentage arm at rest with two decimal places, without subcategory labels.
-Arm-at-rest percentage uses resting windows divided by all quantified windows.
-Original tables, metadata and exports keep their full precision.
-Tremor's arm-rest and checked-tremor predictors each appear once in Plot series;
-the original tables retain the duplicate output columns.
+- Sensor range is minimum–maximum. Median and IQR (75th minus 25th percentile)
+  use finite original values; missing and infinite values are counted separately.
+- Estimated sampling rate is the inverse median positive time interval.
+- Diagnostic gaps are intervals longer than 1.5 times that median. This is a
+  sampling diagnostic, separate from Analyze's configurable **Maximum gap**.
+- Invalid timestamps are not bridged. Zero-length and backward intervals are
+  reported separately.
 
-**Data coverage** tracks show coverage of the actual prepared samples handed to
-the pipelines, reflecting excluded rows and discarded sections. Identical workflows
-share a track; differing IMU and PPG coverage is shown separately. A sample is displayed
-for one nominal sample interval; gaps exceeding 1.5 times the median positive interval
-stay blank. An isolated sample with unknown cadence appears as a tick. These tracks
-are display metadata, not classifications or inferred physiological states.
+### Inspect graphs and tables
 
-Gait Classification offers **Gait presence (prediction)** and **Filtered gait presence
-(prediction)** alongside probabilities, using the bundled models' `probability ≥ threshold`.
-Filtered-positive intervals are restricted to detected gait. These describe individual
-windows; ParaDigMa's final sample segmentation additionally averages overlapping
-probabilities. Raw tables retain the official probability columns.
+Use **Graphs** to overlay selected channels. Channels of the same modality share
+a value axis; different modalities get separate graphs with a shared time axis.
+Colors and legends identify the original channels, and values retain file units.
+Click a checkbox or its label to toggle a channel, or use **Select all** and **Clear**.
 
-#### Graph views
+[![Data Graphs with original accelerometer and gyroscope channels on separate axes](images/user-guide/data-graphs.png)](images/user-guide/data-graphs.png)
 
-Graph summaries affect presentation only; tables, data exports and official
-aggregates retain their original values.
+*The same recording's original acceleration and angular velocity, with separate
+value axes and one time axis.*
 
-**View**, at the right of the figure toolbar, switches all graphs between Detailed,
-30-minute epochs, Day and 24-hour profile. Continuous epoch values show the median; binary predictions show
-percentages. Tremor-power graphs use `log10(power + 1)`, matching ParaDigMa's
-aggregate transformation; epoch medians are calculated after this transformation.
-The y-axis labels identify the log scale. Tables and data exports retain raw power.
-Bar graphs use automatic y-axis limits based on the visible values, including
-prediction and data-coverage percentages; they are not fixed to 0–100%.
-Manual Y limits stay fixed while scrolling or zooming, until Automatic or Reset
-limits is selected.
-Detailed and 30-minute views share a time-axis layout: thin vertical separators
-mark midnight continuously across the graphs and their gaps, with clock times
-above dates. Dates stay centered beneath their days. The first date aligns left
-if it no longer fits centered, then disappears if there is too little space; later
-dates keep their regular positions. The recording's timezone is retained (or left
-unspecified when the original data has none). Labels adapt to width and zoom,
-keeping midnight times visible across multiple days and spacing them out on longer ranges. Zooming
-in reveals hours, minutes, seconds and fractions of a second as needed. Without a
-calendar clock, elapsed Day 1, Day 2 and clock-style times are shown instead.
-Saved figures retain both rows.
-Epochs align to calendar half-hours when a recording clock is known,
-or elapsed half-hours otherwise. Gait range of motion and peak velocity require
-at least 90 seconds of the corresponding filtered or unfiltered gait presence
-per epoch; tremor power requires at least 90 seconds of checked tremor presence.
-Overlapping presence intervals count once. The same threshold applies to partial
-epochs, and unknown presence leaves the median blank. When gait classifications
-are unavailable, known gait-segment boundaries provide the fallback.
-Data coverage instead shows covered time as a percentage of the recording span
-within each epoch, including partial edge epochs.
+Zoom in to see individual samples at their original timestamps. Wide views
+preserve peaks while limiting display to 20,000 samples per channel; zooming
+restores detail in the visible range. **Tables** retains all original samples.
+See [graph controls](#navigate-and-adjust-graphs) for navigation and axis limits.
 
-**Day** groups outputs by calendar day, from midnight to midnight in the recording's
-display timezone, including daylight-saving changes. Without an absolute clock,
-it uses elapsed 24-hour blocks from the recording's time origin. The shared axis
-centers a date beneath each day, with the year on a second line. Dates appear for
-every day when they fit; a longer range or narrower window spaces them out, and
-zooming in restores the individual dates. Without an absolute clock, the labels
-use Day 1, Day 2, and so on. Figure exports retain these labels. Each metric needs
-at least **864 seconds (14 minutes 24 seconds)** of valid data in a day—1% of a
-24-hour period. This fixed minimum also applies to partial and daylight-saving days.
-Both zero and one predictions count as available binary data; missing or non-finite
-outcomes do not count. Overlapping intervals count once, and recording gaps are
-preserved. Gait metrics use their estimated within-segment intervals; missing swing
-values contribute no coverage. Gait and filtered gait percentages share observed
-time. Data coverage shows prepared time as a percentage of the full calendar day.
-This daily availability rule is separate from the 30-minute presence rule above.
+With difference-based time, graphs reconstruct cumulative elapsed seconds from
+the complete increment column before display sampling. Tables keep the original
+increments. Missing increments use sample positions rather than invented
+elapsed times.
 
-**24-hour profile** combines matching half-hour slots across all available days
-into 48 bars from 00:00 to 24:00. Each bar is the arithmetic mean of the valid
-30-minute summaries: percentages for indicators and coverage, and epoch medians
-for continuous outcomes. Tremor power retains the log transformation. The existing
-90-second presence rules apply to each day's epoch before averaging; the Day
-view's 1% threshold does not apply. Each day contributes equally, regardless of
-sample count. Missing or insufficient epochs are excluded, while valid zeros
-remain included. A slot with no qualifying days stays blank.
+### Import issues
 
-Slots use the recording's original timezone, with no assumed timezone when it is
-unspecified. A repeated half-hour during a daylight-saving fallback contributes
-its mean once for that day; skipped spring-forward slots are missing. Without a
-recording clock, slots use elapsed 24-hour periods starting at analysis zero.
-Clicking a bar selects its half-hour slot and displays the contributing-day count;
-it does not select one dated sample. Use Tables or another graph view for sensor
-context. Profile X limits accept HH:MM or seconds since midnight; Reset limits and
-Home restore the full 24-hour range.
+**Empatica has no gyroscope:** The bundled example contains accelerometer samples
+but no gyroscope samples. It can be inspected, but it cannot supply the absent
+channels needed for gait or tremor. The adapter supports one Avro record with
+optional aligned gyroscope data, not BVP, EDA or temperature streams. Multi-record
+or unaligned IMU streams need splitting or alignment before import.
 
-Plots are grouped by module, following Plot series order, and long
-series names wrap in full. The default selection is gait presence (prediction),
-filtered gait range of motion and tremor presence (prediction), when available.
-Gait and filtered gait share one observed-time denominator, so filtered
-gait cannot have a higher percentage. Gait-positive time without filtering results
-is excluded from both denominators. Other binary outcomes use finite observations.
-Missing outputs stay blank. Click module titles to expand or collapse Plot series;
-tremor offers checked presence, arm-at-rest predictions and tremor power.
+**The extracted app does not start:** Keep the entire downloaded app folder,
+including `_internal`. Extract updates into a fresh folder. See the
+[README](../README.md) and [Windows signing guidance](../SIGNING.md) for download
+and publisher-verification information.
 
-### Results tables
+## Analyze
 
-Results **Tables** uses module-colored Gait, Tremor and Pulse rate tabs. Select the
-classification, quantification or aggregation table using **Output table**. Original
-columns and values are the default. **Timing details** adds display-only clock and
-gait annotations. Aggregation dictionaries are ordered measure/value tables.
-Zooming never filters table rows or recalculates aggregates.
+Choose analysis modules and confirm how Studio should interpret the loaded recordings.
 
-### Sensor context
+[![Analyze with signal columns on the left and source-recording parameters on the right](images/user-guide/analyze.png)](images/user-guide/analyze.png)
 
-**Inspect sensor context**, alongside the recording-time label at the bottom right of Graphs, links a selected row or
-clicked bar to original samples. A vertical marker and the pinned axis identify the
-selected time. Inspection uses the original samples within 10 seconds before and
-after the selected time, bounded by the available recording. Gait measurements
-open the complete official segment rather than
-treating their estimated positions as observed event timestamps. Sensor context
-requires the original recording to remain available in the session.
-The context's **Graphs** tab uses the same left-hand channel checkboxes as Data:
-select multiple channels to overlay their original values with distinct colors.
-Channels of the same modality share a graph; selecting another modality adds a
-separate graph with its own value axis and a shared recording-time axis. This
-also applies on Data. Known sensor names and configured column mappings identify
-modalities; unidentified scalar streams stay separate. Use **Select all** and
-**Clear**. The complete figure resizes to fit the page;
-the channel list and **Tables** can scroll independently. Channel selections are
-retained when inspecting another result. Drag with **Pan** to move through the
-original recording beyond the initial context, up to its boundaries. Sensor-context
-axes use the accelerometer and gyroscope units stored in that run's Analyze settings.
-New samples load as you move; gaps stay blank. **Close**, alongside the recording summary
-at the top right, dismisses the sensor-context tab.
-Adding or removing channels keeps the current time window. **Home** returns to
-the original ±10-second context or complete gait segment, including after
-channel changes; Back can return to the view before Home.
-The selected result time is marked whenever it is in view.
-Clicking either a checkbox or its label toggles a channel or plot series.
+*The example is configured for gait. Signal columns and units are prefilled from
+the recording; wrist side and axis direction still need review.*
 
-### Graph controls
+### Choose modules
 
-Results graphs have **Select timepoint** (default), **Select time interval**, **Zoom in** and
-**Zoom out**. Click a plotted timepoint to mark it; its date and time appear above
-the time axis. Select time interval uses a shaded-band icon: drag within a graph
-or in the gaps between graphs to zoom into the same time interval across all
-linked graphs without selecting a Y range.
-New results and switching between graph views start at the full time range with
-the horizontal scrollbar hidden. Adding or removing graphs keeps the current zoom.
-Results graphs use a fixed Y-axis column, so graph selections do not shift them sideways.
-After zooming in, the horizontal scrollbar below the time axis moves through the
-full time range while keeping the window duration. Its handle indicates how much
-time is visible; it disappears when the full range is shown. Two-finger horizontal
-trackpad gestures also scroll time over the graphs and time axis. Vertical gestures
-still scroll through the graph list. Zoom never extends beyond the full X range.
-Dense graphs preserve peaks, gaps and visual density at the display's pixel
-resolution, both while scrolling and after release. Zooming resolves individual
-bars; tables and exports retain every original value and interval.
-The drag shades the selected interval continuously across all graphs and their
-gaps. **Zoom in** and **Zoom out** buttons change the visible duration by a factor
-of two. Home, Back and Forward include these navigation changes. Choose Select
-timepoint to resume selection.
-Data and sensor-context graphs retain Pan (default) and zooming in both axes.
-Sensor context retains the time selected in Results.
+Select any combination in **Analysis modules**:
 
-**Axis limits** opens the only graph settings panel. Click the graph you want
-to adjust, uncheck **Automatic** for X or Y, enter the minimum and maximum,
-and press Enter or leave the field to update the graph. Calendar limits accept
-ISO date/time with a time zone.
-X limits apply to linked plots; Y limits apply to the clicked plot.
-The fields follow navigation and zoom changes and show at most three decimal
-places; unedited limits retain their full precision.
-The selected graph is shaded while editing. **Reset limits** restores automatic
-ranges. In sensor context it returns to the original context window, like Home.
-**Close** dismisses the panel. Home, Back, Forward and figure
-saving remain on the toolbar. Images are saved at **600 DPI**; saved results
-figures include the time axis.
-Raw sensor plots retain continuous signal lines and limit display to 20,000 samples
-per channel; result bars and binary indicators retain every output.
+| Module | Required signals |
+| --- | --- |
+| Gait | Time, three accelerometer axes and three gyroscope axes. |
+| Tremor | Time and three gyroscope axes. |
+| Pulse rate | Time and raw Green PPG. Accelerometer channels are optional. |
 
-## Exports and run history
+For gait, set **Watch side** to the actual wrist. It is inactive for tremor or
+pulse rate alone. Official pipeline preprocessing applies the watch-side adjustment
+separately from the source-axis inversions you select below.
 
-### Exports
+Pulse rate in ParaDigMa 1.1.2 assesses quality using PPG features only;
+`pred_sqa_proba` does not include an accelerometer motion assessment. Complete
+optional accelerometer channels still receive the selected unit conversion and
+missing-sample checks.
 
-**Export…** appears on every Results tab. Choose a format and check which original
-tables or metadata groups to include:
+### Map signal columns and axes
 
-- **JSON:** one structured file containing selected outputs and analysis provenance.
-  Non-finite values become null. Full JSON exports can reopen after restarting without
-  loading the sensor recording. Select all outputs/metadata to preserve all drill-down
-  timing information.
-- **CSV:** one table exports as CSV. Multiple tables or metadata selections export as
-  a ZIP containing separate CSV files, selected metadata JSON and analysis provenance.
-  Scientific tables retain their original columns; formula-like text is neutralized.
+In **Signal columns**, select the source column that should supply each required
+signal. The table appears on the left, with other parameters on the right;
+narrow windows stack the sections.
 
-### Saved runs
+- On loading, Studio matches names shared by all recordings. Exact ParaDigMa
+  names take precedence, followed by unambiguous aliases such as `timestamp`,
+  `gyr_x` and `ppg`. Each automatic match has a **From file** label beneath its
+  signal name.
+- Dropdowns list available source columns. Select **Not included** to unassign
+  a signal, including one whose standard-name column exists in the file.
+- The selections determine the inputs used in processing. A manual selection
+  replaces the automatic choice; an unselected column does not fill a missing
+  signal merely because its name matches ParaDigMa's conventions.
+- **Show optional signals** reveals signals not required by the selected modules.
+  **Show details** explains exact matches, aliases and explicit selections.
+- The table's single **Default** button restores automatic matches for all
+  signals, including optional ones. It replaces manual choices and leaves
+  ambiguous signals unassigned. Selected axis inversions are kept.
 
-**Save results** stores all outputs, metadata and analysis provenance in
-`%LOCALAPPDATA%\ParaDigMaStudio\runs\results` on new Windows installations. Use
-**Open results** in Runs to restore them after restarting. Saving runs in the
-background; original recordings are not copied. The button appears on every Results tab.
-Opening also runs in the background and returns to Overview. Graphs are prepared
-when you open the Graphs tab.
+For an axis swap, select the source that should become each target axis. For
+example, choose the device's Y column for **Accelerometer X** and its X column
+for **Accelerometer Y**. Tick **Invert axis** to multiply that selected signal by
+−1. Accelerometer and gyroscope inversions can be set independently. There is
+no separate axis-order field to configure.
 
-**Runs** stores status, parameters, separate warnings and errors, logs and saved
-result/export locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
-The **Recordings** tab lists the selected run's input filenames and paths.
-Detail tabs are ordered Recordings, Parameters, Warnings, Errors,
-Processing log, Saved run and Exports.
-**Saved** reports whether a local result snapshot is available; **Exports** counts
-separate user exports. Their locations appear in the **Saved run** and **Exports** tabs.
-Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save
-stores all unsaved runs before closing. Exporting, including complete JSON,
-does not mark a run as saved locally or clear that warning. Complete JSON
-exports can reopen through **Open exported results**; local saves take precedence.
+The compatibility summary covers the whole batch. Warning icons identify reused
+source columns and missing selections; click an icon, or focus it and press Space,
+to read the message. **Show details** groups shared issues without repeating
+filenames, with counts for issues affecting only some recordings. A missing
+saved choice shows a selection prompt and a warning naming the missing column.
+Changing modules preserves your signal choices.
 
-Saved snapshots and JSON exports identify their owning run. Runs also records a
-SHA-256 checksum of each file. Opening requires both the run ID and checksum to
-match, so replacing or editing a result file prevents reopening it under the
-original run. A failed open leaves the displayed results intact. Files without
-this verification information, including older exports, cannot reopen through Runs.
+Open the field's **i** explanation for ParaDigMa's axis reference figure and
+Coordinate System documentation.
 
-Saved run history and result JSON use **Studio format version 1**, independently
-of the app release and ParaDigMa toolbox version. Only this format is supported.
-Unversioned history and exports from earlier builds, and unsupported format
-versions, are rejected without changing or deleting their files. History reports
-unsupported entries while continuing to show supported runs. Re-analyze the
-original sensor recordings to create new runs; original recording formats remain
-supported. Studio uses the `ParaDigMaStudio` storage directory and does not discover
-history in the earlier `ParaDigMaDesktop` directory.
+### Review units and file-derived values
 
-**Stop Analysis** remains available below Analyze settings while a run is active.
-Cancellation stops the owned analysis process, removes its temporary files and records
-**Cancelled** in Runs without treating cancellation as an analysis error.
+Check units against the source recording. Acceleration is displayed as **g** or
+**m/s²**; choose the appropriate gyroscope units and time representation too.
+Acceleration and gyroscope unit fields are greyed out when none of that sensor's
+axes is mapped to an available column. Mapping an axis enables its unit field.
 
-Select one or more runs using Ctrl/Shift and choose **Delete Run(s)…**, or press
-**Delete** while the run list has focus. **Clear all…** deletes all runs after confirmation.
-A confirmation lists the associated saved results and exports to be
-permanently removed with the history entry. Original sensor files, TSDF companions
-and exports referenced by another run are protected. Running jobs cannot be deleted.
-Reused parameters apply to the currently selected input; check it before running.
+Studio prefills supported units only when metadata agrees across applicable
+recordings. TSDF provides per-channel declarations after physical scaling;
+Axivity CWA and Empatica imports provide their decoded output conventions.
+Plain CSV, Parquet and pickle files do not establish units just from their format
+or numeric values.
 
-Shortcuts: **Ctrl+O** opens recordings, **Ctrl+S** saves results, **Ctrl+Enter** runs analysis, **Alt+1–4** switches
-pages, **Delete** deletes selected runs after confirmation, and **F1** opens About.
+**From file** below a parameter name identifies a detected value. Hover over the
+label or open **i** to see its source. Unmarked values need your review too.
+Editing a field makes it manual for the current recording or batch; **Default**
+restores its detected value. Unit detection follows the selected source columns.
 
-## Common issues
+A single notice summarizes conflicting or incomplete unit declarations across
+recordings. It does not block analysis: the selected units apply to every file.
+If the actual units differ, normalize the recordings or analyze them separately.
+Watch side, axis directions and preparation policies remain user choices.
 
-**Incomplete extracted download:** Keep the entire app folder, including `_internal`.
-For an update, extract the latest successful Windows artifact into a fresh folder.
+### Confirm the time origin
 
-**Windows blocks an unverified publisher:** The normal build is unsigned. See
-[signing](../SIGNING.md) for the account and verification requirements and
-[security](../SECURITY.md) for isolated testing. Keep Windows security protections enabled.
+**Time origin**, after Time units, controls how recording time is presented:
 
-**Empatica gyroscope unavailable:** The bundled example contains accelerometer
-samples but no gyroscope samples. Import support allows inspection; it cannot
-supply absent channels required for gait/tremor. The IMU adapter supports one Avro
-record with optional aligned gyroscope data, not BVP, EDA or temperature streams.
-Multi-record or unaligned IMU streams need splitting or alignment before import.
+- For absolute numeric time, the automatic origin comes from the selected
+  **Time** column.
+- For relative or difference-based time, it comes from declared recording-start
+  metadata when available, including TSDF, Axivity CWA and Empatica imports.
+- Other date columns do not supply an origin. Without an available origin, the
+  field shows **Not set** and results use elapsed time.
 
-**Physilog missing values:** The official example contains missing gyroscope
-samples. Keep missing-sample exclusion and gap splitting enabled to analyze its
-valid continuous sections. Exclusion counts are visible in the processing log
-and `metadata.desktop_preparation`.
+Enter a calendar date/time to override the automatic origin. **Default** restores
+the derived value; uncheck the field to use elapsed seconds. Time origin changes
+presentation only and is saved with the run parameters. Known timezones, clock
+precision and daylight-saving offsets are retained.
 
-**Empty or partial results:** Empty quantified output is distinct from a failure.
-Review warnings and errors in Runs. Some short recordings have too few detected
-tremor windows for ParaDigMa's modal aggregation; available window outputs are
-retained. Pulse rate accepts raw or prepared PPG-only input. The default PPG
-quality classifier may reject a recording's windows, producing no estimates.
+### Set missing-sample and gap policies
 
-Device compatibility, sample rate, recording duration and scientific interpretation
-follow the [official documentation](https://biomarkersparkinson.github.io/paradigma/).
+Studio prepares inputs from your selected columns, units and axes automatically.
+Matching units and axes need no conversion. Source recordings stay unchanged;
+official resampling, filtering and watch-side processing still run as usual.
+
+| Setting | Effect |
+| --- | --- |
+| **Exclude missing sensor samples** | Enabled initially. Excludes rows with non-finite required sensor values; uncheck for strict rejection. Counts are logged and included in exported metadata. |
+| **Split recordings at time gaps** | Enabled initially. Processes continuous sections independently. |
+| **Maximum gap** | Maximum allowed interval between samples before splitting; initially 1.5 seconds. It is not a feature-window length. |
+| **Minimum section duration** | Minimum duration retained by preparation when splitting; initially 1.5 seconds. Accepted sections may still be too short for a module to produce outputs. |
+
+Each threshold's **Default** button restores its value, including when splitting
+is disabled. Non-finite relative or absolute timestamps can also be excluded.
+Missing time differences cannot be excluded, because elapsed time would be lost;
+retained timestamps must be strictly increasing. Difference-based time is
+accumulated before missing sensor rows are removed.
+
+The **i** buttons explain individual fields and link to the official documentation.
+Only one explanation opens at a time, below the parameters. Scrolling over closed
+dropdowns, numeric fields or date/time controls scrolls their surrounding page
+without editing values, even when a field has focus. Use typing, keyboard arrows
+or field buttons to edit. An open dropdown list can still scroll.
+
+### Run or stop analysis
+
+1. Review the selected modules, source columns, units, wrist side and axis directions.
+2. Click **Run Analysis** or press **Ctrl+Enter**.
+3. Review progress in **Runs**. Results opens when processing completes.
+
+**Run Analysis** stays below the settings while the page scrolls. During processing,
+**Stop Analysis** remains available there. Stopping terminates the owned analysis
+workers, removes temporary processing files and records **Cancelled** in Runs.
+
+Each recording is prepared and processed separately: filtering and feature windows
+never cross file boundaries. A batch uses up to two workers when CPU and available
+RAM permit; a single recording uses one worker, including its gap sections.
+The processing log explains worker selection using detected CPUs, free RAM after
+loading, recording size and estimated RAM per worker.
+
+Outputs are combined in input order with unique gait segments. ParaDigMa computes
+aggregates from the combined quantifications, rather than averaging per-file
+percentages. Detailed tables and exports retain file identifiers (`file_key`).
+Runs and JSON exports retain the corresponding source paths.
+
+Selecting pulse rate together with gait or tremor runs separate official IMU and
+PPG workflows with their own sensor requirements and missing-sample exclusions.
+If one workflow fails, the other's available outputs remain accessible. Review
+**Warnings** and **Errors** in Runs. Studio uses official preparation and pipeline
+functions; see the [scientific validation](SCIENTIFIC_TESTS.md) for equivalence checks.
+
+### Empty or partial output
+
+Empty output is distinct from a failed run. A short recording or too few detected
+tremor windows can leave aggregation unavailable while retaining window outputs.
+The default PPG quality classifier can reject a recording's windows, producing no
+pulse estimates. Review Runs before interpreting an empty graph.
+
+The public Physilog example contains missing gyroscope samples. Keep exclusion
+and gap splitting enabled to process its valid continuous sections. Exclusion
+counts appear in the log and preparation metadata (`metadata.desktop_preparation`).
+Device compatibility, sampling rate, duration requirements and interpretation
+follow the [official ParaDigMa documentation](https://biomarkersparkinson.github.io/paradigma/).
+
+## Results
+
+Review aggregate outcomes, explore their timing and inspect the original signals.
+
+[![Results Overview showing recording coverage and the example gait analysis](images/user-guide/results.png)](images/user-guide/results.png)
+
+*Overview summarizes the completed gait run. Graphs and Tables provide timing and
+individual outputs; Save results and Export are available from every Results tab.*
+
+### Read Overview
+
+**Overview** shows official aggregates and relevant metadata in module cards.
+Recording summaries report timespan, covered days and hours, coverage percentage
+and gaps. Identical workflow summaries are shown once.
+
+- **Gait:** Quantity, Range of motion and Peak velocity charts are grouped by
+  filtered/unfiltered gait and duration category. Quantity shows minutes and
+  integer segment counts; segment-count bins use original unfiltered durations,
+  with 20 seconds in the ≥20-second bin. Other bar labels use one decimal, except
+  CV ratios, which use two. Individual segment records remain in metadata exports.
+- **Tremor:** Measures include tremor during rest, power and percentage of time
+  with the arm at rest, displayed with two decimals. Tremor percentage uses the
+  resting-window denominator; arm-at-rest percentage is resting windows divided
+  by all quantified windows.
+- **Pulse rate:** **Pulse-rate estimate availability (%)** is the returned estimate
+  count divided by the number of complete 2-second epochs in the full recording
+  timespan, multiplied by 100.
+  That timespan includes gaps and excluded edges, including between-file gaps.
+  A final partial epoch is not counted. Hover for both counts. This measures
+  availability, not the proportion of high-quality PPG samples. Unknown timing or
+  a timespan under two seconds leaves it unavailable. Original counts remain saved.
+
+Display rounding does not alter underlying outputs, exports or official aggregates.
+Overview values and pulse-availability percentages survive reopening without
+the original sensor files.
+
+### Explore Graphs
+
+Open **Graphs** and check metrics in **Plot series**. Click module headings to
+expand or collapse their metrics. Graphs follow that selection order and share
+one time axis, which stays visible while you scroll through the graph list.
+
+[![Results Graphs with gait presence, range of motion, plot-series selection and time navigation](images/user-guide/results-graphs.png)](images/user-guide/results-graphs.png)
+
+*Graphs links selected output series to a shared recording timeline. View changes
+the presentation; tables and official aggregates keep their original values.*
+
+The initial selection includes gait presence, filtered gait range of motion and
+tremor presence when available. Tremor exposes checked presence, arm-at-rest
+predictions and power; duplicate predictor columns remain in tables.
+
+Time and date appear on separate lines. The display uses the selected clock and
+Time origin configuration. Multiple recordings use actual offsets when all clocks
+are comparable; otherwise a labeled **File-order timeline** avoids invented dates
+or between-file gaps. Scientific timestamps are unchanged. ParaDigMa's internal
+`nr_valid_days` uses its own quantification timestamps independently of this display.
+
+### Choose a graph view
+
+**View**, at the right of the toolbar, changes all result graphs together:
+
+| View | What it shows |
+| --- | --- |
+| **Detailed** | Individual output intervals and predictions. Zoom in to resolve them. |
+| **30-minute epochs** | Continuous medians and binary percentages per half-hour. |
+| **Day** | Summaries per calendar day, or elapsed 24-hour blocks without a calendar clock. |
+| **24-hour profile** | Mean half-hour summaries across days, arranged from 00:00 to 24:00. |
+
+Day needs at least 14 minutes 24 seconds of valid data per metric. The short
+recording illustrated here therefore has no Day summaries.
+
+Missing or non-finite outcomes leave gaps. Actual zero values remain included.
+No interpolation bridges missing outputs or recording sections. Graph summaries
+change presentation only; zooming and view changes never recalculate official
+aggregates or filter table rows.
+
+<details>
+<summary>How individual intervals and predictions are drawn</summary>
+
+Continuous outputs use bars at their update cadence. When many bars fit within
+one pixel, their extents preserve peaks and density; zooming resolves individual
+bars. Pulse-rate estimates cover 2-second intervals, while high-quality PPG
+probabilities cover 1-second intervals.
+
+Gait arm-swing positions are evenly spaced bin midpoints within an official
+segment, with bars confined to those bins. **Timing details** and sensor context
+identify these positions as **Estimated**. Unknown boundaries leave timing
+unavailable; measured values remain exact.
+
+Binary predictors use filled spans for positive states only. Each span ends at
+the next update, capped at the module cadence (4 seconds for default tremor),
+rather than covering the full overlapping feature window. Zero and missing
+states remain blank; every output row remains in the tables.
+
+Gait presence indicators compare each window's probability with its bundled
+model threshold. Filtered-positive intervals are restricted to detected gait.
+These indicators differ from ParaDigMa's final sample segmentation, which also
+averages overlapping probabilities. Raw probability columns remain in tables.
+
+**Data coverage** shows prepared samples actually passed to each pipeline,
+including exclusions and discarded sections. Identical workflows share a track;
+different IMU and PPG coverage is separate. Each sample covers one nominal sample
+interval; gaps over 1.5 times the median positive interval remain blank. An
+isolated sample with unknown cadence is a tick. Coverage is not a physiological
+prediction.
+
+</details>
+
+<details>
+<summary>How epoch, daily and profile summaries are calculated</summary>
+
+Tremor-power summaries use `log10(power + 1)`, matching ParaDigMa's aggregate
+transformation. Epoch medians are calculated after transformation, with the log
+scale named on the axis. Tables and data exports retain raw power.
+
+**30-minute epochs** align to calendar half-hours when a clock is known, or
+elapsed half-hours otherwise. Gait range of motion and peak velocity require at
+least 90 seconds of corresponding filtered or unfiltered gait presence in each
+epoch. Tremor power requires 90 seconds of checked tremor presence. Overlaps count
+once; partial epochs use the same threshold. Known gait-segment boundaries can
+supply presence when classifications are unavailable; unknown presence leaves
+the median blank. Data coverage is covered time divided by recording span within
+the epoch, including partial edges.
+
+Gait and filtered-gait percentages share one observed-time denominator; filtered
+gait cannot exceed gait. Gait-positive time without filtering results is excluded
+from both denominators. Other binary percentages use finite observations.
+
+**Day** uses midnight-to-midnight in the recording's display timezone, including
+daylight-saving changes. Each metric needs at least **864 seconds (14 minutes
+24 seconds)** of valid data, 1% of a 24-hour period. This fixed threshold also
+applies to partial and daylight-saving days. Both zero and one predictions are
+available binary data; non-finite outcomes are not. Overlaps count once and gaps
+are preserved. Gait measurements use estimated within-segment intervals; missing
+swing values add no coverage. Data coverage is prepared time divided by the full
+calendar day. This rule is separate from the 90-second epoch presence rule.
+
+**24-hour profile** has 48 half-hour slots. Each is the arithmetic mean of valid
+daily epoch summaries: percentages for indicators and coverage, epoch medians
+for continuous values. Each day has equal weight, regardless of sample count.
+The 90-second epoch presence rules apply before averaging; the Day view's 1%
+threshold does not. Missing epochs are excluded, valid zeros included, and slots
+without qualifying days remain blank.
+
+Profile slots use the source timezone without assuming one if it is unspecified.
+A repeated half-hour during a daylight-saving fallback contributes its mean once
+for that day; a skipped spring-forward slot is missing. Without a calendar clock,
+slots use elapsed 24-hour periods starting at analysis zero. Clicking a profile
+bar selects its slot and shows the contributing-day count. It does not select
+one dated sample; use another view or Tables for sensor context.
+
+</details>
+
+### Navigate and adjust graphs
+
+Results starts in **Select timepoint** mode. Click a bar to mark its time and
+values; the selected date/time appears above the pinned time axis.
+
+| Control | Action |
+| --- | --- |
+| **Select time interval** | Drag across a graph or the gaps between graphs to zoom all linked plots to that time interval. |
+| **Zoom in / Zoom out** | Halve or double the visible time span. |
+| Horizontal scrollbar | Appears after zooming; moves the visible interval through the full recording. Horizontal trackpad gestures also move time. |
+| **Home / Back / Forward** | Restore the full range or navigate view history. |
+| **Axis limits** | Set X limits for linked plots and Y limits for the clicked plot. |
+| Save figure | Save a 600-DPI image; result figures include the time axis. |
+
+New results and graph-view changes start at the full time range. Adding or
+removing graphs preserves the current zoom. Vertical gestures scroll the graph
+list. Zooming does not extend beyond the full recording range.
+
+In **Axis limits**, click the graph to adjust, uncheck **Automatic**, enter bounds,
+then press Enter or leave the field. Calendar limits accept ISO date/time with a
+timezone; profile X limits accept HH:MM or seconds since midnight. The selected
+graph is shaded. **Reset limits** restores automatic bounds; **Close** dismisses
+the panel. Manual Y limits stay fixed through scrolling and zooming. Automatic
+limits fit visible values, including prediction and coverage percentages, rather
+than always using 0–100%. Unedited limits keep full precision even though fields
+show at most three decimals.
+
+Detailed and epoch views mark midnight across plots. Date labels adapt to the
+available space and zoom; Day shows dates and years, or Day 1, Day 2, etc. without
+a calendar clock. Figure exports retain these labels. In profile view, Home and
+Reset limits restore the full 24-hour range.
+
+Data and sensor-context graphs use **Pan** by default and allow zoom in both
+axes. In sensor context, Home and Reset limits restore the original inspected
+window; Back can return to the preceding view.
+
+### Inspect Tables
+
+**Tables** groups Gait, Tremor and Pulse rate into module-colored tabs.
+Choose a classification, quantification or aggregation table with **Output table**.
+Original columns and values are the default. **Timing details** adds display-only
+clock and gait annotations. Aggregation dictionaries appear as ordered
+measure/value tables. Graph zoom does not restrict rows or recalculate aggregates.
+
+### Inspect sensor context
+
+Select a result row or click a result bar, then choose **Inspect sensor context**
+at the bottom right of Graphs. The original recording must still be available in
+the session; saved results alone cannot supply original samples.
+
+[![Sensor context showing original accelerometer and gyroscope signals for a selected gait segment](images/user-guide/sensor-context.png)](images/user-guide/sensor-context.png)
+
+*Sensor context for an estimated gait measurement opens the complete official
+segment, with original source values and the selected time marked.*
+
+Ordinary output selections open up to 10 seconds before and after the selected
+time, bounded by the recording. Gait measurements open their complete official
+segment, instead of treating estimated arm-swing positions as observed events.
+A vertical marker identifies the selected time whenever it is visible.
+
+The context opens as a Results tab with **Graphs** and **Tables**. Choose original
+channels as on Data; sensor axes use the units stored with that run. Channel
+selections are retained between inspections, and changing channels preserves the
+time window. Pan to move beyond the initial context; more original samples load
+as needed, with gaps kept blank. **Home** returns to the original context or full
+gait segment. **Close**, beside the recording summary, dismisses the context tab.
+
+### Save results
+
+Click **Save results** on any Results tab, or press **Ctrl+S**, to store the complete
+run locally. Saving runs in the background and includes outputs, metadata and
+analysis provenance. Original recordings are not copied. New Windows
+installations use `%LOCALAPPDATA%\ParaDigMaStudio\runs\results`.
+
+Use [Runs](#runs) to reopen a saved result after restarting. Tables, Overview and
+graphs can reopen without the source files; original-sample context requires the
+source recording in the session.
+
+Closing with unsaved results offers **Save**, **Discard** or **Cancel**. Save stores
+all unsaved runs before closing. An export is separate from a local save and does
+not clear the unsaved-results warning.
+
+### Export results
+
+Click **Export…** on any Results tab, select the desired output tables and metadata,
+and choose a format:
+
+| Format | Contents |
+| --- | --- |
+| **JSON** | One structured file with selected outputs and provenance. Non-finite numbers become null. Select all outputs and metadata to preserve complete timing and drill-down information. A complete JSON export recorded for the run can reopen through Runs. |
+| **CSV** | One selected table becomes a CSV file. Multiple tables or metadata selections produce a ZIP with separate CSVs, selected metadata JSON and provenance. |
+
+Scientific tables retain original columns and values. Formula-like CSV text is
+neutralized for spreadsheet safety. Exports cannot overwrite selected source
+recordings. Saved results and exports preserve the mapping and inverted channels;
+there is no need to edit JSON to configure signals.
+
+## Runs
+
+Review what happened in each analysis, reopen saved results or reuse its configuration.
+
+[![Runs showing the completed saved example and its Parameters detail tab](images/user-guide/runs.png)](images/user-guide/runs.png)
+
+*The same analysis is saved and Completed with warnings. The list shows warning
+and error counts; the detail tabs explain them and retain the parameters.*
+
+### Review an analysis
+
+Select a row to inspect its details:
+
+| Tab | Contents |
+| --- | --- |
+| **Recordings** | Input filenames and paths. |
+| **Parameters** | The configuration used for that run. |
+| **Warnings / Errors** | Separate diagnostic messages, matching the counts in the run list. |
+| **Processing log** | Progress, preparation details, worker selection and diagnostic output. |
+| **Saved run** | Availability and location of the complete local result snapshot. |
+| **Exports** | Locations of separately exported files. |
+
+**Saved** in the run list indicates a local result snapshot; **Exports** counts
+user exports separately. Run history stores status, parameters, diagnostics and
+these locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.
+History alone does not preserve unsaved result tables.
+
+A completed run can contain warnings; partial results can include both successful
+outputs and failed workflows. **Cancelled** records a requested stop without
+treating it as an analysis error. Inspect the messages before interpreting
+missing or partial outputs.
+
+### Reopen results
+
+Select a run and click **Open results**. If only a recorded JSON export is
+available, the action offers **Open exported results** instead. A local save takes
+precedence. Opening runs in the background and returns to Results Overview;
+graphs are built when you open Graphs.
+
+Snapshots and JSON exports identify their owning run, and history records each
+file's SHA-256 checksum. Opening verifies both. A replaced, edited or unrelated
+file cannot reopen under the original run; a failed open leaves displayed
+results intact.
+
+Current history and result JSON use **Studio format version 1**, separately from
+the app and ParaDigMa versions. Unversioned or unsupported files cannot reopen;
+re-analyze the original recordings to create new results. Unsupported history
+entries are reported without changing or deleting their files, while supported
+runs remain visible. Studio does not discover history in the earlier
+`ParaDigMaDesktop` directory.
+
+### Reuse parameters
+
+Load the intended source recording or batch on Data, select a run, then click
+**Use these parameters**. Review Analyze before running: restored parameters
+apply to the **currently loaded input**, not automatically to the old source.
+
+Restored units and signal choices remain explicit, even when equal to file
+defaults. Data's shared time controls update too. Use the appropriate **Default**
+control to restore a file-derived value. Loading new files afterwards resets
+these restored settings along with other manual edits.
+
+### Delete runs
+
+Use Ctrl/Shift to select runs and choose **Delete Run(s)…**, or press **Delete**
+while the list has focus. **Clear all…** removes every run after confirmation.
+A confirmation lists the associated result files and exports to be permanently
+removed with the entries.
+
+Original sensor files, TSDF companion files and exports referenced by another
+run are protected. Running jobs cannot be deleted.

@@ -62,7 +62,7 @@ detection to construct its expected output.
 
 The direct orchestrator runs with explicit prepared inputs because its 1.1.2 raw
 preparation has known parameter-forwarding limitations documented in the
-[user guide](USER_GUIDE.md#input-and-analysis-settings).
+[Python service API documentation](DEVELOPMENT.md#python-service-apis).
 Comparing a raw default orchestrator call with the app's explicit missing-sample
 exclusion, unit conversion or independent gap processing would compare different
 workflows.

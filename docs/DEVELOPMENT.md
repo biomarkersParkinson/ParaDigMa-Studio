@@ -184,6 +184,16 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/Par
 
 These commands verify a Linux executable; the Windows workflows verify the EXE.
 
+## Refresh user guide screenshots
+
+Run `python scripts/capture_user_guide.py` from the repository root with development
+dependencies installed. It captures all four pages and the supporting graph views
+from one real analysis of the bundled public Axivity example, using temporary
+history and saved results. See the [capture notes](images/user-guide/README.md)
+for image dimensions, provenance and platform details. Inspect the complete set
+and update captions when controls or selections change; archived screenshots do
+not describe the current interface.
+
 ## Type checking
 
 `python -m mypy` checks function bodies throughout its configured scope, including
@@ -373,6 +383,11 @@ Missing-sample exclusion defaults to **False** in the Python
 API and **True** in the GUI. Pass all original recording paths through
 `protected_sources` when exporting several recordings programmatically.
 The `core` export aliases remain available for existing callers.
+
+Studio calls official preparation and orientation functions explicitly before
+`run_paradigma` with prepared inputs. ParaDigMa 1.1.2's raw orchestrator does not
+forward all preparation options; explicit preparation preserves the chosen unit,
+axis, missing-sample and gap policies without interpolating across recordings.
 
 ## Test setup and scientific checks
 

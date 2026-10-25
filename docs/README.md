@@ -2,7 +2,7 @@
 
 | Guide | Purpose |
 | --- | --- |
-| [User guide](USER_GUIDE.md) | Analysis settings, result interpretation, sensor context, saving, exports and troubleshooting |
+| [User guide](USER_GUIDE.md) | Illustrated Data, Analyze, Results and Runs workflow, configuration, interpretation and troubleshooting |
 | [Development](DEVELOPMENT.md) | Source installation, checks and Windows packaging |
 | [Releases](RELEASES.md) | Versioning, checked Windows downloads and publishing |
 | [Repository map](REPOSITORY.md) | Folder responsibilities, module boundaries and maintenance conventions |

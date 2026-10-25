@@ -38,7 +38,7 @@ A verified signing identity must be configured before the signed workflow can pr
    Choose metrics in **Plot series**; zoom to inspect a time interval.
    Switch **View** between Detailed, 30-minute epochs, Day and a 24-hour profile
    averaging valid 30-minute summaries across days. The
-   [user guide](docs/USER_GUIDE.md#inspecting-data-and-results) explains summaries,
+   [user guide](docs/USER_GUIDE.md#results) explains summaries,
    availability thresholds and graph controls.
    Tables and exports retain each module's original classification, quantification and aggregation outputs.
 4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
@@ -55,7 +55,8 @@ conventions must match. One Analyze configuration applies to the entire batch.
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
 Click **Save results** to store the complete current run locally and reopen it
-from **Runs** after restarting. See [saving and run history](docs/USER_GUIDE.md#exports-and-run-history).
+from **Runs** after restarting. See [saving results](docs/USER_GUIDE.md#save-results)
+and [run history](docs/USER_GUIDE.md#runs).
 
 ## Supported input
 
