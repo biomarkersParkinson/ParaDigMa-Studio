@@ -1,8 +1,13 @@
 # Releases
 
 Public versions use Python-compatible version numbers and matching Git tags:
-`0.6.0a3` / `v0.6.0a3`. Alpha (`a`), beta (`b`) and release-candidate (`rc`)
+`1.0.0rc1` / `v1.0.0rc1`. Alpha (`a`), beta (`b`) and release-candidate (`rc`)
 versions are published as GitHub prereleases; ordinary versions are stable releases.
+
+The first 1.0 candidate is `1.0.0rc1`. Its
+[verification record](RELEASE_CANDIDATE.md) separates completed source checks from
+Windows artifact checks and manual acceptance. Preparing the version does not
+publish a download: pushing its tag starts the publishing workflow below.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
    Run `uv lock` to refresh the root project version while retaining dependency pins.
@@ -32,7 +37,7 @@ through Git when GitHub API access is unavailable:
 
 ```bash
 git fetch origin refs/notes/paradigma-releases:refs/notes/paradigma-releases
-git notes --ref=paradigma-releases show 'v0.6.0a3^{}'
+git notes --ref=paradigma-releases show 'v1.0.0rc1^{}'
 ```
 
 These notes are CI receipts, not signatures. The portable folder's

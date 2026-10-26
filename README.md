@@ -6,12 +6,17 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-1. Open the [latest preview release](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v0.6.0a3).
-2. Under **Assets**, download **ParaDigMaStudio-0.6.0a3-Windows-x64.zip**.
+The `1.0.0rc1` download becomes available when the candidate tag passes the
+[release workflow](docs/RELEASES.md). Until then, use the development artifacts below.
+
+1. Open the [1.0 release candidate](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1).
+2. Under **Assets**, download **ParaDigMaStudio-1.0.0rc1-Windows-x64.zip**.
 3. Extract the **entire ZIP** into a new folder.
 4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
 
-This is a preview for evaluation and feedback. See the [release notes](CHANGELOG.md).
+This is the first release candidate for 1.0, for evaluation and feedback before
+the stable release. See the [release notes](CHANGELOG.md) and
+[candidate checks and remaining validation](docs/RELEASE_CANDIDATE.md).
 
 Development builds remain available under
 [GitHub Actions](https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/workflows/windows.yml).
@@ -19,8 +24,8 @@ Performance measurements are in the separate **ParaDigMaStudio-build-reports**
 artifact; you do not need that download to run the app. Keep `_internal`, the
 licence/citation files, and the security/checksum files with the executable.
 
-The ordinary Windows build is **unsigned**. Smart App Control may need to be temporarily disabled to run it, or alternatively, see
-the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
+The ordinary Windows build is **unsigned**. Windows may warn about or block it;
+see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
 A verified signing identity must be configured before the signed workflow can produce a trusted build.
 
 ## Your first analysis

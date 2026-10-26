@@ -34,6 +34,10 @@ graph and packaged executable. No new advisory exceptions were introduced.
 
 ## Verification
 
+The [1.0.0rc1 candidate record](docs/RELEASE_CANDIDATE.md) documents the later
+release-preparation checks. The results below belong to the 18 October review;
+they are retained as historical evidence rather than current candidate counts.
+
 - **Dependencies:** 96 packages audited; no skipped packages or blocking findings
   under the PyArrow exception below. `pip check` passed.
 - **Bandit:** 93 files; 0 high, 7 medium and 22 low items reviewed; no scan

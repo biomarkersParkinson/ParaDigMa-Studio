@@ -5,6 +5,7 @@
 | [User guide](USER_GUIDE.md) | Illustrated Data, Analyze, Results and Runs workflow, configuration, interpretation and troubleshooting |
 | [Development](DEVELOPMENT.md) | Source installation, checks and Windows packaging |
 | [Releases](RELEASES.md) | Versioning, checked Windows downloads and publishing |
+| [1.0 release candidate](RELEASE_CANDIDATE.md) | Candidate checks, limitations and Windows acceptance checklist |
 | [Repository map](REPOSITORY.md) | Folder responsibilities, module boundaries and maintenance conventions |
 | [Test suite](TEST_SUITE.md) | Regression coverage map and shared test helpers |
 | [Scientific tests](SCIENTIFIC_TESTS.md) | Independent official ParaDigMa comparisons, fixtures, tolerances and limitations |

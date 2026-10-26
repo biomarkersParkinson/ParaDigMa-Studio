@@ -72,8 +72,8 @@
   Qt image without redrawing graph data,
   including when the figure exceeds the timepoint overlay's memory budget. Raw
   graphs retain panning. Dense full-recording plots still cost more than zoomed views.
-- Raw plots display at most 20,000 samples per channel. Sensor context indexes
-  source timestamps and loads the visible window while preserving the initial
+- Sensor context indexes source timestamps and loads the visible window using
+  the source-rate rendering above, while preserving the initial
   context, selected time and navigation history. Sensor tables build and size
   columns only when Tables is selected; panning in Graphs skips that work.
   Switching to Tables shows the latest window immediately and reuses its model
@@ -98,6 +98,12 @@
   outputs and repeated saves can therefore take time. Normalization reuses fresh
   string-keyed row dictionaries within each 1,000-row batch, retaining the standard
   JSON encoder, cooperative yields and atomic file replacement.
+
+These cache and worker budgets do not bound total session memory. Saved inactive
+runs can retain original source frames and complete result tables for reopening
+and sensor context. Repeated analyses of different long recordings therefore need
+representative memory testing; saving a run does not necessarily release its
+in-memory data.
 
 The portable bundle includes Python, Qt, Arrow and the scientific libraries.
 These native dependencies account for most of its size. Collection hooks retain

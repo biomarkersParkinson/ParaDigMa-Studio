@@ -103,7 +103,7 @@ def update_manifest(bundle):
 
 
 @pytest.mark.parametrize(
-    "version, preview", [(VERSION, True), ("0.6.0rc1", True), ("0.6.0", False)]
+    "version, preview", [(VERSION, True), ("1.0.0rc1", True), ("1.0.0", False)]
 )
 def test_version_tag_and_prerelease_status_match_project_metadata(tmp_path, version, preview):
     root = metadata_root(tmp_path, version)

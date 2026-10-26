@@ -42,7 +42,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Result installation, source alignment, clock selection and completion status | `result_controller.py`; worker-safe snapshots in `result_preparation.py`, isolated large-JSON decoding in `result_reopening.py`; automatic origins in `results_view.recording_clock` use selected absolute time or explicit recording-start metadata |
 | Run lifecycle, history selection, local saving, reopening and confirmed deletion | `run_controller.py`; file/schema operations in `history.py` and `saved_format.py`; run identity and exact-byte checksums in `result_integrity.py` |
 | Sensor context selection, indexed navigation and channel rendering | `sensor_controller.py`; timing helpers in `exploration.py`, `sensor_navigation.py` |
-| Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` |
+| Page construction and shared frozen callbacks | `ui/layout.py`, `ui/workspace_callbacks.py`; Data widgets in `ui/data_page.py`, Analyze widgets in `ui/analysis_page.py` and its illustrated help in `ui/analysis_figure.py` |
 | First-use graph construction and frozen graphics handles | `ui/deferred.py`, `ui/graph_views.py` |
 | Overview cards/charts and plot-series selection tree | `ui/result_overview.py`, `ui/result_series.py` |
 | Results rendering and linked graph selection | `ui/result_graphs.py`; cached summaries and display transforms in `ui/result_plot_data.py` |
@@ -59,7 +59,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Graph controls, rendering, selection overlay, continuous selector and pinned time axis | `plot_controls.py`, `plotting.py`, `selection_lines.py`, `time_axis.py` |
 | Results date/time labels and fixed Y-axis layout | `day_axis.py`, `epoch_axis.py`, `profile_axis.py`, `result_layout.py` |
 | Results time navigation, interval painting, bounded bar-geometry/coordinate reuse and history | `result_navigation.py`, `result_canvas.py`, `result_plot_cache.py` |
-| Application identity, compatible user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |
+| Application identity, current user-data paths, palette and resources | `branding.py`, `theme.py`, `assets.py` |
 | Matplotlib font-cache initialization | `bootstrap.py`, `plot_cache.py` |
 | About, licences and citations | `acknowledgements.py`, `data/notices/` |
 | Packaged startup and scientific smoke probes | `startup.py`, `smoke.py` |

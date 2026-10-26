@@ -35,12 +35,12 @@ frequency settings during a run. Inputs must remain unchanged.
 The Signal columns UI tests also compare real gait, tremor and pulse-rate outputs
 with independent official preparation after source renaming, axis swaps and
 independent accelerometer/gyroscope inversions. The reference calls the official
-orientation function directly for each sensor. Separate migration checks exercise
-all 48 legacy signed permutations with canonical, aliased and mixed headers, and
-saved-run restoration checks distinguish raw settings from the effective input
-conventions of retired GUI bypass settings. All new GUI runs use normal
-preparation. Boundary tests compare native-unit inputs exactly, converted units
-and independent inversions numerically, and selected gap/duration policies.
+orientation function directly for each sensor. Current saved-run checks validate
+independent sensor inversions and reject retired global axis permutations or GUI
+preparation-bypass settings without changing the current configuration. All GUI
+runs use normal preparation. Boundary tests compare native-unit inputs exactly,
+converted units and independent inversions numerically, and selected gap/duration
+policies.
 The Python API's explicit preparation bypass remains covered separately.
 
 TSDF import tests use real binary streams and an independent reference multiplication
@@ -179,7 +179,7 @@ The normal `python -m pytest` command also includes these tests. Both Windows
 build workflows run them before packaging and publish JUnit and coverage reports
 in `ParaDigMaStudio-test-results`, including reports from failed tests.
 The committed fixtures make the suite self-contained: no upstream checkout,
-fixture download or patient recording is required. Install `.[dev]` for the
+fixture download or patient recording is required. Use `uv sync --locked --all-groups` for the
 [CI coverage check](DEVELOPMENT.md#branch-coverage).
 
 The [test suite guide](TEST_SUITE.md) describes the feature-based organization

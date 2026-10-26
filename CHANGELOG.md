@@ -1,95 +1,80 @@
 # Changelog
 
-## Unreleased
+## 1.0.0rc1 — 2026-10-26
 
-- Replace Analyze's axis illustration with the reviewed left/right wrist figure,
-  scaled to the help panel. Explain the expected input orientation and that
-  ParaDigMa applies the wrist-side adjustment during processing. Keep column
-  mapping, inversion settings and scientific processing unchanged.
+First release candidate for **ParaDigMa Studio 1.0**, following the 0.6 alpha
+previews. Scientific processing uses **official ParaDigMa 1.1.2**. This candidate
+is intended for evaluation and feedback before the stable release.
 
-- Replace the custom dependency compiler, parser, input stamps and split
-  installation with one native `uv.lock` and standard lock/sync/check commands.
-  Preserve the reviewed scientific versions, patched reader commit and hashed
-  isolated builds. Let pip-audit collect the environment; retain the scoped
-  exception and artifact/audit/source verification. An unchanged sync now keeps
-  Studio and Open Movement installed.
+### Recording configuration
 
-- Record Studio and official ParaDigMa versions when each run starts, plus the
-  Studio build commit when available. Preserve that identity in saved results,
-  JSON/ZIP exports and companion metadata for single-table/selected-row CSVs.
-  Show both versions in Runs and track CSV companions during export/deletion.
-  Saved history and result JSON now use format version 2; older formats are not
-  migrated or supported.
+- Put Signal columns on the left of Analyze and source-recording parameters on
+  the right, stacking the sections in narrow windows. Keep controls reachable
+  under native Windows styles and when help or warnings change the layout.
+- Automatically match available signal columns. Mark detected selections and
+  supported metadata-derived units with **From file**; **Default** restores
+  detected settings. One Default button restores the entire signal table while
+  retaining axis inversions. Manual selections alone determine analysis inputs;
+  **Not included** leaves a signal unassigned, including optional Green PPG.
+- Share the selected time column and format between Data and Analyze. Changes
+  update sampling diagnostics, original-signal graphs and time-origin previews.
+  Use the selected time column or declared recording-start metadata for origins;
+  unrelated date columns no longer supply recording dates.
+- Reset Analyze when new files load successfully, including manual edits, and
+  prefill settings from the new input. Keep batch settings when switching the
+  recording being inspected. Disable sensor-unit fields when that sensor has
+  no mapped source columns.
+- Prepare selected columns, units and axes automatically, removing the
+  **Already prepared** option. Enable missing-sample exclusion and gap splitting
+  initially, with restorable gap and section-duration thresholds.
+- Support axis swaps through column selections and independent accelerometer and
+  gyroscope inversions. Show the reviewed left/right input-orientation figure
+  and explain that ParaDigMa applies wrist-side adjustments during processing.
+- Keep optional signals and compatibility details expandable, summarize repeated
+  batch issues, and explain warnings without warning sounds. Wheel gestures over
+  closed fields scroll the surrounding page without changing their values.
 
-- Lock complete Windows/Python 3.12 and supplemental Linux dependency environments
-  from the current clean Windows build reports. Verify registry hashes, isolated
-  build dependencies, the pinned reader commit and exact installed versions.
-  Tie packaged manifests and audits to the committed locks, and reject mismatched
-  evidence before publishing. Preserve the numerical-library versions.
+### Results and responsiveness
 
-- Use the visible Signal columns selections for new analyses and clock previews.
-  Manual choices replace standard-name inputs; **Not included** stays unassigned
-  even when a matching column exists. Save and restore the complete selections.
+- Accept raw PPG-only recordings for pulse-rate analysis. Optional accelerometer
+  channels retain unit conversion and missing-sample checks when supplied.
+- Show pulse-rate estimate availability against complete 2-second epochs across
+  the full recording timespan. Draw estimates at their official 2-second cadence
+  and PPG-quality outputs at 1 second, preserving missing-output gaps.
+- Restore original-sample detail when zooming Data and sensor-context graphs;
+  wide views retain peaks and missing-data breaks. Keep statistics and saved-run
+  reopening responsive through bounded background work and deferred graphs.
 
-- Keep Analyze's scroll range synchronized when nested forms shrink or change
-  between stacked and side-by-side layouts, avoiding stale excess scrolling on
-  Windows. Settle active layout items without activating hidden popup layouts.
+### Saved runs and exports
 
-- Reserve updated native control sizes before laying out Analyze's nested forms,
-  preventing clipped checkboxes when Windows controls grow after initial layout.
+- Capture Studio and official ParaDigMa versions when analysis starts, plus the
+  Studio build commit when available. Preserve this identity through saving,
+  reopening and JSON/ZIP exports, and show it in Runs.
+- Include analysis provenance and the CSV checksum in a `.csv.metadata.json`
+  companion for standalone CSV exports. Keep each CSV and its companion together.
+- Verify saved-result ownership and exact-byte checksums before reopening.
+  Saved history and result JSON require **Studio format version 2**. Earlier
+  formats and the former ParaDigMaDesktop history location are unsupported;
+  re-analyze original recordings to create current runs.
 
-- Scroll the Analyze page when the mouse wheel or trackpad is over a closed
-  dropdown, keeping its selected value. Open dropdown lists retain normal scrolling.
+### Documentation and build verification
 
-- Keep Signal columns dropdowns fully inside their rows and aligned when warnings
-  appear. Make warning icons clickable, show actual column names and explain
-  Auto-match availability. Auto-match now recomputes all assignments, including
-  optional signals, replacing manual choices while retaining axis inversions;
-  disable it only when every assignment already matches the automatic result.
-  List only loaded columns in dropdowns, keeping missing saved choices in settings
-  and identifying them in warnings until a replacement is selected.
+- Organize the illustrated user guide around Data, Analyze, Results and Runs,
+  with current configuration, time, preparation, saving and export guidance.
+- Use one native `uv.lock`, standard uv lock/sync/check commands and pip-audit
+  environment collection. Preserve reviewed scientific versions and the pinned
+  Open Movement reader. Require matching audit, source and dependency evidence
+  before release packaging; retain the documented Python-binding PyArrow exception.
+- Extend typing and regression coverage and enforce lint, formatting, module-size,
+  facade, full-suite coverage, scientific-equivalence and packaged-app checks.
 
-- Make Analyze's gap/duration step buttons wider with clear scalable chevrons,
-  and display acceleration units as m/s² while preserving saved and pipeline
-  unit identifiers.
-
-- Correct Detailed pulse-rate estimate bars to use the official 2-second update
-  cadence, while keeping PPG quality bars at 1 second. Preserve missing-output
-  gaps, recording boundaries and original result values, including saved results.
-  Count each returned estimate's 2 seconds when checking Day-view data availability.
-
-- Integrate axis direction into Signal columns with independent accelerometer and
-  gyroscope inversion checkboxes; select axis swaps through the source dropdowns.
-  Put other Analyze parameters on the left and signal columns on the right,
-  stacking in narrow windows. Replace row statuses with inline warning icons and
-  preserve the transformations from older saved global axis settings.
-
-- Replace the Analyze column-mapping JSON field with signal dropdowns, exact-name
-  recognition, unambiguous auto-match suggestions and validation across every
-  loaded recording. Preserve choices across module/recording switches and restore
-  saved mappings in their existing format; optional signals and file details can
-  be expanded without scanning source samples.
-
-- Replace the Pulse rate overview count with **Pulse-rate estimate availability (%)**,
-  based on complete 2-second epochs in the full recording timespan. Show the
-  measures directly under Pulse rate and use clearer pulse-rate plot labels;
-  original metadata, tables and exports remain unchanged.
-
-- Accept raw PPG-only recordings for pulse-rate analysis without requiring
-  accelerometer channels. Preserve time conversion, missing-sample checks and
-  official analytical steps; align the input guidance and clock previews.
-
-- Restore source-rate detail when zooming into raw Data graphs and sensor
-  context. Replace fixed recording-wide sample skipping with visible-range
-  rendering that retains peaks, missing-data breaks and original export samples.
-
-- Speed up initial statistics for multiple long recordings with at most two
-  background threads when CPU and available RAM permit. Preserve exact
-  statistics, loaded samples and completion before displaying recordings.
-
-- Keep saved-run reopening responsive: prepare result views in the worker,
-  isolate large JSON decoding in an owned process, and defer hidden Results
-  graphs until Graphs is opened. Preserve saved formats, values and source inputs.
+The portable Windows x64 candidate is **unsigned**. Extract the complete ZIP into
+a fresh folder and keep `_internal`, notices and security/checksum files beside
+the executable. Use uniformly formatted recordings within each batch and review
+source units, time, watch side and axes before running. See
+[candidate validation and limitations](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/RELEASE_CANDIDATE.md),
+[Security](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/SECURITY.md)
+and [signing](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/SIGNING.md).
 
 ## 0.6.0a3 — 2026-10-18
 

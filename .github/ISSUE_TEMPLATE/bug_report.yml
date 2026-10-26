@@ -9,7 +9,7 @@ body:
     attributes:
       label: Studio version
       description: Find the version in About.
-      placeholder: 0.6.0a1
+      placeholder: 1.0.0rc1
     validations:
       required: true
   - type: input
