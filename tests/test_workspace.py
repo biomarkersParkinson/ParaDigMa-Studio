@@ -10,6 +10,7 @@ import pytest
 from conftest import bar_starts, bar_values, select_plot_metric, wait_for_job, wait_for_previews
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -88,6 +89,38 @@ def test_navigation_and_integrated_controls_preserve_settings(window):
     window.navigate(1)
     assert window.selected_modules() == ["gait", "tremor"]
     assert window.gyro.currentText() == "rad/s"
+
+
+def test_page_shortcuts_survive_sidebar_label_changes_with_focused_controls(window):
+    window.show()
+    window.activateWindow()
+    assert QTest.qWaitForWindowActive(window)
+    # Keep the cursor away from the hover sidebar while choosing its state.
+    QTest.mouseMove(window, QPoint(window.width() - 20, window.height() - 20))
+    controls = (
+        window.open_button,
+        window.max_gap,
+        window.result_tabs.tabBar(),
+        window.run_table,
+    )
+    keys = (Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4)
+    for expanded in (False, True, False):
+        window.sidebar.setExpanded(expanded, animated=False)
+        for source, control in enumerate(controls):
+            window.navigate(source)
+            control.setFocus()
+            assert control.hasFocus()
+            for target, key in enumerate(keys):
+                # Every binding is exercised from each of the four pages.
+                window.navigate(source)
+                control.setFocus()
+                QTest.keyClick(control, key, Qt.AltModifier)
+                # QAbstractButton shortcuts activate through animateClick's timer.
+                QTest.qWait(120)
+                assert window.pages.currentIndex() == target
+                assert window._layout.page_title.text() == window.SECTIONS[target]
+                assert window.nav_buttons[target].isChecked()
+                assert sum(item.isChecked() for item in window.nav_buttons) == 1
 
 
 def test_page_actions_share_the_status_row_and_navigation_only_shows_relevant_actions(window):

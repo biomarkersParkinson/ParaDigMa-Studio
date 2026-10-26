@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Restore Alt+1, Alt+2, Alt+3 and Alt+4 navigation after the sidebar changes its
+  labels. Shortcuts now remain available at startup and when expanding or
+  collapsing the sidebar, including while a page control has keyboard focus.
+
 ## 1.0.0rc1 — 2026-10-26
 
 First release candidate for **ParaDigMa Studio 1.0**, following the 0.6 alpha

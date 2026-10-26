@@ -50,7 +50,7 @@ trigger and expected behavior still apply.
 | Release version checks, complete artifacts, checksums and verified publication | `test_release.py` |
 | Versioned history/results, rejection without migration, required fields and explicit export completeness | `test_saved_format.py` |
 | Studio identity, launcher and exclusive Studio storage paths | `test_branding.py` |
-| Window integration, shared settings and background error recovery | `test_app.py`, `test_workspace.py` |
+| Window integration, shared settings, page shortcuts across sidebar states/focused controls, and background error recovery | `test_app.py`, `test_workspace.py` |
 | Specific input errors, complete worker/UI tracebacks, startup/smoke failure reports and unchanged failure counts | `test_error_handling.py` |
 | Independent component composition, partial results, clock fallback and interrupted deletion | `test_workspace_components.py` |
 | Frozen layout/graph ports, required callbacks connected before worker start, terminal cleanup, queued input/cancellation snapshots and coordinator size | `test_composition_order.py` |

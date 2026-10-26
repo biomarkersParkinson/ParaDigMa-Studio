@@ -18,7 +18,7 @@ the full Studio and ParaDigMa licences under separate headings.
 
 | Shortcut | Action |
 | --- | --- |
-| **Alt+1–4** | Switch between Data, Analyze, Results and Runs. |
+| **Alt+1**, **Alt+2**, **Alt+3**, **Alt+4** | Open Data, Analyze, Results and Runs, respectively. |
 | **Ctrl+O** | Open recordings. |
 | **Ctrl+Enter** | Run analysis. |
 | **Ctrl+S** | Save results locally. |

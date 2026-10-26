@@ -239,7 +239,6 @@ class WorkspaceLayout:
             )
             item.setCheckable(True)
             item.setAccessibleName(section)
-            item.setShortcut(f"Alt+{index + 1}")
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
@@ -414,6 +413,8 @@ class WorkspaceLayout:
         self.brand.setVisible(expanded)
         for i, item in enumerate(self.nav_buttons):
             item.setText(f"{i + 1}    {self.sections[i]}" if expanded else str(i + 1))
+            # Qt recalculates button shortcuts on setText, clearing this binding.
+            item.setShortcut(f"Alt+{i + 1}")
             item.setToolTip("" if expanded else self.sections[i])
 
     def resize_data(self, width: int) -> None:
