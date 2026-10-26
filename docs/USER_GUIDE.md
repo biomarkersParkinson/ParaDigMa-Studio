@@ -134,12 +134,6 @@ elapsed times.
 
 ### Import issues
 
-**Empatica has no gyroscope:** The bundled example contains accelerometer samples
-but no gyroscope samples. It can be inspected, but it cannot supply the absent
-channels needed for gait or tremor. The adapter supports one Avro record with
-optional aligned gyroscope data, not BVP, EDA or temperature streams. Multi-record
-or unaligned IMU streams need splitting or alignment before import.
-
 **The extracted app does not start:** Keep the entire downloaded app folder,
 including `_internal`. Extract updates into a fresh folder. See the
 [README](../README.md) and [Windows signing guidance](../SIGNING.md) for download
