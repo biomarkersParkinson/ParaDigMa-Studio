@@ -6,9 +6,7 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-**ParaDigMa Studio 1.0.0rc1** is available for **64-bit Windows**. Python is
-included; no separate Python installation is needed.
-
+**ParaDigMa Studio 1.0.0rc1** is available for **64-bit Windows**.
 1. Download [**ParaDigMaStudio-1.0.0rc1-Windows-x64.zip**](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/download/v1.0.0rc1/ParaDigMaStudio-1.0.0rc1-Windows-x64.zip)
    from the [release page](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1).
 2. Extract the **entire ZIP** into a new folder.
@@ -25,8 +23,8 @@ the stable release. See the [release notes](CHANGELOG.md) and
 Development builds and performance reports are available separately under
 [GitHub Actions](https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/workflows/windows.yml).
 
-The ordinary Windows build is **unsigned**. Windows may warn about or block it;
-see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
+ParaDigMa Studio is currently distributed without a digital signature. Windows may display a security warning during installation.
+We are working toward digitally signed releases.
 
 ## Your first analysis
 
@@ -55,7 +53,7 @@ signal columns, units, time representation, watch side and axis orientation agai
 your recordings, including values prefilled from file metadata.
 When analyzing multiple recordings from the same subject, ensure their formatting
 is consistent across files: column names, units, time representation and axis
-conventions must match. One Analyze configuration applies to the entire batch.
+conventions must match; one Analyze configuration applies to the entire batch.
 
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
@@ -74,7 +72,7 @@ Pickle files can execute code: open only trusted files.
 | --- | --- |
 | Tremor | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z` |
 | Gait | `time`, `gyroscope_x`, `gyroscope_y`, `gyroscope_z`, `accelerometer_x`, `accelerometer_y`, `accelerometer_z` |
-| Pulse rate | `time`, `green` (raw PPG); accelerometer channels are optional |
+| Pulse rate | `time`, `green` (raw PPG) |
 
 Saved history and result JSON require Studio format version 2. Earlier versioned
 or unversioned saved runs are unsupported and remain untouched; re-analyze the
