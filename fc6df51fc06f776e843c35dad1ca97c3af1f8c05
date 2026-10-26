@@ -1,0 +1,11 @@
+{
+  "tag": "v1.0.0rc1",
+  "source_commit": "fc6df51fc06f776e843c35dad1ca97c3af1f8c05",
+  "status": "published",
+  "build_result": "success",
+  "publish_result": "success",
+  "archive_sha256": "412f85e4da0ff3f142f2fb46b535cceb42b03479de3c3aab489a057f0e493e58",
+  "release_url": "https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1",
+  "workflow_url": "https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/runs/40385822649",
+  "failed_steps": []
+}
