@@ -3,7 +3,7 @@
 The repository includes a manual **Windows signed desktop** workflow using
 [Microsoft Artifact Signing](https://github.com/Azure/artifact-signing-action),
 formerly Trusted Signing. The integration is prepared; no signing account,
-verified publisher identity or signed release has been created by Codex.
+verified publisher identity or signed release has been set up.
 Normal push/PR builds continue to produce unsigned artifacts.
 
 ## Set up the publisher account
@@ -34,8 +34,7 @@ Normal push/PR builds continue to produce unsigned artifacts.
    federated credential's subject to the value above.
 
 5. In **this GitHub repository → Settings → Environments**, create the environment
-   `windows-signing` and restrict its deployment branches to `main`. This is a
-   GitHub Actions environment, separate from the Codex cloud environment.
+   `windows-signing` and restrict its deployment branches to `main`. 
    The branch restriction matters because the federated credential trusts the
    environment, not a branch claim. Add these environment **variables**:
 
