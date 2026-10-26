@@ -6,27 +6,27 @@ and explore results. Recordings and results stay on your computer.
 
 ## Download and launch
 
-The `1.0.0rc1` download becomes available when the candidate tag passes the
-[release workflow](docs/RELEASES.md). Until then, use the development artifacts below.
+**ParaDigMa Studio 1.0.0rc1** is available for **64-bit Windows**. Python is
+included; no separate Python installation is needed.
 
-1. Open the [1.0 release candidate](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1).
-2. Under **Assets**, download **ParaDigMaStudio-1.0.0rc1-Windows-x64.zip**.
-3. Extract the **entire ZIP** into a new folder.
-4. Open **ParaDigMaStudio → ParaDigMaStudio.exe**, keeping `_internal` beside it.
+1. Download [**ParaDigMaStudio-1.0.0rc1-Windows-x64.zip**](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/download/v1.0.0rc1/ParaDigMaStudio-1.0.0rc1-Windows-x64.zip)
+   from the [release page](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1).
+2. Extract the **entire ZIP** into a new folder.
+3. Open **ParaDigMaStudio → ParaDigMaStudio.exe**.
+
+Keep the entire extracted folder together, including `_internal`, the
+licence/citation files and the security/checksum files. Extract future updates
+into a fresh folder.
 
 This is the first release candidate for 1.0, for evaluation and feedback before
 the stable release. See the [release notes](CHANGELOG.md) and
 [candidate checks and remaining validation](docs/RELEASE_CANDIDATE.md).
 
-Development builds remain available under
+Development builds and performance reports are available separately under
 [GitHub Actions](https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/workflows/windows.yml).
-Performance measurements are in the separate **ParaDigMaStudio-build-reports**
-artifact; you do not need that download to run the app. Keep `_internal`, the
-licence/citation files, and the security/checksum files with the executable.
 
 The ordinary Windows build is **unsigned**. Windows may warn about or block it;
 see the [signing guide](SIGNING.md) and [source installation](docs/DEVELOPMENT.md).
-A verified signing identity must be configured before the signed workflow can produce a trusted build.
 
 ## Your first analysis
 
