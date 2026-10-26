@@ -1,4 +1,4 @@
-"""Field guidance from the pinned ParaDigMa 1.1.2 API docstrings.
+"""Field guidance for the pinned ParaDigMa 1.1.2 API and Studio input settings.
 
 References point to the official source revision recorded in scientific tests.
 Desktop exclusion/combined execution options are identified as wrapper behavior.
@@ -12,6 +12,32 @@ DEFAULT_MIN_SECTION_SECONDS = 1.5
 # Studio policies are enabled on new input; the Python API keeps them opt-in.
 DEFAULT_DROP_MISSING_SAMPLES = True
 DEFAULT_SPLIT_BY_GAPS = True
+
+SIGNAL_COLUMNS_HELP_BEFORE_HTML = (
+    "<p>Choose the column in your recordings that supplies each signal. Dropdowns list the "
+    "available columns, and only your selections are used for analysis. Select "
+    "<b>Not included</b> to leave a signal unassigned.</p>"
+    "<p>Studio automatically matches column names shared by all loaded recordings. "
+    "<b>From file</b> marks each automatic match. You can change any selection; "
+    "<b>Default</b> restores the automatic matches for all signals, including optional "
+    "signals, while keeping your axis inversions.</p>"
+    "<p>One set of column selections and inversions applies to the whole batch. Check "
+    "that column names and axis conventions are consistent across your recordings. "
+    "Loading new files resets Analyze and prefills available settings from the new input.</p>"
+    "<p>Map your recording’s accelerometer and gyroscope columns to the positive axis "
+    "directions shown for the wrist on which the sensor was worn. Use <b>Invert axis</b> "
+    "where a source axis points in the opposite direction.</p>"
+)
+SIGNAL_COLUMNS_HELP_AFTER_HTML = (
+    "<p>Select the actual <b>Watch side</b>. ParaDigMa adjusts for left/right wrist "
+    "differences during processing. <b>Do not apply that wrist-side adjustment yourself</b>"
+    "—provide the data in the orientation illustrated above.</p>"
+    "<p><b>Show optional signals</b> reveals additional channels. The compatibility summary "
+    "shows which recordings have the signals needed by the selected modules. Click a "
+    "warning icon to read its explanation, or use <b>Show details</b> for matching and "
+    "compatibility information. If a previously selected column is unavailable, choose "
+    "a replacement or <b>Not included</b>; its warning identifies the missing column.</p>"
+)
 
 FIELD_HELP = {
     "Time origin": (
@@ -31,11 +57,13 @@ FIELD_HELP = {
         "orchestrator.py",
     ),
     "Watch side": (
-        "Choose the wrist on which the sensor was worn. ParaDigMa applies its right-wrist IMU inversion "
-        "during pipeline preprocessing. Supported imports do not currently select the wrist from metadata. "
+        "Select the actual wrist on which the sensor was worn. Provide the input axes in the "
+        "orientation shown in the Signal columns explanation. ParaDigMa adjusts for left/right "
+        "wrist differences during pipeline preprocessing; do not apply that wrist-side adjustment "
+        "yourself. Supported imports do not currently select the wrist from metadata. "
         "This field is used for gait and is inactive for tremor or pulse rate alone. "
-        "Set this separately from the device-axis mapping; "
-        "do not manually invert axes merely because the watch was on the right wrist.",
+        "Use the source-column mapping and Invert axis to align the original device axes "
+        "with the illustrated input directions.",
         "preprocessing.py#L364",
     ),
     "Acceleration units": (
@@ -86,31 +114,8 @@ FIELD_HELP = {
         "prepare_data.py",
     ),
     "Signal columns": (
-        "Choose the column in your files for each required signal. Exact ParaDigMa names are recognized "
-        "automatically. Processing uses the dropdown selections only: a different selected source "
-        "replaces the standard-name source, and unselected standard-name columns are not used as a fallback. "
-        "Choose Not included to leave any signal unassigned, including when its standard-name column exists. "
-        "Selections remain in effect for the current loaded recording or batch. Loading new files "
-        "resets Analyze and fills available settings from the new input. "
-        "Signal columns are matched automatically on load from names shared "
-        "by every recording. Exact names take precedence over unique aliases such as timestamp, ax, "
-        "gyr_x or ppg. From file marks each automatically matched signal. "
-        "Default restores all automatic matches, including optional signals, replacing manual selections "
-        "and clearing fields without an unambiguous match. Axis inversions are kept. "
-        "Show optional signals exposes other channels. "
-        "Compare your device manual's X/Y/Z arrows with ParaDigMa's reference figure below. "
-        "Select the source column that should become each ParaDigMa axis; tick Invert axis when "
-        "its arrow points in the opposite direction. For example, choose sensor Y for Accelerometer X "
-        "and tick Invert axis: toolbox X = minus sensor Y. Set accelerometer and gyroscope directions "
-        "independently; use each source column once. Set Watch side separately. "
-        "One mapping and set of inversions applies to all loaded recordings. Click warning icons to "
-        "read their messages. Warning icons and "
-        "Show details summarize missing signals and conflicting names across recordings without "
-        "listing filenames; counts identify issues affecting only some recordings. "
-        "Source-column options list only loaded columns; missing saved choices "
-        "remain in settings and are named in their warning until replaced. "
-        "Missing signals remain "
-        "subject to the existing per-recording and per-module analysis validation.",
+        # Trusted HTML paragraphs are split around the illustration in the UI.
+        SIGNAL_COLUMNS_HELP_BEFORE_HTML + SIGNAL_COLUMNS_HELP_AFTER_HTML,
         "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html",
     ),
 }

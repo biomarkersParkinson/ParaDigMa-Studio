@@ -111,6 +111,8 @@ QWidget#analysisBody QComboBox { min-height: 18px; padding: 5px 30px 5px 10px; }
 QWidget#analysisBody QLineEdit, QWidget#analysisBody QDoubleSpinBox,
 QWidget#analysisBody QPlainTextEdit { padding: 5px; }
 QLabel#fieldHelp { color: #33465d; background: #f0f5fb; padding: 10px; border-radius: 6px; }
+QWidget#signalColumnsHelp { background: #f0f5fb; border-radius: 6px; }
+QLabel#signalColumnsHelpText { color: #33465d; background: transparent; padding: 0; }
 QPushButton#module:checked { background: #eef5ff; border: 2px solid #2563a5; }
 QLineEdit, QComboBox, QPlainTextEdit, QDoubleSpinBox, QDateTimeEdit { background: white;
     color: #22324a; border: 1px solid #d7dfe9; border-radius: 5px; padding: 7px;

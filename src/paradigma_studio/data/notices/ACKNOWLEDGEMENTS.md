@@ -51,7 +51,10 @@ citation files accompany the application.
 **ParaDigMa:** Copyright (c) 2023, Peter Kok, Vedran Kasalica, Erik Post,
 Kars Veldkamp, Nienke Timmermans, Diogo Coutinho Soriano, Luc Evers.
 
-The device-orientation figure and example recordings are from
+The example recordings are from
 [ParaDigMa 1.1.2 source](https://github.com/biomarkersParkinson/paradigma/tree/4735d6d21b2a62b764a0bc7e0f677577e6ce1668)
-under Apache 2.0. Figure source:
+under Apache 2.0. The left/right input-axis illustration is an original Studio
+graphic, reviewed by the repository owner, under Studio's Apache 2.0 licence.
+The editable SVG and its PNG display version accompany the application.
+Related official documentation:
 [Coordinate System guide](https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html).

@@ -54,10 +54,13 @@ checkmark.svg and select-time.svg are Studio's checkbox and Results cursor
 graphics. These original application graphics follow Studio's Apache 2.0
 licence in notices/LICENSE-studio.txt.
 
-directions_axes.png is the unchanged ParaDigMa device-orientation reference
-figure from docs/source/_static/img/ at the same upstream revision above.
-It follows the upstream Apache 2.0 licence; see notices/ACKNOWLEDGEMENTS.md
-for its Coordinate System guide link and attribution.
+input-axis-orientation.svg is Studio's editable illustration of the expected
+input sensor axes on the left and right wrist, reviewed by the repository owner
+on 2026-10-26. input-axis-orientation.png is its lossless display version. It
+replaces the former upstream directions_axes.png reference figure; it is a
+Studio illustration, not an unchanged upstream figure. The graphics follow
+Studio's Apache 2.0 licence in notices/LICENSE-studio.txt. Related guidance:
+https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html
 
 notices/PARADIGMA-JOSS-CITATION.bib records the 2026 JOSS paper named in
 Studio's README. The authors are abbreviated to match that reference;

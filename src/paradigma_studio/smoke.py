@@ -102,8 +102,12 @@ def _verify_bundled_ui(window, app):
             raise RuntimeError(f"Bundled {direction} chevron could not be rendered")
     if QPixmap(str(files("paradigma_studio") / "data" / "checkmark.svg")).isNull():
         raise RuntimeError("Bundled checkbox indicator could not be rendered")
-    if QPixmap(str(files("paradigma_studio") / "data" / "directions_axes.png")).isNull():
-        raise RuntimeError("Bundled ParaDigMa device-axis reference figure could not be rendered")
+    data = files("paradigma_studio") / "data"
+    if (
+        QPixmap(str(data / "input-axis-orientation.png")).isNull()
+        or not (data / "input-axis-orientation.svg").is_file()
+    ):
+        raise RuntimeError("Bundled input-axis illustration is missing or could not be rendered")
     window.about_button.click()
     attribution = window._shell_state._acknowledgements_dialog
     if "10.21105/joss.09502" not in attribution.acknowledgement.toPlainText():
@@ -234,7 +238,7 @@ def _verify_analysis_controls(window):
         raise RuntimeError("All three modules cannot be selected together")
     help_button, help_text = window.analysis_help["Signal columns"]
     help_button.click()
-    if help_text.isHidden() or "toolbox X = minus sensor Y" not in help_text.text():
+    if help_text.isHidden() or "Invert axis" not in help_text.text():
         raise RuntimeError("Documented inline axis guidance is unavailable")
     help_button.click()
     window.set_modules(["tremor"])

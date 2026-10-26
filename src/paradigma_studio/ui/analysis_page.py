@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import escape
 
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtWidgets import (
     QAbstractButton,
     QCheckBox,
@@ -29,9 +29,9 @@ from ..analysis_help import (
     DEFAULT_MIN_SECTION_SECONDS,
     DEFAULT_SPLIT_BY_GAPS,
     FIELD_HELP,
+    SIGNAL_COLUMNS_HELP_BEFORE_HTML,
     SOURCE,
 )
-from ..assets import DATA_DIRECTORY
 from ..field_scrolling import FieldWheelFilter, PageDoubleSpinBox
 from ..theme import LINK_COLOR, light_palette
 from ..time_controls import TimeField
@@ -45,6 +45,7 @@ from ..widgets import (
     combo,
     label,
 )
+from .analysis_figure import signal_columns_help
 from .column_mapping import ColumnMappingEditor
 from .workspace_callbacks import WorkspaceCallbacks
 
@@ -348,7 +349,10 @@ class AnalysisPage:
             section_layout.setContentsMargins(0, 0, 0, 0)
             section_layout.setSpacing(4)
             section_layout.addWidget(label(title, "sectionTitle"))
-            section_layout.addWidget(description)
+            if title == "Signal columns":
+                section_layout.addWidget(signal_columns_help(description, FIELD_HELP[title][1]))
+            else:
+                section_layout.addWidget(description)
             section.hide()
             self.analysis_help_sections[title] = section
             info.toggled.connect(
@@ -384,19 +388,14 @@ class AnalysisPage:
         info.setCheckable(True)
         info.setAccessibleName(f"Information: {title}")
         url = reference if reference.startswith("https://") else SOURCE + reference
-        visual = ""
-        link_title = "ParaDigMa documentation"
         if title == "Signal columns":
-            image = QUrl.fromLocalFile(str(DATA_DIRECTORY / "directions_axes.png")).toString()
-            visual = (
-                f'<p><img src="{image}" width="260" height="247"></p>'
-                "<p>Reference figure: ParaDigMa Coordinate System guide.</p>"
+            help_html = SIGNAL_COLUMNS_HELP_BEFORE_HTML
+        else:
+            help_html = (
+                f'{escape(text)}<br><a style="color: {LINK_COLOR}; text-decoration: underline;" '
+                f'href="{url}">ParaDigMa documentation</a>'
             )
-            link_title = "ParaDigMa documentation · Coordinate System guide"
-        description = QLabel(
-            f'{escape(text)}{visual}<br><a style="color: {LINK_COLOR}; text-decoration: underline;" '
-            f'href="{url}">{link_title}</a>'
-        )
+        description = QLabel(help_html)
         description.setWordWrap(True)
         description.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         description.setTextFormat(Qt.TextFormat.RichText)

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Replace Analyze's axis illustration with the reviewed left/right wrist figure,
+  scaled to the help panel. Explain the expected input orientation and that
+  ParaDigMa applies the wrist-side adjustment during processing. Keep column
+  mapping, inversion settings and scientific processing unchanged.
+
 - Replace the custom dependency compiler, parser, input stamps and split
   installation with one native `uv.lock` and standard lock/sync/check commands.
   Preserve the reviewed scientific versions, patched reader commit and hashed

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.theme import LINK_COLOR
+from paradigma_studio.ui.analysis_figure import InputAxisFigure
 
 
 @pytest.fixture(params=[None, "Windows"], ids=["native-style", "Windows-style"])
@@ -124,7 +125,7 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
 
 
-def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_guide(window):
+def test_axis_and_mapping_fields_follow_their_columns_with_input_orientation_help(window):
     window.navigate(1)
     window.resize(1450, 920)
     QTest.qWait(30)
@@ -144,15 +145,50 @@ def test_axis_and_mapping_fields_follow_their_columns_with_readable_official_gui
     assert window.drop_missing.mapTo(window, window.drop_missing.rect().topLeft()).y() > (
         window.time.mapTo(window, window.time.rect().bottomLeft()).y()
     )
-    for _info, description in window.analysis_help.values():
-        assert f"color: {LINK_COLOR}" in description.text()
+    for title, (_info, description) in window.analysis_help.items():
+        if title != "Signal columns":
+            assert f"color: {LINK_COLOR}" in description.text()
     info, description = window.analysis_help["Signal columns"]
     info.click()
-    assert '<img src="' in description.text() and "directions_axes.png" in description.text()
+    section = window._analysis_controller.view.analysis_help_sections["Signal columns"]
+    figure = section.findChild(InputAxisFigure)
+    assert figure is not None and figure.isVisible()
+    explanation = next(
+        label
+        for label in section.findChildren(QLabel)
+        if label.accessibleName() == "Help: Signal columns (continued)"
+    )
+    assert "Map your recording’s accelerometer and gyroscope columns" in description.text()
+    assert "Do not apply that wrist-side adjustment yourself" in explanation.text()
     assert (
         "https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html"
-        in description.text()
+        in explanation.text()
     )
+    assert description.parentWidget() is figure.parentWidget() is explanation.parentWidget()
+    assert description.y() + description.height() <= figure.y()
+    assert figure.y() + figure.height() <= explanation.y()
+
+
+def test_input_axis_figure_fits_expanded_help_at_wide_and_narrow_sizes(native_analysis_window):
+    window = native_analysis_window
+    window.navigate(1)
+    window.show()
+    window.analysis_help["Signal columns"][0].click()
+    section = window._analysis_controller.view.analysis_help_sections["Signal columns"]
+    figure = section.findChild(InputAxisFigure)
+    body = window.analysis_scroll.widget()
+    for width, height in ((1450, 920), (960, 650), (1450, 920)):
+        window.resize(width, height)
+        QTest.qWait(30)
+        assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
+        assert figure.height() >= figure.heightForWidth(figure.width())
+        assert figure.width() <= window.analysis_help_panel.width()
+        for local_y in (0, figure.heightForWidth(figure.width()) - 1):
+            point = figure.mapTo(body, QPoint(0, local_y))
+            window.analysis_scroll.ensureVisible(point.x(), point.y(), 0, 1)
+            QApplication.processEvents()
+            visible = figure.mapTo(window.analysis_scroll.viewport(), QPoint(0, local_y))
+            assert window.analysis_scroll.viewport().rect().contains(visible)
 
 
 def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(window):

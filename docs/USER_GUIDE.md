@@ -165,8 +165,9 @@ Select any combination in **Analysis modules**:
 | Pulse rate | Time and raw Green PPG. Accelerometer channels are optional. |
 
 For gait, set **Watch side** to the actual wrist. It is inactive for tremor or
-pulse rate alone. Official pipeline preprocessing applies the watch-side adjustment
-separately from the source-axis inversions you select below.
+pulse rate alone. ParaDigMa adjusts for left/right wrist differences during
+processing. Do not apply that wrist-side adjustment yourself; use the expected
+input orientation below when mapping the original recording's axes.
 
 Pulse rate in ParaDigMa 1.1.2 assesses quality using PPG features only;
 `pred_sqa_proba` does not include an accelerometer motion assessment. Complete
@@ -175,40 +176,25 @@ missing-sample checks.
 
 ### Map signal columns and axes
 
-In **Signal columns**, select the source column that should supply each required
-signal. The table appears on the left, with other parameters on the right;
-narrow windows stack the sections.
+The **Signal columns** table appears on the left, with other parameters on the
+right; narrow windows stack the sections. Open its **i** explanation for the
+guidance and figure below.
 
-- On loading, Studio matches names shared by all recordings. Exact ParaDigMa
-  names take precedence, followed by unambiguous aliases such as `timestamp`,
-  `gyr_x` and `ppg`. Each automatic match has a **From file** label beneath its
-  signal name.
-- Dropdowns list available source columns. Select **Not included** to unassign
-  a signal, including one whose standard-name column exists in the file.
-- The selections determine the inputs used in processing. A manual selection
-  replaces the automatic choice; an unselected column does not fill a missing
-  signal merely because its name matches ParaDigMa's conventions.
-- **Show optional signals** reveals signals not required by the selected modules.
-  **Show details** explains exact matches, aliases and explicit selections.
-- The table's single **Default** button restores automatic matches for all
-  signals, including optional ones. It replaces manual choices and leaves
-  ambiguous signals unassigned. Selected axis inversions are kept.
+Choose the column in your recordings that supplies each signal. Dropdowns list the available columns, and only your selections are used for analysis. Select **Not included** to leave a signal unassigned.
 
-For an axis swap, select the source that should become each target axis. For
-example, choose the device's Y column for **Accelerometer X** and its X column
-for **Accelerometer Y**. Tick **Invert axis** to multiply that selected signal by
-−1. Accelerometer and gyroscope inversions can be set independently. There is
-no separate axis-order field to configure.
+Studio automatically matches column names shared by all loaded recordings. **From file** marks each automatic match. You can change any selection; **Default** restores the automatic matches for all signals, including optional signals, while keeping your axis inversions.
 
-The compatibility summary covers the whole batch. Warning icons identify reused
-source columns and missing selections; click an icon, or focus it and press Space,
-to read the message. **Show details** groups shared issues without repeating
-filenames, with counts for issues affecting only some recordings. A missing
-saved choice shows a selection prompt and a warning naming the missing column.
-Changing modules preserves your signal choices.
+One set of column selections and inversions applies to the whole batch. Check that column names and axis conventions are consistent across your recordings. Loading new files resets Analyze and prefills available settings from the new input.
 
-Open the field's **i** explanation for ParaDigMa's axis reference figure and
-Coordinate System documentation.
+Map your recording’s accelerometer and gyroscope columns to the positive axis directions shown for the wrist on which the sensor was worn. Use **Invert axis** where a source axis points in the opposite direction.
+
+![Expected input sensor axes for recordings from the left and right wrist](../src/paradigma_studio/data/input-axis-orientation.png)
+
+Select the actual **Watch side**. ParaDigMa adjusts for left/right wrist differences during processing. **Do not apply that wrist-side adjustment yourself**—provide the data in the orientation illustrated above.
+
+**Show optional signals** reveals additional channels. The compatibility summary shows which recordings have the signals needed by the selected modules. Click a warning icon to read its explanation, or use **Show details** for matching and compatibility information. If a previously selected column is unavailable, choose a replacement or **Not included**; its warning identifies the missing column.
+
+[ParaDigMa documentation · Coordinate System guide](https://biomarkersparkinson.github.io/paradigma/guides/coordinate_system.html)
 
 ### Review units and file-derived values
 

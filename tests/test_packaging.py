@@ -1,13 +1,27 @@
 """Downloads retain runtime files and reject leftover build/report artifacts."""
 
 import shlex
+from importlib.resources import files
 from pathlib import Path, PurePosixPath
+from xml.etree import ElementTree
 
 import pytest
 import yaml
 
 from scripts.build_desktop import copy_notices, reset_build_outputs
 from scripts.check_frozen import check_layout
+
+
+def test_input_axis_illustration_includes_editable_source_and_matching_display_image():
+    from PySide6.QtGui import QImage
+
+    data = files("paradigma_studio").joinpath("data")
+    source = ElementTree.fromstring(data.joinpath("input-axis-orientation.svg").read_bytes())
+    image = QImage.fromData(data.joinpath("input-axis-orientation.png").read_bytes())
+    assert not image.isNull()
+    _x, _y, width, height = map(float, source.attrib["viewBox"].split())
+    assert image.width() / image.height() == pytest.approx(width / height)
+    assert image.width() >= 2000
 
 
 def bundle(tmp_path):

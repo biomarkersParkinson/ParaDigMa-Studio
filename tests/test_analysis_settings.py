@@ -5,7 +5,7 @@ from copy import deepcopy
 import pandas as pd
 from conftest import wait_for_previews
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
 
 def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments(
@@ -170,13 +170,18 @@ def test_inline_analysis_help_does_not_change_configuration(window):
         assert info.accessibleName() == f"Information: {title}"
         info.click()
         assert not description.isHidden()
-        assert "ParaDigMa documentation" in description.text()
+        section = window._analysis_controller.view.analysis_help_sections[title]
+        assert any(
+            "ParaDigMa documentation" in label.text() for label in section.findChildren(QLabel)
+        )
         assert window.pages.widget(1).isAncestorOf(description)
         info.click()
         assert description.isHidden()
     assert configuration() == before
-    assert "toolbox X = minus sensor Y" in window.analysis_help["Signal columns"][1].text()
-    assert "Choose the column in your files" in window.analysis_help["Signal columns"][1].text()
+    assert "Invert axis" in window.analysis_help["Signal columns"][1].text()
+    assert (
+        "Choose the column in your recordings" in window.analysis_help["Signal columns"][1].text()
+    )
 
 
 def test_analyze_calendar_default_preserves_source_precision_and_results(window):
