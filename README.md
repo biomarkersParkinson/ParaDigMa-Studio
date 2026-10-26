@@ -4,6 +4,8 @@ A Windows app for extracting digital biomarkers for Parkinson's disease from rea
 based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist sensor recordings, run gait, tremor and pulse-rate analysis modules,
 and explore results. Recordings and results stay on your computer.
 
+<img width="2880" height="1690" alt="image" src="https://github.com/user-attachments/assets/d01af06a-4e78-4fc0-890e-4be977cd7100" />
+
 ## Download and launch
 
 **ParaDigMa Studio 1.0.0rc1** is available for **64-bit Windows**.
