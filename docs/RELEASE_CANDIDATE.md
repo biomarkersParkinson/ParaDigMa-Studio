@@ -1,10 +1,11 @@
 # ParaDigMa Studio 1.0.0rc1
 
-Prepared 26 October 2026 as the first candidate for Studio 1.0. Scientific
+Published 26 October 2026 as the first candidate for Studio 1.0. Scientific
 processing uses official ParaDigMa 1.1.2. The distribution target is Windows x64;
 local Linux checks supplement the Windows build and acceptance checks below.
-The candidate will be published as a GitHub prerelease, separately from stable
-1.0.0. See the [release notes](../CHANGELOG.md#100rc1--2026-10-26).
+The [candidate is a GitHub prerelease](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1),
+separate from stable 1.0.0. Its tagged source is `fc6df51fc06f776e843c35dad1ca97c3af1f8c05`.
+See the [release notes](../CHANGELOG.md#100rc1--2026-10-26).
 
 ## Source and dependency checks
 
@@ -74,11 +75,14 @@ collected during other checks and are not Windows performance guarantees.
 
 ## Windows verification and acceptance
 
-Preparing this source version does not publish it. Pushing `v1.0.0rc1` starts the
-[release workflow](RELEASES.md), which must audit/test/build the tagged source,
-launch the packaged executable, verify provenance and the complete file inventory,
-and verify the uploaded archive before publication. A green branch build alone
-does not verify the final tagged download.
+The [tagged release workflow #222](https://github.com/biomarkersParkinson/ParaDigMa-Studio/actions/runs/40385822649)
+passed Windows auditing, tests, executable checks and publication. Its Git receipt
+confirms the source, tag and published archive checksum. The actual public ZIP was
+then downloaded and verified independently on Linux: its checksum, source/version,
+locked Windows package graph, audit and all 1,772 inventory file hashes matched.
+The [security summary](../SECURITY.md) and [evidence](security-review.json) record
+the results and archive SHA-256. Windows execution was verified in CI; manual
+clean-machine acceptance remains separate.
 
 Before stable 1.0, test the exact candidate ZIP on a Windows machine without a
 source Python environment and record its checksum, Windows version and display

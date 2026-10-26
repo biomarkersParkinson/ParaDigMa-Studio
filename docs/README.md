@@ -16,9 +16,12 @@ app and follow the four-page workflow. Guides describe the current source;
 [release notes](../CHANGELOG.md) distinguish published previews from unreleased
 changes. [Security](../SECURITY.md), [signing](../SIGNING.md) and the
 [Apache 2.0 licence](../LICENSE) are maintained at the repository root.
-The [recorded security review evidence](security-review.json) identifies its
-reviewed commit, checked versions, source findings and validation outcomes;
-it distinguishes source checks from packaged-artifact and Windows checks.
+The [current security verification evidence](security-review.json) identifies
+the published 1.0.0rc1 source, checked versions, source findings and validation
+outcomes. It distinguishes local Linux checks, tagged Windows CI and inspection
+of the actual public ZIP. The
+[18 October security review](archive/security-review-0.6.0a3-2026-10-18.json)
+remains an unchanged historical snapshot.
 The [performance review evidence](performance-review.json) records baseline/current
 measurements, workloads, unchanged output checks and platform limitations.
 These reviews are dated snapshots of their stated commits, not fresh checks of

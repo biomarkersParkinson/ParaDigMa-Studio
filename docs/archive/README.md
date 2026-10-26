@@ -12,6 +12,10 @@ setup instructions; use the [documentation index](../README.md) instead.
   validation from the cleanup based on commit `b8f84b7`.
 - [Security review, 6 October 2026](security-review-2026-10-06.md): the earlier
   audit, superseded by the current repository security summary.
+- [Security review evidence, 18 October 2026](security-review-0.6.0a3-2026-10-18.json):
+  the unchanged 0.6.0a3 review, including its original package/test counts,
+  manual findings and limitations; later release verification is recorded in
+  the [current security summary](../../SECURITY.md).
 - [Workspace gallery](workspace.md): screenshots and descriptions from multiple
   earlier revisions. Additional captures show [old graph settings](screenshots/graph-settings.png)
   and an [earlier gait overview](screenshots/results.png).

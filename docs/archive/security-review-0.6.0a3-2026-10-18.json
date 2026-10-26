@@ -1,0 +1,941 @@
+{
+  "review_date": "2026-10-18",
+  "application": "ParaDigMa Studio",
+  "application_version": "0.6.0a3",
+  "reviewed_commit": "838bd7adfd9cad6449e197f8e06b93c34e2aa165",
+  "platform": "Linux x86_64, Python 3.12.14, Qt offscreen; current Linux portable executable verified separately from the Windows tag workflow",
+  "scope": [
+    "src/",
+    "scripts/",
+    "desktop.py",
+    ".github/workflows/",
+    "installed Linux application/development dependencies",
+    "fresh Linux portable bundle built from the reviewed source"
+  ],
+  "dependency_audit": {
+    "tool": "pip-audit 2.10.1",
+    "installed_distributions_checked": 96,
+    "scope_note": "Installed Linux environment, including development/audit tools; excludes the application distribution. This is not a Windows release package inventory.",
+    "blocking_findings": [],
+    "skipped_packages": [],
+    "reviewed_exceptions": [
+      {
+        "package": "pyarrow",
+        "version": "22.0.0",
+        "id": "PYSEC-2026-113",
+        "reason": "CVE-2026-25087 explicitly excludes Python bindings; see SECURITY.md."
+      },
+      {
+        "package": "pyarrow",
+        "version": "22.0.0",
+        "id": "PYSEC-2026-113",
+        "reason": "CVE-2026-25087 explicitly excludes Python bindings; see SECURITY.md."
+      }
+    ],
+    "unique_advisories": [
+      {
+        "package": "pyarrow",
+        "version": "22.0.0",
+        "id": "PYSEC-2026-113",
+        "fix_versions": [
+          "23.0.1"
+        ],
+        "aliases": [
+          "GHSA-rgxp-2hwp-jwgg",
+          "CVE-2026-25087"
+        ],
+        "description": "Use After Free vulnerability in Apache Arrow C++.  This issue affects Apache Arrow C++ from 15.0.0 through 23.0.0. It can be triggered when reading an Arrow IPC file (but not an IPC stream) with pre-buffering enabled, if the IPC file contains data with variadic buffers (such as Binary View and String View data). Depending on the number of variadic buffers in a record batch column and on the temporal sequence of multi-threaded IO, a write to a dangling pointer could occur. The value (a `std::shared_ptr<Buffer>` object)\u00a0that is written to the dangling pointer is not under direct control of the attacker.  Pre-buffering is disabled by default but can be enabled using a specific C++ API call (`RecordBatchFileReader::PreBufferMetadata`). The functionality is not exposed in language bindings (Python, Ruby, C GLib), so these bindings are not vulnerable.  The most likely consequence of this issue would be random crashes or memory corruption when reading specific kinds of IPC files. If the application allows ingesting IPC files from untrusted sources, this could plausibly be exploited for denial of service. Inducing more targeted kinds of misbehavior (such as confidential data extraction from the running process) depends on memory allocation and multi-threaded IO temporal patterns that are unlikely to be easily controlled by an attacker.  Advice for users of Arrow C++:  1. check whether you enable pre-buffering on the IPC file reader (using\u00a0`RecordBatchFileReader::PreBufferMetadata`)   2. if so, either disable pre-buffering (which may have adverse performance consequences), or switch to Arrow 23.0.1 which is not vulnerable",
+        "feed_entries": 2
+      }
+    ],
+    "advisory_evidence_source": "Fresh pip-audit/PyPI vulnerability response, with a new writable cache for this review; two feed entries describe one advisory.",
+    "applicability": "CVE-2026-25087 requires Arrow C++ IPC file pre-buffering via RecordBatchFileReader::PreBufferMetadata. The retrieved advisory explicitly excludes Python bindings; the wrapper uses Python Parquet loading. ParaDigMa 1.1.2 requires pyarrow<23, below the C++ fix in 23.0.1. The native library is not patched; reassess if the advisory or usage changes.",
+    "official_dependency_constraint": [
+      "pyarrow (>=14.0.1,<23.0.0)"
+    ],
+    "pip_check": "passed",
+    "installed_packages": [
+      {
+        "name": "cachecontrol",
+        "version": "0.14.4"
+      },
+      {
+        "name": "jinja2",
+        "version": "3.1.6"
+      },
+      {
+        "name": "markupsafe",
+        "version": "3.0.4"
+      },
+      {
+        "name": "pyside6",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pyside6-addons",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pyside6-essentials",
+        "version": "6.11.2"
+      },
+      {
+        "name": "pygments",
+        "version": "2.21.0"
+      },
+      {
+        "name": "altgraph",
+        "version": "0.17.5"
+      },
+      {
+        "name": "ast-serialize",
+        "version": "0.12.1"
+      },
+      {
+        "name": "attrs",
+        "version": "26.1.0"
+      },
+      {
+        "name": "avro",
+        "version": "1.12.2"
+      },
+      {
+        "name": "beautifulsoup4",
+        "version": "4.15.0"
+      },
+      {
+        "name": "bleach",
+        "version": "6.4.0"
+      },
+      {
+        "name": "boolean-py",
+        "version": "5.0"
+      },
+      {
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "name": "cloudpickle",
+        "version": "3.1.2"
+      },
+      {
+        "name": "contourpy",
+        "version": "1.4.0"
+      },
+      {
+        "name": "coverage",
+        "version": "7.16.2"
+      },
+      {
+        "name": "cycler",
+        "version": "0.12.1"
+      },
+      {
+        "name": "cyclonedx-python-lib",
+        "version": "11.12.0"
+      },
+      {
+        "name": "defusedxml",
+        "version": "0.7.1"
+      },
+      {
+        "name": "fastjsonschema",
+        "version": "2.22.2"
+      },
+      {
+        "name": "filelock",
+        "version": "4.0.12"
+      },
+      {
+        "name": "fonttools",
+        "version": "4.66.1"
+      },
+      {
+        "name": "idna",
+        "version": "3.20"
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0"
+      },
+      {
+        "name": "joblib",
+        "version": "1.6.0"
+      },
+      {
+        "name": "jsonschema",
+        "version": "4.26.0"
+      },
+      {
+        "name": "jsonschema-specifications",
+        "version": "2025.9.1"
+      },
+      {
+        "name": "jupyter-client",
+        "version": "8.10.0"
+      },
+      {
+        "name": "jupyter-core",
+        "version": "5.9.1"
+      },
+      {
+        "name": "jupyterlab-pygments",
+        "version": "0.3.0"
+      },
+      {
+        "name": "kiwisolver",
+        "version": "1.5.1"
+      },
+      {
+        "name": "librt",
+        "version": "0.16.0"
+      },
+      {
+        "name": "license-expression",
+        "version": "30.4.4"
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0"
+      },
+      {
+        "name": "matplotlib",
+        "version": "3.11.2"
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2"
+      },
+      {
+        "name": "mistune",
+        "version": "3.3.4"
+      },
+      {
+        "name": "msgpack",
+        "version": "1.2.3"
+      },
+      {
+        "name": "mypy",
+        "version": "2.4.0"
+      },
+      {
+        "name": "mypy-extensions",
+        "version": "1.1.0"
+      },
+      {
+        "name": "nbclient",
+        "version": "0.11.0"
+      },
+      {
+        "name": "nbconvert",
+        "version": "7.17.1"
+      },
+      {
+        "name": "nbformat",
+        "version": "5.11.1"
+      },
+      {
+        "name": "numpy",
+        "version": "2.5.3"
+      },
+      {
+        "name": "openmovement",
+        "version": "0.0.1"
+      },
+      {
+        "name": "packageurl-python",
+        "version": "0.17.6"
+      },
+      {
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "name": "pandas",
+        "version": "2.3.3"
+      },
+      {
+        "name": "pandas-stubs",
+        "version": "2.3.3.260113"
+      },
+      {
+        "name": "pandocfilters",
+        "version": "1.5.1"
+      },
+      {
+        "name": "paradigma",
+        "version": "1.1.2"
+      },
+      {
+        "name": "pathspec",
+        "version": "1.1.1"
+      },
+      {
+        "name": "pillow",
+        "version": "12.3.0"
+      },
+      {
+        "name": "pip",
+        "version": "26.2.1"
+      },
+      {
+        "name": "pip-requirements-parser",
+        "version": "32.0.1"
+      },
+      {
+        "name": "pip-api",
+        "version": "0.0.35"
+      },
+      {
+        "name": "pip-audit",
+        "version": "2.10.1"
+      },
+      {
+        "name": "platformdirs",
+        "version": "4.12.3"
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0"
+      },
+      {
+        "name": "py-serializable",
+        "version": "2.1.0"
+      },
+      {
+        "name": "pyarrow",
+        "version": "22.0.0"
+      },
+      {
+        "name": "pyinstaller",
+        "version": "6.22.3"
+      },
+      {
+        "name": "pyinstaller-hooks-contrib",
+        "version": "2026.8"
+      },
+      {
+        "name": "pyparsing",
+        "version": "3.3.3"
+      },
+      {
+        "name": "pytest",
+        "version": "9.1.1"
+      },
+      {
+        "name": "pytest-cov",
+        "version": "7.1.0"
+      },
+      {
+        "name": "python-dateutil",
+        "version": "2.9.0.post0"
+      },
+      {
+        "name": "pytz",
+        "version": "2026.5"
+      },
+      {
+        "name": "pyzmq",
+        "version": "27.2.0"
+      },
+      {
+        "name": "referencing",
+        "version": "0.37.0"
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2"
+      },
+      {
+        "name": "rich",
+        "version": "15.0.0"
+      },
+      {
+        "name": "rpds-py",
+        "version": "2026.9.1"
+      },
+      {
+        "name": "ruff",
+        "version": "0.16.10"
+      },
+      {
+        "name": "scikit-learn",
+        "version": "1.6.0"
+      },
+      {
+        "name": "scipy",
+        "version": "1.18.1"
+      },
+      {
+        "name": "setuptools",
+        "version": "84.0.0"
+      },
+      {
+        "name": "shiboken6",
+        "version": "6.11.2"
+      },
+      {
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "name": "sortedcontainers",
+        "version": "2.4.0"
+      },
+      {
+        "name": "soupsieve",
+        "version": "2.10"
+      },
+      {
+        "name": "threadpoolctl",
+        "version": "3.7.0"
+      },
+      {
+        "name": "tinycss2",
+        "version": "1.5.1"
+      },
+      {
+        "name": "tomli",
+        "version": "2.4.1"
+      },
+      {
+        "name": "tomli-w",
+        "version": "1.2.0"
+      },
+      {
+        "name": "tornado",
+        "version": "6.5.10"
+      },
+      {
+        "name": "traitlets",
+        "version": "5.16.1"
+      },
+      {
+        "name": "tsdf",
+        "version": "0.6.2"
+      },
+      {
+        "name": "types-pytz",
+        "version": "2026.5.0.20261006"
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "name": "tzdata",
+        "version": "2026.5"
+      },
+      {
+        "name": "urllib3",
+        "version": "2.8.0"
+      },
+      {
+        "name": "webencodings",
+        "version": "0.6.1"
+      }
+    ]
+  },
+  "source_scan": {
+    "tool": "Bandit 1.9.4 (separate security-tool environment)",
+    "scanned_files": 93,
+    "errors": [],
+    "metrics": {
+      "CONFIDENCE.HIGH": 27,
+      "CONFIDENCE.LOW": 2,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 22,
+      "SEVERITY.MEDIUM": 7,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 17456,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "findings": [
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/audit_dependencies.py",
+        "line_number": 4,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/audit_dependencies.py",
+        "line_number": 34,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_desktop.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_desktop.py",
+        "line_number": 21,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_first_use.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_first_use.py",
+        "line_number": 96,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 115,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 169,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
+      },
+      {
+        "test_id": "B101",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/benchmark_processing.py",
+        "line_number": 200,
+        "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/build_desktop.py",
+        "line_number": 4,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/build_desktop.py",
+        "line_number": 34,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/check_frozen.py",
+        "line_number": 4,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/check_frozen.py",
+        "line_number": 69,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 8,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B607",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 100,
+        "issue_text": "Starting a process with a partial executable path"
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 100,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/signing_bundle.py",
+        "line_number": 188,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B404",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "test_id": "B607",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 16,
+        "issue_text": "Starting a process with a partial executable path"
+      },
+      {
+        "test_id": "B603",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "scripts/write_build_manifest.py",
+        "line_number": 16,
+        "issue_text": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "test_id": "B403",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with pickle module."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 81,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/analysis_process.py",
+        "line_number": 172,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      },
+      {
+        "test_id": "B604",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "LOW",
+        "filename": "src/paradigma_studio/app.py",
+        "line_number": 500,
+        "issue_text": "Function call with shell=True parameter identified, possible security issue."
+      },
+      {
+        "test_id": "B604",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "LOW",
+        "filename": "src/paradigma_studio/app.py",
+        "line_number": 515,
+        "issue_text": "Function call with shell=True parameter identified, possible security issue."
+      },
+      {
+        "test_id": "B403",
+        "issue_severity": "LOW",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/parallel_analysis.py",
+        "line_number": 7,
+        "issue_text": "Consider possible security implications associated with pickle module."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/parallel_analysis.py",
+        "line_number": 73,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/parallel_analysis.py",
+        "line_number": 110,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      },
+      {
+        "test_id": "B301",
+        "issue_severity": "MEDIUM",
+        "issue_confidence": "HIGH",
+        "filename": "src/paradigma_studio/parallel_analysis.py",
+        "line_number": 126,
+        "issue_text": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue."
+      }
+    ],
+    "dispositions": {
+      "B301/B403": "Five pickle loads and two imports implement private single/parallel worker transfers. Parent-created TemporaryDirectory paths, validated recording identifiers and parent-owned queues constrain paths. User-selected pickle is a separate explicit-trust operation in core.load_sensor_file. These findings rely on trusted code and OS protection of the account/temporary files; executable deserialization remains a trust boundary.",
+      "B404/B603": "Developer/build scripts execute explicit argument lists without shell=True. Commands are Python, build/check tooling, PowerShell signature inventory and SDK SignTool. Recording contents do not choose executables or command text.",
+      "B607": "git and pwsh resolve through PATH in developer/build/signing tooling; safe use requires a trusted executable search path.",
+      "B604": "Two false positives at app.py controller construction: shell=self._shell_state passes the typed ShellState object into ExportController and ShellController. Neither call starts a command or accepts a shell boolean; subprocess execution is absent from these calls.",
+      "B101": "Three benchmark_processing.py assertions compare source/output digests in developer-only performance diagnostics. They are not application input validation or security barriers; run the documented benchmark without Python -O to retain these diagnostics."
+    },
+    "unresolved_high_severity_findings": [],
+    "interpretation": "0 high, 7 medium and 22 low items reviewed; no nosec suppressions, skipped checks or scan errors. Five medium pickle findings retain the trusted private-transfer assumptions; the other two medium findings are false positives for UI ShellState keyword arguments. Benchmark assertions are developer diagnostics, not production security controls."
+  },
+  "regression_tests": {
+    "modules": [
+      "test_security.py",
+      "test_signing.py",
+      "test_run_management.py",
+      "test_bulk_runs.py",
+      "test_saved_results.py",
+      "test_result_exports.py",
+      "test_packaging.py",
+      "test_branding.py",
+      "test_parallel_execution.py",
+      "test_tsdf_input.py",
+      "test_release.py",
+      "test_error_handling.py"
+    ],
+    "tests": 202,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 201,
+    "seconds": 28.145,
+    "run_started_utc": "2026-10-18T19:56:34.151509+00:00",
+    "scope_note": "Selected security-related modules extracted from the completed full-suite JUnit report; not a second test run.",
+    "skip_reason": "test_windows_reads_real_unsigned_assembly_and_pyd_signatures requires the Windows Authenticode API."
+  },
+  "frozen_bundle_probe": {
+    "status": "passed",
+    "source_commit": "838bd7adfd9cad6449e197f8e06b93c34e2aa165",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "application_version": "0.6.0a3",
+    "entrypoint": "python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio",
+    "run_started_utc": "2026-10-18T20:04:34.419124+00:00",
+    "seconds": 10.032,
+    "report": {
+      "status": "passed",
+      "paradigma_version": "1.1.2",
+      "app_icon_rendered": true,
+      "workspace_navigation_verified": true,
+      "integrated_page_controls_verified": true,
+      "dropdown_indicator_rendered": true,
+      "module_multiselection_verified": true,
+      "all_module_execution_verified": true,
+      "inline_analysis_help_verified": true,
+      "paradigma_acknowledgement_verified": true,
+      "studio_licence_verified": true,
+      "local_results_saved_verified": true,
+      "aggregate_overview_verified": true,
+      "original_output_tables_verified": true,
+      "tremor_power_log_scale_verified": true,
+      "aggregation_tables_verified": true,
+      "official_gap_defaults_verified": true,
+      "absolute_recording_clock_verified": true,
+      "estimated_gait_positions_verified": true,
+      "linked_result_selection_verified": true,
+      "binary_state_raster_verified": true,
+      "presence_only_verified": true,
+      "context_footer_verified": true,
+      "view_toolbar_verified": true,
+      "selected_result_marker_verified": true,
+      "calendar_time_controls_verified": true,
+      "gait_sensor_context_verified": true,
+      "multiple_recordings_verified": true,
+      "parallel_recordings_verified": true,
+      "run_history_reopened": true,
+      "models_loaded": [
+        "gait_detection_clf_package.pkl",
+        "gait_filtering_clf_package.pkl",
+        "ppg_quality_clf_package.pkl",
+        "tremor_detection_clf_package.pkl"
+      ],
+      "quantified_rows": 29,
+      "qt_plot_rendered": true,
+      "raw_modality_groups_verified": true,
+      "export_verified": true,
+      "cwa_samples": 36400,
+      "cwa_gait_rows": 432,
+      "cwa_plot_rendered": true,
+      "empatica_samples": 115904,
+      "empatica_inspection_verified": true,
+      "physilog_excluded_samples": 10,
+      "physilog_continuous_sections": 4,
+      "physilog_gait_rows": 92
+    },
+    "inventory_files_checked": 1809,
+    "startup_repetitions": 5,
+    "startup_import_boundaries": "passed",
+    "scope_note": "Fresh Linux portable executable launched away from the checkout. Tests classifier assets, real pipelines, parallel recordings, plots, exports and reopening; validates clean bundle layout/notices, startup boundaries and complete SHA-256 inventory. Linux runtime symlinks are retained; the Windows release verifier separately rejects symlinks. This is not a Windows binary/signature or malware scan."
+  },
+  "remaining_limits": [
+    "Plaintext saved results, history, exports and logs rely on OS access/at-rest controls; no app encryption, authentication, authorization or tamper detection.",
+    "Explicitly trusted pickle inputs and bundled models remain executable deserialization.",
+    "Resource estimates/worker counts do not enforce input-size, memory or analysis-time caps.",
+    "Abrupt termination may leave temporary data or surviving workers; file removal is not secure erasure.",
+    "No parser fuzzing, exhaustive dependency source audit or instrumented network-isolation test.",
+    "Local packaged checks cover Linux. Tagged Windows CI separately verifies the unsigned Windows executable and published assets; no Windows Defender scan, actual publisher signing, certificate-chain verification or Smart App Control acceptance test was performed by this review.",
+    "Transitive/build dependencies are not fully hash-locked; checksums do not independently authenticate the publisher."
+  ],
+  "reproduction": {
+    "dependencies": "XDG_CACHE_HOME=/tmp/paradigma-security-cache python scripts/audit_dependencies.py dependency-audit.json",
+    "dependency_consistency": "python -m pip check",
+    "source_scan": "python -m bandit -r src scripts desktop.py -f json -o source-scan.json (Bandit 1.9.4, separate tool environment)",
+    "regressions": "QT_QPA_PLATFORM=offscreen python -m pytest tests/test_security.py tests/test_signing.py tests/test_run_management.py tests/test_bulk_runs.py tests/test_saved_results.py tests/test_result_exports.py tests/test_packaging.py tests/test_branding.py tests/test_parallel_execution.py tests/test_tsdf_input.py tests/test_release.py tests/test_error_handling.py -q",
+    "full_suite": "QT_QPA_PLATFORM=offscreen python -m pytest -q --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html",
+    "note": "Bandit exit 1 reports reviewed findings; errors/suppressions are recorded separately. Dependency audit used a fresh writable cache. The refreshed PyPI advisory description supports Arrow applicability. Native Windows/signature checks belong to Windows CI. Timings from the local portable startup probe are not Windows performance guarantees.",
+    "packaged": "python scripts/build_desktop.py; QT_QPA_PLATFORM=offscreen python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio; python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio --report build-reports/performance.json; python scripts/write_build_manifest.py dist/ParaDigMaStudio dependency-audit.json"
+  },
+  "evidence_recorded_utc": "2026-10-18T20:04:53.886153+00:00",
+  "threat_model": [
+    "Local desktop application running with the launching user permissions; no privilege separation from that account.",
+    "Recordings and result files can be malformed. Explicitly accepted pickle inputs, classifier models, application code and the toolchain must be trusted.",
+    "Run history and its output paths are trusted local metadata; there is no application-level cryptographic integrity or access policy.",
+    "Worker isolation supports cancellation and responsiveness; it is not a security sandbox."
+  ],
+  "manual_review": [
+    {
+      "area": "File loading and reopening",
+      "evidence_paths": [
+        "src/paradigma_studio/core.py",
+        "src/paradigma_studio/recordings.py",
+        "src/paradigma_studio/tsdf_input.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/data_controller.py"
+      ],
+      "assessment": "Untrusted pickle is rejected before the official loader; GUI trust defaults to No. JSON result reopening reconstructs tables without unpickling or automatically loading sources. TSDF scale factors/channel identities are validated. Native parsers and all third-party source were not exhaustively audited or fuzz-tested."
+    },
+    {
+      "area": "Writes and deletion",
+      "evidence_paths": [
+        "src/paradigma_studio/storage.py",
+        "src/paradigma_studio/serialization.py",
+        "src/paradigma_studio/exports.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/run_controller.py",
+        "src/paradigma_studio/export_controller.py"
+      ],
+      "assessment": "Same-filesystem temporary writes replace destinations only after completion. Known sources, recognized TSDF time/value companions, hard/symbolic aliases and local saved-run destinations are protected. CSV formula-like strings and headers are prefixed. Deletion requires confirmation, defaults to Cancel, and protects directories and files referenced by retained runs. Path checks do not authenticate history or harden against an adversarial same-account filesystem. The JSON batching optimization reuses fresh row dictionaries only; nested source objects are copied during normalization, with byte/precision/atomic-failure regressions."
+    },
+    {
+      "area": "Local confidentiality and integrity",
+      "evidence_paths": [
+        "src/paradigma_studio/branding.py",
+        "src/paradigma_studio/history.py",
+        "src/paradigma_studio/run_controller.py"
+      ],
+      "assessment": "Complete derived results, metadata, paths and logs persist in plaintext under the user data location, with legacy fallback. Original recordings are not copied into saved runs. No app encryption, login, role policy or cryptographic integrity check. Separate OS accounts, ACLs and drive encryption are deployment controls, not application guarantees."
+    },
+    {
+      "area": "Diagnostic retention",
+      "evidence_paths": [
+        "src/paradigma_studio/jobs.py",
+        "src/paradigma_studio/previews.py",
+        "src/paradigma_studio/analysis_process.py",
+        "src/paradigma_studio/parallel_analysis.py",
+        "src/paradigma_studio/run_controller.py",
+        "src/paradigma_studio/job_controller.py",
+        "src/paradigma_studio/export_controller.py"
+      ],
+      "assessment": "Job/UI/toolbox error boundaries preserve full tracebacks, including process forwarding; notices and structured counts stay concise. Logs may contain filenames, absolute paths, recording/subject identifiers and diagnostic values. No automatic redaction; share logs as potentially sensitive data."
+    },
+    {
+      "area": "Workers and temporary data",
+      "evidence_paths": [
+        "src/paradigma_studio/analysis_process.py",
+        "src/paradigma_studio/parallel_analysis.py",
+        "src/paradigma_studio/analysis_limits.py",
+        "src/paradigma_studio/job_controller.py",
+        "src/paradigma_studio/export_controller.py",
+        "src/paradigma_studio/previews.py",
+        "src/paradigma_studio/result_plot_cache.py"
+      ],
+      "assessment": "Single recordings use one worker; independent recordings use up to two with CPU/RAM estimates. The parent owns processes/private transfer paths, bounds dispatched work and cleans on Stop/failure/completion. Estimates are not resource caps. Abrupt parent/system termination can leave temporary data or surviving workers; deletion is not secure erasure. Controller composition preserves worker ownership and cancellation; preview/display caches are in-memory, bounded and cleared or invalidated on context changes. Cache budgets are not whole-process memory limits."
+    },
+    {
+      "area": "Runtime network behavior",
+      "evidence_paths": [
+        "src/paradigma_studio/acknowledgements.py",
+        "src/paradigma_studio/ui/layout.py"
+      ],
+      "assessment": "No automatic recording upload, telemetry, elevation or service/registry installation implementation found in the wrapper. Explicit documentation links open a browser. Network isolation and every dependency runtime behavior were not instrumented."
+    },
+    {
+      "area": "Build, release and signing",
+      "evidence_paths": [
+        ".github/workflows/windows.yml",
+        ".github/workflows/windows-signed.yml",
+        "scripts/prepare_release.py",
+        "scripts/signing_bundle.py",
+        "scripts/windows_signatures.ps1",
+        "scripts/write_build_manifest.py",
+        "pyproject.toml"
+      ],
+      "assessment": "Direct runtime versions, Open Movement revision and Actions commits are pinned; transitive/build-backend dependencies are not fully hash-locked. Build/signing checkouts disable persisted credentials. Tag-only publication/status jobs have contents:write; status checkout credentials push refs/notes/paradigma-releases. Only environment-gated signing has id-token:write; application execution occurs in a separate verification job. Release checks verify tag/version/source, complete inventory, no symlinks and uploaded sizes/digests before publication. Current Linux portable probes and complete inventory checks passed. The tagged Windows workflow separately gates Windows tests, packaged execution and release asset verification; this source review does not claim publisher signing or a Windows malware scan."
+    },
+    {
+      "area": "Composed UI and driver API",
+      "evidence_paths": [
+        "src/paradigma_studio/app.py",
+        "src/paradigma_studio/ui/compatibility.py",
+        "src/paradigma_studio/ui/component_ports.py",
+        "src/paradigma_studio/workspace_state.py"
+      ],
+      "assessment": "Production composition uses explicit component/state owners. The fixed driver port map supports tests/probes, has no user-selected dynamic module or command execution, and is guarded against growth. ShellState keyword arguments are UI state, not shell execution. Refactoring adds no authentication or privilege boundary."
+    }
+  ],
+  "full_suite": {
+    "tests": 1057,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 1056,
+    "seconds": 428.834,
+    "run_started_utc": "2026-10-18T19:56:34.151509+00:00",
+    "scope_note": "Full release-preparation source tree, including scientific comparisons, security-related modules, source smoke/startup probes and branch coverage. Later changes to the tagged release are documentation only.",
+    "coverage": {
+      "line-rate": "0.9031",
+      "branch-rate": "0.7652",
+      "lines-covered": "2441",
+      "lines-valid": "2703",
+      "branches-covered": "603",
+      "branches-valid": "788",
+      "configured_floor_percent": 80,
+      "scope": "Controller and selected error-boundary modules, as configured in pyproject.toml; not whole-app coverage."
+    }
+  },
+  "source_smoke_probe": {
+    "status": "passed",
+    "entrypoint": "python desktop.py --smoke-test <report>",
+    "scope_note": "Source smoke and fresh-process startup checks executed in the full suite; detailed current packaged-probe results are recorded separately."
+  },
+  "reviewed_tree_note": "Release preparation changes version metadata and documentation only. The final security-evidence commit also changes documentation only; src/, scripts/, desktop.py, workflows and project metadata match the reviewed commit.",
+  "release_verification": {
+    "tag": "v0.6.0a3",
+    "workflow": ".github/workflows/windows.yml",
+    "method": "The tag-triggered workflow requires a fresh Windows dependency audit, full tests/coverage, build, frozen smoke/startup and layout checks before release. Publication verifies source/version, inventory and uploaded SHA-256 digests; a Git note on the tagged commit records build/publication outcomes.",
+    "scope_note": "This describes enforced release gates; completion is recorded separately by the workflow receipt, not asserted in advance by this source review."
+  }
+}
