@@ -1,8 +1,7 @@
 # Using ParaDigMa Studio
 
 Follow the app's four pages: [Data](#data), [Analyze](#analyze),
-[Results](#results) and [Runs](#runs). The sidebar expands when you hover over it;
-**Alt+1–4** switches between pages. For downloading and opening the Windows app,
+[Results](#results) and [Runs](#runs). For downloading and opening the Windows app,
 start with the [README](../README.md).
 
 The screenshots follow one gait analysis of the public Axivity example included
