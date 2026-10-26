@@ -10,7 +10,7 @@ import pytest
 from conftest import bar_starts, bar_values, select_plot_metric, wait_for_job, wait_for_previews
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtTest import QTest
+from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -114,10 +114,17 @@ def test_page_shortcuts_survive_sidebar_label_changes_with_focused_controls(wind
                 # Every binding is exercised from each of the four pages.
                 window.navigate(source)
                 control.setFocus()
+                button = window.nav_buttons[target]
+                clicked = QSignalSpy(button.clicked)
                 QTest.keyClick(control, key, Qt.AltModifier)
-                # QAbstractButton shortcuts activate through animateClick's timer.
-                QTest.qWait(120)
-                assert window.pages.currentIndex() == target
+                context = (
+                    f"source={source}, target={target}, sidebar_expanded={expanded}, "
+                    f"shortcut={button.shortcut().toString()}, active={window.isActiveWindow()}"
+                )
+                # Wait for animateClick's actual signal rather than a fixed delay.
+                assert clicked.count() or clicked.wait(1000), context
+                assert clicked.count() == 1, context
+                assert window.pages.currentIndex() == target, context
                 assert window._layout.page_title.text() == window.SECTIONS[target]
                 assert window.nav_buttons[target].isChecked()
                 assert sum(item.isChecked() for item in window.nav_buttons) == 1

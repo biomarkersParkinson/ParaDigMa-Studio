@@ -56,6 +56,13 @@ jobs:
           --junitxml=test-reports/analyze-layout.xml
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Check page-navigation shortcuts before the full suite
+        run: >-
+          python -m pytest -q
+          tests/test_workspace.py::test_page_shortcuts_survive_sidebar_label_changes_with_focused_controls
+          --junitxml=test-reports/navigation-shortcuts.xml
+        env:
+          QT_QPA_PLATFORM: offscreen
       - name: Run app and scientific equivalence tests
         run: >-
           python -m pytest --junitxml=test-results.xml

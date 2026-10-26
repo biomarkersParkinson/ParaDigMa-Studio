@@ -70,8 +70,11 @@ and unexpected files at the top of the app folder.
 ## Quality gates and implementation conventions
 
 Both Windows workflows run the Analyze layout regression under the default and
-classic Windows styles before the full test suite. This catches native control
-sizing failures early; the complete suite and coverage floor still run afterward.
+classic Windows styles and the page-navigation keyboard regression before the
+full test suite. This catches native control sizing and shortcut failures early;
+the complete suite and coverage floor still run afterward. Keyboard tests wait
+for the button's actual click signal with a bounded timeout, rather than assuming
+its animation timer has fired after a fixed delay.
 
 Both Windows workflows enforce the pinned Ruff formatter, error and import
 checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
