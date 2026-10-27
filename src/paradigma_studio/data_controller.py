@@ -6,6 +6,7 @@ from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
+from weakref import ref
 
 import numpy as np
 from PySide6.QtCore import QObject, QSignalBlocker, Qt
@@ -142,6 +143,8 @@ class DataController(QObject):
         self.channels = channels
         self.previews = previews
         self._rendered_time: TimeConfiguration | None = None
+        self._plotted_frame: ref[pd.DataFrame] | None = None
+        self._plotted_time: tuple[str | None, str] | None = None
 
     def open_file(self) -> None:
         if self.jobs.worker is not None:
@@ -281,6 +284,7 @@ class DataController(QObject):
         self.view.channel_table.setEnabled(True)
         channels = None if new_selection else self.selected_input_channels()
         if new_selection:
+            self._plotted_frame = None
             self.view.data_tabs.setCurrentIndex(0)
         self.view.input_table.setModel(FrameModel(self.inputs.frame))
         self.view.file_label.setText(Path(self.inputs.source).name)
@@ -463,14 +467,18 @@ class DataController(QObject):
             # Conflicting Analyze choices must not prevent original-data inspection.
             mapping = {}
         channels = self.selected_input_channels()
+        column, unit = (
+            self.view.data_time_channel.currentData(),
+            self.view.data_time_unit.currentText(),
+        )
+        time_key = (column, unit)
         times, time_label, timezone = None, "Sample position", None
         if self.inputs.frame is not None:
             import pandas as pd
 
-            column = self.view.data_time_channel.currentData()
             if column in self.inputs.frame:
                 times, time_label, timezone = self.services.input_plot_time(
-                    self.inputs.frame[column], self.view.data_time_unit.currentText()
+                    self.inputs.frame[column], unit
                 )
         usable = times is not None and times.notna().all()
         # A usable timeline has passed the non-None check above.
@@ -481,18 +489,24 @@ class DataController(QObject):
             if self.inputs.frame is not None
             else []
         )
-        self.channels.plot_channel_signals(
-            self.view.data_figure,
-            self.inputs.frame,
-            channels,
-            self.state._channel_colors,
-            xs,
-            time_label if usable else "Sample position",
-            column_mapping=mapping,
-            timezone=timezone,
-            calendar=usable
-            and pd.api.types.is_datetime64_any_dtype(cast("pd.Series", times).dtype),
-            empty_text="Open a recording with numeric sensor channels",
-        )
-        self.view.data_toolbar.refresh()
+        with self.view.data_toolbar.redraw_channels(
+            preserve_view=self._plotted_frame is not None
+            and self.inputs.frame is self._plotted_frame()
+            and time_key == self._plotted_time
+        ):
+            self.channels.plot_channel_signals(
+                self.view.data_figure,
+                self.inputs.frame,
+                channels,
+                self.state._channel_colors,
+                xs,
+                time_label if usable else "Sample position",
+                column_mapping=mapping,
+                timezone=timezone,
+                calendar=usable
+                and pd.api.types.is_datetime64_any_dtype(cast("pd.Series", times).dtype),
+                empty_text="Open a recording with numeric sensor channels",
+            )
+        self._plotted_frame = ref(self.inputs.frame) if self.inputs.frame is not None else None
+        self._plotted_time = time_key
         self.view.data_canvas.draw_idle()

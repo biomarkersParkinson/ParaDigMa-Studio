@@ -116,6 +116,10 @@ Use **Graphs** to overlay selected channels. Channels of the same modality share
 a value axis; different modalities get separate graphs with a shared time axis.
 Colors and legends identify the original channels, and values retain file units.
 Click a checkbox or its label to toggle a channel, or use **Select all** and **Clear**.
+Changing channels keeps the current time window and manual vertical limits for
+sensor groups that remain plotted. New sensor groups scale automatically.
+**Home** restores the full recording view. Loading another recording or changing
+the time column or format starts a new view at its full range.
 
 [![Data Graphs with original accelerometer and gyroscope channels on separate axes](images/user-guide/data-graphs.png)](images/user-guide/data-graphs.png)
 
@@ -523,7 +527,8 @@ A vertical marker identifies the selected time whenever it is visible.
 The context opens as a Results tab with **Graphs** and **Tables**. Choose original
 channels as on Data; sensor axes use the units stored with that run. Channel
 selections are retained between inspections, and changing channels preserves the
-time window. Pan to move beyond the initial context; more original samples load
+time window and manual vertical limits for sensor groups that remain plotted.
+Pan to move beyond the initial context; more original samples load
 as needed, with gaps kept blank. **Home** returns to the original context or full
 gait segment. **Close**, beside the recording summary, dismisses the context tab.
 

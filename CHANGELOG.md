@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep raw sensor graph zoom when channels are added or removed, including manual
+  vertical limits for sensor groups that remain visible. Keep Home and view history usable.
 - Open Analyze field explanations in separate, scrollable help windows with
   Close/Escape support. Keep the parameter layout fixed, preserve current-value
   source details and the input-orientation figure, and show one explanation at a time.

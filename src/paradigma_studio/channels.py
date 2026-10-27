@@ -166,6 +166,8 @@ def plot_channel_signals(
     empty_schema=None,
     sensor_units=None,
 ):
+    from .raw_signals import RawSignalTime
+
     figure.clear()
     if frame is None or (frame.empty and not allow_empty) or not channels:
         ax = style_axes(figure)
@@ -177,19 +179,27 @@ def plot_channel_signals(
             transform=ax.transAxes,
             color="#60728A",
         )
+        if frame is not None:
+            time_index = RawSignalTime(xs)
+            if len(time_index.extents):
+                bounds = time_index.coordinates[time_index.extents]
+                ax.update_datalim([(bounds.min(), 0), (bounds.max(), 1)])
+                ax.autoscale_view()
+            _style_sensor_group(ax, [], time_label, calendar, timezone, True)
     else:
-        from .raw_signals import RawSignalTime
-
         groups, flags = _sensor_plot_groups(frame, channels, column_mapping, empty_schema)
         time_index = (
             RawSignalTime(xs) if any(channel not in flags for channel in channels) else None
         )
         first_axes = None
         grid = figure.add_gridspec(
-            len(groups), 1, height_ratios=[0.55 if group[0] in flags else 1 for _, group in groups]
+            len(groups),
+            1,
+            height_ratios=[0.55 if group[0] in flags else 1 for _, _, group in groups],
         )
-        for index, (modality, group) in enumerate(groups):
+        for index, (key, modality, group) in enumerate(groups):
             ax = style_axes(figure, position=(grid[index],), sharex=first_axes)
+            ax.set_label(repr(key))
             if first_axes is None:
                 first_axes = ax
             for channel in group:
@@ -231,7 +241,8 @@ def _sensor_plot_groups(frame, channels, column_mapping, empty_schema):
         if key not in modalities:
             modalities[key] = (title, [])
         modalities[key][1].append(channel)
-    groups = list(modalities.values()) + [(str(flag), [flag]) for flag in flags]
+    groups = [(key, title, group) for key, (title, group) in modalities.items()]
+    groups.extend((("flag", flag), str(flag), [flag]) for flag in flags)
     return groups, flags
 
 

@@ -125,8 +125,15 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
     assert figure.axes[1].get_ylim() == (-500.0, 500.0)
     assert [figure.axes[i].get_ylim() for i in (0, 2)] == untouched_y
     assert all(ax.get_xlim() == figure.axes[0].get_xlim() for ax in figure.axes)
+    zoomed = figure.axes[0].get_xlim()
     choose(["gyroscope_z", "accelerometer_y"])
     assert len(figure.axes) == 2
+    assert all(ax.get_xlim() == zoomed for ax in figure.axes)
+    assert (
+        figure.axes[1].get_ylim(),
+        toolbar.active_axes,
+        toolbar.settings.bounds["y"][0].isChecked(),
+    ) == ((-500.0, 500.0), figure.axes[1], False)
     for ax in figure.axes:
         line = signals(ax)[0]
         assert line.get_color() == colors[line.get_label()]

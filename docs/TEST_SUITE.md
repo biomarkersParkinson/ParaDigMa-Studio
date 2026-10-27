@@ -20,6 +20,7 @@ trigger and expected behavior still apply.
 | Raw PPG-only preparation, official pulse equivalence across numeric time formats, required-value checks and source-clock alignment | `test_pulse_input.py` |
 | Pulse estimate availability over the full recording timespan, compact overview, readable plot labels and saved-result reopening | `test_pulse_availability.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
+| Raw-channel edits, stable time/manual value zoom, Clear/reselection, automatic new-channel scales, Home/history and view resets for new recordings or clocks | `test_raw_channel_zoom.py`; cross-page sensor checks in `test_raw_modalities.py` and `test_sensor_context_workspace.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |

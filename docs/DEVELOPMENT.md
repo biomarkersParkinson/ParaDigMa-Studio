@@ -337,6 +337,14 @@ Data and Results sensor graphs share `RecordingDateLocator` and
 `RecordingTimeFormatter`; the existing graph toolbar uses their date locator to
 read and edit calendar limits. Graph exports use the same coordinates and labels.
 
+Raw-channel redraws use `GraphToolbar.redraw_channels` to preserve time limits
+and manually set value limits across channel changes. Axes have stable sensor-group
+labels so a change from one to multiple axes of the same sensor keeps its scale.
+The new channels' full view is recorded before restoring the zoom, keeping Home
+and Back/Forward usable. Recordings and time-column/format changes reset Data's
+view; a new context or display clock resets sensor-context navigation. Source
+identity tracking uses weak references so it cannot retain discarded recordings.
+
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
 override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,

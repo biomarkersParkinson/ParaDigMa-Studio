@@ -148,8 +148,11 @@ def test_date_limits_accept_zoned_timestamps_and_replot_refreshes_settings(windo
         dates.date2num(frame.time.iloc[:2].to_numpy())
     )
     window.set_input_channels(["gyroscope_y"])
-    assert automatic.isChecked() and not panel.error.isVisible()
-    assert window.data_toolbar._nav_stack() is None
+    assert not automatic.isChecked() and not panel.error.isVisible()
+    assert window.data_figure.axes[0].get_xlim() == pytest.approx(
+        dates.date2num(frame.time.iloc[:2].to_numpy())
+    )
+    assert window.data_toolbar._nav_stack() is not None
 
 
 def test_reset_from_another_result_graph_restores_shared_time_and_selected_y_limits(window):

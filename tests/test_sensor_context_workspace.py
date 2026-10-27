@@ -85,6 +85,16 @@ def test_context_groups_modalities_with_data_colors_and_original_values(window):
     pd.testing.assert_frame_equal(window._input_state.frame, source)
 
 
+def test_channel_view_tracking_does_not_keep_a_cleared_context_alive(window):
+    import gc
+    from weakref import ref
+
+    navigator = ref(window._sensor_state._sensor_navigator)
+    window._workspace_controller.clear_results()
+    gc.collect()
+    assert navigator() is None
+
+
 def test_context_checkboxes_and_bulk_actions_preserve_selection_across_drilldowns(window):
     window.set_sensor_channels(["gyroscope_x", "gyroscope_z"])
     window.sensor_channels.item(0).setCheckState(Qt.Checked)

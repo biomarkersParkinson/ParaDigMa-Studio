@@ -1,6 +1,7 @@
 """One inline settings panel for each graph, without Matplotlib's two dialogs."""
 
 import math
+from contextlib import contextmanager
 
 from matplotlib import dates, rcParams
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
@@ -141,6 +142,43 @@ class GraphToolbar(NavigationToolbar2QT):
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
+        if self.settings_action.isChecked():
+            self.settings.read_axes()
+
+    @contextmanager
+    def redraw_channels(self, *, preserve_view=False):
+        """Keep manual raw-graph bounds while rebuilding the selected channels."""
+        axes = self.canvas.figure.axes
+        active_group = (
+            self.active_axes.get_label() if preserve_view and self.active_axes in axes else None
+        )
+        view = None
+        if (
+            preserve_view
+            and axes
+            and any(not ax.get_autoscalex_on() or not ax.get_autoscaley_on() for ax in axes)
+        ):
+            view = (
+                axes[0].get_xlim(),
+                axes[0].get_autoscalex_on(),
+                {ax.get_label(): ax.get_ylim() for ax in axes if not ax.get_autoscaley_on()},
+            )
+        yield
+        self.refresh()
+        if active_group is not None:
+            self.active_axes = next(
+                (ax for ax in self.canvas.figure.axes if ax.get_label() == active_group), None
+            )
+        if view is not None:
+            # Seed Home with the new channels' complete extent before restoring
+            # the zoom. History entries must refer to these newly created axes.
+            self.push_current()
+            x_limits, automatic_x, y_limits = view
+            for ax in self.canvas.figure.axes:
+                ax.set_xlim(*x_limits, auto=automatic_x, emit=False)
+                if ax.get_label() in y_limits:
+                    ax.set_ylim(*y_limits[ax.get_label()])
+            self.push_current()
         if self.settings_action.isChecked():
             self.settings.read_axes()
 

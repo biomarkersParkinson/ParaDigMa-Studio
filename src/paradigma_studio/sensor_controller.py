@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from weakref import ref
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -19,6 +20,7 @@ from .widgets import FrameModel
 from .workspace_state import ResultState, SensorState
 
 if TYPE_CHECKING:
+    import pandas as pd
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
     from PySide6.QtWidgets import QComboBox, QLabel, QListWidget, QPushButton, QTabWidget
@@ -56,6 +58,7 @@ class SensorController:
         self, state: SensorState, results: ResultState, view: SensorView, channels: ChannelServices
     ):
         self.state, self.results, self.view, self.channels = state, results, view, channels
+        self._plotted_source: ref[SensorNavigator | pd.DataFrame] | None = None
         self.view.sensor_tabs.currentChanged.connect(self.refresh_sensor_table)
 
     def inspect_sensor_context(self):
@@ -255,9 +258,15 @@ class SensorController:
         context = self.state._sensor_context
         navigator = self._prepare_sensor_navigator(context)
         view_limits = navigator.limits if navigator is not None else None
-        self._render_sensor_channels()
-        self._restore_sensor_navigation(context, navigator, view_limits)
-        self.view.sensor_toolbar.refresh()
+        source = navigator if navigator is not None else self.state.sensor_frame
+        with self.view.sensor_toolbar.redraw_channels(
+            preserve_view=source is not None
+            and self._plotted_source is not None
+            and source is self._plotted_source()
+        ):
+            self._render_sensor_channels()
+            self._restore_sensor_navigation(context, navigator, view_limits)
+        self._plotted_source = ref(source) if source is not None else None
         self.view.sensor_canvas.draw_idle()
 
     def _prepare_sensor_navigator(self, context: SensorContext | None) -> SensorNavigator | None:
