@@ -54,7 +54,7 @@ def inspect_recordings(
 def input_plot_time(
     series: pd.Series, unit: str = "relative_s"
 ) -> tuple[pd.Series | None, str, tzinfo | None]:
-    """Interpret the selected raw time encoding without changing source values.
+    """Display absolute timestamps as dates and other time encodings as seconds.
 
     Match ParaDigMa's difference-time conversion: cumulative increments,
     including the first increment, expressed in seconds. Missing increments
@@ -63,12 +63,21 @@ def input_plot_time(
     import pandas as pd
 
     if pd.api.types.is_datetime64_any_dtype(series.dtype):
-        return series, "Time", series.dt.tz
+        return series, "Recording date/time", series.dt.tz
     if pd.api.types.is_timedelta64_dtype(series.dtype):
-        return series.dt.total_seconds(), "Time (s)", None
+        return series.dt.total_seconds(), "Elapsed time (s)", None
     if pd.api.types.is_complex_dtype(series.dtype):
-        return None, "Time (file units)", None
+        return None, "Sample position", None
     times = pd.to_numeric(series, errors="coerce")
+    if unit.startswith("absolute"):
+        try:
+            calendar_times = pd.to_datetime(
+                times, unit="ms" if unit.endswith("ms") else "s", errors="coerce", utc=True
+            )
+        except OverflowError:
+            # Pandas can still raise on infinite/oversized floats with errors="coerce".
+            return None, "Sample position", None
+        return calendar_times, "Recording date/time", calendar_times.dt.tz
     if unit.startswith("difference"):
         values = times.to_numpy(dtype=float, na_value=np.nan)
         if not np.isfinite(values).all():
@@ -78,8 +87,9 @@ def input_plot_time(
             index=series.index,
             name=series.name,
         )
-        return times, "Elapsed time (s)", None
-    return times, "Time (file units)", None
+    elif unit.endswith("ms"):
+        times = times / 1000
+    return times, "Elapsed time (s)", None
 
 
 def default_time_column(frame):

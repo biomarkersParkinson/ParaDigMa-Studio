@@ -1,6 +1,7 @@
 """TSDF decoding follows its documented channel-wise physical scaling."""
 
 import hashlib
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -88,6 +89,30 @@ def test_data_graphs_display_scaled_values(tsdf_writer, stored_samples, window):
         scale = 0.1 if line.get_label() == "gyroscope_x" else 0.01
         np.testing.assert_allclose(line.get_ydata(), stored_samples[line.get_label()] * scale)
         np.testing.assert_array_equal(line.get_xdata(), stored_samples.time)
+
+
+def test_difference_ms_tsdf_graph_shows_one_minute_as_sixty_seconds(tsdf_writer, window):
+    time = np.full(6001, 20, dtype="int16")
+    time[0] = 0
+    raw = pd.DataFrame({"time": time, "gyroscope_x": np.arange(len(time), dtype="int16")})
+    path = tsdf_writer(raw, time_scale_factors=[0.5], dtype="int16")
+    metadata = json.loads(path.read_text())
+    for stream in metadata["datasets"]:
+        if stream["channels"] == ["time"]:
+            stream["units"] = ["difference_ms"]
+    path.write_text(json.dumps(metadata))
+    frame = load_sensor_file(path)
+    original = frame.copy(deep=True)
+    window.loaded((str(path), frame))
+    assert window.data_time_unit.currentText() == window.time.currentText() == "difference_ms"
+    window.set_input_channels(["gyroscope_x"])
+    axes = window.data_figure.axes[0]
+    window.data_canvas.draw()
+    np.testing.assert_allclose(axes.lines[0].time_index.coordinates, np.arange(6001) / 100)
+    assert axes.get_xlabel() == "Elapsed time (s)"
+    assert frame.time.iloc[1] == 10
+    pd.testing.assert_frame_equal(window.input_table.model().frame, original)
+    pd.testing.assert_frame_equal(frame, original)
 
 
 @pytest.mark.parametrize("dtype", ["int16", "int64", "float32", "float64"])

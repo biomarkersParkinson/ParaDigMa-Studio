@@ -127,10 +127,18 @@ preserve peaks while limiting display to 20,000 samples per channel; zooming
 restores detail in the visible range. **Tables** retains all original samples.
 See [graph controls](#navigate-and-adjust-graphs) for navigation and axis limits.
 
-With difference-based time, graphs reconstruct cumulative elapsed seconds from
-the complete increment column before display sampling. Tables keep the original
-increments. Missing increments use sample positions rather than invented
-elapsed times.
+Absolute Unix timestamps and date/time columns use **Recording date/time**, with
+the same date and time formatting as the Results sensor graphs. Unix timestamps
+use UTC; date/time columns retain their time zone when one is stored. The visible
+range determines whether ticks show hours, seconds or milliseconds, with dates
+at the first visible tick and at day changes.
+
+Relative timestamps, time increments and duration columns use **Elapsed time (s)**.
+Milliseconds are converted to seconds. Relative timestamps retain their original
+origin; increments are accumulated across the complete column before display
+sampling. **Axis limits** and graph exports use the displayed representation.
+**Tables** retains the original timestamps and increments. If a complete timeline
+cannot be reconstructed, graphs use sample positions rather than invented times.
 
 ### Import issues
 

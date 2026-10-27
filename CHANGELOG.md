@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Display Data graphs with recording dates and times for absolute timestamps, or
+  elapsed seconds for relative timestamps and time increments. Reuse the Results
+  sensor-graph date formatting, including in axis limits and graph exports, while
+  retaining original timestamps in Tables and analysis inputs.
 - Restore Alt+1, Alt+2, Alt+3 and Alt+4 navigation after the sidebar changes its
   labels. Shortcuts now remain available at startup and when expanding or
   collapsing the sidebar, including while a page control has keyboard focus.

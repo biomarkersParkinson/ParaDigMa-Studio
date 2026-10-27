@@ -463,7 +463,7 @@ class DataController(QObject):
             # Conflicting Analyze choices must not prevent original-data inspection.
             mapping = {}
         channels = self.selected_input_channels()
-        times, time_label, timezone = None, "Time (file units)", None
+        times, time_label, timezone = None, "Sample position", None
         if self.inputs.frame is not None:
             import pandas as pd
 

@@ -318,6 +318,15 @@ reuse their existing caches. New input resets both pages and applies the new
 file defaults through the existing guarded refresh. File-default application
 cannot become a manual edit or start intermediate origin previews.
 
+`inspection.input_plot_time` converts only display coordinates from the selected
+time column. Absolute Unix timestamps become UTC dates, datetime columns retain
+their stored time zone, and relative/difference/duration values display in seconds.
+Relative values retain their origin; differences include the first increment in
+their cumulative sum. Original table values and analysis settings stay unchanged.
+Data and Results sensor graphs share `RecordingDateLocator` and
+`RecordingTimeFormatter`; the existing graph toolbar uses their date locator to
+read and edit calendar limits. Graph exports use the same coordinates and labels.
+
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
 override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,
