@@ -345,6 +345,15 @@ and Back/Forward usable. Recordings and time-column/format changes reset Data's
 view; a new context or display clock resets sensor-context navigation. Source
 identity tracking uses weak references so it cannot retain discarded recordings.
 
+`GraphToolbar.add_time_zoom_actions` supplies the same Zoom in/out icons to raw
+graphs and all four Results views. Raw buttons change linked X limits using the
+standard Matplotlib history, retaining Y bounds and autoscale flags. Their full
+range comes from Data's complete plot or the sensor navigator's source limits;
+sensor limit callbacks load the new original samples. Button state follows limit
+changes and redraws, with zoom-out bounded to that range and zoom-in bounded by
+floating-point time precision. Results retain their existing `ResultTimeScroll`
+zoom and aggregation behavior. The smoke probe also exercises the raw buttons.
+
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
 override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,

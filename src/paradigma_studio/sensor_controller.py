@@ -262,7 +262,8 @@ class SensorController:
         with self.view.sensor_toolbar.redraw_channels(
             preserve_view=source is not None
             and self._plotted_source is not None
-            and source is self._plotted_source()
+            and source is self._plotted_source(),
+            time_limits=navigator.source_limits if navigator is not None else None,
         ):
             self._render_sensor_channels()
             self._restore_sensor_navigation(context, navigator, view_limits)

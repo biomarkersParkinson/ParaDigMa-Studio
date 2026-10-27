@@ -121,6 +121,10 @@ sensor groups that remain plotted. New sensor groups scale automatically.
 **Home** restores the full recording view. Loading another recording or changing
 the time column or format starts a new view at its full range.
 
+**Zoom in (+)** and **Zoom out (−)** halve or double the visible time span around
+its current center, keeping vertical scales unchanged. Zoom out stops at the full
+recording view. Use the rectangle zoom tool to select a region in both axes.
+
 [![Data Graphs with original accelerometer and gyroscope channels on separate axes](images/user-guide/data-graphs.png)](images/user-guide/data-graphs.png)
 
 *The same recording's original acceleration and angular velocity, with separate
@@ -496,9 +500,11 @@ available space and zoom; Day shows dates and years, or Day 1, Day 2, etc. witho
 a calendar clock. Figure exports retain these labels. In profile view, Home and
 Reset limits restore the full 24-hour range.
 
-Data and sensor-context graphs use **Pan** by default and allow zoom in both
-axes. In sensor context, Home and Reset limits restore the original inspected
-window; Back can return to the preceding view.
+Data and sensor-context graphs use **Pan** by default. Their **Zoom in / Zoom out**
+buttons change only the time span; the rectangle zoom tool can adjust both axes.
+In sensor context, Zoom out can load samples beyond the initially inspected
+window, up to the recording boundaries. Home and Reset limits restore the
+original inspected window; Back can return to the preceding view.
 
 ### Inspect Tables
 

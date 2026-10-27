@@ -4,7 +4,7 @@ import math
 from copy import copy
 
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QScrollBar
 
 from .assets import DATA_DIRECTORY
@@ -22,16 +22,7 @@ class ResultsToolbar(GraphToolbar):
         self._actions["zoom"].setText("Select time interval")
         self._actions["zoom"].setIcon(QIcon(str(DATA_DIRECTORY / "select-interval.svg")))
         self._actions["zoom"].setToolTip("Select a time interval to zoom into all linked graphs")
-        actions = self.actions()
-        following = actions[actions.index(self._actions["zoom"]) + 1]
-        for name, text, factor in (("zoom_in", "Zoom in", 0.5), ("zoom_out", "Zoom out", 2.0)):
-            icon = QIcon(str(DATA_DIRECTORY / f"{name.replace('_', '-')}.svg"))
-            action = QAction(icon, text, self)
-            action.triggered.connect(
-                lambda checked=False, factor=factor: self.time_scroll.zoom(factor)
-            )
-            self._actions[name] = action
-            self.insertAction(following, action)
+        self.add_time_zoom_actions(lambda factor: self.time_scroll.zoom(factor))
 
     def pan(self, *args):
         """Results use the time scrollbar; raw graph toolbars retain panning."""

@@ -193,6 +193,17 @@ def _verify_input_graph_controls(window):
     actions = [action.text() for action in toolbar.actions()]
     if actions.count("Axis limits") != 1 or "Subplots" in actions or "Customize" in actions:
         raise RuntimeError("Graph settings are duplicated")
+    axes = window.data_figure.axes[0]
+    full, vertical = axes.get_xlim(), axes.get_ylim()
+    toolbar._actions["zoom_in"].trigger()
+    if (
+        not np.isclose(np.diff(axes.get_xlim())[0], np.diff(full)[0] / 2)
+        or axes.get_ylim() != vertical
+    ):
+        raise RuntimeError("Raw Zoom in did not change only the time span")
+    toolbar._actions["zoom_out"].trigger()
+    if not np.allclose(axes.get_xlim(), full):
+        raise RuntimeError("Raw Zoom out did not restore the full recording")
     toolbar.settings_action.setChecked(True)
     automatic, lower, upper = toolbar.settings.bounds["x"]
     automatic.setChecked(False)
@@ -737,6 +748,7 @@ def _successful_smoke_report(
         "module_multiselection_verified": True,
         "all_module_execution_verified": True,
         "analysis_help_dialog_verified": True,
+        "raw_time_zoom_verified": True,
         "paradigma_acknowledgement_verified": True,
         "studio_licence_verified": True,
         "local_results_saved_verified": True,

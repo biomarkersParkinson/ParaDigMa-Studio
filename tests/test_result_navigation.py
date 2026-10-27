@@ -254,7 +254,9 @@ def test_zoom_buttons_and_zoom_out_selection_never_exceed_the_full_time_range(wi
     assert all(ax.get_xlim() == pytest.approx(full) for ax in window.figure.axes)
     assert bar.isHidden()
     for raw_toolbar in (window.data_toolbar, window.sensor_toolbar):
-        assert "zoom_in" not in raw_toolbar._actions and "zoom_out" not in raw_toolbar._actions
+        assert all(
+            not raw_toolbar._actions[name].icon().isNull() for name in ("zoom_in", "zoom_out")
+        )
 
 
 def send_wheel(widget, *, pixels=0, angle=0, vertical=0, phase=Qt.ScrollUpdate, inverted=False):

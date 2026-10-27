@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add Zoom in and Zoom out buttons to Data and Results sensor-context graphs,
+  matching the existing Results controls. Halve or double the visible time span,
+  keep vertical scales unchanged and bound zoom-out to the recording range.
 - Keep raw sensor graph zoom when channels are added or removed, including manual
   vertical limits for sensor groups that remain visible. Keep Home and view history usable.
 - Open Analyze field explanations in separate, scrollable help windows with

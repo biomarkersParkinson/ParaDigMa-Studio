@@ -70,9 +70,89 @@ class GraphToolbar(NavigationToolbar2QT):
         self.active_axes = None
         self._highlighted_axes = None
         self.home_callback = None
+        self._raw_time_zoom = not time_selection
+        self._time_zoom_axes = self._time_zoom_connection = None
+        self._time_zoom_limits = None
         canvas.mpl_connect("button_press_event", self.select_axes)
         if not time_selection:
+            self.add_time_zoom_actions(self.zoom_time)
+            canvas.mpl_connect("draw_event", self._update_time_zoom_actions)
+            self._update_time_zoom_actions()
             self.pan()
+
+    def add_time_zoom_actions(self, callback):
+        actions = self.actions()
+        following = actions[actions.index(self._actions["zoom"]) + 1]
+        for name, text, factor in (("zoom_in", "Zoom in", 0.5), ("zoom_out", "Zoom out", 2.0)):
+            action = QAction(
+                QIcon(str(DATA_DIRECTORY / f"{name.replace('_', '-')}.svg")), text, self
+            )
+            action.setToolTip(
+                "Halve the visible horizontal range"
+                if factor < 1
+                else "Double the visible horizontal range"
+            )
+            action.triggered.connect(lambda checked=False, factor=factor: callback(factor))
+            self._actions[name] = action
+            self.insertAction(following, action)
+
+    def _bind_time_zoom_axes(self):
+        axes = self.canvas.figure.axes[0] if self.canvas.figure.axes else None
+        if axes is not self._time_zoom_axes:
+            if self._time_zoom_axes is not None:
+                self._time_zoom_axes.callbacks.disconnect(self._time_zoom_connection)
+            self._time_zoom_axes = axes
+            self._time_zoom_connection = (
+                axes.callbacks.connect("xlim_changed", self._update_time_zoom_actions)
+                if axes is not None
+                else None
+            )
+        if axes is None:
+            self._time_zoom_limits = None
+        self._update_time_zoom_actions()
+
+    def _update_time_zoom_actions(self, *_):
+        axes, bounds = self._time_zoom_axes, self._time_zoom_limits
+        ready = (
+            axes in self.canvas.figure.axes
+            and axes.has_data()
+            and bounds is not None
+            and bounds[1] > bounds[0]
+        )
+        zoom_in = zoom_out = False
+        if ready:
+            low, high = sorted(axes.get_xlim())
+            span, duration = high - low, bounds[1] - bounds[0]
+            minimum = math.ulp(max(abs(low), abs(high), abs(bounds[0]), abs(bounds[1]), 1.0)) * 16
+            zoom_in = span > minimum * (1 + 1e-9)
+            zoom_out = span < duration and not math.isclose(span, duration, rel_tol=1e-9)
+        self._actions["zoom_in"].setEnabled(bool(zoom_in))
+        self._actions["zoom_out"].setEnabled(bool(zoom_out))
+
+    def zoom_time(self, factor):
+        axes, bounds = self._time_zoom_axes, self._time_zoom_limits
+        if (
+            axes not in self.canvas.figure.axes
+            or not axes.has_data()
+            or bounds is None
+            or bounds[1] <= bounds[0]
+        ):
+            return
+        if self._pan_info is not None:
+            self.release_pan(None)
+        if self._zoom_info is not None:
+            self._cleanup_post_zoom()
+        limits = axes.get_xlim()
+        low, high = sorted(limits)
+        center = (low + high) / 2
+        minimum = math.ulp(max(abs(low), abs(high), abs(bounds[0]), abs(bounds[1]), 1.0)) * 16
+        span = min(bounds[1] - bounds[0], max((high - low) * factor, minimum))
+        left = max(bounds[0], min(center - span / 2, bounds[1] - span))
+        target = left, left + span
+        self.push_current()
+        axes.set_xlim(*(target if limits[0] < limits[1] else target[::-1]))
+        self.push_current()
+        self.canvas.draw_idle()
 
     def select_timepoint(self):
         if self.select_action is None:
@@ -142,11 +222,13 @@ class GraphToolbar(NavigationToolbar2QT):
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
+        if self._raw_time_zoom:
+            self._bind_time_zoom_axes()
         if self.settings_action.isChecked():
             self.settings.read_axes()
 
     @contextmanager
-    def redraw_channels(self, *, preserve_view=False):
+    def redraw_channels(self, *, preserve_view=False, time_limits=None):
         """Keep manual raw-graph bounds while rebuilding the selected channels."""
         axes = self.canvas.figure.axes
         active_group = (
@@ -164,6 +246,9 @@ class GraphToolbar(NavigationToolbar2QT):
                 {ax.get_label(): ax.get_ylim() for ax in axes if not ax.get_autoscaley_on()},
             )
         yield
+        self._time_zoom_limits = time_limits
+        if self._time_zoom_limits is None and any(ax.has_data() for ax in self.canvas.figure.axes):
+            self._time_zoom_limits = tuple(sorted(self.canvas.figure.axes[0].get_xlim()))
         self.refresh()
         if active_group is not None:
             self.active_axes = next(
@@ -181,6 +266,7 @@ class GraphToolbar(NavigationToolbar2QT):
             self.push_current()
         if self.settings_action.isChecked():
             self.settings.read_axes()
+        self._update_time_zoom_actions()
 
     def press_zoom(self, event):
         self._automatic_bar_y = [
@@ -221,6 +307,8 @@ class GraphToolbar(NavigationToolbar2QT):
         if getattr(self, "_automatic_bar_y", []):
             self.restore_automatic_bar_y()
         super().push_current()
+        if self._raw_time_zoom:
+            self._update_time_zoom_actions()
 
     def restore_automatic_bar_y(self):
         for ax in getattr(self, "_automatic_bar_y", []):
