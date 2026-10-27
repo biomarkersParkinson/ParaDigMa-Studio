@@ -219,7 +219,6 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
     """Qt canvas wheel events scroll the enclosing Results workspace."""
 
     scroll_area = None
-    outer_scroll_area = None
     pinned_time_axis = False
     exporting_time_axis = False
     _wheel_remainder = 0.0
@@ -276,13 +275,6 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
         bar = self.scroll_area.verticalScrollBar()
         delta = event.pixelDelta().y() or event.angleDelta().y() / 120 * bar.singleStep() * 3
         if delta:
-            if self.outer_scroll_area is not None and (
-                delta > 0
-                and bar.value() == bar.minimum()
-                or delta < 0
-                and bar.value() == bar.maximum()
-            ):
-                bar = self.outer_scroll_area.verticalScrollBar()
             self._wheel_remainder += delta
             movement = round(self._wheel_remainder)
             self._wheel_remainder -= movement

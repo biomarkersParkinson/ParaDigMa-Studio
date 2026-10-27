@@ -354,6 +354,13 @@ changes and redraws, with zoom-out bounded to that range and zoom-in bounded by
 floating-point time precision. Results retain their existing `ResultTimeScroll`
 zoom and aggregation behavior. The smoke probe also exercises the raw buttons.
 
+Results Graphs uses one `QScrollArea` for the canvas. The workspace itself does
+not scroll: the toolbar, axis-limit controls, time ruler and footer stay outside
+that viewport, and the series tree scrolls independently. Canvas minimum heights
+preserve readable plots without imposing a workspace minimum that creates a
+second scrollbar in compact windows. The plot viewport is installed when Graphs
+is first opened, preserving deferred canvas construction.
+
 The entire `ui/` directory is checked recursively, including new modules. Its
 function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
 override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,

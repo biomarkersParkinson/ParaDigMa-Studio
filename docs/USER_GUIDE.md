@@ -484,7 +484,9 @@ values; the selected date/time appears above the pinned time axis.
 
 New results and graph-view changes start at the full time range. Adding or
 removing graphs preserves the current zoom. Vertical gestures scroll the graph
-list. Zooming does not extend beyond the full recording range.
+list using its single right-hand scrollbar. The toolbar and time axis stay visible
+in small windows, and **Plot series** scrolls independently. Zooming does not extend
+beyond the full recording range.
 
 In **Axis limits**, click the graph to adjust, uncheck **Automatic**, enter bounds,
 then press Enter or leave the field. Calendar limits accept ISO date/time with a

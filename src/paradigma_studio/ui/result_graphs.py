@@ -57,10 +57,6 @@ class ResultGraphView:
         return self.result_graphics().figure
 
     @property
-    def graphs_workspace(self):
-        return self.result_graphics().graphs_workspace
-
-    @property
     def plot_toolbar(self):
         return self.result_graphics().plot_toolbar
 
@@ -267,7 +263,6 @@ class ResultGraphs(QObject):
         )
         self.view.canvas.setMinimumHeight(height)
         self.view.canvas.setMaximumHeight(height if compact_states else 16777215)
-        self.view.graphs_workspace.setMinimumHeight(280 if binaries and all(binaries) else 310)
         if not chosen:
             ax = style_axes(self.view.figure)
             ax.text(

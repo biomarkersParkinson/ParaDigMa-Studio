@@ -99,15 +99,20 @@ class ResultsPage:
         body_layout.setContentsMargins(12, 12, 12, 12)
         body_layout.setSpacing(12)
         body_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
-        scroll.setWidget(body)
         if pinned:
             self.graph_view = DeferredWidget(self._initialize_result_graph)
             self.graph_view_layout = QVBoxLayout(self.graph_view)
             self.graph_view_layout.setContentsMargins(0, 0, 0, 0)
             self.graph_view_layout.setSpacing(0)
-            self.graph_view_layout.addWidget(scroll, 1)
+            # Graphs need one scroll area for the canvas, not a second one
+            # around the whole workspace. Install its canvas on first use.
+            scroll.setParent(self.graph_view)
+            scroll.hide()
+            body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
+            self.graph_view_layout.addWidget(body, 1)
             self.result_tabs.addTab(self.graph_view, title)
         else:
+            scroll.setWidget(body)
             self.result_tabs.addTab(scroll, title)
         self._result_view_layouts.append(body_layout)
         self._result_view_scrolls.append(scroll)
@@ -260,19 +265,17 @@ class ResultsPage:
         self.figure_actions_layout = self.figure_actions.primary
         graph_body.addWidget(self.figure_actions)
         graph_body.addWidget(self.plot_toolbar.settings)
-        graph_scroll = QScrollArea()
-        graph_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        graph_scroll.setWidgetResizable(True)
+        graph_scroll = self._result_view_scrolls[1]
+        graph_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         graph_scroll.setWidget(self.canvas)
         self.graph_scroll = graph_scroll
         self.result_graph_view.wheel_scroll_target = graph_scroll
         for _, lower, upper in self.plot_toolbar.settings.bounds.values():
             lower.wheel_scroll_target = upper.wheel_scroll_target = graph_scroll
         self.canvas.scroll_area = graph_scroll
-        self.canvas.outer_scroll_area = self._result_view_scrolls[1]
         plots.addWidget(graph_scroll, 1)
+        graph_scroll.show()
         graph_layout.addWidget(graph, 1)
-        graphs.setMinimumHeight(310)
         self.graphs_workspace = graphs
         graph_body.addWidget(graphs, 1)
 
@@ -287,15 +290,15 @@ class ResultsPage:
         plot_view_layout = QVBoxLayout(plot_view)
         plot_view_layout.setContentsMargins(0, 0, 0, 0)
         plot_view_layout.setSpacing(0)
-        scroll = self._result_view_scrolls[1]
-        self.graph_view_layout.removeWidget(scroll)
+        body = cast("QWidget", graph_body.parentWidget())
+        self.graph_view_layout.removeWidget(body)
         # Figure actions retain the full page width, including at 960 px.
         # Otherwise the selector can hide the toolbar's settings/save buttons.
         graph_body.removeWidget(self.figure_actions)
         graph_body.removeWidget(self.plot_toolbar.settings)
         self.graph_view_layout.addWidget(self.figure_actions)
         self.graph_view_layout.addWidget(self.plot_toolbar.settings)
-        plot_view_layout.addWidget(scroll, 1)
+        plot_view_layout.addWidget(body, 1)
         plot_view_layout.addWidget(self.time_axis)
         self.result_time_scroll = ResultTimeScroll(self.plot_toolbar)
         self.result_time_scroll.watch(self.canvas, self.graph_scroll.viewport(), self.time_axis)
@@ -317,12 +320,6 @@ class ResultsPage:
         graph_body.setContentsMargins(0, 0, 12, 0)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.time_axis.synchronize)
         self.graph_scroll.verticalScrollBar().valueChanged.connect(self.canvas.redraw_viewport)
-        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
-            self.time_axis.synchronize
-        )
-        self._result_view_scrolls[1].verticalScrollBar().valueChanged.connect(
-            self.canvas.redraw_viewport
-        )
 
     def _build_result_tables_view(self):
         _, table_body = self._result_view("Tables")

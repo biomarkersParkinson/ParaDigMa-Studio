@@ -340,20 +340,18 @@ def test_sidebar_text_anchors_stay_fixed_through_animation(window, brand_font_px
             )
 
 
-def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window):
+def test_single_graph_wheel_stays_in_its_only_viewport_when_the_graph_fits(window):
     window.analyzed(
         {"quantifications": {"tremor": pd.DataFrame({"time": [0.0, 1.0], "power": [2.0, 3.0]})}}
     )
     window.result_tabs.setCurrentIndex(1)
-    window.results_header.setMinimumHeight(350)
     window.resize(960, 650)
     QTest.qWait(50)
     inner = window.graph_scroll.verticalScrollBar()
-    outer = window._result_state.results_scroll.verticalScrollBar()
-    assert inner.maximum() == 0 and outer.maximum() > 120
+    assert window._result_state.results_scroll is window.graph_scroll
+    assert inner.maximum() == 0 and not inner.isVisible()
     tab_position = window.result_tabs.tabBar().mapTo(window, QPoint(0, 0))
-    outer.setValue(100)
-    for pixels, expected in ((30, 70), (-30, 100)):
+    for pixels in (30, -30):
         event = QWheelEvent(
             QPointF(30, 30),
             QPointF(window.canvas.mapToGlobal(QPoint(30, 30))),
@@ -365,11 +363,11 @@ def test_canvas_wheel_reaches_outer_results_scroll_when_single_graph_fits(window
             False,
         )
         QApplication.sendEvent(window.canvas, event)
-        assert event.isAccepted() and outer.value() == expected
+        assert event.isAccepted() and inner.value() == 0
         assert window.result_tabs.tabBar().mapTo(window, QPoint(0, 0)) == tab_position
 
 
-def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks_zoom(window):
+def test_recording_time_axis_stays_visible_below_the_plot_viewport_and_tracks_zoom(window):
     start = pd.Timestamp("2026-10-07T12:00:00.123456789+02:00")
     raw = pd.DataFrame(
         {"time": [0.0, 1.0, 2.0], "time_dt": start + pd.to_timedelta([0, 1, 2], unit="s")}
@@ -386,7 +384,6 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
     window.plot()
-    window.results_header.setMinimumHeight(350)
     window.result_tabs.setCurrentIndex(1)
     window.resize(960, 720)
     QTest.qWait(50)
@@ -397,19 +394,15 @@ def test_recording_time_axis_stays_visible_below_both_scrolling_views_and_tracks
     assert not window.graph_scroll.isAncestorOf(window.time_axis)
     assert isinstance(window.time_axis.axes.xaxis.get_major_formatter(), RecordingDayFormatter)
     assert "Recording time" in window.time_axis.axes.get_xlabel()
-    for bar in (
-        window._result_state.results_scroll.verticalScrollBar(),
-        window.graph_scroll.verticalScrollBar(),
-    ):
-        assert bar.maximum() > 100
-        for position in (bar.maximum() // 2, bar.maximum(), 0):
-            bar.setValue(position)
-            QTest.qWait(20)
-            assert window.time_axis.mapTo(window, QPoint(0, 0)) == anchor
-            assert window.time_axis.visibleRegion().contains(window.time_axis.rect())
-            assert window.time_axis.axes.get_xlim() == pytest.approx(
-                window.figure.axes[0].get_xlim()
-            )
+    assert window._result_state.results_scroll is window.graph_scroll
+    bar = window.graph_scroll.verticalScrollBar()
+    assert bar.maximum() > 100
+    for position in (bar.maximum() // 2, bar.maximum(), 0):
+        bar.setValue(position)
+        QTest.qWait(20)
+        assert window.time_axis.mapTo(window, QPoint(0, 0)) == anchor
+        assert window.time_axis.visibleRegion().contains(window.time_axis.rect())
+        assert window.time_axis.axes.get_xlim() == pytest.approx(window.figure.axes[0].get_xlim())
     low, high = window.figure.axes[0].get_xlim()
     window.figure.axes[-1].set_xlim(low + (high - low) * 0.25, high - (high - low) * 0.25)
     window.canvas.draw()

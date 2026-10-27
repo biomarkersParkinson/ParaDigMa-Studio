@@ -87,7 +87,7 @@ def test_results_page_initializes_graph_once_and_preserves_frozen_view_handles(r
     assert graph.result_graphics() is first
     assert page.result_graphics() is first
     assert first.figure is first.canvas.figure
-    assert first.canvas.outer_scroll_area is page._result_view_scrolls[1]
+    assert first.canvas.scroll_area is first.graph_scroll is page._result_view_scrolls[1]
     assert first.result_overlay.canvas is first.canvas
     assert page.graph_view.initialized and not page._sensor_graph.initialized
     assert not results_page.initialized

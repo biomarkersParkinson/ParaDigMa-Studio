@@ -39,6 +39,7 @@ trigger and expected behavior still apply.
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | `test_epoch_profile.py` |
 | Result overview, timing and original table selection | `test_results_view.py`, `test_table_models.py` |
 | Graph values, headings, scaling, selection and scrolling | `test_result_charts.py`, `test_graph_workspace.py`, `test_graph_selector_layout.py`, `test_plot_controls.py`, `test_result_navigation.py`, `test_time_axis.py`, `test_day_axis.py`, `test_epoch_axis.py`, `test_selection_lines.py` |
+| One Results plot scrollbar at compact sizes, pinned toolbar/ruler/footer, independent series scrolling and mouse/trackpad input across all four views and native styles | `test_results_scrolling.py` |
 | Automatic percentage scaling, fixed Y-axis alignment and exact native-layout comparisons across all four graph views | `test_percentage_scaling.py`, `test_result_layout.py` |
 | Plot reuse, redraw avoidance, exact shared time coordinates and discarded-result cleanup | `test_graph_performance.py`, `test_navigation_performance.py`, `test_result_plot_cache.py`, `test_result_coordinates.py` |
 | Original sensor drill-down, indexed opening, stable channel windows and Home navigation | `test_sensor_context_workspace.py`, `test_raw_modalities.py` |

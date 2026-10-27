@@ -250,16 +250,14 @@ def test_pinned_graph_fields_scroll_the_graph_page_without_changing_view_or_limi
     window.result_series.blockSignals(False)
     window.plot()
     if graphs == 1:
-        window.results_header.setMinimumHeight(350)
+        window.canvas.setMinimumHeight(600)
         window.resize(960, 650)
     QTest.qWait(30)
     window.plot_toolbar.settings_action.setChecked(True)
     _, lower, _ = window.plot_toolbar.settings.bounds["x"]
     lower.setEnabled(True)
     for field in (window.result_graph_view, lower):
-        if graphs == 1:
-            assert window.graph_scroll.verticalScrollBar().maximum() == 0
-        page = window._result_state.results_scroll if graphs == 1 else window.graph_scroll
+        page = window.graph_scroll
         bar = page.verticalScrollBar()
         bar.setValue(0)
         assert bar.maximum() > 0

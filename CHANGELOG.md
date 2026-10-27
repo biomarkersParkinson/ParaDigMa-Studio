@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the duplicate vertical scrollbar in compact Results graph views. Scroll
+  the plots in one viewport while keeping the toolbar, time axis and footer fixed.
 - Add Zoom in and Zoom out buttons to Data and Results sensor-context graphs,
   matching the existing Results controls. Halve or double the visible time span,
   keep vertical scales unchanged and bound zoom-out to the recording range.
