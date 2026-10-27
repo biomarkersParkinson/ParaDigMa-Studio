@@ -7,8 +7,7 @@ from pathlib import Path
 
 import pytest
 from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes
-from PySide6.QtCore import QEvent, QObject, QPoint, QSize
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QEvent, QPoint, QSize
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -292,158 +291,6 @@ def test_growing_wrapped_stack_updates_its_layout_bounds_without_compressing_spa
         app.processEvents()
 
 
-@pytest.mark.parametrize("style", ["Fusion", "Windows"])
-@pytest.mark.parametrize("wide_controls", [False, True])
-@pytest.mark.parametrize("size", [(1200, 900), (960, 650)])
-def test_help_geometry_is_ready_before_painting_resumes(tmp_path, style, wide_controls, size):
-    app = QApplication.instance() or QApplication([])
-    original_style = app.style().objectName()
-    app.setStyle(style)
-    window = MainWindow(tmp_path)
-    if wide_controls:
-        window.setStyleSheet(window.styleSheet() + "\nQWidget { font-size: 18px; }")
-        for control in (window.side, window.acc, window.gyro, window.time):
-            control.setMinimumWidth(280)
-            control.setMinimumHeight(44)
-        for label in window.analysis_parameter_fields.findChildren(QLabel):
-            label.setMinimumHeight(28)
-        window.clock_input.calendar.setMinimumWidth(620)
-        window.origin_reset.setMinimumWidth(200)
-    window.navigate(1)
-    window.resize(*size)
-    window.show()
-    QTest.qWait(40)
-    body = window.analysis_scroll.widget()
-    resume_updates = body.setUpdatesEnabled
-    snapshots = []
-
-    def observe_first_paint(enabled):
-        if enabled and not window.analysis_help_panel.isHidden():
-            # Do not process events here: the layout must be safe at the point
-            # painting resumes, not only after a queued LayoutRequest fixes it.
-            top = window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y()
-            bottom = window.settings_panel.mapTo(
-                body, QPoint(0, window.settings_panel.height())
-            ).y()
-            snapshots.append(
-                (
-                    top - bottom,
-                    window.analysis_controls.rect().contains(window.analysis_help_panel.geometry()),
-                )
-            )
-        resume_updates(enabled)
-        if enabled and not window.analysis_help_panel.isHidden():
-            # Exercise an immediate paint as well, including offscreen help.
-            target = QPixmap(window.analysis_help_panel.size())
-            window.analysis_help_panel.render(target)
-
-    body.setUpdatesEnabled = observe_first_paint
-    try:
-        for pause in (True, False):
-            for name in (
-                "Watch side",
-                "Signal columns",
-                "Maximum gap",
-                "Time origin",
-                "Analysis modules",
-                "Analysis modules",
-                "Signal columns",
-                "Signal columns",
-            ):
-                window.analysis_help[name][0].click()
-                if pause:
-                    QTest.qWait(20)
-        assert snapshots
-        assert all(gap >= 16 and contained for gap, contained in snapshots), snapshots
-    finally:
-        body.setUpdatesEnabled = resume_updates
-        window.close()
-        app.processEvents()
-        app.setStyle(original_style)
-
-
-@pytest.mark.parametrize("size", [(1200, 900), (960, 650)])
-def test_help_never_temporarily_clips_lower_fields_or_paints_over_them(tmp_path, size):
-    from paradigma_studio.theme import STYLESHEET
-
-    app = QApplication.instance() or QApplication([])
-    window = MainWindow(tmp_path)
-    window.setStyleSheet(STYLESHEET)
-    window.navigate(1)
-    window.resize(*size)
-    window.show()
-    QTest.qWait(40)
-    baseline = window.settings_panel.height()
-    events = []
-
-    class LayoutWatch(QObject):
-        def eventFilter(self, obj, event):
-            if event.type() in (QEvent.Resize, QEvent.Paint):
-                if obj is window.settings_panel:
-                    events.append(("card", window.settings_panel.height() >= baseline))
-                if event.type() == QEvent.Paint and (
-                    obj is window.analysis_help_panel
-                    or obj in [description for _, description in window.analysis_help.values()]
-                ):
-                    events.append(
-                        (
-                            "help",
-                            window.analysis_help_panel.y()
-                            >= window.settings_panel.y() + window.settings_panel.height(),
-                        )
-                    )
-                if obj is window.mapping and event.type() == QEvent.Paint:
-                    child = window.mapping
-                    while child is not window.settings_panel:
-                        parent = child.parentWidget()
-                        events.append(
-                            (
-                                "mapping",
-                                child.y() >= 0 and child.y() + child.height() <= parent.height(),
-                            )
-                        )
-                        child = parent
-            return False
-
-    watcher = LayoutWatch(window)
-    for widget in (
-        window.settings_panel,
-        window.analysis_help_panel,
-        window.mapping,
-        *[description for _, description in window.analysis_help.values()],
-    ):
-        widget.installEventFilter(watcher)
-    try:
-        # In a stacked layout the editor starts below the viewport. Expose it
-        # while observed so the mapping assertions exercise a real paint.
-        window.analysis_scroll.ensureWidgetVisible(window.mapping)
-        QTest.qWait(20)
-        for name in (
-            "Watch side",
-            "Signal columns",
-            "Maximum gap",
-            "Time origin",
-            "Analysis modules",
-        ):
-            window.analysis_help[name][0].click()
-            QTest.qWait(20)
-            assert window.analysis_scroll.widget().updatesEnabled()
-        window.analysis_help["Analysis modules"][0].click()
-        QTest.qWait(20)
-        # Help is below the viewport in a smaller window. Scroll it into view
-        # so the test checks an actual paint there too, rather than expecting
-        # Qt to paint an offscreen widget.
-        window.analysis_help["Signal columns"][0].click()
-        QTest.qWait(20)
-        window.analysis_scroll.ensureWidgetVisible(window.analysis_help_panel)
-        QTest.qWait(20)
-        assert events and all(valid for _, valid in events), events
-        assert {"card", "mapping", "help"}.issubset({kind for kind, _ in events})
-    finally:
-        window.close()
-        app.processEvents()
-
-
 def layout_bounds(window, control):
     """Useful Windows diagnostics if a native ancestor still clips a field."""
     ancestors = []
@@ -547,11 +394,7 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
     # the baseline and scrolling; all help transitions below remain checked.
     QTest.qWait(40)
     body = window.analysis_scroll.widget()
-    labels = [
-        widget
-        for widget in body.findChildren(QLabel)
-        if not window.analysis_help_panel.isAncestorOf(widget)
-    ]
+    labels = body.findChildren(QLabel)
     widgets = [*fields, *labels, *[info for info, _ in window.analysis_help.values()]]
 
     def positions():
@@ -597,28 +440,25 @@ def test_all_analysis_labels_and_fields_stay_fixed_when_any_help_opens(
             assert module_bounds() == modules, title
             assert [window.run_button.pos(), window.stop_button.pos()] == actions
             assert description.isVisible()
-            assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1
+            dialogs = window._analysis_controller.view.analysis_help_dialogs
+            assert sum(dialog.isVisible() for dialog in dialogs.values()) == 1
             assert not window.settings_panel.isAncestorOf(description)
-            gap = window.analysis_help_panel.mapTo(body, QPoint(0, 0)).y() - (
-                window.settings_panel.mapTo(body, QPoint(0, window.settings_panel.height())).y()
-            )
-            assert gap >= window.analysis_controls.layout().spacing(), (title, gap)
-            info.click()
+            assert description.window() is dialogs[title]
+            dialogs[title].close()
             QTest.qWait(20)
             assert positions() == baseline, title
         for info, _ in window.analysis_help.values():
             info.click()
             assert positions() == baseline
-            assert sum(button.isChecked() for button, _ in window.analysis_help.values()) == 1
+            assert sum(dialog.isVisible() for dialog in dialogs.values()) == 1
             assert (
                 sum(description.isVisible() for _, description in window.analysis_help.values())
                 == 1
             )
-        for info, _ in window.analysis_help.values():
-            if info.isChecked():
-                info.click()
+        for dialog in dialogs.values():
+            dialog.close()
             assert positions() == baseline
-        assert window.analysis_help_panel.isHidden()
+        assert not any(dialog.isVisible() for dialog in dialogs.values())
     finally:
         window.close()
         app.processEvents()

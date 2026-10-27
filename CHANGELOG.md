@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Open Analyze field explanations in separate, scrollable help windows with
+  Close/Escape support. Keep the parameter layout fixed, preserve current-value
+  source details and the input-orientation figure, and show one explanation at a time.
 - Display Data graphs with recording dates and times for absolute timestamps, or
   elapsed seconds for relative timestamps and time increments. Reuse the Results
   sensor-graph date formatting, including in axis limits and graph exports, while

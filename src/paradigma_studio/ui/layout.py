@@ -55,8 +55,6 @@ class WorkspaceLayout:
     acc = component_attribute("_analysis_page")
     analysis_controls = component_attribute("_analysis_page")
     analysis_help = component_attribute("_analysis_page")
-    analysis_help_panel = component_attribute("_analysis_page")
-    analysis_help_sections = component_attribute("_analysis_page")
     analysis_input = component_attribute("_analysis_page")
     analysis_input_detail = component_attribute("_analysis_page")
     analysis_parameter_fields = component_attribute("_analysis_page")

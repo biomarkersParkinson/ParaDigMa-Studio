@@ -156,6 +156,16 @@ graph builder/accessor. `WorkspaceLayout` retains page composition and explicit
 widget ports; it still builds the shared raw-data/sensor canvases. Constructing
 the page or obtaining its views must leave both result and sensor canvases deferred.
 
+`AnalysisPage` owns the info buttons and their non-modal `AnalysisHelpDialog`
+windows. Opening one explanation closes the others without changing the form's
+layout or scroll range. Dialogs reuse the existing explanation labels so
+`FileDefaults` can update value sources while help is open. Long text and the
+input-orientation figure scroll inside the window; Close, Escape and the native
+close control dismiss it. New input and an accepted application close dismiss
+open help; cancelling an application close preserves it. The controller view
+exposes these windows for lifecycle cleanup rather than retaining inline-help
+layout state or toggle callbacks.
+
 ## CI artifacts
 
 The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,

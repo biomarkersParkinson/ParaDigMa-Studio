@@ -1,5 +1,5 @@
 {
-  "max_lines": 165,
+  "max_lines": 164,
   "aliases": [
     "_data_graph",
     "_sensor_graph",
@@ -9,7 +9,6 @@
     "aggregation_table",
     "analysis_controls",
     "analysis_help",
-    "analysis_help_panel",
     "analysis_input",
     "analysis_input_detail",
     "analysis_parameter_fields",

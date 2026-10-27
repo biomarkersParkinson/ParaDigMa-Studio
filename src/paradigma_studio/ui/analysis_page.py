@@ -45,7 +45,7 @@ from ..widgets import (
     combo,
     label,
 )
-from .analysis_figure import signal_columns_help
+from .analysis_help_dialog import AnalysisHelpDialog
 from .column_mapping import ColumnMappingEditor
 from .workspace_callbacks import WorkspaceCallbacks
 
@@ -89,25 +89,22 @@ class AnalysisPage:
         content.setSpacing(16)
         content.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self._build_analysis_input(content)
-        # The full stack, including wrapped help, must reserve its real height.
-        # Otherwise native controls can grow while the parent still allocates
-        # a smaller preferred height, consuming the gap below the parameters.
+        # Reserve the complete form height, including wrapped native controls.
         self.analysis_controls = WrappedForm()
         controls = QVBoxLayout(self.analysis_controls)
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(16)
         # WrappedForm already reserves exactly the stack's required height.
         # AlignTop would cap the layout rectangle at its preferred size hint,
-        # compressing spacing when help is taller at the current width.
+        # compressing spacing when controls wrap at the current width.
         self.analysis_help = {}
-        self.analysis_help_sections = {}
+        self.analysis_help_dialogs: dict[str, AnalysisHelpDialog] = {}
         self.file_badges: dict[str, QLabel] = {}
         self.file_default_buttons: dict[str, QPushButton] = {}
         self._build_analysis_modules(controls)
         self._build_analysis_parameters()
         self._build_analysis_help()
         controls.addWidget(self.settings_panel)
-        controls.addWidget(self.analysis_help_panel)
         content.addWidget(self.analysis_controls)
         content.addStretch()
         self._build_analysis_actions()
@@ -181,8 +178,7 @@ class AnalysisPage:
         parameter_card.setContentsMargins(18, 16, 18, 16)
         parameter_card.setSpacing(14)
         parameter_card.setAlignment(Qt.AlignmentFlag.AlignTop)
-        # Reserve the form's actual minimum before help changes the outer
-        # layout. Otherwise Qt briefly clips the bottom rows while settling.
+        # Reserve the form's actual minimum before arranging native controls.
         parameter_card.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.analysis_parameter_fields = WrappedForm()
         self.analysis_parameter_fields.setSizePolicy(
@@ -339,27 +335,19 @@ class AnalysisPage:
         parameters.addLayout(origin_form)
 
     def _build_analysis_help(self):
-        # Help belongs below the complete parameter card. Expanding a field's row changes
-        # QFormLayout alignment and column widths, shifting unrelated labels.
-        self.analysis_help_panel, help_layout = card()
-        help_layout.setSpacing(12)
         for title, (info, description) in self.analysis_help.items():
-            section = QWidget()
-            section_layout = QVBoxLayout(section)
-            section_layout.setContentsMargins(0, 0, 0, 0)
-            section_layout.setSpacing(4)
-            section_layout.addWidget(label(title, "sectionTitle"))
-            if title == "Signal columns":
-                section_layout.addWidget(signal_columns_help(description, FIELD_HELP[title][1]))
-            else:
-                section_layout.addWidget(description)
-            section.hide()
-            self.analysis_help_sections[title] = section
-            info.toggled.connect(
-                lambda checked, title=title: self.callbacks.toggle_analysis_help(title, checked)
+            self.analysis_help_dialogs[title] = AnalysisHelpDialog(
+                title, description, FIELD_HELP[title][1], self._layout.parentWidget()
             )
-            help_layout.addWidget(section)
-        self.analysis_help_panel.hide()
+            info.clicked.connect(
+                lambda _checked=False, title=title: self._show_analysis_help(title)
+            )
+
+    def _show_analysis_help(self, title):
+        for other, dialog in self.analysis_help_dialogs.items():
+            if other != title:
+                dialog.close()
+        self.analysis_help_dialogs[title].present()
 
     def _build_analysis_actions(self):
         self.run_button = button("Run Analysis", self.callbacks.run_analysis, primary=True)
@@ -380,12 +368,11 @@ class AnalysisPage:
         )
 
     def analysis_field(self, title, control, *, form=None, inline=False):
-        """Accessible help toggles; explanations are kept outside the form rows."""
+        """Accessible info buttons; explanations belong to their help windows."""
         text, reference = FIELD_HELP[title]
         info = button("i")
         info.setObjectName("helpInfo")
         info.setFixedSize(22, 22)
-        info.setCheckable(True)
         info.setAccessibleName(f"Information: {title}")
         url = reference if reference.startswith("https://") else SOURCE + reference
         if title == "Signal columns":
@@ -403,7 +390,6 @@ class AnalysisPage:
         description.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         description.setAccessibleName(f"Help: {title}")
         description.setObjectName("fieldHelp")
-        description.hide()
         self.analysis_help[title] = (info, description)
         control.setAccessibleName(title)
         heading = self._analysis_heading(title, control, info, inline=inline)
@@ -455,10 +441,8 @@ class AnalysisPage:
         return AnalysisView(
             parent=parent,
             acc=self.acc,
-            analysis_controls=self.analysis_controls,
             analysis_help=self.analysis_help,
-            analysis_help_panel=self.analysis_help_panel,
-            analysis_help_sections=self.analysis_help_sections,
+            analysis_help_dialogs=self.analysis_help_dialogs,
             analysis_scroll=self.analysis_scroll,
             clock_input=self.clock_input,
             drop_missing=self.drop_missing,

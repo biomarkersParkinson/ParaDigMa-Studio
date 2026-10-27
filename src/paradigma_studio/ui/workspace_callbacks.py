@@ -29,5 +29,4 @@ class WorkspaceCallbacks:
     set_sensor_channels: Callable[..., Any]
     show_acknowledgements: Callable[..., Any]
     stop_analysis: Callable[..., Any]
-    toggle_analysis_help: Callable[..., Any]
     use_run_parameters: Callable[..., Any]

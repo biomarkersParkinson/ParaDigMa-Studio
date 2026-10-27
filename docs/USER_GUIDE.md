@@ -257,10 +257,15 @@ retained timestamps must be strictly increasing. Difference-based time is
 accumulated before missing sensor rows are removed.
 
 The **i** buttons explain individual fields and link to the official documentation.
-Only one explanation opens at a time, below the parameters. Scrolling over closed
-dropdowns, numeric fields or date/time controls scrolls their surrounding page
-without editing values, even when a field has focus. Use typing, keyboard arrows
-or field buttons to edit. An open dropdown list can still scroll.
+Each opens a separate help window, keeping the parameter fields in place. You can
+keep the explanation open while editing settings; opening another explanation
+replaces the previous one. Use **Close**, **Escape** or the window's close button
+to dismiss it. Long explanations and the Signal columns orientation figure can
+be scrolled within the help window.
+
+Scrolling over closed dropdowns, numeric fields or date/time controls scrolls
+their surrounding page without editing values, even when a field has focus. Use
+typing, keyboard arrows or field buttons to edit. An open dropdown list can still scroll.
 
 ### Run or stop analysis
 

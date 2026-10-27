@@ -201,9 +201,6 @@ class MainWindow(QMainWindow):
             stop_analysis=lambda *args, **kwargs: self._job_controller.stop_analysis(
                 *args, **kwargs
             ),
-            toggle_analysis_help=lambda *args, **kwargs: (
-                self._analysis_controller.toggle_analysis_help(*args, **kwargs)
-            ),
             use_run_parameters=lambda *args, **kwargs: self._analysis_controller.use_run_parameters(
                 *args, **kwargs
             ),
@@ -621,6 +618,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._export_controller.closeEvent(event)
+        if event.isAccepted():
+            for dialog in self._analysis_controller.view.analysis_help_dialogs.values():
+                dialog.close()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

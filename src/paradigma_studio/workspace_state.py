@@ -113,7 +113,6 @@ class DataState:
 @dataclass
 class AnalysisState:
     _origin_override: bool = False
-    _updating_analysis_help: bool = False
 
 
 @dataclass

@@ -10,7 +10,6 @@ _PORTS = {
     "aggregation_table": component_attribute("_layout"),
     "analysis_controls": component_attribute("_layout"),
     "analysis_help": component_attribute("_layout"),
-    "analysis_help_panel": component_attribute("_layout"),
     "analysis_input": component_attribute("_layout"),
     "analysis_input_detail": component_attribute("_layout"),
     "analysis_parameter_fields": component_attribute("_layout"),

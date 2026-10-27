@@ -238,9 +238,10 @@ def _verify_analysis_controls(window):
         raise RuntimeError("All three modules cannot be selected together")
     help_button, help_text = window.analysis_help["Signal columns"]
     help_button.click()
-    if help_text.isHidden() or "Invert axis" not in help_text.text():
-        raise RuntimeError("Documented inline axis guidance is unavailable")
-    help_button.click()
+    dialog = window._analysis_controller.view.analysis_help_dialogs["Signal columns"]
+    if not dialog.isVisible() or not help_text.isVisible() or "Invert axis" not in help_text.text():
+        raise RuntimeError("Documented axis guidance is unavailable in its help window")
+    dialog.close()
     window.set_modules(["tremor"])
     if not window.pages.widget(1).isAncestorOf(window.mapping):
         raise RuntimeError("Analysis parameters are not integrated into Analyze")
@@ -735,7 +736,7 @@ def _successful_smoke_report(
         "dropdown_indicator_rendered": True,
         "module_multiselection_verified": True,
         "all_module_execution_verified": True,
-        "inline_analysis_help_verified": True,
+        "analysis_help_dialog_verified": True,
         "paradigma_acknowledgement_verified": True,
         "studio_licence_verified": True,
         "local_results_saved_verified": True,

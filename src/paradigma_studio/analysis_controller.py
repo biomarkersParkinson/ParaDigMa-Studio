@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from threading import Event
@@ -13,9 +13,9 @@ from PySide6.QtCore import QObject, QSignalBlocker
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QLabel,
-    QLayout,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -36,10 +36,7 @@ from .results_view import normalise_clock
 from .time_controls import TimeField
 from .ui.column_mapping import ColumnMappingEditor
 from .ui.file_defaults import FileDefaults
-from .widgets import (
-    ContextComboBox,
-    WrappedForm,
-)
+from .widgets import ContextComboBox
 from .workspace_state import (
     AnalysisState,
     InputState,
@@ -75,10 +72,8 @@ if TYPE_CHECKING:
 class AnalysisView:
     parent: QWidget
     acc: QComboBox
-    analysis_controls: WrappedForm
     analysis_help: dict[str, tuple[QPushButton, QLabel]]
-    analysis_help_panel: QWidget
-    analysis_help_sections: dict[str, QWidget]
+    analysis_help_dialogs: Mapping[str, QDialog]
     analysis_scroll: QScrollArea
     clock_input: TimeField
     drop_missing: QCheckBox
@@ -160,36 +155,6 @@ class AnalysisController(QObject):
             self._file_default_restored,
         )
 
-    def toggle_analysis_help(self, title: str, checked: bool) -> None:
-        if self.analysis._updating_analysis_help:
-            return
-        self.analysis._updating_analysis_help = True
-        # The Analyze page installs its body and all three layouts before wiring help.
-        body = cast("QWidget", self.view.analysis_scroll.widget())
-        updates = body.updatesEnabled()
-        body.setUpdatesEnabled(False)
-        try:
-            if checked:
-                for other_title, (info, _) in self.view.analysis_help.items():
-                    if other_title != title:
-                        info.setChecked(False)
-            for name, (info, description) in self.view.analysis_help.items():
-                description.setVisible(info.isChecked())
-                self.view.analysis_help_sections[name].setVisible(info.isChecked())
-            self.view.analysis_help_panel.setVisible(
-                any(info.isChecked() for info, _ in self.view.analysis_help.values())
-            )
-            # Fit the fixed-height wrapper synchronously. Activating its layout
-            # alone still uses the old height until a queued LayoutRequest,
-            # which can paint the help over the parameter card in the meantime.
-            for widget in (self.view.analysis_help_panel, self.view.analysis_controls, body):
-                if isinstance(widget, WrappedForm):
-                    widget._fit_height()
-                cast("QLayout", widget.layout()).activate()
-        finally:
-            body.setUpdatesEnabled(updates)
-            self.analysis._updating_analysis_help = False
-
     def selected_modules(self) -> list[str]:
         return [
             self.modules[name]
@@ -213,7 +178,6 @@ class AnalysisController(QObject):
             self.view.clock_input,
             self.view.mapping,
             *self.view.module_buttons.values(),
-            *(info for info, _description in self.view.analysis_help.values()),
         )
         was_applying = self.file_defaults.applying
         self.file_defaults.applying = True
@@ -228,6 +192,8 @@ class AnalysisController(QObject):
     def reset_for_input(self) -> None:
         """Start a new input with fresh controls, then apply only its metadata."""
         self.previews._origin_preview.clear()
+        for dialog in self.view.analysis_help_dialogs.values():
+            dialog.close()
         with self._applying_settings():
             self.analysis._origin_override = False
             self.file_defaults.reset()
@@ -240,9 +206,6 @@ class AnalysisController(QObject):
             self.view.clock_input.clear()
             self.view.mapping.reset_for_input()
             self.set_modules(["gait"])
-            for info, _description in self.view.analysis_help.values():
-                info.setChecked(False)
-        self.toggle_analysis_help("", False)
         self.refresh(mapping_changed=True)
         self.view.analysis_scroll.verticalScrollBar().setValue(0)
 

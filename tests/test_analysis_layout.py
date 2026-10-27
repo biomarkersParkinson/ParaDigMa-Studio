@@ -93,7 +93,7 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         assert top - bottom >= 8, "Parameter rows must retain comfortable separation"
     help_buttons = [info for info, description in window.analysis_help.values()]
     assert {(info.width(), info.height()) for info in help_buttons} == {(22, 22)}
-    assert all(info.objectName() == "helpInfo" and info.isCheckable() for info in help_buttons)
+    assert all(info.objectName() == "helpInfo" and not info.isCheckable() for info in help_buttons)
     # Small windows may scroll rather than compressing controls and whitespace.
     # Every field remains reachable and the action stays outside the scroll area.
     window.resize(960, 650)
@@ -111,15 +111,23 @@ def test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_wi
         assert_fully_visible(window.run_button)
     for info in help_buttons:
         info.click()
-        assert sum(button.isChecked() for button in help_buttons) == 1
-    QTest.qWait(30)
-    assert window.analysis_scroll.verticalScrollBar().maximum() > small_scroll_maximum
-    for info in help_buttons:
-        if info.isChecked():
-            info.click()
+        assert (
+            sum(
+                dialog.isVisible()
+                for dialog in window._analysis_controller.view.analysis_help_dialogs.values()
+            )
+            == 1
+        )
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
-    assert window.analysis_help_panel.isHidden()
+    for dialog in window._analysis_controller.view.analysis_help_dialogs.values():
+        dialog.close()
+    QTest.qWait(30)
+    assert window.analysis_scroll.verticalScrollBar().maximum() == small_scroll_maximum
+    assert not any(
+        dialog.isVisible()
+        for dialog in window._analysis_controller.view.analysis_help_dialogs.values()
+    )
     window.resize(1200, 1050 if larger_surrounding_controls else 900)
     QTest.qWait(30)
     assert window.analysis_scroll.verticalScrollBar().maximum() == 0
@@ -150,7 +158,8 @@ def test_axis_and_mapping_fields_follow_their_columns_with_input_orientation_hel
             assert f"color: {LINK_COLOR}" in description.text()
     info, description = window.analysis_help["Signal columns"]
     info.click()
-    section = window._analysis_controller.view.analysis_help_sections["Signal columns"]
+    QTest.qWait(20)
+    section = window._analysis_controller.view.analysis_help_dialogs["Signal columns"]
     figure = section.findChild(InputAxisFigure)
     assert figure is not None and figure.isVisible()
     explanation = next(
@@ -169,29 +178,30 @@ def test_axis_and_mapping_fields_follow_their_columns_with_input_orientation_hel
     assert figure.y() + figure.height() <= explanation.y()
 
 
-def test_input_axis_figure_fits_expanded_help_at_wide_and_narrow_sizes(native_analysis_window):
+def test_input_axis_figure_fits_resizable_help_at_wide_and_narrow_sizes(native_analysis_window):
     window = native_analysis_window
     window.navigate(1)
     window.show()
     window.analysis_help["Signal columns"][0].click()
-    section = window._analysis_controller.view.analysis_help_sections["Signal columns"]
+    section = window._analysis_controller.view.analysis_help_dialogs["Signal columns"]
     figure = section.findChild(InputAxisFigure)
-    body = window.analysis_scroll.widget()
-    for width, height in ((1450, 920), (960, 650), (1450, 920)):
-        window.resize(width, height)
+    scroll = section.scroll_area
+    body = scroll.widget()
+    for width, height in ((1000, 900), (640, 480), (1000, 900)):
+        section.resize(width, height)
         QTest.qWait(30)
-        assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
+        assert scroll.horizontalScrollBar().maximum() == 0
         assert figure.height() >= figure.heightForWidth(figure.width())
-        assert figure.width() <= window.analysis_help_panel.width()
+        assert figure.width() <= scroll.viewport().width()
         for local_y in (0, figure.heightForWidth(figure.width()) - 1):
             point = figure.mapTo(body, QPoint(0, local_y))
-            window.analysis_scroll.ensureVisible(point.x(), point.y(), 0, 1)
+            scroll.ensureVisible(point.x(), point.y(), 0, 1)
             QApplication.processEvents()
-            visible = figure.mapTo(window.analysis_scroll.viewport(), QPoint(0, local_y))
-            assert window.analysis_scroll.viewport().rect().contains(visible)
+            visible = figure.mapTo(scroll.viewport(), QPoint(0, local_y))
+            assert scroll.viewport().rect().contains(visible)
 
 
-def test_mapping_label_and_editor_stay_together_when_neighboring_help_expands(window):
+def test_mapping_label_and_editor_stay_together_when_help_opens(window):
     window.navigate(1)
     window.resize(1450, 920)
     heading = next(

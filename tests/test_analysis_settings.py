@@ -138,7 +138,7 @@ def test_desktop_preparation_defaults_and_official_threshold_resets_remain_avail
     assert mapping_start.x() < gap_start.x() and mapping_start.y() < gap_start.y()
 
 
-def test_inline_analysis_help_does_not_change_configuration(window):
+def test_analysis_help_windows_do_not_change_configuration(window):
     from paradigma_studio.analysis_help import FIELD_HELP
 
     assert set(window.analysis_help) == set(FIELD_HELP)
@@ -166,17 +166,17 @@ def test_inline_analysis_help_does_not_change_configuration(window):
     window.navigate(1)
     window.show()
     for title, (info, description) in window.analysis_help.items():
-        assert description.isHidden()
+        assert not description.isVisible()
         assert info.accessibleName() == f"Information: {title}"
         info.click()
-        assert not description.isHidden()
-        section = window._analysis_controller.view.analysis_help_sections[title]
+        assert description.isVisible()
+        section = window._analysis_controller.view.analysis_help_dialogs[title]
         assert any(
             "ParaDigMa documentation" in label.text() for label in section.findChildren(QLabel)
         )
-        assert window.pages.widget(1).isAncestorOf(description)
-        info.click()
-        assert description.isHidden()
+        assert description.window() is section
+        section.close()
+        assert not description.isVisible()
     assert configuration() == before
     assert "Invert axis" in window.analysis_help["Signal columns"][1].text()
     assert (

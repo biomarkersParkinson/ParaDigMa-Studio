@@ -491,10 +491,13 @@ def test_close_warns_and_respects_save_discard_and_cancel(
         return answer
 
     monkeypatch.setattr(QMessageBox, "exec", respond)
+    window.analysis_help["Signal columns"][0].click()
+    help_dialog = window._analysis_controller.view.analysis_help_dialogs["Signal columns"]
     window.close()
     finish_job(window)
     assert len(prompts) == 1
     assert window.isVisible() == (answer == QMessageBox.Cancel)
+    assert help_dialog.isVisible() == (answer == QMessageBox.Cancel)
     restored, issues = window.history.load()
     assert not issues
     assert bool(restored[0]["outputs"]) == (answer == QMessageBox.Save)

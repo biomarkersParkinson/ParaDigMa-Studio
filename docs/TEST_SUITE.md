@@ -25,7 +25,8 @@ trigger and expected behavior still apply.
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
 | Dependency-specific updates, complete saved settings before previews/Data notifications, one load refresh, shared time formats and metadata updates with manual origins | `test_analysis_refresh.py`; lifecycle order in `test_composition_order.py` |
 | GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and rejection of retired bypass settings | `test_analysis_preparation.py` |
-| Analyze field layout, compact-window reachability, help geometry and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
+| Analyze field layout, compact-window reachability, unchanged fields when help opens and native font/control regressions | `test_analysis_layout.py`, `test_analysis_help_stability.py`; shared assertions in `analysis_helpers.py` |
+| Reusable help windows, one explanation at a time, keyboard/mouse closing and reopening, scrollable text/figure, live value sources and close/cancel lifecycle | `test_analysis_help_dialog.py`; reset behavior in `test_analysis_input_reset.py` and close/cancel integration in `test_saved_results.py` |
 | File-derived unit/origin defaults, provenance label placement, mapping-dependent unit controls, manual overrides and resets for new input | `test_input_metadata.py`, `test_analysis_input_reset.py` |
 | App-wide field wheel/trackpad page scrolling, unchanged focused numeric/calendar/dropdown values, embedded text editors, pinned graph fields, open-list scrolling and keyboard/button edits | `test_analysis_scrolling.py` |
 | Signal-column dropdowns, header-only batch validation, ambiguity/conflicts, persisted choices and independent official pipeline equivalence | `test_column_mapping.py` |
@@ -102,9 +103,12 @@ sizes, dark palettes, Qt styles or background-job handling. The shared data
 fixtures must remain function-scoped because several tests deliberately modify
 samples to exercise validation and missing-data behavior.
 
-Analyze layout scenarios live in `test_analysis_layout.py`, including the native
-style/control-height matrix used by the early Windows CI gate and the Linux
-font-fallback subprocess. `analysis_helpers.py` shares native sizing and full-control
+Analyze layout scenarios live in `test_analysis_layout.py` and
+`test_analysis_help_stability.py`, including the native style/control-height matrix
+used by the early Windows CI gate and the Linux font-fallback subprocess.
+`test_analysis_help_dialog.py` covers help-window interaction and scrolling;
+tests of the retired inline panel's expansion/paint ordering have been removed.
+`analysis_helpers.py` shares native sizing and full-control
 visibility assertions with help and metadata layout checks. Metadata labels must
 sit beneath their parameter names and share their left edge; tests compare relative
 positions instead of pinning absolute screen coordinates. The common `wait_for_job`

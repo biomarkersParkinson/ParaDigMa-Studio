@@ -139,8 +139,10 @@ def test_successful_new_load_resets_every_analyze_setting_and_uses_new_metadata(
     assert window.mapping.optional_button.text() == "Show optional signals"
     assert window.mapping.details.isHidden() and not window.mapping.details_button.isChecked()
     assert window.mapping.details_button.text() == "Show details"
-    assert not any(info.isChecked() for info, _description in window.analysis_help.values())
-    assert window.analysis_help_panel.isHidden()
+    assert not any(
+        dialog.isVisible()
+        for dialog in window._analysis_controller.view.analysis_help_dialogs.values()
+    )
     assert window.analysis_scroll.verticalScrollBar().value() == 0
     assert window.origin_setting() == {"mode": "automatic"}
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-23T08:00:00Z")
@@ -265,7 +267,7 @@ def test_switching_loaded_batch_recordings_keeps_manual_and_saved_settings(windo
     after = window._analysis_controller._analysis_settings(window.selected_modules())
     assert after == before
     assert window.mapping.details_button.isChecked()
-    assert window.analysis_help["Time units"][0].isChecked()
+    assert window._analysis_controller.view.analysis_help_dialogs["Time units"].isVisible()
     window._run_state.selected_run = {
         "settings": saved_settings(
             **{
