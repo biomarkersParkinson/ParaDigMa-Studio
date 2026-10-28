@@ -8,6 +8,8 @@
   zoom buttons and horizontal scrollbar as Results graphs. Automatically fit Y
   limits to visible original samples while preserving manual limits, channel-change
   zoom and the original sensor-context Home view.
+- Show the same translucent blue interval-selection band across raw-data graphs
+  and their gaps as in Results graphs.
 - Keep raw sensor graph zoom when channels are added or removed, including manual
   vertical limits for sensor groups that remain visible. Keep Home and view history usable.
 - Open Analyze field explanations in separate, scrollable help windows with

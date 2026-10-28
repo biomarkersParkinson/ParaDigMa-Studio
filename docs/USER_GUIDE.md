@@ -122,10 +122,11 @@ sensor groups that remain plotted. New sensor groups scale automatically.
 the time column or format starts a new view at its full range.
 
 The graph controls follow Results: drag with **Select time interval** to zoom all
-linked graphs to a time window. **Zoom in (+)** and **Zoom out (−)** halve or double
-the visible time span. A horizontal scrollbar appears when zoomed in and moves
-that window through the recording; horizontal trackpad gestures or Shift+wheel
-also move time. Zoom out stops at the full recording view.
+linked graphs to a time window. A translucent blue band previews the selected
+interval across the graphs and their gaps. **Zoom in (+)** and **Zoom out (−)**
+halve or double the visible time span. A horizontal scrollbar appears when zoomed
+in and moves that window through the recording; horizontal trackpad gestures or
+Shift+wheel also move time. Zoom out stops at the full recording view.
 
 Y axes automatically fit the selected channels' finite samples in the visible
 window after navigation settles. To keep a fixed scale, open **Axis limits**,

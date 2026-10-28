@@ -99,6 +99,54 @@ def test_interval_selection_changes_shared_time_and_keeps_manual_y(
 
 
 @pytest.mark.parametrize("context", [False, True], ids=["data", "sensor-context"])
+@pytest.mark.parametrize("pixel_ratio", [1, 2])
+def test_interval_preview_shades_raw_graphs_and_gaps_without_redrawing_data(
+    window, context, pixel_ratio, monkeypatch
+):
+    _frame, figure, canvas, toolbar, _choose, _xs = open_graph(window, context)
+    canvas._set_device_pixel_ratio(pixel_ratio)
+    QApplication.instance().processEvents()
+    canvas.draw()
+    original = canvas.grab().toImage()
+    buffer = np.asarray(canvas.buffer_rgba()).copy()
+    limits = [(ax.get_xlim(), ax.get_ylim()) for ax in figure.axes]
+    data_bounds = [ax.dataLim.bounds for ax in figure.axes]
+    draws = []
+    draw = canvas.draw
+
+    def capture_draw():
+        draws.append(True)
+        return draw()
+
+    monkeypatch.setattr(canvas, "draw", capture_draw)
+    upper, lower = figure.axes
+    gap = (upper.bbox.y0 + lower.bbox.y1) / 2
+    x0, x1 = upper.transAxes.transform([(0.2, 0.5), (0.65, 0.5)])[:, 0]
+    toolbar.press_zoom(MouseEvent("button_press_event", canvas, x0, gap, button=1))
+    toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, x1, gap, buttons={1}))
+    actual = canvas.grab().toImage()
+    scale = actual.devicePixelRatio() / pixel_ratio
+    column = round((x0 + x1) / 2 * scale)
+    for y in (upper.bbox.y0 + upper.bbox.height / 2, gap, lower.bbox.y0 + lower.bbox.height / 2):
+        row = round((figure.bbox.height - y) * scale)
+        expected = np.array(original.pixelColor(column, row).getRgb()[:3]) * 0.8 + (
+            np.array([71, 125, 163]) * 0.2
+        )
+        np.testing.assert_allclose(actual.pixelColor(column, row).getRgb()[:3], expected, atol=2)
+        outside = round(upper.transAxes.transform((0.8, 0.5))[0] * scale)
+        assert actual.pixelColor(outside, row) == original.pixelColor(outside, row)
+    assert not draws, "Previewing the interval must only repaint the cached Qt image"
+    np.testing.assert_array_equal(canvas.buffer_rgba(), buffer)
+    assert [(ax.get_xlim(), ax.get_ylim()) for ax in figure.axes] == limits
+    assert [ax.dataLim.bounds for ax in figure.axes] == data_bounds
+    toolbar.stop_navigation()
+    assert canvas.zoom_rectangle is None
+    cancelled = canvas.grab().toImage()
+    row = round((figure.bbox.height - gap) * scale)
+    assert cancelled.pixelColor(column, row) == original.pixelColor(column, row)
+
+
+@pytest.mark.parametrize("context", [False, True], ids=["data", "sensor-context"])
 @pytest.mark.parametrize("calendar", [False, True], ids=["seconds", "dates"])
 def test_visible_samples_set_automatic_y_and_new_channels_keep_time(window, context, calendar):
     _frame, figure, _canvas, toolbar, choose, xs = open_graph(window, context, calendar)

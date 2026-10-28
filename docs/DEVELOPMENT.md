@@ -365,6 +365,10 @@ time view, group-specific manual limits and a usable Home/history. Zoom-in is
 bounded by floating-point precision, and zoom-out by the full source range.
 The smoke probe exercises raw zoom, automatic Y and horizontal scrolling.
 
+`ScrollableFigureCanvas` paints the shared translucent blue interval preview
+through Qt's rubberband hook for both raw and Results graphs. The band spans
+graphs and gaps without redrawing data or entering the exported figure.
+
 Results Graphs uses one `QScrollArea` for the canvas. The workspace itself does
 not scroll: the toolbar, axis-limit controls, time ruler and footer stay outside
 that viewport, and the series tree scrolls independently. Canvas minimum heights

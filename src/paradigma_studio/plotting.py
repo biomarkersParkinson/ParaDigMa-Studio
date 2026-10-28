@@ -10,6 +10,8 @@ from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
+from PySide6.QtCore import QRectF
+from PySide6.QtGui import QColor, QPen
 
 
 def time_selection_triangle():
@@ -216,7 +218,9 @@ class SelectionOverlay:
 
 
 class ScrollableFigureCanvas(FigureCanvasQTAgg):
-    """Qt canvas wheel events scroll the enclosing Results workspace."""
+    """Shared interval preview and wheel routing for raw and Results graphs."""
+
+    zoom_rectangle = None
 
     scroll_area = None
     pinned_time_axis = False
@@ -282,6 +286,32 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
             event.accept()
         else:
             event.ignore()
+
+    def drawRectangle(self, rect):
+        previous = self.zoom_rectangle
+        self.zoom_rectangle = (
+            QRectF(*(value / self.device_pixel_ratio for value in rect)).normalized()
+            if rect is not None
+            else None
+        )
+        # This is the Qt backend's native rubberband painting hook. The band
+        # never enters the Agg image, data limits, layout or exported figure.
+        self._draw_rect_callback = self._paint_time_interval
+        dirty = self.zoom_rectangle
+        if previous is not None:
+            dirty = previous.united(dirty) if dirty is not None else previous
+        if dirty is not None:
+            self.update(dirty.toAlignedRect().adjusted(-1, -1, 1, 1))
+
+    def _paint_time_interval(self, painter):
+        if self.zoom_rectangle is None:
+            return
+        color = QColor(71, 125, 163, 51)
+        painter.save()
+        painter.setPen(QPen(color, 1 / self.device_pixel_ratio))
+        painter.setBrush(color)
+        painter.drawRect(self.zoom_rectangle)
+        painter.restore()
 
     def print_figure(self, *args, **kwargs):
         # The workspace has a separate, pinned axis. Saved figures must remain
