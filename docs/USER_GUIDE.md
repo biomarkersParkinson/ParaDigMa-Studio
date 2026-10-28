@@ -128,6 +128,10 @@ halve or double the visible time span. A horizontal scrollbar appears when zoome
 in and moves that window through the recording; horizontal trackpad gestures or
 Shift+wheel also move time. Zoom out stops at the full recording view.
 
+Choose **Drag time** (the hand) to move the zoomed window by dragging within a
+graph or between graphs. Drag left to reveal later times, or right for earlier
+times. The window keeps its duration and stops at the recording boundaries.
+
 Y axes automatically fit the selected channels' finite samples in the visible
 window after navigation settles. To keep a fixed scale, open **Axis limits**,
 click the relevant graph and turn off **Automatic** for Y. Manual Y limits stay
@@ -492,6 +496,7 @@ values; the selected date/time appears above the pinned time axis.
 
 | Control | Action |
 | --- | --- |
+| **Drag time** (hand) | Drag left for later times or right for earlier times, within a graph or between graphs. Keeps the visible duration and moves all linked plots together. |
 | **Select time interval** | Drag across a graph or the gaps between graphs to zoom all linked plots to that time interval. |
 | **Zoom in / Zoom out** | Halve or double the visible time span. |
 | Horizontal scrollbar | Appears after zooming; moves the visible interval through the full recording. Horizontal trackpad gestures also move time. |
@@ -504,6 +509,13 @@ removing graphs preserves the current zoom. Vertical gestures scroll the graph
 list using its single right-hand scrollbar. The toolbar and time axis stay visible
 in small windows, and **Plot series** scrolls independently. Zooming does not extend
 beyond the full recording range.
+
+The hand tool, timepoint selection and interval selection are separate modes;
+choose the toolbar button for the action you want. Dragging preserves the
+selected timepoint. Y limits stay steady during a drag, then automatic axes refit
+the new window on release; manual Y limits remain fixed. Dragging stops at the
+source boundaries, or 00:00–24:00 in the profile view. At the full range there is
+no room to move until you zoom in.
 
 In **Axis limits**, click the graph to adjust, uncheck **Automatic**, enter bounds,
 then press Enter or leave the field. Calendar limits accept ISO date/time with a

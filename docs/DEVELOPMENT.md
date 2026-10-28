@@ -347,11 +347,12 @@ and Back/Forward usable. Recordings and time-column/format changes reset Data's
 view; a new context or display clock resets sensor-context navigation. Source
 identity tracking uses weak references so it cannot retain discarded recordings.
 
-`TimeToolbar` and `TimeScroll` share interval-only selection, Zoom in/out,
-scrollbar/trackpad navigation, source bounds and Matplotlib history across raw
-graphs and all four Results views. Results-specific canvas/aggregation hooks stay
-in `ResultsToolbar`. `RawToolbar` starts in interval-selection mode and binds its
-scrollbar to Data's complete plot or the sensor navigator's full source limits,
+`TimeToolbar` and `TimeScroll` share interval-only selection, horizontal hand
+dragging, Zoom in/out, scrollbar/trackpad navigation, source bounds and Matplotlib
+history across raw graphs and all four Results views. Results-specific
+canvas/aggregation hooks stay in `ResultsToolbar`. `RawToolbar` starts in
+interval-selection mode and binds its scrollbar to Data's complete plot or the
+sensor navigator's full source limits,
 not just the currently loaded context. Sensor limit callbacks load originals
 before raw Y scaling runs. Automatic X restores the full source range; sensor
 Home and Reset limits retain their original inspection-context behavior.
@@ -360,11 +361,23 @@ Automatic raw Y limits use exact finite extrema from selected visible channels,
 reusing `RawSignalLine`'s bounded peak-preserving summaries. Neighbours retained
 for drawing clipped lines cannot influence Y limits from outside the window.
 Binary indicators keep their fixed scale; empty windows retain finite bounds.
-Y fitting settles after scrollbar/trackpad gestures; manual Y limits remain
+Y fitting settles after hand/scrollbar/trackpad gestures; manual Y limits remain
 fixed. Channel redraws reconnect navigation to the new axes while retaining the
 time view, group-specific manual limits and a usable Home/history. Zoom-in is
 bounded by floating-point precision, and zoom-out by the full source range.
-The smoke probe exercises raw zoom, automatic Y and horizontal scrolling.
+The smoke probe exercises raw zoom, automatic Y, horizontal scrolling and an
+actual hand drag with its packaged icon and Back history.
+
+The hand uses Matplotlib's Pan action and mouse-capture lifecycle, with a
+time-only translation instead of `Axes.drag_pan` (which would also mark Y as
+manual). `TimeScroll.bounded_limits` clamps each proposed window before sample
+loading or render callbacks. Hand drags use the existing scroll start/end hooks,
+including Results' bounded viewport painting and deferred Y refitting. The
+settled view is saved once on release; mode changes, Home/history, zoom buttons,
+view/data replacement and lost button releases finish the gesture. The shared
+canvas maps Matplotlib's Move cursor to Qt's open/closed hand, retaining normal
+wait-cursor restoration. `scripts/benchmark_pan.py` measures actual hand gestures
+in all four Results views and both raw workspaces, alongside the scroll scenarios.
 
 `ScrollableFigureCanvas` paints the shared translucent blue interval preview
 through Qt's rubberband hook for both raw and Results graphs. The band spans

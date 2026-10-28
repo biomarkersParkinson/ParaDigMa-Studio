@@ -6,6 +6,8 @@ import math
 from copy import copy
 from typing import TYPE_CHECKING
 
+from matplotlib.backend_bases import MouseButton
+from matplotlib.backend_tools import Cursors
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QScrollBar
@@ -20,12 +22,15 @@ if TYPE_CHECKING:
 
 class TimeToolbar(GraphToolbar):
     canvas: FigureCanvasQTAgg
-    toolitems = tuple(item for item in GraphToolbar.toolitems if item[0] != "Pan")
 
     def __init__(self, canvas, parent, *, time_selection=True):
         super().__init__(canvas, parent, time_selection=time_selection)
         self.scrolling_time = False
         self.time_scroll: TimeScroll | None = None
+        self._time_pan: tuple[float, tuple[float, float], float] | None = None
+        self._actions["pan"].setText("Drag time")
+        self._actions["pan"].setIcon(QIcon(str(DATA_DIRECTORY / "drag-time.svg")))
+        self._actions["pan"].setToolTip("Drag left or right to move all linked graphs through time")
         self._actions["zoom"].setText("Select time interval")
         self._actions["zoom"].setIcon(QIcon(str(DATA_DIRECTORY / "select-interval.svg")))
         self._actions["zoom"].setToolTip("Select a time interval to zoom into all linked graphs")
@@ -36,7 +41,64 @@ class TimeToolbar(GraphToolbar):
             self.time_scroll.zoom(factor)
 
     def pan(self, *args):
-        """Time navigation uses interval selection and the horizontal scrollbar."""
+        self.stop_navigation()
+        super().pan(*args)
+        self._last_cursor = Cursors.MOVE if self.mode.name == "PAN" else Cursors.POINTER
+        self.canvas.set_cursor(self._last_cursor)
+
+    def zoom(self, *args):
+        self.stop_navigation()
+        super().zoom(*args)
+        self._last_cursor = Cursors.SELECT_REGION if self.mode.name == "ZOOM" else Cursors.POINTER
+        self.canvas.set_cursor(self._last_cursor)
+
+    def press_pan(self, event):
+        self.stop_navigation()
+        event = self._time_event(event)
+        bar = self.time_scroll
+        if (
+            event.button != MouseButton.LEFT
+            or event.inaxes is None
+            or bar is None
+            or bar._source is None
+            or not bar.maximum()
+        ):
+            return
+        self.begin_time_scroll()
+        super().press_pan(event)
+        if self._pan_info is None:
+            self.end_time_scroll()
+            return
+        self._time_pan = event.x, bar._source.get_xlim(), event.inaxes.bbox.width
+        self.canvas.set_cursor(Cursors.MOVE)
+
+    def drag_pan(self, event):
+        if self._time_pan is None:
+            return
+        if event.buttons != {MouseButton.LEFT}:
+            self.release_pan(None)
+            return
+        if event.x is None:
+            return
+        bar = self.time_scroll
+        if bar is not None and bar._source is not None:
+            start, (left, right), width = self._time_pan
+            delta = (start - event.x) / width * (right - left)
+            limits = bar.bounded_limits((left + delta, right + delta))
+            if limits != bar._source.get_xlim():
+                # Only X changes: Axes.drag_pan would also mark Y as manual.
+                bar._source.set_xlim(*limits)
+                self.canvas.draw_idle()
+
+    def release_pan(self, event):
+        if self._pan_info is None:
+            return
+        self._time_pan = None
+        super().release_pan(event)
+        self.end_time_scroll()
+        if event is not None:
+            self._update_cursor(event)
+        self.canvas.set_cursor(self._last_cursor)
 
     def home(self, *args):
         self.stop_navigation()
@@ -52,14 +114,14 @@ class TimeToolbar(GraphToolbar):
 
     def press_zoom(self, event):
         self.stop_navigation()
-        event = self._interval_event(event)
+        event = self._time_event(event)
         if event.inaxes is not None and self._nav_stack() is None:
             # Save Home before GraphToolbar captures automatic Y axes. A
             # time-only selection needs no Y refit or graph redraw on press.
             self.push_current()
         super().press_zoom(event)
 
-    def _interval_event(self, event):
+    def _time_event(self, event):
         if event.inaxes is not None or event.x is None or event.y is None:
             return event
         axes = [ax for ax in self.canvas.figure.axes if ax.get_navigate() and ax.can_zoom()]
@@ -80,8 +142,8 @@ class TimeToolbar(GraphToolbar):
         return projected
 
     def _update_cursor(self, event):
-        if self.mode.name == "ZOOM":
-            event = self._interval_event(event)
+        if self.mode.name in ("PAN", "ZOOM"):
+            event = self._time_event(event)
         super()._update_cursor(event)
 
     def drag_zoom(self, event):
@@ -111,6 +173,10 @@ class TimeToolbar(GraphToolbar):
         self._automatic_bar_y = []
 
     def push_current(self):
+        # Matplotlib releases its mouse capture before asking to save the pan.
+        # Save once, after end_time_scroll restores automatic Y limits instead.
+        if self.scrolling_time:
+            return
         if self.time_scroll is not None:
             self.time_scroll.constrain_view()
         self._fit_time_view()
@@ -255,7 +321,7 @@ class TimeScroll(QScrollBar):
     def zoom(self, factor):
         if self._source is None:
             return
-        self.finish_gesture()
+        self.toolbar.stop_navigation()
         self.toolbar._push_changed_view()
         limits = self._source.get_xlim()
         low, high = sorted(limits)
@@ -270,10 +336,18 @@ class TimeScroll(QScrollBar):
         if self._source is None:
             return
         limits = self._source.get_xlim()
+        bounded = self.bounded_limits(limits)
+        if bounded != limits:
+            # Limit changes have finished propagating through the shared axes
+            # before the toolbar saves a view or restores navigation history.
+            self._source.set_xlim(*bounded, auto=self._source.get_autoscalex_on())
+
+    def bounded_limits(self, limits):
+        """Clamp a time window before notifying renderers or loading raw samples."""
         low, high = sorted(limits)
         first, last = self._full_limits
         if first <= low and high <= last:
-            return
+            return limits
         span = high - low
         if span >= last - first:
             bounded = first, last
@@ -283,10 +357,7 @@ class TimeScroll(QScrollBar):
             bounded = last - span, last
         if limits[0] > limits[1]:
             bounded = bounded[::-1]
-        if bounded != limits:
-            # Limit changes have finished propagating through the shared axes
-            # before the toolbar saves a view or restores navigation history.
-            self._source.set_xlim(*bounded, auto=self._source.get_autoscalex_on())
+        return bounded
 
     def watch(self, *widgets):
         for widget in widgets:
@@ -335,6 +406,7 @@ class TimeScroll(QScrollBar):
             self.toolbar.end_time_scroll()
 
     def finish_gesture(self):
+        self.toolbar.release_pan(None)
         self._finish_wheel()
         self.setSliderDown(False)
         self.toolbar.end_time_scroll()

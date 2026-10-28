@@ -223,11 +223,43 @@ def _verify_input_graph_controls(window):
         or window.plot_toolbar.select_action.icon().pixmap(24, 24).isNull()
         or toolbar.select_action is not None
         or not toolbar._actions["zoom"].isChecked()
-        or "pan" in toolbar._actions
+        or toolbar._actions["pan"].isChecked()
     ):
         raise RuntimeError("Default timepoint cursor or its packaged icon is missing")
+    _verify_time_hand(toolbar)
     toolbar.settings.reset_button.click()
     toolbar.settings_action.setChecked(False)
+
+
+def _verify_time_hand(toolbar):
+    import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    canvas = toolbar.canvas
+    canvas.draw()
+    axes = canvas.figure.axes[0]
+    before = axes.get_xlim()
+    toolbar._actions["pan"].trigger()
+    if toolbar._actions["pan"].icon().pixmap(24, 24).isNull():
+        raise RuntimeError("Packaged hand icon is missing")
+    x, y = axes.transAxes.transform((0.5, 0.5))
+    toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
+    end = x - axes.bbox.width / 4
+    toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, end, y, buttons={1}))
+    toolbar.release_pan(MouseEvent("button_release_event", canvas, end, y, button=1))
+    after = axes.get_xlim()
+    if (
+        after[0] <= before[0]
+        or not np.isclose(np.diff(after)[0], np.diff(before)[0])
+        or not axes.get_autoscaley_on()
+        or toolbar.scrolling_time
+        or toolbar._pan_info is not None
+    ):
+        raise RuntimeError("Hand drag did not preserve time span, automatic Y or gesture cleanup")
+    toolbar.back()
+    if not np.allclose(axes.get_xlim(), before):
+        raise RuntimeError("Hand drag did not record a reversible navigation step")
+    toolbar.zoom()
 
 
 def _verify_data_descriptives(window):
@@ -756,6 +788,7 @@ def _successful_smoke_report(
         "all_module_execution_verified": True,
         "analysis_help_dialog_verified": True,
         "raw_time_zoom_verified": True,
+        "time_hand_drag_verified": True,
         "paradigma_acknowledgement_verified": True,
         "studio_licence_verified": True,
         "local_results_saved_verified": True,

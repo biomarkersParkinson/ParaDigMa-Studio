@@ -82,7 +82,7 @@ def test_interval_selection_changes_shared_time_and_keeps_manual_y(
         start[1] = (first.bbox.y0 + second.bbox.y1) / 2
     press = MouseEvent("button_press_event", canvas, *start, button=1)
     release = MouseEvent("button_release_event", canvas, *end, button=1, key="y")
-    assert toolbar.mode.name == "ZOOM" and "pan" not in toolbar._actions
+    assert toolbar.mode.name == "ZOOM" and not toolbar._actions["pan"].isChecked()
     toolbar.press_zoom(press)
     toolbar.drag_zoom(MouseEvent("motion_notify_event", canvas, *end, buttons={1}))
     toolbar.release_zoom(release)

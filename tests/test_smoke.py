@@ -58,6 +58,7 @@ def test_desktop_smoke_entrypoint(tmp_path):
     assert data["all_module_execution_verified"]
     assert data["analysis_help_dialog_verified"]
     assert data["raw_time_zoom_verified"]
+    assert data["time_hand_drag_verified"]
     assert data["paradigma_acknowledgement_verified"]
     assert data["studio_licence_verified"]
     assert data["local_results_saved_verified"]

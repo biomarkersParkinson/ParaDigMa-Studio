@@ -5,12 +5,13 @@ from contextlib import contextmanager
 import numpy as np
 from matplotlib import dates
 from matplotlib.artist import allow_rasterization
+from matplotlib.backend_tools import Cursors
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
-from PySide6.QtCore import QRectF
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
 
 
@@ -229,6 +230,18 @@ class ScrollableFigureCanvas(FigureCanvasQTAgg):
     defer_when_hidden = False
     _deferred_draw = False
     panning = False
+
+    def set_cursor(self, cursor):
+        if cursor == Cursors.MOVE:
+            # Preserve Matplotlib's cursor state, including its wait-cursor
+            # restoration, while displaying a hand for time-only navigation.
+            self.setCursor(
+                Qt.CursorShape.ClosedHandCursor
+                if self.toolbar._pan_info is not None
+                else Qt.CursorShape.OpenHandCursor
+            )
+        else:
+            super().set_cursor(cursor)
 
     def draw(self):
         if not self.panning or self.is_saving():

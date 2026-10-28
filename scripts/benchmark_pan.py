@@ -140,6 +140,19 @@ def _measure_result_navigation(
         frames,
     )
     _measure_time_selection(app, report, window, full, repeats, frames)
+    for view, name in enumerate(("detailed", "30-minute", "day", "profile")):
+        window.result_graph_view.setCurrentIndex(view)
+        bounds = window.plot_toolbar.time_scroll._full_limits
+        _measure_time_hand(
+            app,
+            report,
+            f"results_hand_{name}",
+            window.canvas,
+            window.plot_toolbar,
+            _zoomed_raw_limits(bounds),
+            repeats,
+            frames,
+        )
     _measure_result_selection(app, report, window, repeats)
 
 
@@ -176,6 +189,16 @@ def _measure_raw_navigation(
         repeats,
         frames,
     )
+    _measure_time_hand(
+        app,
+        report,
+        "data_hand_3_modalities",
+        window.data_canvas,
+        window.data_toolbar,
+        _zoomed_raw_limits(window.data_toolbar.time_scroll._full_limits),
+        repeats,
+        frames,
+    )
     window._result_state.provenance = {"settings": {"skip_preparation": True}}
     window.analyzed({"quantifications": {"tremor": output}})
     window.result_table.setCurrentIndex(window.result_table.model().index(30, 0))
@@ -189,6 +212,16 @@ def _measure_raw_navigation(
         "context_scroll_3_modalities",
         window.sensor_canvas,
         window.sensor_toolbar.time_scroll,
+        window.sensor_figure.axes[0].get_xlim(),
+        repeats,
+        frames,
+    )
+    _measure_time_hand(
+        app,
+        report,
+        "context_hand_3_modalities",
+        window.sensor_canvas,
+        window.sensor_toolbar,
         window.sensor_figure.axes[0].get_xlim(),
         repeats,
         frames,
@@ -314,6 +347,33 @@ def _measure_time_scroll(app, report, name, canvas, bar, limits, repeats, frames
             frame_times.append(time.perf_counter() - started)
         started = time.perf_counter()
         bar.setSliderDown(False)
+        app.processEvents()
+        release_times.append(time.perf_counter() - started)
+    _record_measurement(report, name, frame_times, release_times, len(canvas.figure.axes))
+
+
+def _measure_time_hand(app, report, name, canvas, toolbar, limits, repeats, frames):
+    frame_times, release_times = [], []
+    toolbar.stop_navigation()
+    if toolbar.mode.name != "PAN":
+        toolbar.pan()
+    for _ in range(repeats):
+        axes = canvas.figure.axes[0]
+        axes.set_xlim(*limits)
+        canvas.draw()
+        app.processEvents()
+        x, y = axes.transAxes.transform((0.5, 0.5))
+        toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
+        if toolbar._pan_info is None:
+            raise RuntimeError("Hand benchmark must start a real time drag")
+        for fraction in np.linspace(0.02, 0.2, frames):
+            end = x - axes.bbox.width * fraction
+            started = time.perf_counter()
+            toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, end, y, buttons={1}))
+            app.processEvents()
+            frame_times.append(time.perf_counter() - started)
+        started = time.perf_counter()
+        toolbar.release_pan(MouseEvent("button_release_event", canvas, end, y, button=1))
         app.processEvents()
         release_times.append(time.perf_counter() - started)
     _record_measurement(report, name, frame_times, release_times, len(canvas.figure.axes))

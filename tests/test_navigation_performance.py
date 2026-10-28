@@ -54,19 +54,28 @@ def multi_graph_window(window):
     return window
 
 
-def start_scroll(window):
+def start_scroll(window, *, hand=False):
     axes = window.figure.axes[0]
     low, high = axes.get_xlim()
     axes.set_xlim(low, low + (high - low) / 2)
     window.canvas.draw()
-    window.result_time_scroll.setSliderDown(True)
+    if hand:
+        window.plot_toolbar.pan()
+        window.plot_toolbar.press_pan(
+            MouseEvent(
+                "button_press_event", window.canvas, *axes.transAxes.transform((0.5, 0.5)), button=1
+            )
+        )
+    else:
+        window.result_time_scroll.setSliderDown(True)
     assert window.plot_toolbar.scrolling_time and window.canvas.panning
 
 
 @pytest.mark.parametrize("pixel_ratio", [1, 2])
 @pytest.mark.parametrize("scroll", [0, 450])
-def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_values(
-    multi_graph_window, monkeypatch, pixel_ratio, scroll
+@pytest.mark.parametrize("hand", [False, True], ids=["scrollbar", "hand"])
+def test_time_drag_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and_values(
+    multi_graph_window, monkeypatch, pixel_ratio, scroll, hand
 ):
     window = multi_graph_window
     figure, canvas = window.figure, window.canvas
@@ -74,7 +83,7 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
     canvas._set_device_pixel_ratio(pixel_ratio)
     figure.axes[1].set_ylim(0.5, 4.0)
     automatic = [ax.get_autoscaley_on() for ax in figure.axes]
-    start_scroll(window)
+    start_scroll(window, hand=hand)
     engine = figure.get_layout_engine()
     paths = [[p.vertices.copy() for p in ax.collections[0].get_paths()] for ax in figure.axes]
     positions = [ax.get_position().bounds for ax in figure.axes]
@@ -95,7 +104,11 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
                 original(renderer),
             )[1],
         )
-    window.result_time_scroll.setValue(window.result_time_scroll.maximum() // 5)
+    if hand:
+        x, y = figure.axes[0].transAxes.transform((0.3, 0.5))
+        window.plot_toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, x, y, buttons={1}))
+    else:
+        window.result_time_scroll.setValue(window.result_time_scroll.maximum() // 5)
     QApplication.instance().processEvents()
     assert figure not in executions
     assert 0 < len(set(drawn)) < len(figure.axes)
@@ -120,7 +133,10 @@ def test_scroll_skips_layout_and_offscreen_axes_but_preserves_visible_pixels_and
         for path, values in zip(ax.collections[0].get_paths(), expected, strict=False):
             np.testing.assert_array_equal(path.vertices, values)
     drawn.clear()
-    window.result_time_scroll.setSliderDown(False)
+    if hand:
+        window.plot_toolbar.release_pan(None)
+    else:
+        window.result_time_scroll.setSliderDown(False)
     QApplication.instance().processEvents()
     assert not canvas.panning and figure in executions
     assert 0 < len(set(drawn)) < len(figure.axes)

@@ -54,6 +54,7 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
         assert actions.count("Axis limits") == 1
         assert {"Home", "Back", "Forward", "Save"} <= set(actions)
         assert "Select time interval" in actions
+        assert "Drag time" in actions
         assert "Pan" not in actions and "Zoom" not in actions
         assert ("Select timepoint" in actions) == (toolbar is window.plot_toolbar)
         assert not {"Graph settings", "Subplots", "Customize"} & set(actions)
@@ -219,7 +220,7 @@ def test_cursor_modes_are_exclusive_and_default_to_selection(window):
     for toolbar in (window.plot_toolbar,):
         assert toolbar.select_action.isChecked() and not toolbar.mode
         assert not toolbar.select_action.icon().pixmap(24, 24).isNull()
-        assert "pan" not in toolbar._actions
+        assert not toolbar._actions["pan"].isChecked()
         toolbar._actions["zoom"].trigger()
         assert toolbar.mode and not toolbar.select_action.isChecked()
         assert toolbar._actions["zoom"].isChecked()
@@ -229,6 +230,14 @@ def test_cursor_modes_are_exclusive_and_default_to_selection(window):
         assert toolbar.select_action.isChecked()
         toolbar.zoom()
         toolbar.zoom()
+        assert not toolbar.mode and toolbar.select_action.isChecked()
+        toolbar._actions["pan"].trigger()
+        assert toolbar.mode.name == "PAN" and toolbar._actions["pan"].isChecked()
+        assert not toolbar.select_action.isChecked() and not toolbar._actions["zoom"].isChecked()
+        toolbar._actions["zoom"].trigger()
+        assert toolbar.mode.name == "ZOOM" and not toolbar._actions["pan"].isChecked()
+        toolbar.pan()
+        toolbar.select_action.trigger()
         assert not toolbar.mode and toolbar.select_action.isChecked()
 
 
@@ -244,7 +253,7 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
         (window.sensor_toolbar, window.sensor_canvas),
     ):
         assert toolbar.select_action is None and toolbar._actions["zoom"].isChecked()
-        assert "pan" not in toolbar._actions
+        assert not toolbar._actions["pan"].isChecked()
         assert "Select timepoint" not in [action.text() for action in toolbar.actions()]
         original = [
             (line.get_gid(), tuple(line.get_xdata()))
