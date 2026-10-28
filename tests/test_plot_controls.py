@@ -53,8 +53,8 @@ def test_axis_limits_are_the_only_settings_and_remain_readable_and_fitted(window
         actions = [action.text() for action in toolbar.actions() if not action.isSeparator()]
         assert actions.count("Axis limits") == 1
         assert {"Home", "Back", "Forward", "Save"} <= set(actions)
-        assert ("Select time interval" if toolbar is window.plot_toolbar else "Zoom") in actions
-        assert ("Pan" in actions) == (toolbar is not window.plot_toolbar)
+        assert "Select time interval" in actions
+        assert "Pan" not in actions and "Zoom" not in actions
         assert ("Select timepoint" in actions) == (toolbar is window.plot_toolbar)
         assert not {"Graph settings", "Subplots", "Customize"} & set(actions)
         toolbar.settings_action.setChecked(True)
@@ -243,7 +243,8 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
         (window.data_toolbar, window.data_canvas),
         (window.sensor_toolbar, window.sensor_canvas),
     ):
-        assert toolbar.select_action is None and toolbar._actions["pan"].isChecked()
+        assert toolbar.select_action is None and toolbar._actions["zoom"].isChecked()
+        assert "pan" not in toolbar._actions
         assert "Select timepoint" not in [action.text() for action in toolbar.actions()]
         original = [
             (line.get_gid(), tuple(line.get_xdata()))
@@ -255,7 +256,7 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
             assert any(gid == "selected-result-time" for gid, _ in original)
         else:
             assert not original
-        toolbar.pan()  # Even with navigation switched off, a click is not selection.
+        toolbar.zoom()  # Even with navigation switched off, a click is not selection.
         ax = canvas.figure.axes[0]
         toolbar.select_axes(
             MouseEvent("button_press_event", canvas, *ax.transAxes.transform((0.7, 0.5)), button=1)
@@ -267,9 +268,7 @@ def test_raw_graphs_only_navigate_and_do_not_select_a_new_time(window):
             if line.get_gid() is not None
         ] == original
         toolbar.zoom()
-        assert toolbar._actions["zoom"].isChecked() and not toolbar._actions["pan"].isChecked()
-        toolbar.pan()
-        assert toolbar._actions["pan"].isChecked() and not toolbar._actions["zoom"].isChecked()
+        assert toolbar._actions["zoom"].isChecked()
 
 
 def test_channel_labels_toggle_once_and_support_multiple_channels(window):
@@ -475,7 +474,7 @@ def test_clock_limit_fields_round_milliseconds_without_changing_the_view(window,
 
 
 @pytest.mark.parametrize("workspace", ["data", "sensor"])
-def test_raw_limit_fields_follow_pan_zoom_and_silent_changes(window, workspace):
+def test_raw_limit_fields_follow_time_scroll_zoom_and_silent_changes(window, workspace):
     recording(window)
     if workspace == "sensor":
         window._sensor_state.sensor_frame = window._input_state.frame
@@ -489,12 +488,9 @@ def test_raw_limit_fields_follow_pan_zoom_and_silent_changes(window, workspace):
     toolbar.settings_action.setChecked(True)
     axes = toolbar.settings.axes()
     canvas.draw()
-    x, y = axes.transAxes.transform((0.5, 0.5))
-    toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
-    toolbar.drag_pan(MouseEvent("motion_notify_event", canvas, x + 30, y + 10, buttons={1}))
+    toolbar._actions["zoom_in"].trigger()
+    toolbar.time_scroll.setValue(toolbar.time_scroll.maximum() // 2)
     assert_limit_fields_match_axes(toolbar.settings)
-    toolbar.release_pan(MouseEvent("button_release_event", canvas, x + 30, y + 10, button=1))
-    toolbar.zoom()
     start, end = axes.transAxes.transform([(0.25, 0.3), (0.75, 0.7)])
     toolbar.press_zoom(MouseEvent("button_press_event", canvas, *start, button=1))
     toolbar.release_zoom(MouseEvent("button_release_event", canvas, *end, button=1))

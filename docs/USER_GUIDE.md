@@ -121,14 +121,23 @@ sensor groups that remain plotted. New sensor groups scale automatically.
 **Home** restores the full recording view. Loading another recording or changing
 the time column or format starts a new view at its full range.
 
-**Zoom in (+)** and **Zoom out (−)** halve or double the visible time span around
-its current center, keeping vertical scales unchanged. Zoom out stops at the full
-recording view. Use the rectangle zoom tool to select a region in both axes.
+The graph controls follow Results: drag with **Select time interval** to zoom all
+linked graphs to a time window. **Zoom in (+)** and **Zoom out (−)** halve or double
+the visible time span. A horizontal scrollbar appears when zoomed in and moves
+that window through the recording; horizontal trackpad gestures or Shift+wheel
+also move time. Zoom out stops at the full recording view.
+
+Y axes automatically fit the selected channels' finite samples in the visible
+window after navigation settles. To keep a fixed scale, open **Axis limits**,
+click the relevant graph and turn off **Automatic** for Y. Manual Y limits stay
+fixed through time navigation and channel changes; turn Automatic back on to
+resume fitting. **Back / Forward** restores earlier views. Save figure exports
+the visible interval using the original samples.
 
 [![Data Graphs with original accelerometer and gyroscope channels on separate axes](images/user-guide/data-graphs.png)](images/user-guide/data-graphs.png)
 
 *The same recording's original acceleration and angular velocity, with separate
-value axes and one time axis.*
+value axes and a shared time window controlled by the horizontal scrollbar.*
 
 Zoom in to see individual samples at their original timestamps. Wide views
 preserve peaks while limiting display to 20,000 samples per channel; zooming
@@ -502,11 +511,12 @@ available space and zoom; Day shows dates and years, or Day 1, Day 2, etc. witho
 a calendar clock. Figure exports retain these labels. In profile view, Home and
 Reset limits restore the full 24-hour range.
 
-Data and sensor-context graphs use **Pan** by default. Their **Zoom in / Zoom out**
-buttons change only the time span; the rectangle zoom tool can adjust both axes.
-In sensor context, Zoom out can load samples beyond the initially inspected
-window, up to the recording boundaries. Home and Reset limits restore the
-original inspected window; Back can return to the preceding view.
+Data and sensor-context graphs use the same time controls and start in
+**Select time interval** mode. Automatic Y limits follow visible samples; manual
+Y limits stay fixed. In sensor context, zooming out or scrolling can load samples
+beyond the initially inspected window, up to the recording boundaries. Home and
+Reset limits restore the original inspected window; Back can return to the
+preceding view.
 
 ### Inspect Tables
 
@@ -536,8 +546,11 @@ The context opens as a Results tab with **Graphs** and **Tables**. Choose origin
 channels as on Data; sensor axes use the units stored with that run. Channel
 selections are retained between inspections, and changing channels preserves the
 time window and manual vertical limits for sensor groups that remain plotted.
-Pan to move beyond the initial context; more original samples load
-as needed, with gaps kept blank. **Home** returns to the original context or full
+Use the same time-interval selection, zoom buttons and horizontal scrollbar as
+on Data and Results. The scrollbar spans the source recording, so you can move
+beyond the initial context; more original samples load as needed, with gaps kept
+blank. Automatic Y limits fit the visible channels, and manual limits stay fixed.
+**Home** returns to the original context or full
 gait segment. **Close**, beside the recording summary, dismisses the context tab.
 
 ### Save results

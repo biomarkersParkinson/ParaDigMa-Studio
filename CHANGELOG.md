@@ -4,9 +4,10 @@
 
 - Remove the duplicate vertical scrollbar in compact Results graph views. Scroll
   the plots in one viewport while keeping the toolbar, time axis and footer fixed.
-- Add Zoom in and Zoom out buttons to Data and Results sensor-context graphs,
-  matching the existing Results controls. Halve or double the visible time span,
-  keep vertical scales unchanged and bound zoom-out to the recording range.
+- Give Data and Results sensor-context graphs the same time-interval selection,
+  zoom buttons and horizontal scrollbar as Results graphs. Automatically fit Y
+  limits to visible original samples while preserving manual limits, channel-change
+  zoom and the original sensor-context Home view.
 - Keep raw sensor graph zoom when channels are added or removed, including manual
   vertical limits for sensor groups that remain visible. Keep Home and view history usable.
 - Open Analyze field explanations in separate, scrollable help windows with

@@ -1,4 +1,4 @@
-"""Measure Results time navigation and raw panning with queued Qt painting."""
+"""Measure shared graph time navigation with queued Qt painting."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def benchmark(
             return
 
         _measure_result_navigation(app, report, window, full, repeats, frames)
-        _measure_raw_panning(app, report, window, output, repeats, frames)
+        _measure_raw_navigation(app, report, window, output, repeats, frames)
         window.close()
         app.processEvents()
     _write_report(report_path, report)
@@ -118,16 +118,32 @@ def _measure_result_navigation(
 ) -> None:
     """Measure the existing result-scroll, marker and selection scenarios in order."""
     wide = full[0], full[0] + (full[1] - full[0]) * 0.75
-    _measure_time_scroll(app, report, "results_wide_scroll_6x30000", window, wide, repeats, frames)
+    _measure_time_scroll(
+        app,
+        report,
+        "results_wide_scroll_6x30000",
+        window.canvas,
+        window.result_time_scroll,
+        wide,
+        repeats,
+        frames,
+    )
     zoomed = full[0] + 0.5, full[0] + 0.5 + 900 / 86400
     _measure_time_scroll(
-        app, report, "results_zoomed_scroll_6x30000", window, zoomed, repeats, frames
+        app,
+        report,
+        "results_zoomed_scroll_6x30000",
+        window.canvas,
+        window.result_time_scroll,
+        zoomed,
+        repeats,
+        frames,
     )
     _measure_time_selection(app, report, window, full, repeats, frames)
     _measure_result_selection(app, report, window, repeats)
 
 
-def _measure_raw_panning(
+def _measure_raw_navigation(
     app: QApplication,
     report: dict[str, Any],
     window: MainWindow,
@@ -135,7 +151,7 @@ def _measure_raw_panning(
     repeats: int,
     frames: int,
 ) -> None:
-    """Prepare raw Data/context views outside the unchanged per-drag timers."""
+    """Prepare raw Data/context views outside the time-scroll drag timers."""
     sensor = _synthetic_pan_sensors()
     window.loaded(("sensor.csv", sensor))
     deadline = time.monotonic() + 30
@@ -150,13 +166,13 @@ def _measure_raw_panning(
     window.data_tabs.setCurrentIndex(1)
     window.set_input_channels(channels)
     QTest.qWait(30)
-    _measure_pan(
+    _measure_time_scroll(
         app,
         report,
-        "data_3_modalities",
+        "data_scroll_3_modalities",
         window.data_canvas,
-        window.data_toolbar,
-        window.data_figure.axes[0].get_xlim(),
+        window.data_toolbar.time_scroll,
+        _zoomed_raw_limits(window.data_figure.axes[0].get_xlim()),
         repeats,
         frames,
     )
@@ -167,12 +183,12 @@ def _measure_raw_panning(
     window.navigate(2)
     window.set_sensor_channels(channels)
     QTest.qWait(30)
-    _measure_pan(
+    _measure_time_scroll(
         app,
         report,
-        "context_3_modalities",
+        "context_scroll_3_modalities",
         window.sensor_canvas,
-        window.sensor_toolbar,
+        window.sensor_toolbar.time_scroll,
         window.sensor_figure.axes[0].get_xlim(),
         repeats,
         frames,
@@ -279,35 +295,11 @@ def _prepare_first_view(window, mode, pixel_ratio, with_controls):
     return last
 
 
-def _measure_pan(app, report, name, canvas, toolbar, limits, repeats, frames):
-    frame_times, release_times = [], []
-    if not toolbar._actions["pan"].isChecked():
-        toolbar.pan()
-    for _ in range(repeats):
-        axes = canvas.figure.axes[0]
-        axes.set_xlim(*limits)
-        canvas.draw()
-        app.processEvents()
-        x, y = axes.transAxes.transform((0.5, 0.5))
-        toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
-        if toolbar._pan_info is None:
-            raise RuntimeError("Pan drag did not start")
-        for step in range(1, frames + 1):
-            started = time.perf_counter()
-            toolbar.drag_pan(
-                MouseEvent("motion_notify_event", canvas, x + step * 3, y, buttons={1})
-            )
-            app.processEvents()
-            frame_times.append(time.perf_counter() - started)
-        started = time.perf_counter()
-        toolbar.release_pan(MouseEvent("button_release_event", canvas, x + frames * 3, y, button=1))
-        app.processEvents()
-        release_times.append(time.perf_counter() - started)
-    _record_measurement(report, name, frame_times, release_times, len(canvas.figure.axes))
+def _zoomed_raw_limits(full):
+    return full[0], full[0] + (full[1] - full[0]) * 0.75
 
 
-def _measure_time_scroll(app, report, name, window, limits, repeats, frames):
-    canvas, bar = window.canvas, window.result_time_scroll
+def _measure_time_scroll(app, report, name, canvas, bar, limits, repeats, frames):
     frame_times, release_times = [], []
     for _ in range(repeats):
         canvas.figure.axes[0].set_xlim(*limits)

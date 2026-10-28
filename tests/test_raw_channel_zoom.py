@@ -157,4 +157,5 @@ def test_time_zoom_keeps_automatic_value_scaling_for_new_channels(window):
     window.set_input_channels(["gyroscope_x", "gyroscope_y"])
     axes = window.data_figure.axes[0]
     assert axes.get_xlim() == (2, 4)
-    assert axes.get_autoscaley_on() and axes.get_ylim()[1] > 1000
+    assert axes.get_autoscaley_on()
+    assert axes.get_ylim()[0] < -999 and axes.get_ylim()[1] < 200

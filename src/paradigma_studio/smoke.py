@@ -194,13 +194,19 @@ def _verify_input_graph_controls(window):
     if actions.count("Axis limits") != 1 or "Subplots" in actions or "Customize" in actions:
         raise RuntimeError("Graph settings are duplicated")
     axes = window.data_figure.axes[0]
-    full, vertical = axes.get_xlim(), axes.get_ylim()
+    full = axes.get_xlim()
     toolbar._actions["zoom_in"].trigger()
     if (
         not np.isclose(np.diff(axes.get_xlim())[0], np.diff(full)[0] / 2)
-        or axes.get_ylim() != vertical
+        or not axes.get_autoscaley_on()
+        or toolbar.time_scroll.isHidden()
     ):
-        raise RuntimeError("Raw Zoom in did not change only the time span")
+        raise RuntimeError("Raw time zoom did not retain automatic Y scaling and time scrolling")
+    before = axes.get_xlim()
+    toolbar.time_scroll.setValue(toolbar.time_scroll.maximum())
+    after = axes.get_xlim()
+    if after[0] <= before[0] or not np.isclose(np.diff(after)[0], np.diff(before)[0]):
+        raise RuntimeError("Raw time scrollbar did not move the visible interval")
     toolbar._actions["zoom_out"].trigger()
     if not np.allclose(axes.get_xlim(), full):
         raise RuntimeError("Raw Zoom out did not restore the full recording")
@@ -216,7 +222,8 @@ def _verify_input_graph_controls(window):
         not window.plot_toolbar.select_action.isChecked()
         or window.plot_toolbar.select_action.icon().pixmap(24, 24).isNull()
         or toolbar.select_action is not None
-        or not toolbar._actions["pan"].isChecked()
+        or not toolbar._actions["zoom"].isChecked()
+        or "pan" in toolbar._actions
     ):
         raise RuntimeError("Default timepoint cursor or its packaged icon is missing")
     toolbar.settings.reset_button.click()

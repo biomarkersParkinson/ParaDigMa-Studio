@@ -307,8 +307,8 @@ class WorkspaceLayout:
     def _build_channel_canvas(self, graph, prefix):
         from matplotlib.figure import Figure
 
-        from ..plot_controls import add_graph_controls
         from ..plotting import ScrollableFigureCanvas
+        from ..raw_navigation import RawToolbar
 
         graph_layout = QVBoxLayout(graph)
         figure = Figure(layout="constrained")
@@ -317,8 +317,11 @@ class WorkspaceLayout:
         # Use the available height instead of imposing the canvas's preferred
         # 480-pixel height on the enclosing page or clipping its time axis.
         canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
-        toolbar = add_graph_controls(graph_layout, canvas, self.parent)
+        toolbar = RawToolbar(canvas, self.parent)
+        graph_layout.addWidget(toolbar)
+        graph_layout.addWidget(toolbar.settings)
         graph_layout.addWidget(canvas, 1)
+        graph_layout.addWidget(toolbar.time_scroll)
         if prefix == "sensor":
             toolbar.home_callback = self.callbacks.reset_sensor_context
         setattr(self, f"{prefix}_figure", figure)

@@ -9,11 +9,12 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from PySide6.QtWidgets import QLabel, QLayout, QScrollArea, QWidget
 
-    from ..plot_controls import GraphToolbar
     from ..plotting import ScrollableFigureCanvas, SelectionOverlay
+    from ..raw_navigation import RawToolbar
     from ..result_canvas import ResultFigureCanvas
-    from ..result_navigation import ResultsToolbar, ResultTimeScroll
+    from ..result_navigation import ResultsToolbar
     from ..time_axis import PinnedTimeAxis
+    from ..time_navigation import TimeScroll
     from ..widgets import FigureActionBar
 
 
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
 class ChannelCanvasView:
     figure: Figure
     canvas: ScrollableFigureCanvas
-    toolbar: GraphToolbar
+    toolbar: RawToolbar
 
 
 @dataclass(frozen=True)
@@ -35,5 +36,5 @@ class ResultCanvasView:
     plot_toolbar: ResultsToolbar
     recording_time_label: QLabel
     result_overlay: SelectionOverlay
-    result_time_scroll: ResultTimeScroll
+    result_time_scroll: TimeScroll
     time_axis: PinnedTimeAxis

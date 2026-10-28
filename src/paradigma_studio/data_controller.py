@@ -46,8 +46,8 @@ if TYPE_CHECKING:
         RecordingsLoadPayload,
         StartJobCallback,
     )
-    from .plot_controls import GraphToolbar
     from .plotting import ScrollableFigureCanvas
+    from .raw_navigation import RawToolbar
 
 
 class RecordingsLoader(Protocol):
@@ -93,7 +93,7 @@ class DataView:
         return self.data_graphics().figure
 
     @property
-    def data_toolbar(self) -> GraphToolbar:
+    def data_toolbar(self) -> RawToolbar:
         return self.data_graphics().toolbar
 
 

@@ -229,7 +229,8 @@ functions without annotated signatures (`check_untyped_defs = true`). It targets
 
 `inspection` is also checked at the lenient service level; its batch-inspection
 interface is fully annotated.
-The deferred `raw_signals` renderer is checked at the same lenient level.
+The deferred `raw_signals` renderer and shared `time_navigation`/`raw_navigation`
+controls are checked at the same lenient level.
 
 `axis_mapping`, `column_mapping`, `input_metadata`, `analysis_limits`,
 `preparation_contracts` and `paradigma_api` have
@@ -337,7 +338,7 @@ Data and Results sensor graphs share `RecordingDateLocator` and
 `RecordingTimeFormatter`; the existing graph toolbar uses their date locator to
 read and edit calendar limits. Graph exports use the same coordinates and labels.
 
-Raw-channel redraws use `GraphToolbar.redraw_channels` to preserve time limits
+Raw-channel redraws use `RawToolbar.redraw_channels` to preserve time limits
 and manually set value limits across channel changes. Axes have stable sensor-group
 labels so a change from one to multiple axes of the same sensor keeps its scale.
 The new channels' full view is recorded before restoring the zoom, keeping Home
@@ -345,14 +346,24 @@ and Back/Forward usable. Recordings and time-column/format changes reset Data's
 view; a new context or display clock resets sensor-context navigation. Source
 identity tracking uses weak references so it cannot retain discarded recordings.
 
-`GraphToolbar.add_time_zoom_actions` supplies the same Zoom in/out icons to raw
-graphs and all four Results views. Raw buttons change linked X limits using the
-standard Matplotlib history, retaining Y bounds and autoscale flags. Their full
-range comes from Data's complete plot or the sensor navigator's source limits;
-sensor limit callbacks load the new original samples. Button state follows limit
-changes and redraws, with zoom-out bounded to that range and zoom-in bounded by
-floating-point time precision. Results retain their existing `ResultTimeScroll`
-zoom and aggregation behavior. The smoke probe also exercises the raw buttons.
+`TimeToolbar` and `TimeScroll` share interval-only selection, Zoom in/out,
+scrollbar/trackpad navigation, source bounds and Matplotlib history across raw
+graphs and all four Results views. Results-specific canvas/aggregation hooks stay
+in `ResultsToolbar`. `RawToolbar` starts in interval-selection mode and binds its
+scrollbar to Data's complete plot or the sensor navigator's full source limits,
+not just the currently loaded context. Sensor limit callbacks load originals
+before raw Y scaling runs. Automatic X restores the full source range; sensor
+Home and Reset limits retain their original inspection-context behavior.
+
+Automatic raw Y limits use exact finite extrema from selected visible channels,
+reusing `RawSignalLine`'s bounded peak-preserving summaries. Neighbours retained
+for drawing clipped lines cannot influence Y limits from outside the window.
+Binary indicators keep their fixed scale; empty windows retain finite bounds.
+Y fitting settles after scrollbar/trackpad gestures; manual Y limits remain
+fixed. Channel redraws reconnect navigation to the new axes while retaining the
+time view, group-specific manual limits and a usable Home/history. Zoom-in is
+bounded by floating-point precision, and zoom-out by the full source range.
+The smoke probe exercises raw zoom, automatic Y and horizontal scrolling.
 
 Results Graphs uses one `QScrollArea` for the canvas. The workspace itself does
 not scroll: the toolbar, axis-limit controls, time ruler and footer stay outside

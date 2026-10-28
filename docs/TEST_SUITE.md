@@ -21,7 +21,8 @@ trigger and expected behavior still apply.
 | Pulse estimate availability over the full recording timespan, compact overview, readable plot labels and saved-result reopening | `test_pulse_availability.py` |
 | Raw source-rate zoom detail, isolated peaks, gaps, original exports, bounded caches, renderer failures and Home | `test_raw_signal_detail.py` |
 | Raw-channel edits, stable time/manual value zoom, Clear/reselection, automatic new-channel scales, Home/history and view resets for new recordings or clocks | `test_raw_channel_zoom.py`; cross-page sensor checks in `test_raw_modalities.py` and `test_sensor_context_workspace.py` |
-| Raw time zoom buttons, unchanged vertical scales, date/elapsed coordinates, source boundaries, context sample loading, precision limits, disabled empty views and Home/history | `test_raw_zoom_buttons.py`; packaged probe in `test_smoke.py` |
+| Raw time zoom buttons, preserved manual Y scales, date/elapsed coordinates, source boundaries, context sample loading, precision limits, disabled empty views and Home/history | `test_raw_zoom_buttons.py`; packaged probe in `test_smoke.py` |
+| Shared raw interval selection, visible-sample Y limits, scrollbar history, horizontal/vertical gestures, compact controls, full-source Automatic X and empty contexts | `test_raw_navigation.py`; exact long-recording extrema and finite bounds in `test_raw_signal_detail.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
 | Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |

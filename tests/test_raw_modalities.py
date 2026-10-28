@@ -119,11 +119,11 @@ def test_modalities_share_time_and_have_independent_ranges_colors_and_original_v
         else:
             lower.setText(str(limits[0]))
             upper.setText(str(limits[1]))
-    untouched_y = [figure.axes[i].get_ylim() for i in (0, 2)]
+    figure.axes[2].set_ylim(900, 1100)
     toolbar.settings.apply()
     assert toolbar.settings.error.isHidden()
     assert figure.axes[1].get_ylim() == (-500.0, 500.0)
-    assert [figure.axes[i].get_ylim() for i in (0, 2)] == untouched_y
+    assert figure.axes[2].get_ylim() == (900, 1100) and figure.axes[0].get_autoscaley_on()
     assert all(ax.get_xlim() == figure.axes[0].get_xlim() for ax in figure.axes)
     zoomed = figure.axes[0].get_xlim()
     choose(["gyroscope_z", "accelerometer_y"])

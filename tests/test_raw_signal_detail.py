@@ -13,6 +13,43 @@ from matplotlib.lines import Line2D
 
 from paradigma_studio.channels import plot_channel_signals
 from paradigma_studio.inspection import input_plot_time
+from paradigma_studio.raw_signals import RawSignalLine, autoscale_raw_signals
+
+
+@pytest.mark.parametrize("ordered", [False, True])
+def test_visible_extrema_use_exact_original_peaks_without_outside_neighbours(ordered):
+    xs = np.arange(200_003, dtype=float)
+    values = np.zeros(len(xs))
+    values[50_001], values[150_002] = -81.0, 93.0
+    values[50_000], values[150_003] = -1e6, 1e6
+    values[70_000] = np.nan
+    if not ordered:
+        order = np.random.default_rng(19).permutation(len(xs))
+        xs, values = xs[order], values[order]
+        xs[0] = np.nan
+    line = RawSignalLine(xs, values)
+    expected = values[(xs >= 50_001) & (xs <= 150_002) & np.isfinite(values)]
+    assert line.visible_extrema((50_001, 150_002)) == (expected.min(), expected.max())
+    assert line.visible_extrema((-2, -1)) is None
+    np.testing.assert_array_equal(line.get_xdata(), xs)
+    np.testing.assert_array_equal(line.get_ydata(), values)
+
+
+@pytest.mark.parametrize("values", [[3.0, 3.0, 3.0], [0.0, 0.0, 0.0], [np.nan, np.inf, -np.inf]])
+def test_visible_y_scaling_keeps_constant_and_empty_ranges_finite(values):
+    figure = Figure()
+    ax = figure.subplots()
+    ax.add_line(RawSignalLine([0.0, 1.0, 2.0], values))
+    initial = ax.get_ylim()
+    autoscale_raw_signals(ax, (0.0, 2.0))
+    low, high = ax.get_ylim()
+    assert np.isfinite([low, high]).all() and low < high
+    if np.isfinite(values).any():
+        assert low < values[0] < high
+    else:
+        assert ax.get_ylim() == initial
+    autoscale_raw_signals(ax, (4.0, 5.0))
+    assert ax.get_ylim() == (low, high)
 
 
 def captured_signal(monkeypatch):

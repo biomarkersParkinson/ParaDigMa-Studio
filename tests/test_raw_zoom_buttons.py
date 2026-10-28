@@ -43,7 +43,7 @@ def raw_graph(window, context, calendar):
 
 @pytest.mark.parametrize("context", [False, True], ids=["data", "sensor-context"])
 @pytest.mark.parametrize("calendar", [False, True], ids=["seconds", "dates"])
-def test_zoom_buttons_change_only_time_and_keep_channel_edits_and_history(
+def test_zoom_buttons_keep_manual_y_and_channel_edits_with_working_history(
     window, context, calendar
 ):
     frame, figure, toolbar, choose, _domain = raw_graph(window, context, calendar)
@@ -62,7 +62,8 @@ def test_zoom_buttons_change_only_time_and_keep_channel_edits_and_history(
     assert zoomed[1] - zoomed[0] == pytest.approx((initial[1] - initial[0]) / 2, rel=1e-5)
     assert sum(zoomed) / 2 == pytest.approx(sum(initial) / 2, rel=0, abs=1e-10)
     assert all(ax.get_xlim() == zoomed for ax in figure.axes)
-    assert [(ax.get_ylim(), ax.get_autoscaley_on()) for ax in figure.axes] == vertical
+    assert (figure.axes[0].get_ylim(), figure.axes[0].get_autoscaley_on()) == vertical[0]
+    assert figure.axes[1].get_autoscaley_on()
     assert not toolbar.settings.bounds["x"][0].isChecked()
     toolbar._actions["zoom_out"].trigger()
     np.testing.assert_allclose(figure.axes[0].get_xlim(), initial, rtol=0, atol=1e-10)

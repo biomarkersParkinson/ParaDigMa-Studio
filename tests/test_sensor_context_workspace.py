@@ -392,9 +392,7 @@ def test_gait_context_begins_at_full_segment_and_can_move_beyond_its_bounds(wind
 
 
 @pytest.mark.parametrize("calendar", [False, True])
-def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(window, calendar):
-    from matplotlib.backend_bases import MouseEvent
-
+def test_time_scroll_loads_beyond_initial_context_and_navigation_restores_view(window, calendar):
     frame = open_long_context(window)
     if calendar:
         window._result_state.display_clock = {
@@ -406,17 +404,13 @@ def test_real_pan_loads_beyond_initial_context_and_navigation_restores_view(wind
     canvas.draw()
     axes = window.sensor_figure.axes[0]
     original = axes.get_xlim()
-    x, y = axes.transAxes.transform((0.5, 0.5))
-    toolbar.press_pan(MouseEvent("button_press_event", canvas, x, y, button=1))
-    toolbar.drag_pan(
-        MouseEvent("motion_notify_event", canvas, x - axes.bbox.width * 0.8, y, buttons={1})
-    )
+    bar = toolbar.time_scroll
+    bar.setValue(bar.maximum() * 3 // 4)
     QApplication.instance().processEvents()
     assert window._sensor_state.sensor_frame.time.min() > 30
     assert window._sensor_state.sensor_frame.time.max() > 50
     assert window.sensor_figure.axes[0] is axes
     assert window._sensor_state._sensor_context.selected_time == 30
-    toolbar.release_pan(MouseEvent("button_release_event", canvas, x, y, button=1))
     for line in signal_lines(axes):
         np.testing.assert_array_equal(
             line.get_ydata(), window._sensor_state.sensor_frame[line.get_label()]

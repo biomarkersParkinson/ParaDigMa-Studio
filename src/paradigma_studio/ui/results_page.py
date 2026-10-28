@@ -280,8 +280,8 @@ class ResultsPage:
         graph_body.addWidget(graphs, 1)
 
     def _build_pinned_graph_workspace(self, graph_body):
-        from ..result_navigation import ResultTimeScroll
         from ..time_axis import PinnedTimeAxis
+        from ..time_navigation import TimeScroll
 
         self.time_axis = PinnedTimeAxis(self.canvas, lambda: self.plot_toolbar.settings.axes())
         # The selector spans the plot viewport and its pinned time ruler.
@@ -300,7 +300,9 @@ class ResultsPage:
         self.graph_view_layout.addWidget(self.plot_toolbar.settings)
         plot_view_layout.addWidget(body, 1)
         plot_view_layout.addWidget(self.time_axis)
-        self.result_time_scroll = ResultTimeScroll(self.plot_toolbar)
+        self.result_time_scroll = TimeScroll(
+            self.plot_toolbar, accessible_name="Results time scrollbar"
+        )
         self.result_time_scroll.watch(self.canvas, self.graph_scroll.viewport(), self.time_axis)
         plot_view_layout.addWidget(self.result_time_scroll)
         self.recording_time_label = label("", "muted")

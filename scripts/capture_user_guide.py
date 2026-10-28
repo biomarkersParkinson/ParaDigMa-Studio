@@ -63,7 +63,9 @@ def capture(output):
 
             window.data_tabs.setCurrentIndex(1)
             window.set_input_channels(["accelerometer_x", "gyroscope_x"])
+            window.data_toolbar._actions["zoom_in"].trigger()
             snapshot(window, app, output / "data-graphs.png")
+            window.data_toolbar.home()
 
             window.navigate(1)
             window.set_modules(["gait"])

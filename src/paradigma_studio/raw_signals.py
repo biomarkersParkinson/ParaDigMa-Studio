@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from contextlib import nullcontext
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from matplotlib import rc_context
@@ -12,6 +12,9 @@ from matplotlib.artist import allow_rasterization
 from matplotlib.lines import Line2D
 
 from .plotting import time_coordinates
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 DISPLAY_POINTS = 20_000
 SUMMARY_BYTES = 4 * 1024**2
@@ -62,25 +65,29 @@ class RawSignalTime:
                 positions[[observed.argmin(), observed.argmax()]] if len(positions) else positions
             )
 
-    def positions(self, limits: tuple[float, float] | None) -> slice | np.ndarray:
+    def positions(
+        self, limits: tuple[float, float] | None, *, include_neighbors: bool = True
+    ) -> slice | np.ndarray:
         if limits is None:
             return slice(0, len(self.coordinates))
         low, high = sorted(limits)
         if self.ordered:
             # Retain neighbours so clipped line segments reach the viewport edge.
-            begin = max(0, int(np.searchsorted(self.coordinates, low, side="left")) - 1)
+            padding = int(include_neighbors)
+            begin = max(0, int(np.searchsorted(self.coordinates, low, side="left")) - padding)
             end = min(
                 len(self.coordinates),
-                int(np.searchsorted(self.coordinates, high, side="right")) + 1,
+                int(np.searchsorted(self.coordinates, high, side="right")) + padding,
             )
             return slice(begin, end)
         xs = self.coordinates
         visible = (xs >= low) & (xs <= high)
-        crossing = (np.minimum(xs[:-1], xs[1:]) <= high) & (np.maximum(xs[:-1], xs[1:]) >= low)
-        visible[:-1] |= crossing
-        visible[1:] |= crossing
-        # Invalid time runs must still break paths between selected fragments.
-        visible[self.gaps] = True
+        if include_neighbors:
+            crossing = (np.minimum(xs[:-1], xs[1:]) <= high) & (np.maximum(xs[:-1], xs[1:]) >= low)
+            visible[:-1] |= crossing
+            visible[1:] |= crossing
+            # Invalid time runs must still break paths between selected fragments.
+            visible[self.gaps] = True
         return np.flatnonzero(visible)
 
 
@@ -171,9 +178,14 @@ class RawSignalLine(Line2D):
         ).ravel()
 
     def sample_positions(
-        self, limits: tuple[float, float] | None, *, full: bool = False, limit: int | None = None
+        self,
+        limits: tuple[float, float] | None,
+        *,
+        full: bool = False,
+        limit: int | None = None,
+        include_neighbors: bool = True,
     ) -> slice | np.ndarray:
-        visible = self.time_index.positions(limits)
+        visible = self.time_index.positions(limits, include_neighbors=include_neighbors)
         count = visible.stop - visible.start if isinstance(visible, slice) else len(visible)
         if full or count <= DISPLAY_POINTS:
             return visible
@@ -198,6 +210,14 @@ class RawSignalLine(Line2D):
             ]
         gaps = self._gaps[np.searchsorted(self._gaps, begin) : np.searchsorted(self._gaps, end)]
         return np.unique(np.r_[selected, gaps])
+
+    def visible_extrema(self, limits: tuple[float, float]) -> tuple[float, float] | None:
+        """Use original extrema; drawing neighbours outside the window cannot set Y."""
+        positions = self.sample_positions(limits, include_neighbors=False)
+        xs, values = self.time_index.coordinates[positions], self._values[positions]
+        low, high = sorted(limits)
+        values = values[np.isfinite(values) & (xs >= low) & (xs <= high)]
+        return (float(values.min()), float(values.max())) if len(values) else None
 
     @allow_rasterization
     def draw(self, renderer: Any) -> None:
@@ -235,3 +255,24 @@ def update_raw_signal(line: Line2D, time_index: RawSignalTime, values: Any) -> N
         line.set_source(time_index, values)
     else:
         line.set_data(time_index.original, values)
+
+
+def autoscale_raw_signals(ax: Axes, limits: tuple[float, float]) -> None:
+    """Fit an automatic sensor axis to its selected finite samples in the window."""
+    if not ax.get_autoscaley_on() or getattr(ax, "_paradigma_binary", False):
+        return
+    bounds = []
+    for line in ax.lines:
+        if isinstance(line, RawSignalLine) and line.get_visible():
+            bound = line.visible_extrema(limits)
+            if bound is not None:
+                bounds.append(bound)
+    if not bounds:
+        return
+    low, high = ax.yaxis.get_major_locator().nonsingular(
+        min(bound[0] for bound in bounds), max(bound[1] for bound in bounds)
+    )
+    margin = (high - low) * ax.get_ymargin()
+    target = low - margin, high + margin
+    if ax.get_ylim() != target:
+        ax.set_ylim(*target, auto=True)

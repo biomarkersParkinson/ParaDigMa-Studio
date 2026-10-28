@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from PySide6.QtWidgets import QComboBox, QLabel, QListWidget, QPushButton, QTabWidget
 
-    from .plot_controls import GraphToolbar
+    from .raw_navigation import RawToolbar
     from .widgets import ReadableTable
 
 
@@ -41,7 +41,7 @@ class SensorView:
     sensor_table: ReadableTable
     sensor_channels: QListWidget
     sensor_figure: Figure
-    sensor_toolbar: GraphToolbar
+    sensor_toolbar: RawToolbar
     sensor_canvas: FigureCanvasQTAgg
 
 
@@ -326,7 +326,14 @@ class SensorController:
                 if view_limits is not None or self.state.sensor_frame.empty:
                     for ax in self.view.sensor_figure.axes:
                         ax.set_xlim(*(view_limits or navigator.initial_limits), emit=False)
-                navigator.limits = self.view.sensor_figure.axes[0].get_xlim()
+                navigator.limits = navigator.bounded_limits(
+                    self.view.sensor_figure.axes[0].get_xlim()
+                )
+                automatic_x = self.view.sensor_figure.axes[0].get_autoscalex_on() and (
+                    navigator.limits == navigator.source_limits
+                )
+                for ax in self.view.sensor_figure.axes:
+                    ax.set_xlim(*navigator.limits, emit=False, auto=automatic_x)
                 if navigator.home_limits is None:
                     navigator.home_limits = navigator.limits
                 for ax in self.view.sensor_figure.axes:

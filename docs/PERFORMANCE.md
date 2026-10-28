@@ -70,12 +70,14 @@
   back to a fresh viewport draw after changes or when no background is available.
   Exports render every graph. Interval selection paints directly over the cached
   Qt image without redrawing graph data,
-  including when the figure exceeds the timepoint overlay's memory budget. Raw
-  graphs retain panning. Dense full-recording plots still cost more than zoomed views.
+  including when the figure exceeds the timepoint overlay's memory budget.
+  Raw and Results graphs share time-interval selection and horizontal scrolling;
+  Results keeps its renderer-specific optimizations. Dense full-recording plots
+  still cost more than zoomed views.
 - Sensor context indexes source timestamps and loads the visible window using
   the source-rate rendering above, while preserving the initial
   context, selected time and navigation history. Sensor tables build and size
-  columns only when Tables is selected; panning in Graphs skips that work.
+  columns only when Tables is selected; time scrolling in Graphs skips that work.
   Switching to Tables shows the latest window immediately and reuses its model
   on subsequent visits until the samples change. Original tables and exports
   retain all samples; Results retain every output value.
@@ -482,6 +484,9 @@ use `--selection-only`; `--rows 150000 --graphs 12` changes the synthetic load,
 the limits panel and a selected timepoint. Run identical settings before and
 after an optimization. First-selection timings are reported separately from
 repeated clicks; hardware timings remain diagnostic, not strict CI limits.
+Raw cases use a zoomed interval and the shared horizontal scrollbar, reported as
+`data_scroll_3_modalities` and `context_scroll_3_modalities`. Historical raw-pan
+measurements describe a different interaction.
 `--results path/to/saved-run.json --selection-only` measures actual exported or
 saved results, including gait metrics without individual timestamps. Reports
 also include the bounded cache's retained-geometry accounting after each click.
@@ -499,7 +504,7 @@ run; it changes timings and does not measure all native Qt/renderer memory.
 | --- | --- |
 | `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
 | `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
-| `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw toolbar drags and queued painting |
+| `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw time-scrollbar drags and queued painting |
 | `creation-performance.json` | Fresh selections and unseen metric clicks at double display scale, first-view/metric latency, layout/paint counts and retained caches |
 | `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
 

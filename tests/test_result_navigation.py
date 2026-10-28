@@ -453,29 +453,3 @@ def test_interval_selection_does_not_start_outside_the_shaded_plot_area(window, 
     toolbar.zoom()
     toolbar.press_zoom(MouseEvent("button_press_event", canvas, *point, button=1))
     assert toolbar._zoom_info is None and canvas.zoom_rectangle is None
-
-
-@pytest.mark.parametrize("sensor_context", [False, True], ids=["data", "sensor-context"])
-def test_raw_graph_zoom_keeps_both_axes_and_pan_control(window, sensor_context):
-    frame = pd.DataFrame({"time": np.arange(20.0), "gyroscope_x": np.arange(20.0) ** 2})
-    window.loaded(("sensor.csv", frame))
-    if sensor_context:
-        window._sensor_state.sensor_frame = window._input_state.frame
-        window._sensor_state.sensor_times = window._input_state.frame.time.to_numpy()
-        window.populate_sensor_channels()
-        window.plot_sensor()
-        toolbar, canvas = window.sensor_toolbar, window.sensor_canvas
-    else:
-        window.set_input_channels(["gyroscope_x"])
-        toolbar, canvas = window.data_toolbar, window.data_canvas
-    canvas.draw()
-    axes = canvas.figure.axes[0]
-    initial_x, initial_y = axes.get_xlim(), axes.get_ylim()
-    assert toolbar._actions["pan"].isChecked()
-    first, last = axes.transAxes.transform([(0.2, 0.2), (0.8, 0.8)])
-    toolbar.zoom()
-    toolbar.press_zoom(MouseEvent("button_press_event", canvas, *first, button=1))
-    toolbar.release_zoom(MouseEvent("button_release_event", canvas, *last, button=1))
-    assert axes.get_xlim() != initial_x and axes.get_ylim() != initial_y
-    toolbar.pan()
-    assert toolbar._actions["pan"].isChecked() and not toolbar._actions["zoom"].isChecked()
