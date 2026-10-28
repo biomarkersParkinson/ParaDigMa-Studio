@@ -43,7 +43,13 @@ def test_results_have_one_plot_scrollbar_at_compact_sizes_with_pinned_controls(
             window.resize(*size)
             for settings in (False, True):
                 window.plot_toolbar.settings_action.setChecked(settings)
-                QTest.qWait(30)
+                # Native footer hints can finish updating with the deferred
+                # source paint. Complete that paint and its layout delivery
+                # before recording geometry that scrolling must preserve.
+                app.processEvents()
+                window.canvas.draw()
+                app.processEvents()
+                assert window.recording_time_label.text() == window.figure.axes[0].get_xlabel()
                 assert window.size().toTuple() == size
                 assert window.graph_view.findChildren(QScrollArea) == [window.graph_scroll]
                 assert window._result_state.results_scroll is window.graph_scroll

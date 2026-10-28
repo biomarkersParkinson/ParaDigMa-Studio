@@ -87,6 +87,10 @@ or offscreen axes; dense single-graph cases start from an empty window. Setup
 processes queued Qt paints and forces a draw only if the figure is still stale.
 Draws and event delivery that form part of an assertion remain explicit. Keep the
 elapsed/calendar, graph-view, scroll-position and device-pixel-ratio matrices.
+Compact pinned-control checks complete the source paint and deliver its Qt layout
+updates before capturing geometry. A fixed short delay can leave native footer
+size hints pending and make the first scroll appear to move the pinned ruler.
+Keep the exact geometry, full visibility and single-scrollbar assertions.
 The first-date transition test also covers a hidden first date and a partial-day
 zoom, including the next date's position, label bounds and non-overlap.
 
