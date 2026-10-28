@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 import re
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Unpack
 
 import numpy as np
 
+from .analysis_progress import STAGES, AnalysisProgress, PipelineProgressHandler, milestone
 from .availability import prepared_availability
 from .axis_mapping import (
     SENSORS,
@@ -124,6 +126,7 @@ def analyze(
     pipelines: Pipeline | Sequence[Pipeline],
     column_mapping: dict[str, str] | None = None,
     logger: logging.Logger | None = None,
+    progress: AnalysisProgress | None = None,
     drop_missing_samples: bool = False,
     **settings: Unpack[AnalysisOptions],
 ) -> AnalysisResults:
@@ -135,12 +138,20 @@ def analyze(
         raise ValueError("Unknown pipeline. Choose gait, tremor or pulse_rate.")
     if "pulse_rate" in pipelines and len(pipelines) > 1:
         return _analyze_pipeline_groups(
-            frame, pipelines, column_mapping, logger, drop_missing_samples, settings
+            frame, pipelines, column_mapping, logger, drop_missing_samples, settings, progress
         )
     inputs, exclusion, analyzed_samples, recordings = _prepare_analysis_inputs(
-        frame, pipelines, column_mapping, logger, drop_missing_samples, settings
+        frame,
+        pipelines,
+        column_mapping,
+        logger,
+        drop_missing_samples,
+        settings,
+        progress.span(0, 100) if progress else None,
     )
     coverage = prepared_availability(inputs, pipelines)
+    if progress:
+        progress.report(120)
 
     def run(output_dir):
         return _run_prepared_analysis(
@@ -153,6 +164,7 @@ def analyze(
             exclusion,
             analyzed_samples,
             coverage,
+            progress.span(120, 1000) if progress else None,
         )
 
     if "output_dir" in settings:
@@ -164,7 +176,7 @@ def analyze(
 
 
 def _analyze_pipeline_groups(
-    frame, pipelines, column_mapping, logger, drop_missing_samples, settings
+    frame, pipelines, column_mapping, logger, drop_missing_samples, settings, progress=None
 ):
     groups = [[pipeline for pipeline in pipelines if pipeline != "pulse_rate"], ["pulse_rate"]]
     combined: AnalysisResults = {
@@ -175,7 +187,16 @@ def _analyze_pipeline_groups(
         "errors": [],
     }
     preparation = {}
+    total = sum(len(STAGES[name]) for name in pipelines)
+    completed = 0
     for group in groups:
+        weight = sum(len(STAGES[name]) for name in group)
+        group_progress = (
+            progress.span(1000 * completed / total, 1000 * (completed + weight) / total)
+            if progress
+            else None
+        )
+        completed += weight
         (logger or logging.getLogger("paradigma")).info(
             "Running selected modules: %s", ", ".join(group)
         )
@@ -185,6 +206,7 @@ def _analyze_pipeline_groups(
                 pipelines=group,
                 column_mapping=column_mapping,
                 logger=logger,
+                progress=group_progress,
                 drop_missing_samples=drop_missing_samples,
                 **settings,
             )
@@ -202,6 +224,8 @@ def _analyze_pipeline_groups(
             (logger or logging.getLogger("paradigma")).exception(
                 "Modules %s failed: %s", ", ".join(group), exc
             )
+            if group_progress:
+                group_progress.report(1000)
             continue
         for category in ("quantifications", "classifications", "aggregations"):
             combined[category].update(output.get(category, {}))
@@ -234,6 +258,7 @@ def _prepare_analysis_inputs(
     logger: logging.Logger | None,
     drop_missing_samples: bool,
     settings: PreparationSettings,
+    progress: AnalysisProgress | None = None,
 ) -> tuple[SensorInput, dict[str, Any], int, dict[str, Any] | None]:
     """Prepare inputs and retain source/section identities for combined outputs."""
 
@@ -245,6 +270,8 @@ def _prepare_analysis_inputs(
         inputs = {}
         sections: dict[str, str] = {}
         preparation: dict[str, dict[str, Any]] = {}
+        total = max(1, sum(len(recording) for recording in frame.values()))
+        completed = 0
         for key, recording in frame.items():
             (logger or logging.getLogger("paradigma")).info(
                 "Preparing recording %s (%s samples)", key, len(recording)
@@ -274,6 +301,9 @@ def _prepare_analysis_inputs(
                 "analyzed_samples": count,
                 "continuous_sections": len(pieces),
             }
+            completed += len(recording)
+            if progress:
+                progress.report(1000 * completed / total)
         recordings = {"recordings": list(frame), "sections": sections}
         exclusion = {
             "by_recording": preparation,
@@ -288,6 +318,8 @@ def _prepare_analysis_inputs(
             frame, pipelines, column_mapping, logger, drop_missing_samples, settings
         )
         exclusion = exclusion or {"input_samples": len(frame), "excluded_samples": 0}
+        if progress:
+            progress.report(1000)
     return inputs, exclusion, analyzed_samples, recordings
 
 
@@ -306,6 +338,53 @@ def validate_recordings(frame: dict[str, pd.DataFrame]) -> None:
         )
 
 
+@contextmanager
+def _analysis_logging(
+    inputs: SensorInput,
+    pipelines: Sequence[Pipeline],
+    logger: logging.Logger | None,
+    progress: AnalysisProgress | None,
+) -> Iterator[tuple[logging.Logger, _PipelineFailures]]:
+    """Own failure/progress observers and release temporary upstream log files."""
+    package_logger = logging.getLogger("paradigma")
+    active_logger = (
+        logger if logger is not None else logging.Logger("paradigma-studio-analysis", logging.INFO)
+    )
+    recorder = _PipelineFailures()
+    stage_progress = (
+        PipelineProgressHandler(
+            progress,
+            [len(value) for value in inputs.values()]
+            if isinstance(inputs, dict)
+            else [len(inputs)],
+            pipelines,
+        )
+        if progress
+        else None
+    )
+    loggers = {package_logger, active_logger}
+    for target in loggers:
+        target.addHandler(recorder)
+        if stage_progress:
+            target.addHandler(stage_progress)
+    handlers_before = set(package_logger.handlers)
+    try:
+        yield active_logger, recorder
+    finally:
+        for target in loggers:
+            target.removeHandler(recorder)
+            if stage_progress:
+                target.removeHandler(stage_progress)
+        recorder.close()
+        if stage_progress:
+            stage_progress.close()
+        # Upstream may leave its diagnostic file open after an exception.
+        for handler in list(package_logger.handlers):
+            if handler not in handlers_before and isinstance(handler, logging.FileHandler):
+                package_logger.removeHandler(handler)
+                handler.close()
+
+
 def _run_prepared_analysis(
     inputs,
     pipelines,
@@ -316,22 +395,14 @@ def _run_prepared_analysis(
     exclusion,
     analyzed_samples,
     coverage,
+    progress=None,
 ):
     # Retain the official classification exports that 1.1.2 computes but
     # omits from its orchestrator return value. A fresh directory prevents
     # a failed run from reading a previous run's predictions.
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
-    package_logger = logging.getLogger("paradigma")
-    active_logger = (
-        logger if logger is not None else logging.Logger("paradigma-studio-analysis", logging.INFO)
-    )
-    recorder = _PipelineFailures()
-    loggers = {package_logger, active_logger}
-    for target in loggers:
-        target.addHandler(recorder)
-    handlers_before = set(package_logger.handlers)
-    try:
+    with _analysis_logging(inputs, pipelines, logger, progress) as (active_logger, recorder):
         results = run_paradigma(
             dfs=inputs,
             pipelines=pipelines,
@@ -350,10 +421,12 @@ def _run_prepared_analysis(
                 "split_by_gaps": False,
             },
         )
+        milestone(progress, 920)
         classifications, keys = _read_classification_outputs(
             run_directory, inputs, pipelines, recordings
         )
-        return _complete_analysis_results(
+        milestone(progress, 960)
+        results = _complete_analysis_results(
             results,
             classifications,
             keys,
@@ -364,15 +437,8 @@ def _run_prepared_analysis(
             inputs,
             coverage,
         )
-    finally:
-        for target in loggers:
-            target.removeHandler(recorder)
-        recorder.close()
-        # Upstream may leave its diagnostic file open after an exception.
-        for handler in list(package_logger.handlers):
-            if handler not in handlers_before and isinstance(handler, logging.FileHandler):
-                package_logger.removeHandler(handler)
-                handler.close()
+        milestone(progress, 1000)
+        return results
 
 
 def _complete_analysis_results(

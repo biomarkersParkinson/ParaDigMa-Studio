@@ -12,6 +12,7 @@ from queue import Empty
 from typing import TYPE_CHECKING
 
 from .analysis_limits import parallel_worker_count
+from .analysis_progress import AnalysisProgress, report_progress
 from .contracts import (
     AnalysisEvent,
     AnalysisLogEvent,
@@ -76,12 +77,17 @@ def _analyze_child(
 
         logger = logging.Logger("paradigma-studio", logging.INFO)
         logger.addHandler(QueueLogHandler(queue))
+        queue.put(("progress", "", 20))
         # These private files are created by this process's parent, never user inputs.
         with open(input_path, "rb") as stream:
             frame = pickle.load(stream)
-        results = analyze(frame, logger=logger, **settings)
+        progress = AnalysisProgress(
+            lambda value: queue.put(("progress", "", 20 + value * 900 // 1000))
+        )
+        results = analyze(frame, logger=logger, progress=progress, **settings)
         with open(output_path, "wb") as stream:
             pickle.dump(results, stream, protocol=pickle.HIGHEST_PROTOCOL)
+        queue.put(("progress", "", 960))
         queue.put(("completed",))
     except Exception as exc:  # noqa: BLE001 -- Final child-process failure reporting.
         # This process boundary also covers toolbox imports and result serialization.
@@ -122,6 +128,7 @@ def run_isolated_analysis(
             pickle.dump(frame, stream, protocol=pickle.HIGHEST_PROTOCOL)
         if cancel.is_set():
             raise AnalysisCancelled()
+        report_progress(logger, 10)
         queue: Queue[AnalysisEvent] = context.Queue()
         # All toolbox intermediate files live under the parent's temporary root,
         # so they are removed even when the child is interrupted mid-calculation.
@@ -163,13 +170,18 @@ def _wait_for_analysis(
             continue
         if event[0] == "log":
             forward_analysis_log(logger, event)
+        elif event[0] == "progress":
+            report_progress(logger, event[2])
         elif event[0] == "failed":
             raise RuntimeError(event[1])
         elif event[0] == "completed":
             if cancel.is_set():
                 raise AnalysisCancelled()
+            report_progress(logger, 970)
             with output_path.open("rb") as stream:
-                return pickle.load(stream)
+                results = pickle.load(stream)
+            report_progress(logger, 980)
+            return results
 
 
 def _close_analysis_process(process, queue):

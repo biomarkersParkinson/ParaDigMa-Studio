@@ -220,7 +220,8 @@ not describe the current interface.
 functions without annotated signatures (`check_untyped_defs = true`). It targets
 `contracts`, `preparation_contracts`, `paradigma_api`, `core`, `recordings`, `history`, `jobs`,
 `analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
-`serialization` and `epoch_profile`, plus these controller and service modules:
+`analysis_progress`, `serialization` and `epoch_profile`, plus these controller
+and service modules:
 
 - `analysis_controller`, `data_controller`, `job_controller`, `result_controller`,
   `export_controller` and `shell_controller`;
@@ -447,6 +448,27 @@ directly and merges their outputs with official pooled aggregation functions.
 One original recording uses the original single-process path even when its
 preparation creates several gap sections. `max_workers=1` forces sequential
 execution for profiling; it is an execution keyword, not an analytical setting.
+
+`analysis_progress` reports a 0–1000 work plan through the existing analysis event
+queues and a dedicated worker signal. Preparation, coverage and final assembly
+use Studio-owned milestones. A read-only logging handler recognizes ParaDigMa
+1.1.2's INFO stage messages, scoped to the current prepared section and selected
+module. Unknown messages leave progress unchanged. Sections and parallel workers
+are weighted by sample count; module groups receive shares based on their stage
+counts. Prefix sums and running totals keep updates independent of recording
+length and batch size. No sensor values are rescanned for progress.
+
+The job logger carries a dedicated logging `NullHandler` whose callback forwards
+progress to the worker signal, so milestones never become new log/status text.
+Duplicate values are ignored, the GUI coalesces updates at 200 ms intervals, and
+worker identity/cancellation checks reject stale updates.
+Analysis uses the existing text-free bar; other jobs keep its busy mode. Child
+completion/transfer stops below full scale; the GUI marks it full only after its
+results callback finishes on the GUI thread. Cancellation and errors stop pending
+updates. `core.analyze(progress=AnalysisProgress(callback))` optionally exposes the
+same milestones to synchronous integrations without changing pipeline settings
+or result payloads. The callback receives integer work units, not time estimates.
+
 Missing-sample exclusion defaults to **False** in the Python
 API and **True** in the GUI. Pass all original recording paths through
 `protected_sources` when exporting several recordings programmatically.
@@ -481,7 +503,8 @@ runs real pipelines, renders graphs and reopens exported results.
 Both Windows workflows run the full suite with pinned `pytest-cov` and coverage.py.
 The initial floor is **80%**, using coverage.py's combined percentage of executed
 statements and branch outcomes. The report includes all `*_controller.py` modules
-and these error boundaries: `analysis_process`, `core`, `jobs`, `parallel_analysis`,
+and these error boundaries: `analysis_process`, `analysis_progress`, `core`,
+`jobs`, `parallel_analysis`,
 `previews`, `recording_results`, `storage`, `result_preparation` and
 `result_reopening`. The `raw_signals` renderer and header-only `column_mapping`
 model and `axis_mapping` service are also included. New controllers

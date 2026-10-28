@@ -13,6 +13,7 @@ from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING, Any
 
+from .analysis_progress import AnalysisProgress, RecordingProgress, report_progress
 from .contracts import AnalysisResults, AnalysisSettings
 
 if TYPE_CHECKING:
@@ -63,14 +64,18 @@ def run_parallel_analysis(
             paths = _dispatch_recordings(
                 frames, root, tasks, events, processes, logger, cancel, workers
             )
+            report_progress(logger, 900)
             payload, output = root / "merge-input.pkl", root / "results.pkl"
             _write_pickle(payload, paths)
             tasks.put(RecordingTask(len(frames), payload, output))
             _wait_for_merge(len(frames), events, processes, logger, cancel)
+            report_progress(logger, 960)
             if cancel.is_set():
                 raise AnalysisCancelled()
             with output.open("rb") as stream:
-                return pickle.load(stream)
+                result = pickle.load(stream)
+            report_progress(logger, 980)
+            return result
         finally:
             _close_workers(processes, tasks, events)
 
@@ -98,11 +103,21 @@ def _run_worker_loop(tasks, events, settings):
             task = tasks.get()
             logger = logging.Logger("paradigma-studio-recording", logging.INFO)
             logger.addHandler(QueueLogHandler(events, recording=task.key))
-            _execute_task(task, settings, logger)
+
+            def update(value: int, key: str = task.key) -> None:
+                events.put(("progress", key, value))
+
+            progress = AnalysisProgress(update)
+            _execute_task(task, settings, logger, progress)
             events.put(("task_completed", task.index))
 
 
-def _execute_task(task: RecordingTask, settings: AnalysisSettings, logger: logging.Logger) -> None:
+def _execute_task(
+    task: RecordingTask,
+    settings: AnalysisSettings,
+    logger: logging.Logger,
+    progress: AnalysisProgress | None = None,
+) -> None:
     from .core import analyze
     from .recording_results import merge_recording_results
 
@@ -113,6 +128,7 @@ def _execute_task(task: RecordingTask, settings: AnalysisSettings, logger: loggi
         result = analyze(
             payload,
             logger=logger,
+            progress=progress.span(0, 990) if progress else None,
             **{
                 **settings,
                 "output_dir": str(task.output_path.parent / f"outputs-{task.index}"),
@@ -124,7 +140,7 @@ def _execute_task(task: RecordingTask, settings: AnalysisSettings, logger: loggi
         for path in payload:
             with path.open("rb") as stream:
                 outputs.append(pickle.load(stream))
-        result = merge_recording_results(outputs, settings, logger)
+        result = merge_recording_results(outputs, settings, logger, progress=progress)
     _write_pickle(task.output_path, result)
 
 
@@ -134,13 +150,15 @@ def _dispatch_recordings(frames, root, tasks, events, processes, logger, cancel,
     for _ in range(workers):
         _submit_next(pending, root, paths, tasks, cancel)
     completed: set[int] = set()
+    progress = RecordingProgress(logger, {key: len(frame) for key, frame in frames.items()})
     while len(completed) < len(frames):
-        event = _receive_event(events, processes, logger, cancel)
+        event = _receive_event(events, processes, logger, cancel, progress.report)
         if event[0] == "task_completed":
             index = event[1]
             if index in completed or not 0 <= index < len(paths) or not paths[index].is_file():
                 raise RuntimeError("Analysis worker returned an invalid recording completion.")
             completed.add(index)
+            progress.report(list(frames)[index], 1000)
             logger.info(
                 "Completed recording %s/%s: %s", len(completed), len(frames), list(frames)[index]
             )
@@ -165,7 +183,7 @@ def _submit_next(
         tasks.put(RecordingTask(index, path, paths[index], key))
 
 
-def _receive_event(events, processes, logger, cancel):
+def _receive_event(events, processes, logger, cancel, progress=None):
     from .analysis_process import AnalysisCancelled, forward_analysis_log
 
     while True:
@@ -182,6 +200,9 @@ def _receive_event(events, processes, logger, cancel):
             continue
         if event[0] == "log":
             forward_analysis_log(logger, event)
+        elif event[0] == "progress":
+            if progress is not None:
+                progress(event[1], event[2])
         elif event[0] == "failed":
             raise RuntimeError(event[1])
         else:
@@ -189,7 +210,11 @@ def _receive_event(events, processes, logger, cancel):
 
 
 def _wait_for_merge(index, events, processes, logger, cancel):
-    event = _receive_event(events, processes, logger, cancel)
+    def progress(recording, value):
+        if not recording:
+            report_progress(logger, 900 + min(1000, max(0, value)) * 60 // 1000)
+
+    event = _receive_event(events, processes, logger, cancel, progress)
     if event != ("task_completed", index):
         raise RuntimeError("Analysis worker returned an invalid aggregate completion.")
 

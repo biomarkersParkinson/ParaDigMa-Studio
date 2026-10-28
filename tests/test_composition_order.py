@@ -153,6 +153,7 @@ def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_contro
                 "message",
                 "warning",
                 "error",
+                "progress",
                 "finished",
             ):
                 setattr(self, name, RecordingSignal(name, connections))
@@ -184,6 +185,7 @@ def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_contro
         "message": window.append_log,
         "warning": window.capture_warning,
         "error": window.capture_error,
+        "progress": window._job_controller.analysis_progress,
         "finished": window.job_finished,
     }
     try:

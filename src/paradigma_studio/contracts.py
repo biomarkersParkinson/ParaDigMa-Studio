@@ -43,7 +43,10 @@ JSONValue: TypeAlias = "None | bool | int | float | str | list[JSONValue] | dict
 
 AnalysisLogEvent: TypeAlias = tuple[Literal["log"], int, str] | tuple[Literal["log"], int, str, str]
 AnalysisEvent: TypeAlias = (
-    AnalysisLogEvent | tuple[Literal["failed"], str] | tuple[Literal["completed"]]
+    AnalysisLogEvent
+    | tuple[Literal["progress"], str, int]
+    | tuple[Literal["failed"], str]
+    | tuple[Literal["completed"]]
 )
 
 

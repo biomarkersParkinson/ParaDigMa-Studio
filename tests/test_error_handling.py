@@ -178,6 +178,9 @@ def test_process_failure_emits_one_traceback_and_one_concise_failure(
         parallel_analysis._recording_worker(None, events, {})
 
     diagnostic = events.get_nowait()
+    while diagnostic[0] == "progress":
+        assert 0 <= diagnostic[2] < 1000
+        diagnostic = events.get_nowait()
     assert diagnostic[:2] == ("log", logging.INFO)
     assert "Traceback" in diagnostic[2] and "in fail" in diagnostic[2]
     assert "RuntimeError: Unexpected child failure" in diagnostic[2]

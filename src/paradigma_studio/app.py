@@ -574,6 +574,7 @@ class MainWindow(QMainWindow):
         worker.message.connect(self.append_log)
         worker.warning.connect(self.capture_warning)
         worker.error.connect(self.capture_error)
+        worker.progress.connect(self._job_controller.analysis_progress)
         worker.finished.connect(self.job_finished)
 
     def apply_origin_preview(self, clock):

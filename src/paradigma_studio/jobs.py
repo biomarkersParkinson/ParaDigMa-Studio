@@ -9,6 +9,7 @@ from collections.abc import Callable
 from PySide6.QtCore import QThread, Signal
 
 from .analysis_process import AnalysisCancelled
+from .analysis_progress import ProgressLogHandler
 from .contracts import TextSignal
 from .history import error_summary, failure_log
 
@@ -40,6 +41,7 @@ class Worker(QThread):
     warning = Signal(str)
     error = Signal(str)
     cancelled = Signal()
+    progress = Signal(object, int)
 
     def __init__(self, operation: Callable[[logging.Logger], object]) -> None:
         super().__init__()
@@ -49,6 +51,8 @@ class Worker(QThread):
         logger = logging.Logger("paradigma-studio", logging.INFO)
         handler = SignalHandler(self.message, self.warning, self.error)
         logger.addHandler(handler)
+        progress = ProgressLogHandler(lambda value: self.progress.emit(self, value))
+        logger.addHandler(progress)
         package_logger = logging.getLogger("paradigma")
         previous_level = package_logger.level
         package_logger.setLevel(logging.INFO)
@@ -66,3 +70,4 @@ class Worker(QThread):
             package_logger.removeHandler(handler)
             package_logger.setLevel(previous_level)
             handler.close()
+            progress.close()

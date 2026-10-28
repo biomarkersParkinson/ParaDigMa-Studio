@@ -289,7 +289,14 @@ typing, keyboard arrows or field buttons to edit. An open dropdown list can stil
 
 1. Review the selected modules, source columns, units, wrist side and axis directions.
 2. Click **Run Analysis** or press **Ctrl+Enter**.
-3. Review progress in **Runs**. Results opens when processing completes.
+3. Follow the thin blue progress bar at the bottom of the window; the detailed
+   processing log is available in **Runs**. Results opens when processing completes.
+
+The bar fills as confirmed processing stages finish across the selected modules
+and recordings, including parallel batches. It can pause during a long stage;
+its fill represents completed work rather than elapsed time or a time remaining
+estimate. It fills completely when results are ready. Existing warnings and run
+status indicate the outcome, including partial results or cancellation.
 
 **Run Analysis** stays below the settings while the page scrolls. During processing,
 **Stop Analysis** remains available there. Stopping terminates the owned analysis

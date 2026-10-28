@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from .analysis_progress import AnalysisProgress, milestone
 from .contracts import AnalysisResults, AnalysisSettings, Pipeline
 
 if TYPE_CHECKING:
@@ -14,7 +15,11 @@ if TYPE_CHECKING:
 
 
 def merge_recording_results(
-    outputs: Sequence[AnalysisResults], settings: AnalysisSettings, logger: logging.Logger
+    outputs: Sequence[AnalysisResults],
+    settings: AnalysisSettings,
+    logger: logging.Logger,
+    *,
+    progress: AnalysisProgress | None = None,
 ) -> AnalysisResults:
     """Preserve input order, identities and the sequential module-group semantics."""
     pipelines = settings["pipelines"]
@@ -30,14 +35,21 @@ def merge_recording_results(
     }
     combined["errors"] = []
     preparation = {}
-    for group in groups:
+    for index, group in enumerate(groups):
+        group_progress = (
+            progress.span(1000 * index / len(groups), 1000 * (index + 1) / len(groups))
+            if progress
+            else None
+        )
         failure = _group_failure(outputs, group)
         if failure is not None:
             combined["errors"].append(failure)
             combined["aggregations"].update({pipeline: {} for pipeline in group})
+            milestone(group_progress, 1000)
             continue
         for pipeline in group:
             _merge_pipeline(combined, outputs, pipeline)
+        milestone(group_progress, 300)
         for output in outputs:
             for error in output.get("errors", []):
                 if error.get("pipeline") in group and error not in combined["errors"]:
@@ -48,7 +60,13 @@ def merge_recording_results(
         else:
             combined["metadata"]["desktop_preparation"] = details
         _merge_recording_metadata(combined, outputs, group)
-        _aggregate_pipelines(combined, group, settings, logger)
+        _aggregate_pipelines(
+            combined,
+            group,
+            settings,
+            logger,
+            group_progress.span(300, 1000) if group_progress else None,
+        )
     if grouped:
         combined["metadata"]["desktop_preparation"] = {
             "analysis_groups": groups,
@@ -170,8 +188,8 @@ def _merge_recording_metadata(combined, outputs, group):
             )
 
 
-def _aggregate_pipelines(combined, pipelines, settings, logger):
-    for pipeline in pipelines:
+def _aggregate_pipelines(combined, pipelines, settings, logger, progress=None):
+    for index, pipeline in enumerate(pipelines):
         logger.info("Aggregating %s results across all recordings", pipeline)
         try:
             _aggregate_pipeline(combined, pipeline, settings)
@@ -184,6 +202,8 @@ def _aggregate_pipelines(combined, pipelines, settings, logger):
             combined["aggregations"][pipeline] = (
                 {"filtered": {}, "unfiltered": {}} if pipeline == "gait" else {}
             )
+        if progress:
+            progress.report(1000 * (index + 1) / len(pipelines))
 
 
 def _aggregate_pipeline(

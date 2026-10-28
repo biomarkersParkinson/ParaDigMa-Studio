@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Make the existing thin blue analysis bar fill as processing milestones finish,
+  including sequential and parallel batches, without adding percentage or stage
+  labels. Preserve cancellation, current status text and the busy indicator for
+  other background operations.
 - Remove the duplicate vertical scrollbar in compact Results graph views. Scroll
   the plots in one viewport while keeping the toolbar, time axis and footer fixed.
 - Give Data and Results sensor-context graphs the same time-interval selection,
