@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Organize the development guide around setup, testing and packaging, with
+  consistent locked uv commands, clearer quality/typing policies and troubleshooting.
 - Separate release-matched and current-source guides, streamline documentation
   ownership, archive dated verification evidence, and add contribution/security
   reporting guidance and standard Markdown/local-link checks.

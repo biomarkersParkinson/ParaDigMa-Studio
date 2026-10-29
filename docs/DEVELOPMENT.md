@@ -1,265 +1,299 @@
 # Development and building
 
-Use uv 0.13.5, 64-bit Python 3.12 and Git. Windows build jobs pin Python 3.12.10 and use a
-complete dependency lock, including official ParaDigMa 1.1.2 and the Open Movement
-reader revision compatible with NumPy 2 CWA timestamps. See the
-[dependency policy and update procedure](DEPENDENCIES.md).
+This guide takes a contributor from a fresh checkout to running, checking and
+building Studio. It describes the current source on `main`. Start with
+[Contributing](../CONTRIBUTING.md) for issue reports and pull-request expectations.
 
-The Python distribution and launcher are `paradigma-studio`; the importable
-package and its `_internal` folder are `paradigma_studio`. See the
-[API and saved-run reference](PYTHON_API.md) for storage, provenance and persistence
-contracts. Start with [Contributing](../CONTRIBUTING.md) for issue reporting and
-pull-request expectations.
+- [Set up the environment](#set-up-the-environment)
+- [Run the app](#run-the-app)
+- [Run development checks](#run-development-checks)
+- [Build and verify a Windows executable](#build-and-verify-a-windows-executable)
+- [Quality gates and implementation conventions](#quality-gates-and-implementation-conventions)
+- [Type checking](#type-checking)
+- [Refresh user guide screenshots](#refresh-user-guide-screenshots)
+- [CI artifacts](#ci-artifacts)
+- [Troubleshooting](#troubleshooting)
 
-## Run from source on Windows
+## Set up the environment
 
-Clone the repository and run these commands in PowerShell:
+| Requirement | Project expectation |
+| --- | --- |
+| Platform | Windows x64 for the distributed app; Linux x64 for supplemental development checks |
+| Python | 3.12.10, selected by `.python-version` and the Windows workflows |
+| uv | 0.13.5, enforced by `tool.uv.required-version` in `pyproject.toml` |
+| Git | Available on `PATH` for the checkout and the pinned Open Movement dependency |
 
-```powershell
+Install the pinned uv version using its [official instructions](https://docs.astral.sh/uv/getting-started/installation/).
+uv can download the selected Python interpreter if it is not installed. The
+[dependency guide](DEPENDENCIES.md) owns the reviewed platform requirements,
+scientific pins, audit policy and update procedure.
+
+Run the following in PowerShell on Windows or Bash on Linux:
+
+```sh
 git clone https://github.com/biomarkersParkinson/ParaDigMa-Studio.git
 cd ParaDigMa-Studio
+uv lock --check
 uv sync --locked --all-groups
-.\.venv\Scripts\python.exe desktop.py
+uv sync --locked --all-groups --check
 ```
 
-Running through Python avoids the generated unsigned launcher, but Windows may
-still check or block native dependencies. See [signing](../SIGNING.md) and
-[security](../SECURITY.md).
+The sync creates `.venv`, installs Studio in editable mode and includes the
+pinned test, lint, type-checking and build tools. Keep this environment dedicated
+to the project. Source edits are available without reinstalling the package.
+
+Run all remaining commands from the repository root. `uv run --locked --all-groups`
+selects the project environment and synchronizes it when needed; activating the
+virtual environment is optional. `uv sync --locked --all-groups --check` verifies
+its state without repairing it. Dependency changes follow the
+[deliberate update procedure](DEPENDENCIES.md#update-deliberately).
+
+## Run the app
+
+```sh
+uv run --locked --all-groups python desktop.py
+```
+
+The interactive app needs a graphical desktop. For a headless Linux session,
+use the tests and executable probes below. A local source launch uses the normal
+Studio user-data directory; the tests use their isolated fixtures. See the
+[storage reference](PYTHON_API.md#storage-and-analysis-time-identity) before
+using personal run history during development.
+
+`paradigma-studio` is the Python distribution and installed GUI command;
+`paradigma_studio` is the importable package. The portable build has its own
+`_internal` runtime directory beside the executable.
+
+## Run development checks
+
+### During development
+
+Run the tests for the behavior you changed. For example:
+
+```sh
+uv run --locked --all-groups python -m pytest -q tests/test_analysis_settings.py
+```
+
+The [test guide](TEST_SUITE.md) maps features to their tests. Preparation,
+processing and output changes also need the independent
+[scientific comparisons](SCIENTIFIC_TESTS.md). Packaging changes need a built
+executable check. Documentation changes use the separate
+[Markdown and link checks](../CONTRIBUTING.md#documentation-checks).
+
+### Before submitting
+
+Check the environment before commands that might synchronize it, then run the
+same source guards, lint and type checks used by Windows CI:
+
+```sh
+uv sync --locked --all-groups --check
+uv run --locked --all-groups python scripts/check_module_size.py
+uv run --locked --all-groups python scripts/check_workspace_facade.py
+uv run --locked --all-groups python -m ruff check src scripts tests desktop.py
+uv run --locked --all-groups python -m ruff format --check src scripts tests desktop.py
+uv run --locked --all-groups python -m mypy
+```
+
+To apply formatting while editing:
+
+```sh
+uv run --locked --all-groups python -m ruff format src scripts tests desktop.py
+```
+
+Run the complete test suite with the configured branch-coverage gate before
+merging code changes. In PowerShell:
+
+```powershell
+uv run --locked --all-groups python -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
+```
+
+For headless Linux checks, select offscreen Qt and a writable Matplotlib cache
+for that command:
+
+```bash
+QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl uv run --locked --all-groups python -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
+```
+
+The test setup selects its configured offscreen screen when no Qt platform is
+overridden. Windows CI explicitly selects offscreen Qt and runs the native
+Analyze-layout and page-shortcut regressions before the full suite. Linux
+checks supplement native Windows execution.
+
+Read [coverage policy and reports](TEST_SUITE.md#branch-coverage) for the measured
+scope, floor and output paths. Benchmark commands and interpretation belong in
+[Performance](PERFORMANCE.md#reproduce-measurements).
 
 ## Build and verify a Windows executable
 
-Build on Windows; a Linux build does not generate a Windows executable.
+Build on Windows after the development checks pass. Close any running copy from
+`dist/ParaDigMaStudio` first: the builder recreates that directory and
+`build/desktop` from scratch, preserving other build directories.
 
 ```powershell
-uv sync --locked --all-groups --check
-uv pip list --format json > dependency-environment.json
-.\.venv\Scripts\python.exe scripts/check_module_size.py
-.\.venv\Scripts\python.exe scripts/check_workspace_facade.py
-.\.venv\Scripts\python.exe -m ruff check src scripts tests desktop.py
-.\.venv\Scripts\python.exe -m ruff format --check src scripts tests desktop.py
-.\.venv\Scripts\python.exe -m mypy
-.\.venv\Scripts\python.exe -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
-.\.venv\Scripts\python.exe scripts/build_desktop.py
-.\.venv\Scripts\python.exe scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
-New-Item -ItemType Directory -Force build-reports | Out-Null
-.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
+uv run --locked --all-groups python scripts/build_desktop.py
+uv run --locked --all-groups python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio.exe
 ```
 
-Distribute the entire `dist\ParaDigMaStudio` folder. The portable executable
-depends on `_internal`. The build includes model assets, SVG icons and native
-scikit-learn runtime libraries, including `vcomp140.dll` and `msvcp140.dll`.
-The build also places Studio's Apache 2.0 licence and the ParaDigMa
-acknowledgement, licence and citation files
-beside the executable; keep these with any redistributed bundle.
-CI additionally generates the dependency audit, source/package provenance,
-lock evidence and checksums; `build_desktop.py` alone does not create those
-reports. The manifest writer rejects environment drift and audit reports from a
-different package/version set.
+The output is a portable folder at `dist/ParaDigMaStudio`. The check launches the
+EXE from a temporary directory outside the checkout, checks the runtime layout
+and notices, and runs real analysis, graph, saving and reopening smoke checks.
+A source checkout cannot supply missing packaged resources during that launch.
 
-Builds recreate only `dist/ParaDigMaStudio` and `build/desktop` from scratch.
-Python modules are packaged in the executable, without duplicate loose `.py`
-files for ParaDigMa or Open Movement. Model assets, package metadata and native
-dependencies are retained. The packaged check rejects leftover app versions
-and unexpected files at the top of the app folder.
+Keep the entire folder together, including `_internal`, model assets, icons,
+notices and required native libraries such as `vcomp140.dll` and `msvcp140.dll`.
+Python modules are packaged without duplicate loose ParaDigMa or Open Movement
+source files. Generated PyInstaller specs under `build/desktop` are build
+outputs; `scripts/build_desktop.py` is the supported entry point.
+
+To measure the built app's startup and size:
+
+```powershell
+New-Item -ItemType Directory -Force build-reports | Out-Null
+uv run --locked --all-groups python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
+```
+
+Keep benchmark reports outside the portable folder. Local building and smoke
+checks do not create the complete dependency audit, build manifest and checksum
+evidence. The [release workflow](RELEASES.md) generates and verifies that evidence
+before publishing a download. Publisher signing has a
+[separate workflow](../SIGNING.md).
+
+### Supplemental Linux bundle
+
+A Linux build produces a Linux executable. In a headless session:
+
+```bash
+uv run --locked --all-groups python scripts/build_desktop.py
+QT_QPA_PLATFORM=offscreen uv run --locked --all-groups python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio
+```
+
+Use the Windows workflow to validate the distributed EXE.
 
 ## Quality gates and implementation conventions
 
-Both Windows workflows run the Analyze layout regression under the default and
-classic Windows styles and the page-navigation keyboard regression before the
-full test suite. This catches native control sizing and shortcut failures early;
-the complete suite and coverage floor still run afterward. Keyboard tests wait
-for the button's actual click signal with a bounded timeout, rather than assuming
-its animation timer has fired after a fixed delay.
+The configuration in `pyproject.toml` and the source guards define the enforced
+limits. They apply independently:
 
-Both Windows workflows enforce the pinned Ruff formatter, error and import
-checks, bugbear (`B`), comprehensions (`C4`), simplification (`SIM`) and Python
-modernization (`UP`) rules. Functions are limited to McCabe complexity 10
-(`C901`), 60 statements (`PLR0915`) and 12 branches (`PLR0912`) across source,
-scripts and tests. Statement counts catch long, straight-line builders that a
-complexity limit alone allows. Both workflows also run mypy API checks. Split
-large or complex functions into cohesive helpers; keep any rule-specific
-suppression narrow and explain its reason in a nearby comment.
-Keep functions around 100 lines or fewer; statement and branch counts apply
-independently of physical length.
-Review functions over 60 physical lines for distinct responsibilities. Extract
-cohesive phases with explicit inputs; declarative widget builders and callback
-lists can remain longer when they read clearly.
-Ruff rejects unused suppressions (`RUF100`). The documented immutable Qt
-`QModelIndex()` default is allowed for native model method signatures.
-Use `python -m ruff format src scripts tests desktop.py` to format changes. Keep
-Qt platform initialization and Matplotlib cache configuration ahead of the
-imports that depend on them. The justified `isort: split` boundary in `app.py`
-keeps cache initialization ahead of plotting imports during automatic sorting.
-Keep pandas/Arrow and scientific-stack imports deferred until data is needed.
-Catch specific exceptions for expected input or filesystem failures. Broad catches
-belong at job/UI boundaries or around independent toolbox operations that retain
-partial results; preserve full tracebacks in the processing log or probe report.
-Ruff's `BLE001` rule flags blind exception handlers. Where it cannot recognize
-an intentional boundary's Qt, queue or report-based traceback propagation, use
-a line-scoped `# noqa: BLE001` with the boundary reason. Keep the nearby explanation
-of error delivery and recovery; avoid file-wide exemptions. Cleanup handlers that
-re-raise and recognized `logger.exception` calls do not need exemptions. `RUF100`
-rejects exemptions that become unnecessary after refactoring.
-Keep diagnostic stacks separate from concise notices and structured error counts,
-including when forwarding log records between recording workers and the GUI.
-Keep Matplotlib imports and graph construction behind first use, and reuse the
-created canvases. Fresh-process startup tests check the empty workspace, saved
-run history and independent graph initialization; `benchmark_desktop.py` enforces
-the same startup import boundary in packaged builds.
+| Check | Enforced limit |
+| --- | --- |
+| Python modules under `src/`, including `__init__.py` | At most 900 physical lines, including comments and blanks; no exemptions |
+| McCabe complexity, `C901` | At most 10 per function |
+| Statement count, `PLR0915` | At most 60 per function |
+| Branch count, `PLR0912` | At most 12 per function |
+| Internal workspace driver | Exact allowed ports and line budget in `scripts/workspace_facade_budget.json`; shrink-only |
 
-Every Python module (`*.py`, including `__init__.py`) under `src/` must contain
-**at most 900 physical lines**, including comments, docstrings and blank lines.
-Exactly 900 lines is allowed; a final line without a newline still counts.
-Both Windows workflows run `python scripts/check_module_size.py` before installing
-dependencies. The script reports every oversized module and exits with failure;
-there are no exemptions. Extract cohesive components or helpers before reaching
-the limit, preserving explicit dependencies and deferred imports.
+Function lint rules cover source, scripts and tests. Both Windows workflows run
+the module and driver guards before installing dependencies. Review functions
+over 60 physical lines for separate responsibilities and aim for about 100 lines
+or fewer. These length recommendations are review guidance; the enforced
+function limits count complexity, statements and branches.
 
-`ui/compatibility.py` provides an internal workspace driver API for UI tests,
-startup/smoke probes and benchmarks. Keep its historical filename. Automation
-may use its declared widget/action ports; application code uses explicit owners.
-These ports are coupled to UI implementation details and have no public API
-stability guarantee. Keep useful ports; removing them is not a target by itself.
-Choosing a stable supported driver contract requires a separate review.
+### Imports, lifecycle and error handling
 
-The existing shrink-only budget guard remains in place:
-`python scripts/check_workspace_facade.py`. Both Windows workflows run it before
-installing dependencies. `scripts/workspace_facade_budget.json` lists the exact
-driver ports and physical-line budget for `ui/compatibility.py`. When a port is
-removed, remove its budget entry and lower the line budget to match; new aliases,
-retired names returning, and file growth fail the check. Do not raise the budget;
-any future policy change needs a separate review of the supported driver ports.
-Preserve Qt signal ordering and job lifecycles when migrating callers. The reusable
-component descriptor lives in `ui/component_ports.py`, outside the driver API.
-MainWindow's composition must access widgets and callbacks through their explicit
-layout/state/controller owners. `test_composition_without_facade.py` checks this
-boundary and exercises loading, results and sensor context with the driver-port
-decorator disabled. Preserve deferred lambdas and the real Qt receiver methods
-when changing callback wiring.
+Keep scientific, pandas/Arrow and Matplotlib imports deferred until needed.
+Initialize the font cache before plotting imports and reuse graph canvases.
+Preserve the justified `isort: split` boundary in `app.py`. GUI changes belong on
+the Qt thread; preserve receiver affinity, signal ordering and worker cleanup.
+The [architecture guide](ARCHITECTURE.md) explains component ownership and the
+[repository conventions](REPOSITORY.md#conventions-for-changes) describe wiring.
 
-See [Architecture](ARCHITECTURE.md) for component ownership, Analyze state,
-graph interactions and worker lifecycles. The [repository map](REPOSITORY.md)
-lists the implementing modules.
+Catch specific exceptions for expected input and filesystem failures. Broad
+catches belong at job/UI boundaries or independent toolbox operations that
+retain partial results. Preserve the original traceback in the processing log
+or probe report, separately from concise notices and structured error counts.
 
-## CI artifacts
+Ruff checks imports, common errors, modernization, bugbear, comprehensions and
+simplification as well as the limits above. Keep suppressions line-scoped and
+explain the boundary reason nearby. `BLE001` exemptions are needed where Ruff
+cannot recognize intentional Qt/queue/report-based traceback delivery;
+recognized logging calls and cleanup handlers that re-raise need no exemption.
+`RUF100` rejects unused suppressions. Immutable `QModelIndex()` defaults remain
+allowed for Qt model method signatures.
 
-The **Windows desktop** GitHub workflow runs style checks, tests and dependency auditing,
-builds the application, launches the packaged executable away from the checkout,
-and records startup measurements, package versions, source commit and checksums.
-Artifacts include the app folder, JUnit and branch-coverage test reports, and
-`ParaDigMaStudio-build-reports` for performance measurements. Benchmarks write
-to `build-reports/`, outside the distributable app. Security provenance,
-dependency audit results and checksums remain with the app. These checks
-do not replace a publisher signature.
+### Internal workspace driver
 
-## Run development checks on Linux
+`ui/compatibility.py` exposes implementation-coupled ports for tests, probes and
+benchmarks. Application code uses explicit component owners. Keep useful ports
+and the historical filename; the driver has no public API stability guarantee.
 
-```bash
-uv sync --locked --all-groups
-.venv/bin/python scripts/check_module_size.py
-.venv/bin/python scripts/check_workspace_facade.py
-.venv/bin/python -m ruff check src scripts tests desktop.py
-.venv/bin/python -m ruff format --check src scripts tests desktop.py
-.venv/bin/python -m mypy
-QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl .venv/bin/python -m pytest --junitxml=test-results.xml --cov --cov-branch --cov-report=term-missing --cov-report=xml --cov-report=html
-.venv/bin/python desktop.py
-```
-
-The interactive launcher requires a graphical desktop. Use offscreen pytest and
-the packaged probes for a headless cloud environment.
-
-To check a Linux bundle in that environment:
-
-```bash
-mkdir -p build-reports
-.venv/bin/python scripts/build_desktop.py
-QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/check_frozen.py dist/ParaDigMaStudio/ParaDigMaStudio
-QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio --report build-reports/performance.json
-```
-
-These commands verify a Linux executable; the Windows workflows verify the EXE.
-
-## Refresh user guide screenshots
-
-Run `python scripts/capture_user_guide.py` from the repository root with development
-dependencies installed. It captures all four pages and the supporting graph views
-from one real analysis of the bundled public Axivity example, using temporary
-history and saved results. See the [capture notes](images/user-guide/README.md)
-for image dimensions, provenance and platform details. Inspect the complete set
-and update captions when controls or selections change; archived screenshots do
-not describe the current interface.
+When removing a port, remove its budget entry and lower the line budget to match.
+New aliases, returning retired names and file growth fail the guard. Changing
+this shrink-only policy needs a separate review. Preserve deferred callbacks
+and real Qt receivers when migrating callers. The
+`test_composition_without_facade.py` regressions exercise the app without the
+port decorator; `ui/component_ports.py` owns the reusable descriptor.
 
 ## Type checking
 
-`python -m mypy` checks function bodies throughout its configured scope, including
-functions without annotated signatures (`check_untyped_defs = true`). It targets
-`contracts`, `preparation_contracts`, `paradigma_api`, `core`, `recordings`, `history`, `jobs`,
-`analysis_process`, `analysis_limits`, `parallel_analysis`, `recording_results`,
-`analysis_progress`, `serialization` and `epoch_profile`, plus these controller
-and service modules:
+Run `uv run --locked --all-groups python -m mypy` from the repository root.
+The authoritative scope and overrides are in `[tool.mypy]` in `pyproject.toml`;
+the guide does not duplicate the changing target-file list.
 
-- `analysis_controller`, `data_controller`, `job_controller`, `result_controller`,
-  `export_controller` and `shell_controller`;
-- `workspace_state`, `result_data`, `result_preparation`, `result_reopening`,
-  `previews`, `storage` and `exports`.
+| Scope | Policy |
+| --- | --- |
+| Configured targets | Check function bodies, including unannotated functions; reject incomplete signatures and unused ignores |
+| Selected controllers and supporting services | Require complete function annotations with `disallow_untyped_defs` |
+| Stronger service overrides | Also require explicit generic arguments and reject returning `Any` from concretely typed functions |
+| Recursive `ui/` target | Check bodies while signatures are annotated incrementally; new UI modules join automatically |
 
-`inspection` is also checked at the lenient service level; its batch-inspection
-interface is fully annotated.
-The deferred `raw_signals` renderer and shared `time_navigation`/`raw_navigation`
-controls are checked at the same lenient level.
+For a new service/controller target, add the file to the configured `files` list.
+Apply stronger overrides when its annotations are complete. Keep callback
+protocols and frozen views explicit, use read-only `Mapping` inputs when no
+mutation is needed, and retain runtime validation of externally loaded data.
+Dynamic Qt payloads and extensible metadata retain `Any` at their boundaries.
+Keep scientific and plotting type imports under `TYPE_CHECKING` to preserve lazy
+startup; the packaged `py.typed` marker exposes available annotations to callers.
 
-`axis_mapping`, `column_mapping`, `input_metadata`, `analysis_limits`,
-`preparation_contracts` and `paradigma_api` have
-stronger per-module requirements: complete function annotations
-(`disallow_untyped_defs`), explicit generic arguments such as `list[str]` rather
-than bare `list` (`disallow_any_generics`), and warnings when a function with a
-concrete declared return type returns `Any` (`warn_return_any`). These services
-inherit the shared function-body checks and unused-ignore warnings.
+The normal mypy target includes `tests/typing/preparation_contracts.py`, which
+checks valid calls and expected errors for unsupported units, axes, signals and
+keywords. Runtime and scientific comparisons remain separate checks. On Linux,
+check Windows-specific typing with:
 
-The entire `ui/` directory is checked recursively, including new modules. Its
-function bodies inherit the shared checking policy; the `paradigma_studio.ui.*`
-override allows unannotated signatures (`disallow_untyped_defs = false`). Callback,
-graphics and small-component public contracts are annotated; other UI signatures
-can be completed incrementally. Scientific and plotting types stay under
-`TYPE_CHECKING` to preserve deferred imports. Dynamic descriptor values retain
-`Any` at their boundary; do not suppress whole UI modules or error categories.
+```sh
+uv run --locked --all-groups python -m mypy --platform win32
+```
 
-The controller and supporting-service modules listed above require complete
-function annotations (`disallow_untyped_defs`). Body checking also covers nested
-helpers, including job operations, preview completion and export writers.
-Callback protocols describe optional arguments and service dependencies; atomic
-writes distinguish text and binary streams. Existing service signatures remain
-gradual while their bodies are checked. Add service/controller targets to the
-`files` list in `pyproject.toml`; apply the stricter override only
-when a module has complete annotations. Additional UI modules need no new file
-entry. Clock-summary inputs use read-only `Mapping` annotations so the stored
-`ClockMetadata` contract can pass through without copying or conversion.
+See the [preparation boundary](ARCHITECTURE.md#preparation-and-input-contracts)
+and [API reference](PYTHON_API.md) for service behavior and persisted contracts.
 
-Data and analysis controller contracts describe single/batch recording-load
-payloads, cached recording descriptives, clock previews and analysis launch inputs.
-Their frozen views use concrete widget/graphics types, and callbacks declare their
-arguments and results. The loader protocol retains keyword-only trust and logger
-options. Loading still accepts a single frame with or without cached descriptives;
-neither annotations nor type narrowing convert or copy source frames.
+## Refresh user guide screenshots
 
-Extensible saved/display settings, provenance and results and the heterogeneous Qt
-job-completion payload retain `Any`. Official adapter keywords are explicitly typed;
-open dictionaries loaded from history still require runtime validation. pandas stubs are
-development dependencies. Keep scientific type imports under `TYPE_CHECKING`;
-the packaged `py.typed` marker exposes available annotations to callers without
-adding startup imports.
+```sh
+uv run --locked --all-groups python scripts/capture_user_guide.py
+```
 
-The [architecture guide](ARCHITECTURE.md) explains preparation boundaries and
-configuration ownership. The [API reference](PYTHON_API.md#saved-run-contract)
-defines persisted run/result contracts.
+The script captures all four pages and supporting graph views through one real
+analysis of the bundled public Axivity example. Input copies, history and saved
+results use temporary storage. Inspect the complete set and update captions and
+[capture notes](images/user-guide/README.md) when controls or selections change.
+Keep the guide's released/current-source distinction when updating screenshots.
 
-## Tests and performance
+## CI artifacts
 
-Use the [test suite guide](TEST_SUITE.md) for headless setup, scientific checks,
-coverage scope and reports, and shared test helpers. The full commands above
-match the Windows coverage gate. The [scientific guide](SCIENTIFIC_TESTS.md) describes
-independent reference outputs and numerical tolerances.
+The ordinary **Windows desktop** workflow checks the lock and environment,
+audits dependencies, runs source checks and tests, builds and launches the EXE,
+measures performance and verifies the final download layout. The separate
+**Documentation** workflow runs Markdown and local-link checks.
 
-Read the [performance guide](PERFORMANCE.md) before changing import timing or
-bundle exclusions. Runtime optimization must preserve native libraries, model
-assets, supported formats and scientific output.
+| Ordinary Windows artifact | Contents |
+| --- | --- |
+| `ParaDigMaStudio-Windows` | Complete portable app, notices, security evidence and checksums |
+| `ParaDigMaStudio-test-results` | JUnit and configured branch-coverage reports |
+| `ParaDigMaStudio-dependency-reports` | Installed inventory and dependency-audit report |
+| `ParaDigMaStudio-build-reports` | Benchmarks, separate from the application folder |
+
+See [Releases](RELEASES.md) for tag-driven publication and
+[Security](../SECURITY.md) for provenance and trust boundaries. Passing build
+checks does not replace publisher signing or manual Windows acceptance.
+
+## Troubleshooting
+
+| Symptom | Check or next step |
+| --- | --- |
+| uv rejects its version | Check `uv --version` against the pinned version above; use the dependency guide's installation instructions. |
+| Lock or environment check fails | Follow the [dependency update procedure](DEPENDENCIES.md#update-deliberately) for intended changes; preserve the lock freshness gate. |
+| Import fails or a tool appears missing | Run from the repository root, sync all groups and use `uv run --locked --all-groups` to select the project environment. |
+| Source launch has no visible window | Use a graphical desktop and check that `QT_QPA_PLATFORM` has not been left set to `offscreen`. Clear it with `Remove-Item Env:QT_QPA_PLATFORM` in PowerShell or `unset QT_QPA_PLATFORM` in Bash. |
+| Matplotlib cannot write its cache in a restricted environment | Set `MPLCONFIGDIR` to a writable directory, as in the headless Linux example. |
+| Windows build cannot replace its output | Close the executable running from `dist/ParaDigMaStudio` and retry the builder. |
+| Packaged app fails but source launch works | Inspect `check_frozen.py` output and retain the whole portable folder, including `_internal`; check [packaging and release instructions](RELEASES.md). |
