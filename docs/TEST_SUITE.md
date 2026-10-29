@@ -26,7 +26,7 @@ trigger and expected behavior still apply.
 | Horizontal hand dragging across raw and all four Results views, elapsed/calendar coordinates, plots/gutters, source bounds, duration, Y scaling, timepoint preservation, single-step history, interrupted capture, discarded axes and native mouse/cursor behavior at both display scales | `test_hand_navigation.py`; mode exclusivity in `test_plot_controls.py` |
 | Clock-only previews, module requirements, time formats and editable pending origins | `test_origin_preview.py`, `test_previews.py` |
 | Selected-column clock authority, ignored unrelated dates across generic formats, precise device start metadata, origin defaults and shared preview/result alignment | `test_recording_clock.py` |
-| Analysis settings, defaults and help semantics | `test_analysis_settings.py`; cross-page integration in `test_workspace.py` |
+| Analysis settings, defaults and full configuration preservation with loaded non-default settings and automatic/manual origins across each help open/close | `test_analysis_settings.py`; help text/tooltips and window behavior in `test_analysis_help_dialog.py` |
 | Dependency-specific updates, complete saved settings before previews/Data notifications, one load refresh, shared time formats and metadata updates with manual origins | `test_analysis_refresh.py`; lifecycle order in `test_composition_order.py` |
 | GUI preparation from declared units/axes, unchanged native-unit samples, independent gap/duration policies, one official handoff and rejection of retired bypass settings | `test_analysis_preparation.py` |
 | Quiet visual analysis progress, pinned-version stage messages, weighted sections/batches, interleaved workers, coalesced GUI updates, result readiness, stale-event rejection, cancellation/failure and unchanged scientific results | `test_analysis_progress.py`; process ownership and lifecycle integration in `test_parallel_execution.py` and `test_composition_order.py` |
@@ -70,6 +70,17 @@ and a packaged probe checks that frozen imports and classifier assets work.
 Those layers are complementary. Performance regressions primarily check retained
 values, cache reuse, redraw counts and event-loop responsiveness; hardware timings
 belong in the benchmark scripts rather than strict CI time limits.
+
+Use zero relative tolerance and an explicit absolute tolerance for calendar
+coordinates (normally `1e-10` days, about 8.64 microseconds). Relative tolerances
+on dates since the epoch can silently allow minute-scale errors.
+Mouse-drag accuracy keeps its explicit pixel/window-derived tolerance; physical
+scientific-value tolerances remain independent of this display-coordinate policy.
+The shared-time module owns the basic Data/Analyze synchronization and channel
+exclusion checks. The layout module owns heading/editor spacing, while dialog
+tests own help visibility, links and tooltips and the native-size matrix checks
+that the page remains fixed. Loaded-results bar/table/export availability and
+numeric metric-name handling share one app integration scenario.
 
 Results rendering checks compare visible pixels against a complete native render
 at both display scales, after horizontal release and at successive vertical

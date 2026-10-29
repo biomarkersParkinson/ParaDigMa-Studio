@@ -138,6 +138,14 @@ def test_axis_and_mapping_fields_follow_their_columns_with_input_orientation_hel
     window.resize(1450, 920)
     QTest.qWait(30)
     fields = [window.side, window.acc, window.gyro, window.time]
+    heading = next(
+        label
+        for label in window.settings_panel.findChildren(QLabel)
+        if label.text() == "Signal columns"
+    )
+    label_bottom = heading.mapTo(window, QPoint(0, heading.height())).y()
+    editor_top = window.mapping.mapTo(window, QPoint()).y()
+    assert 0 <= editor_top - label_bottom <= 8
     assert len({field.mapTo(window, field.rect().topLeft()).x() for field in fields}) == 1
     mapping_right = window.mapping.mapTo(window, window.mapping.rect().topRight()).x()
     for field in (
@@ -199,29 +207,6 @@ def test_input_axis_figure_fits_resizable_help_at_wide_and_narrow_sizes(native_a
             QApplication.processEvents()
             visible = figure.mapTo(scroll.viewport(), QPoint(0, local_y))
             assert scroll.viewport().rect().contains(visible)
-
-
-def test_mapping_label_and_editor_stay_together_when_help_opens(window):
-    window.navigate(1)
-    window.resize(1450, 920)
-    heading = next(
-        label
-        for label in window.settings_panel.findChildren(QLabel)
-        if label.text() == "Signal columns"
-    )
-
-    def positions():
-        QTest.qWait(30)
-        return heading.mapTo(window, heading.rect().topLeft()).y(), window.mapping.mapTo(
-            window, window.mapping.rect().topLeft()
-        ).y()
-
-    initial = positions()
-    for name in ("Watch side", "Minimum section duration", "Signal columns"):
-        window.analysis_help[name][0].click()
-        label_y, editor_y = positions()
-        assert 0 <= editor_y - label_y - heading.height() <= 8
-        assert editor_y - initial[1] == pytest.approx(label_y - initial[0], abs=2)
 
 
 @pytest.mark.parametrize("editor_minimum_width", [0, 382])

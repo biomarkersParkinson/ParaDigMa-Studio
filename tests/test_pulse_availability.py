@@ -57,7 +57,7 @@ def test_invalid_count_is_unavailable_instead_of_a_fabricated_percentage(count):
     assert pulse_estimate_availability(output(count), provenance()) == (None, 300, None)
 
 
-def test_unknown_legacy_timespan_is_not_inferred_from_output_or_prepared_coverage():
+def test_missing_source_extent_is_not_inferred_from_output_or_prepared_coverage():
     results = output()
     results["quantifications"] = {
         "pulse_rate": pd.DataFrame({"time": [23, 575], "pulse_rate": [72, 73]})
@@ -126,7 +126,7 @@ def test_overview_replaces_count_with_percentage_and_reopens_without_source_data
     assert results["metadata"] == original["metadata"]
 
 
-def test_legacy_overview_shows_unavailable_percentage_with_original_count_in_tooltip(window):
+def test_overview_without_source_extent_keeps_count_in_tooltip_and_percentage_unavailable(window):
     window.analyzed(output())
     display = window._result_state.overview_values[
         "pulse_rate", "Metadata", ("estimate_availability",)

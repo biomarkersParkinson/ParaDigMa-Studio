@@ -3,9 +3,13 @@
 from copy import deepcopy
 
 import pandas as pd
+import pytest
 from conftest import wait_for_previews
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QApplication
+
+from paradigma_studio.column_mapping import SIGNALS
+from paradigma_studio.input_metadata import METADATA_KEY
 
 
 def test_analyze_time_origin_defaults_reset_and_never_changes_pipeline_arguments(
@@ -138,50 +142,52 @@ def test_desktop_preparation_defaults_and_official_threshold_resets_remain_avail
     assert mapping_start.x() < gap_start.x() and mapping_start.y() < gap_start.y()
 
 
-def test_analysis_help_windows_do_not_change_configuration(window):
-    from paradigma_studio.analysis_help import FIELD_HELP
-
-    assert set(window.analysis_help) == set(FIELD_HELP)
+@pytest.mark.parametrize("origin_mode", ["automatic", "custom"])
+def test_analysis_help_windows_do_not_change_configuration(window, origin_mode):
+    frame = pd.DataFrame(
+        {column: [0.0, 10.0, 20.0] for column in (*SIGNALS, "device_clock", "optical")}
+    )
+    frame.attrs["desktop_recording_start"] = "2026-10-25T08:00:00Z"
+    frame.attrs[METADATA_KEY] = {"format": "tsdf", "units": {"time": "relative_ms"}}
+    window.loaded(("sensor.json", frame))
+    window.set_modules(["gait", "tremor", "pulse_rate"])
+    window.mapping.set_mapping({"device_clock": "time", "optical": "green"})
+    window.mapping.set_axis_inversions(["accelerometer_x", "gyroscope_y"])
+    window.side.setCurrentText("right")
+    window.acc.setCurrentIndex(window.acc.findData("m/s^2"))
+    window.gyro.setCurrentText("rad/s")
+    window.time.setCurrentText("difference_ms")
+    window.gaps.setChecked(False)
+    window.drop_missing.setChecked(False)
+    window.max_gap.setValue(7.5)
+    window.min_segment.setValue(9.0)
+    if origin_mode == "custom":
+        window.clock_input.setText("2020-01-01T08:00:00+02:00")
+        window.origin_edited()
+    wait_for_previews(window)
 
     def configuration():
         return (
-            window.selected_modules(),
-            window.side.currentText(),
-            window.acc.currentText(),
-            window.gyro.currentText(),
-            window.time.currentText(),
-            window.mapping.axis_inversions(),
-            window.gaps.isChecked(),
-            window.drop_missing.isChecked(),
-            window.max_gap.value(),
-            window.min_segment.value(),
-            window.mapping.mapping(),
+            window._analysis_controller._analysis_settings(window.selected_modules()),
+            window.clock_input.text(),
         )
 
-    for child in window.pages.widget(1).findChildren(QWidget):
-        if not window.mapping.isAncestorOf(child):
-            assert not child.toolTip()
-    assert all(checkbox.toolTip() for checkbox in window.mapping._inversions.values())
-    before = configuration()
-    window.navigate(1)
-    window.show()
-    for title, (info, description) in window.analysis_help.items():
-        assert not description.isVisible()
-        assert info.accessibleName() == f"Information: {title}"
-        info.click()
-        assert description.isVisible()
-        section = window._analysis_controller.view.analysis_help_dialogs[title]
-        assert any(
-            "ParaDigMa documentation" in label.text() for label in section.findChildren(QLabel)
-        )
-        assert description.window() is section
-        section.close()
-        assert not description.isVisible()
-    assert configuration() == before
-    assert "Invert axis" in window.analysis_help["Signal columns"][1].text()
-    assert (
-        "Choose the column in your recordings" in window.analysis_help["Signal columns"][1].text()
+    before = deepcopy(configuration())
+    assert before[0]["plot_time_origin"]["mode"] == origin_mode
+    expected_origin = (
+        "2020-01-01T08:00:00+02:00" if origin_mode == "custom" else "2026-10-25T08:00:00Z"
     )
+    assert pd.Timestamp(before[1]) == pd.Timestamp(expected_origin)
+    assert before[0]["signal_columns"]["time"] == "device_clock"
+    assert before[0]["signal_columns"]["green"] == "optical"
+    window.navigate(1)
+    for title, (info, _description) in window.analysis_help.items():
+        info.click()
+        QApplication.processEvents()
+        assert configuration() == before, (title, "open")
+        window._analysis_controller.view.analysis_help_dialogs[title].close()
+        QApplication.processEvents()
+        assert configuration() == before, (title, "close")
 
 
 def test_analyze_calendar_default_preserves_source_precision_and_results(window):

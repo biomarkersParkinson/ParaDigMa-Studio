@@ -35,7 +35,10 @@ def test_every_day_gets_a_centered_date_when_labels_fit(timezone):
     figure.canvas.draw()
     positions = axis.get_xticks()
     np.testing.assert_allclose(
-        positions, np.mean([dates.date2num(stamps[:-1]), dates.date2num(stamps[1:])], axis=0)
+        positions,
+        np.mean([dates.date2num(stamps[:-1]), dates.date2num(stamps[1:])], axis=0),
+        rtol=0,
+        atol=1e-10,
     )
     assert [label.get_text() for label in axis.get_xticklabels()] == stamps[:-1].strftime(
         "%d %b\n%Y"
@@ -95,7 +98,9 @@ def test_dates_follow_local_midnight_and_dst_without_altering_data_bounds(start,
     bounds, limits, vertical = axis.dataLim.bounds, axis.get_xlim(), axis.get_ylim()
     figure.canvas.draw()
     boundaries = dates.date2num(stamps)
-    np.testing.assert_allclose(axis.get_xticks(), (boundaries[:-1] + boundaries[1:]) / 2)
+    np.testing.assert_allclose(
+        axis.get_xticks(), (boundaries[:-1] + boundaries[1:]) / 2, rtol=0, atol=1e-10
+    )
     assert [label.get_text() for label in axis.get_xticklabels()] == stamps[:-1].strftime(
         "%d %b\n%Y"
     ).tolist()
@@ -129,7 +134,7 @@ def test_day_ticks_reuse_the_same_view_and_follow_panning_and_resize(monkeypatch
         figure.canvas.draw()
     axis.set_xlim(dates.date2num(stamps[[1, -2]]))
     figure.canvas.draw()
-    np.testing.assert_allclose(axis.get_xticks(), original[1:-1])
+    np.testing.assert_allclose(axis.get_xticks(), original[1:-1], rtol=0, atol=1e-10)
     figure.set_size_inches(3, 2)
     figure.canvas.draw()
     assert len(axis.get_xticks()) < len(original) - 2

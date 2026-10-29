@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import bar_starts, bar_values, select_plot_metric, wait_for_job, wait_for_previews
+from conftest import bar_starts, bar_values, select_plot_metric, wait_for_job
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtTest import QSignalSpy, QTest
@@ -289,23 +289,6 @@ def test_long_input_graphs_keep_bounded_display_sampling_per_selected_channel(wi
         np.testing.assert_array_equal(visible[:, 0], t[1000:3001])
         np.testing.assert_array_equal(visible[:, 1], frame[label].iloc[1000:3001])
     assert window.input_table.model().rowCount() == 60001
-
-
-def test_data_time_units_and_columns_update_the_shared_analysis_parameters(window):
-    window.loaded(
-        (
-            "milliseconds.csv",
-            pd.DataFrame({"device_ticks": [0.0, 10.0, 20.0], "gyroscope_x": [1.0, 2.0, 3.0]}),
-        )
-    )
-    window.data_time_channel.setCurrentIndex(window.data_time_channel.findData("device_ticks"))
-    window.data_time_unit.setCurrentText("relative_ms")
-    wait_for_previews(window)
-    assert window.time.currentText() == "relative_ms"
-    assert window.mapping.model.choices["time"] == "device_ticks"
-    stats = window.time_table.model().frame.set_index("Statistic")
-    assert stats.loc["Estimated sampling rate (Hz)", "Value"] == pytest.approx(100)
-    assert window.channel_table.model().frame.Channel.tolist() == ["gyroscope_x"]
 
 
 def test_all_table_headings_are_left_aligned_and_fit_after_replacing_the_model(window):

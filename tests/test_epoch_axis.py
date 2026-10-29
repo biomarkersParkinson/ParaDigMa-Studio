@@ -50,7 +50,7 @@ def test_dates_stay_centered_when_their_full_days_fit(timezone):
     ).tolist()
     boundaries = dates.date2num(stamps)
     expected = (boundaries[:-1] + boundaries[1:]) / 2
-    np.testing.assert_allclose(axis.get_xticks(), expected)
+    np.testing.assert_allclose(axis.get_xticks(), expected, rtol=0, atol=1e-10)
     clock = [label.get_text() for label in axis.get_xticklabels(minor=True)]
     assert clock and all("\n" not in label for label in clock)
     assert "00:00" in clock and any(label != "00:00" for label in clock)
@@ -81,13 +81,14 @@ def test_first_date_centers_then_aligns_left_then_hides_without_moving_the_secon
             for value, label in zip(axis.get_xticks(), axis.get_xticklabels(), strict=True)
         }
         value, second = labels["25 Oct 2026"]
-        assert value == pytest.approx(second_center) and second.get_ha() == "center"
+        assert value == pytest.approx(second_center, rel=0, abs=1e-10)
+        assert second.get_ha() == "center"
         if alignment is None:
             assert "24 Oct 2026" not in labels
             first_visible = axis.get_xticklabels()[0]
             assert first_visible.get_text() == "25 Oct 2026"
             assert first_visible.get_ha() == "center"
-            assert axis.get_xticks()[0] == pytest.approx(second_center)
+            assert axis.get_xticks()[0] == pytest.approx(second_center, rel=0, abs=1e-10)
             assert first_visible.get_window_extent(figure.canvas.get_renderer()).x0 > axis.bbox.x0
         else:
             value, first = labels["24 Oct 2026"]
@@ -188,7 +189,9 @@ def test_fallback_hour_disambiguation_is_retained_on_the_clock_row():
 def test_multi_day_clock_row_shows_every_local_midnight_when_there_is_room(timezone):
     figure, axis, stamps = epoch_axis(start="2026-10-23", days=7, timezone=timezone)
     figure.canvas.draw()
-    np.testing.assert_allclose(axis.get_xticks(minor=True), dates.date2num(stamps))
+    np.testing.assert_allclose(
+        axis.get_xticks(minor=True), dates.date2num(stamps), rtol=0, atol=1e-10
+    )
     labels = axis.get_xticklabels(minor=True)
     assert all(label.get_text() == "00:00" for label in labels)
     boxes = [label.get_window_extent(figure.canvas.get_renderer()) for label in labels]
@@ -368,9 +371,9 @@ def test_axis_limits_keep_dates_or_seconds_for_all_views(window, view, calendar)
         expected = (21600, 151200)
     upper.editingFinished.emit()
     assert toolbar.settings.error.isHidden()
-    np.testing.assert_allclose(axis.get_xlim(), expected)
+    np.testing.assert_allclose(axis.get_xlim(), expected, rtol=0, atol=1e-10)
     toolbar.settings.reset_button.click()
-    np.testing.assert_allclose(axis.get_xlim(), initial)
+    np.testing.assert_allclose(axis.get_xlim(), initial, rtol=0, atol=1e-10)
     pd.testing.assert_frame_equal(
         window._result_state.tables["classifications/tremor"],
         output["classifications"]["tremor"],

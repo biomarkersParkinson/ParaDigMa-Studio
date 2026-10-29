@@ -4,13 +4,19 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import QApplication, QDialogButtonBox, QLabel
+from PySide6.QtWidgets import QApplication, QDialogButtonBox, QLabel, QWidget
 
+from paradigma_studio.analysis_help import FIELD_HELP
 from paradigma_studio.input_metadata import METADATA_KEY
 from paradigma_studio.ui.analysis_help_dialog import AnalysisHelpDialog
 
 
 def test_info_buttons_open_one_reusable_non_modal_window_without_changing_the_page(window):
+    assert set(window.analysis_help) == set(FIELD_HELP)
+    for child in window.pages.widget(1).findChildren(QWidget):
+        if not window.mapping.isAncestorOf(child):
+            assert not child.toolTip()
+    assert all(checkbox.toolTip() for checkbox in window.mapping._inversions.values())
     window.navigate(1)
     window.resize(1450, 1000)
     QTest.qWait(30)
@@ -38,6 +44,10 @@ def test_info_buttons_open_one_reusable_non_modal_window_without_changing_the_pa
             window.analysis_scroll.verticalScrollBar().maximum(),
         ) == before
     assert len(window.findChildren(AnalysisHelpDialog)) == len(window.analysis_help)
+    assert "Invert axis" in window.analysis_help["Signal columns"][1].text()
+    assert (
+        "Choose the column in your recordings" in window.analysis_help["Signal columns"][1].text()
+    )
 
 
 @pytest.mark.parametrize("close_method", ["button", "escape", "window"])

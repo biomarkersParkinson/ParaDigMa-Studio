@@ -22,22 +22,6 @@ def isolate_local_run_history(tmp_path, monkeypatch):
     )
 
 
-def test_window_results_and_plot(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    window = MainWindow()
-    frame = pd.DataFrame({"time": [0.0, 1.0, 2.0], "tremor_power": [1.0, 2.0, 3.0]})
-    window.loaded((str(tmp_path / "sensor.csv"), frame))
-    window.analyzed({"quantifications": {"tremor": frame}, "errors": []})
-    window.show()
-    app.processEvents()
-    assert window.result_table.model().rowCount() == 3
-    assert len(window.figure.axes[0].collections[0].get_paths()) == 3
-    assert not window.figure.axes[0].lines
-    assert window.export_button.isEnabled()
-    window.canvas.draw()
-    window.close()
-
-
 def test_worker_failure_is_delivered():
     app = QApplication.instance() or QApplication([])
     errors = []
@@ -78,18 +62,26 @@ def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
     window.close()
 
 
-def test_time_plot_handles_numeric_metric_names_without_using_row_numbers_as_time():
-    _app = QApplication.instance() or QApplication([])
+def test_loaded_results_plot_numeric_metric_names_using_original_times(tmp_path):
+    app = QApplication.instance() or QApplication([])
     window = MainWindow()
     frame = pd.DataFrame(
         {"time": [10.0, 20.0, 30.0], 0: [1.0, 2.0, 3.0], "Row number": [100.0, 200.0, 300.0]},
         index=["a", "b", "c"],
     )
+    window.loaded((str(tmp_path / "sensor.csv"), frame))
     window.analyzed({"quantifications": {"test": frame}, "errors": []})
     select_plot_metric(window, "quantifications/test", 0)
+    window.show()
+    app.processEvents()
+    assert window.result_table.model().rowCount() == 3
+    assert len(window.figure.axes[0].collections[0].get_paths()) == 3
+    assert not window.figure.axes[0].lines
+    assert window.export_button.isEnabled()
     assert list(bar_starts(window.figure.axes[0])) == [10.0, 20.0, 30.0]
     assert list(bar_values(window.figure.axes[0])) == [1.0, 2.0, 3.0]
     pd.testing.assert_frame_equal(window.result_table.model().frame[frame.columns], frame)
+    window.canvas.draw()
     window.close()
 
 

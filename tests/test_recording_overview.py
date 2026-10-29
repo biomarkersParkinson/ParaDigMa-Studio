@@ -53,7 +53,7 @@ def test_prepared_duration_percentage_and_internal_gaps_replace_raw_preparation_
     assert output == original
 
 
-def test_removed_recording_boxes_stay_absent_for_current_and_legacy_metadata():
+def test_internal_recording_counts_stay_absent_with_optional_metadata():
     output = {
         "metadata": {
             "desktop_recordings": {"recordings": ["first", "second"]},
@@ -143,7 +143,7 @@ def test_daylight_saving_uses_elapsed_hours_and_distinguishes_repeated_clock_tim
     assert entries["Tremor · Data coverage"] == "0 days · 1.00 h · 100.0% of timespan"
 
 
-def test_legacy_export_without_source_extent_does_not_invent_percentage_or_dates():
+def test_missing_source_extent_does_not_invent_percentage_or_dates():
     entries = dict(
         recording_summary(result({"gait": section([[0.0, 3600.0], [7200.0, 10800.0]])}), {}, None)
     )

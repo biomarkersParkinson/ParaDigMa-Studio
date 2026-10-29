@@ -34,3 +34,40 @@ Application code, UI and dependency versions are unchanged by this cleanup.
 
 This historical validation applies to that cleanup only. See the
 [current test guide](../TEST_SUITE.md) for the maintained coverage map and commands.
+
+## 2026-10-29: stronger assertions and focused UI consolidation
+
+Starting point: `1337c33`, with **1,718 collected cases** in 791 test functions.
+
+- Replace relative tolerances on absolute calendar coordinates with zero
+  relative tolerance and explicit absolute bounds in Results navigation and
+  day/epoch tick tests. Keep mouse/pixel-derived tolerances and scientific-value
+  tolerances separate.
+- Check the complete Analyze settings and displayed origin with loaded,
+  non-default columns, units, axes and thresholds after every help open and
+  close. Cover both an automatic file origin and a custom origin. Move repeated
+  tooltip/text/window assertions to the dedicated help-dialog checks.
+- Fold the basic Data-to-Analyze time-selection case into the shared-time
+  diagnostic test, retaining its sampling-rate and selected-channel-exclusion
+  assertions.
+- Retain the mapping-heading/editor gap assertion in the main layout test;
+  the existing native-size matrix owns help-position stability.
+- Combine the basic loaded-results plot check with numeric metric-name handling,
+  retaining default-storage isolation, all three table rows/bar paths, original
+  time/value assertions, export availability and an actual canvas draw.
+- Rename missing-source-metadata and editor-schema-refresh cases so their names
+  distinguish them from unsupported saved formats and replacement-file loads.
+
+Three scenarios are consolidated and the help-origin case gains one distinct
+mode, giving **1,716 cases** in 788 functions. Scientific comparisons, supported
+format/rejection cases, real worker tests and all native-size/display-scale
+variants remain. Application code, dependencies and runtime behavior are unchanged.
+
+Focused validation: **216 passed**. Isolated test-only injections of a 60-second
+pinned-ruler error and help-triggered origin corruption are now rejected by the
+strengthened tests; the latter fails for both automatic and custom origins.
+
+Full validation on Linux: **1,715 passed, 1 skipped**, with **89.36% coverage**
+against the unchanged 80% gate. The skip is native Windows signature verification.
+Ruff lint/formatting, the module/facade limits and both Linux- and Windows-target
+mypy checks pass. Native Windows CI remains a separate check.

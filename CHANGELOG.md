@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Strengthen checks for clock alignment and Analyze help, consolidate overlapping
+  UI tests, and clarify cases involving missing metadata or refreshed column lists.
 - Add a hand tool to drag time horizontally in raw sensor graphs and all Results
   graph views, preserving the visible duration, linked axes, automatic/manual Y
   scales, selected timepoint and navigation history within the source bounds.

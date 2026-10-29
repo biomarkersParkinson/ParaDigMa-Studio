@@ -73,6 +73,7 @@ def test_data_edits_update_analysis_diagnostics_and_the_selected_clock(window):
     assert window.mapping.model.choices["time"] == "epoch"
     assert window.time.currentText() == window.data_time_unit.currentText() == "absolute_ms"
     assert sampling_rate(window) == pytest.approx(100, rel=1e-5)
+    assert window.channel_table.model().frame.Channel.tolist() == ["other_clock", "gyroscope_x"]
     assert all(badge.isHidden() for badge in badges(window, "column"))
     assert all(not badge.isHidden() for badge in badges(window, "unit"))
     assert pd.Timestamp(window.clock_input.text()) == pd.Timestamp("2026-10-25T08:00:00Z")

@@ -73,7 +73,7 @@ def test_absent_selection_never_falls_back_to_a_present_standard_column(selected
     pd.testing.assert_frame_equal(frame, original, check_exact=True)
 
 
-def test_explicit_not_included_survives_loads_and_auto_match_can_restore_it(window):
+def test_explicit_not_included_survives_schema_refresh_and_default_restores_it(window):
     window.mapping.set_recordings({"one": ["time", "green"]}, {})
     window.mapping.set_modules(["pulse_rate"])
     selector = window.mapping._combos["green"]
@@ -108,8 +108,8 @@ def test_absolute_clock_uses_the_selected_source_and_ignores_the_original_time()
 
 def test_python_api_without_selections_retains_literal_rename_semantics():
     frame = pd.DataFrame({"time": [0.0, 1.0], "green": [1.0, 2.0], "ppg": [3.0, 4.0]})
-    legacy = apply_signal_columns(frame, {"ppg": "green"})
-    assert legacy.columns.tolist() == ["time", "green", "green"]
+    renamed = apply_signal_columns(frame, {"ppg": "green"})
+    assert renamed.columns.tolist() == ["time", "green", "green"]
     current = apply_signal_columns(frame, {"ppg": "green"}, selections(time="time", green="ppg"))
     pd.testing.assert_series_equal(current.green, frame.ppg.rename("green"), check_exact=True)
     assert current.columns.is_unique
