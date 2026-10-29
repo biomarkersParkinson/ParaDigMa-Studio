@@ -11,6 +11,9 @@ publish a download: pushing its tag starts the publishing workflow below.
 
 1. Update `pyproject.toml`, the README version/download and `CHANGELOG.md`.
    Run `uv lock` to refresh the root project version while retaining dependency pins.
+   Point the README and documentation index to the user guide at the new release
+   tag. Label the guide on `main` as current source, review its text/captures and
+   run the [documentation checks](../CONTRIBUTING.md#documentation-checks).
 2. Install the [reviewed dependency lock](DEPENDENCIES.md) in a clean
    environment; verify it with `uv sync --locked --all-groups --check` and
    run the dependency audit. Run the [development checks](DEVELOPMENT.md):

@@ -5,7 +5,12 @@ under `docs/archive/screenshots`. Each image is 1450 × 1000 pixels, using Qt's
 Fusion style at scale factor 1. The captures were made on Linux; the Windows app
 uses the same page controls, with platform-dependent fonts and window decoration.
 The full set was regenerated and visually reviewed for **1.0.0rc1** on
-26 October 2026; unchanged captures retain their existing files.
+26 October 2026. Data graphs, Results graphs and sensor context were refreshed
+on 28 October for the shared hand tool and navigation controls; see
+[commit `1337c33`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/1337c33).
+These images illustrate the current source. The
+[tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
+retains the screenshots for the published candidate.
 
 All seven images follow one real gait analysis of the public, unmodified Axivity
 example `src/paradigma_studio/data/test_data.CWA` (36,400 original samples).

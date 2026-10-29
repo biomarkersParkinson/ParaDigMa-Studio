@@ -80,7 +80,7 @@ passed Windows auditing, tests, executable checks and publication. Its Git recei
 confirms the source, tag and published archive checksum. The actual public ZIP was
 then downloaded and verified independently on Linux: its checksum, source/version,
 locked Windows package graph, audit and all 1,772 inventory file hashes matched.
-The [security summary](../SECURITY.md) and [evidence](security-review.json) record
+The [security summary](../SECURITY.md) and [evidence](archive/security-review-1.0.0rc1-2026-10-26.json) record
 the results and archive SHA-256. Windows execution was verified in CI; manual
 clean-machine acceptance remains separate.
 

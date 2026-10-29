@@ -1,0 +1,24 @@
+name: Documentation
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Check maintained Markdown
+        run: npm exec --yes --package markdownlint-cli2@0.18.1 -- markdownlint-cli2
+      - name: List all repository Markdown for link checking
+        run: git ls-files '*.md' > "$RUNNER_TEMP/documentation-files.txt"
+      - name: Check local files, images and heading anchors
+        uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
+        with:
+          lycheeVersion: v0.21.0
+          args: --config .lychee.toml --files-from ${{ runner.temp }}/documentation-files.txt

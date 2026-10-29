@@ -9,6 +9,7 @@ and explore results. Recordings and results stay on your computer.
 ## Download and launch
 
 **ParaDigMa Studio 1.0.0rc1** is available for **64-bit Windows**.
+
 1. Download [**ParaDigMaStudio-1.0.0rc1-Windows-x64.zip**](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/download/v1.0.0rc1/ParaDigMaStudio-1.0.0rc1-Windows-x64.zip)
    from the [release page](https://github.com/biomarkersParkinson/ParaDigMa-Studio/releases/tag/v1.0.0rc1).
 2. Extract the **entire ZIP** into a new folder.
@@ -28,6 +29,9 @@ Development builds and performance reports are available separately under
 ParaDigMa Studio is currently distributed without a digital signature. Windows may display a security warning during installation.
 We are working toward digitally signed releases.
 
+For instructions matching this download, use the [1.0.0rc1 user guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md).
+The [current-source guide](docs/USER_GUIDE.md) also covers unreleased changes.
+
 ## Your first analysis
 
 1. **Data:** Open one or more wrist sensor recordings for the same subject (Ctrl/Shift-select
@@ -43,7 +47,7 @@ We are working toward digitally signed releases.
    Choose metrics in **Plot series**; zoom to inspect a time interval.
    Switch **View** between Detailed, 30-minute epochs, Day and a 24-hour profile
    averaging valid 30-minute summaries across days. The
-   [user guide](docs/USER_GUIDE.md#results) explains summaries,
+   [user guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md#results) explains summaries,
    availability thresholds and graph controls.
    Tables and exports retain each module's original classification, quantification and aggregation outputs.
 4. **Runs:** Review parameters, warnings, logs and export locations. Ctrl/Shift-select
@@ -60,8 +64,8 @@ conventions must match; one Analyze configuration applies to the entire batch.
 Use **Export…** on any Results tab to choose tables, metadata and **JSON** or
 **CSV**. Multiple CSV tables are packaged in a ZIP.
 Click **Save results** to store the complete current run locally and reopen it
-from **Runs** after restarting. See [saving results](docs/USER_GUIDE.md#save-results)
-and [run history](docs/USER_GUIDE.md#runs).
+from **Runs** after restarting. See [saving results](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md#save-results)
+and [run history](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md#runs).
 
 ## Supported input
 
@@ -82,10 +86,11 @@ original recordings to create current runs.
 
 ## More information
 
-- [User guide](docs/USER_GUIDE.md): units, preparation, statistics, exports and common issues.
+- [User guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md): units, preparation, statistics, exports and common issues.
 - [Official ParaDigMa documentation](https://biomarkersparkinson.github.io/paradigma/): scientific methods and device requirements.
 - [Output verification](docs/SCIENTIFIC_TESTS.md): independent comparisons with official ParaDigMa outputs.
 - [Documentation index](docs/README.md): development, architecture, tests, performance and historical reports.
+- [Contributing](CONTRIBUTING.md): bug reports, pull requests and documentation checks.
 - [Security](SECURITY.md) and [signing](SIGNING.md).
 
 ## License

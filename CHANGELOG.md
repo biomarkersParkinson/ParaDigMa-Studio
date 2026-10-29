@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Separate release-matched and current-source guides, streamline documentation
+  ownership, archive dated verification evidence, and add contribution/security
+  reporting guidance and standard Markdown/local-link checks.
+
 - Strengthen checks for clock alignment and Analyze help, consolidate overlapping
   UI tests, and clarify cases involving missing metadata or refreshed column lists.
 - Add a hand tool to drag time horizontally in raw sensor graphs and all Results

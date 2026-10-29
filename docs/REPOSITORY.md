@@ -24,6 +24,9 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 
 ## Application boundaries
 
+The [architecture guide](ARCHITECTURE.md) explains interactions and lifecycle
+rules. The [API reference](PYTHON_API.md) owns service and persistence contracts.
+
 | Responsibility | Modules |
 | --- | --- |
 | Component creation, Qt lifecycle adapters and ordered signal wiring | `app.py` |
@@ -49,7 +52,7 @@ pytest, coverage.py, Ruff and mypy checks. `README.md` is the user entry point;
 | Shared channel selection and original sensor plotting | `channels.py`; viewport rendering and bounded peak summaries in `raw_signals.py` |
 | Original output tables, presentation timing and optional table columns | `result_data.py`, `results_view.py` |
 | Recording loading, TSDF scaling, preparation and official ParaDigMa orchestration | `core.py`, `empatica.py`, `tsdf_input.py`, `recordings.py` |
-| Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py` |
+| Scientific worker isolation/cancellation, resource limits and job signals | `analysis_process.py`, `parallel_analysis.py`, `analysis_limits.py`, `jobs.py`; visual milestones in `analysis_progress.py` |
 | Ordered recording-output merging and official pooled aggregation | `recording_results.py` |
 | Read-only, replaceable recording previews and bounded initial batch statistics | `previews.py`, `inspection.py`; resource policy in `analysis_limits.py` |
 | Prepared coverage, gait presence and overview charts | `availability.py`, `gait_presence.py`, `gait_overview.py`, `overview.py` |

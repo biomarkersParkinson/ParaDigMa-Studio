@@ -1,5 +1,9 @@
 # Using ParaDigMa Studio
 
+**Current source guide:** this page includes unreleased changes on `main`.
+For the published Windows candidate, use the [1.0.0rc1 guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md).
+See the [changelog](../CHANGELOG.md) for the difference.
+
 Follow the app's four pages: [Data](#data), [Analyze](#analyze),
 [Results](#results) and [Runs](#runs). For downloading and opening the Windows app,
 start with the [README](../README.md).

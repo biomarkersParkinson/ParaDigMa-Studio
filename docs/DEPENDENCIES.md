@@ -90,6 +90,6 @@ Audits use current advisory data, so an unchanged lock may later need an update.
 Package/version advisories do not attest that arbitrary Git source is safe;
 the immutable reader commit and its source provenance are retained separately.
 
-The [original supplied Windows baseline](dependency-baseline.json) is historical
+The [original supplied Windows baseline](archive/dependency-baseline.json) is historical
 evidence. Migration to the native lock preserved every selected package version,
 with uv moved out of the application environment into the pinned installer.

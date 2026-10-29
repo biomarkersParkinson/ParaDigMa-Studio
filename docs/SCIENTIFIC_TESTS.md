@@ -62,7 +62,7 @@ detection to construct its expected output.
 
 The direct orchestrator runs with explicit prepared inputs because its 1.1.2 raw
 preparation has known parameter-forwarding limitations documented in the
-[Python service API documentation](DEVELOPMENT.md#python-service-apis).
+[Python service API documentation](PYTHON_API.md#python-service-apis).
 Comparing a raw default orchestrator call with the app's explicit missing-sample
 exclusion, unit conversion or independent gap processing would compare different
 workflows.
@@ -180,7 +180,7 @@ build workflows run them before packaging and publish JUnit and coverage reports
 in `ParaDigMaStudio-test-results`, including reports from failed tests.
 The committed fixtures make the suite self-contained: no upstream checkout,
 fixture download or patient recording is required. Use `uv sync --locked --all-groups` for the
-[CI coverage check](DEVELOPMENT.md#branch-coverage).
+[CI coverage check](TEST_SUITE.md#branch-coverage).
 
 The [test suite guide](TEST_SUITE.md) describes the feature-based organization
 and shared UI helpers. The scientific cases, their independent references and

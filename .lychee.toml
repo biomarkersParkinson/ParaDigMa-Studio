@@ -1,0 +1,6 @@
+# Validate repository files, images and heading anchors without network requests.
+offline = true
+include_fragments = true
+no_progress = true
+# Git supplies explicit Markdown paths, including the contribution template.
+hidden = true

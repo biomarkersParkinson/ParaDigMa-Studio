@@ -34,7 +34,7 @@ Normal push/PR builds continue to produce unsigned artifacts.
    federated credential's subject to the value above.
 
 5. In **this GitHub repository → Settings → Environments**, create the environment
-   `windows-signing` and restrict its deployment branches to `main`. 
+   `windows-signing` and restrict its deployment branches to `main`.
    The branch restriction matters because the federated credential trusts the
    environment, not a branch claim. Add these environment **variables**:
 

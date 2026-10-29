@@ -1,0 +1,13 @@
+# Keep dated reports unchanged; their links are still checked by lychee.
+globs:
+  - "*.md"
+  - ".github/*.md"
+  - "docs/*.md"
+  - "docs/images/user-guide/README.md"
+  - "docs/archive/README.md"
+config:
+  default: true
+  MD013: false # Tables, paths and reference URLs can exceed a line-length limit.
+  MD024:
+    siblings_only: true # Changelog releases can repeat their subsection names.
+  MD033: false # GitHub details/summary and the README screenshot use HTML.

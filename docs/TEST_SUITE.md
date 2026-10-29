@@ -185,9 +185,9 @@ Workflow benchmarks select series in each view and switch tables through
 the visible module tabs and output selector, with the Tables page open.
 
 Use the [development commands](DEVELOPMENT.md) for local and CI checks.
-That guide maintains the [lint and size limits](DEVELOPMENT.md#quality-gates-and-implementation-conventions),
-[mypy scope](DEVELOPMENT.md#type-checking), and
-[branch-coverage scope, floor and reports](DEVELOPMENT.md#branch-coverage).
+That guide maintains the [lint and size limits](DEVELOPMENT.md#quality-gates-and-implementation-conventions)
+and [mypy scope](DEVELOPMENT.md#type-checking). Coverage policy and reports are
+[documented below](#branch-coverage).
 Static checks complement the runtime and scientific tests; they do not replace them.
 Failure-boundary tests deliberately raise unexpected exceptions, retain their original
 tracebacks and require a failed probe exit status. Bulk-save checks fail either the
@@ -200,3 +200,61 @@ remain responsibilities of the Windows build workflows.
 The [archived cleanup record](archive/test-suite-cleanup.md) preserves earlier
 consolidation decisions and their validation counts. Current counts come from
 pytest collection and the report for the tested commit.
+
+## Test setup and scientific checks
+
+Headless UI tests configure a 1920×1080 virtual Qt screen using
+`tests/data/qt-offscreen.json`. Qt's default 800×800 screen is smaller than the
+app's minimum width and can clip visibility checks on Windows. Graph-workspace
+tests use the same Fusion style as the shipped app and wait for layout updates.
+
+The normal suite includes scientific equivalence tests. To run only those:
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -m scientific -q
+```
+
+See [scientific test methodology](SCIENTIFIC_TESTS.md) for independent references,
+fixtures, tolerances and limits. App tests cover imports, preparation settings,
+background error handling, navigation, selection, graph/table values, presentation
+controls, history and exports. The frozen-app check loads bundled classifiers,
+runs real pipelines, renders graphs and reopens exported results.
+
+## Branch coverage
+
+Both Windows workflows run the full suite with pinned `pytest-cov` and coverage.py.
+The initial floor is **80%**, using coverage.py's combined percentage of executed
+statements and branch outcomes. The report includes all `*_controller.py` modules
+and these error boundaries: `analysis_process`, `analysis_progress`, `core`,
+`jobs`, `parallel_analysis`,
+`previews`, `recording_results`, `storage`, `result_preparation` and
+`result_reopening`. The `raw_signals` renderer and header-only `column_mapping`
+model and `axis_mapping` service are also included. New controllers
+automatically join
+the gate, including modules with no tests. Other Studio modules and the upstream
+toolbox are outside this initial reporting scope; this is not whole-app coverage.
+The source scope, branch mode and floor live in `pyproject.toml`.
+The initial Linux measurement at [commit `e8bd902`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/e8bd902)
+recorded 90.2% of statements and 76.5% of branch outcomes, or 87.0% combined across
+16 modules (893 tests passed, one skipped). This is a dated baseline.
+
+The [Windows and Linux development commands](DEVELOPMENT.md) include the same coverage flags as CI.
+XML is written to `test-reports/coverage.xml`; open
+`test-reports/coverage-html/index.html` to inspect missing lines and branch exits.
+Both reports are retained with JUnit in the CI test-results artifact, outside the
+application bundle. Raw `.coverage*` data and generated reports are ignored by Git.
+
+Coverage combines completed Python subprocesses and multiprocessing workers.
+Forcibly terminated workers can exit before saving their measurements; direct
+boundary tests complement real process/thread integration tests. Qt thread entry
+points are also tested synchronously so their failure and cleanup paths are traced.
+In particular, the low `recording_results` measurement undercounts merging inside
+terminated workers; the real-process scientific comparisons still run.
+Normal `pytest` runs keep coverage off for fast focused work. For a local partial
+measurement, use `--cov --cov-fail-under=0`; the full CI run always enforces the
+configured floor. Add behavior tests for missing error/recovery branches rather
+than excluding them or lowering the floor. Coverage timings are not performance
+benchmarks.
+
+Public fixture provenance and licenses are under `src/paradigma_studio/data/`
+and `tests/data/paradigma/`. No patient data or external fixture download is needed.
