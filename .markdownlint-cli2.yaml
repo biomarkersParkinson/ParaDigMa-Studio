@@ -3,7 +3,7 @@ globs:
   - "*.md"
   - ".github/*.md"
   - "docs/*.md"
-  - "docs/images/user-guide/README.md"
+  - "docs/images/**/README.md"
   - "docs/archive/README.md"
 config:
   default: true

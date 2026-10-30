@@ -25,16 +25,9 @@ Use the [repository map](REPOSITORY.md) to locate modules,
 The arrows below show construction and dependencies, rather than execution
 threads. Each controller receives only the state, view and services it needs.
 
-```mermaid
-flowchart TD
-    Main["MainWindow: composition root"] --> Pages["Page builders and frozen views"]
-    Main --> Controllers["Controllers and named callbacks"]
-    Main --> State["Workspace state"]
-    Controllers --> Pages
-    Controllers --> State
-    Controllers --> Services["Recording, analysis and persistence services"]
-    Services --> Official["Official ParaDigMa APIs"]
-```
+[![Component ownership and dependencies in ParaDigMa Studio](images/architecture/components.png)](images/architecture/components.png)
+
+[Editable diagram source](images/architecture/components.mmd). Click the image for full size.
 
 | Component | Responsibility and boundary |
 | --- | --- |
@@ -201,20 +194,9 @@ QThread. Read-only previews have their own executors.
 
 A normal GUI analysis follows this sequence:
 
-```mermaid
-sequenceDiagram
-    participant GUI as GUI thread
-    participant Worker as Worker.run in QThread
-    participant Child as Owned analysis process or processes
-    GUI->>GUI: Snapshot settings, create run, clear prior result views
-    GUI->>Worker: Connect signals, then start
-    Worker->>Child: run_isolated_analysis
-    Child->>Child: Prepare inputs and run official processing
-    Child-->>Worker: Logs, progress and results
-    Worker-->>GUI: completed(results)
-    GUI->>GUI: Prepare presentation data and install results
-    Worker-->>GUI: finished: restore controls and release worker
-```
+[![Analysis sequence across the GUI thread, QThread worker and owned processes](images/architecture/analysis-sequence.png)](images/architecture/analysis-sequence.png)
+
+[Editable diagram source](images/architecture/analysis-sequence.mmd). Click the image for full size.
 
 [`analysis_process.py`](../src/paradigma_studio/analysis_process.py) uses one owned
 spawned process for a single recording or sequential batch. With multiple

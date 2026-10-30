@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant GUI as GUI thread
+    participant Worker as Worker.run<br/>(QThread)
+    participant Child as Owned analysis<br/>process(es)
+    GUI->>GUI: Snapshot settings, create run,<br/>clear prior result views
+    GUI->>Worker: Connect signals, then start
+    Worker->>Child: run_isolated_analysis
+    Child->>Child: Prepare inputs and<br/>run official processing
+    Child-->>Worker: Logs, progress and results
+    Worker-->>GUI: completed(results)
+    GUI->>GUI: Prepare presentation data<br/>and install results
+    Worker-->>GUI: finished: restore controls<br/>and release worker

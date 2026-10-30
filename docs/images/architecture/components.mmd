@@ -1,0 +1,8 @@
+flowchart TD
+    Main["MainWindow<br/>composition root"] --> Pages["Page builders<br/>and frozen views"]
+    Main --> Controllers["Controllers<br/>and named callbacks"]
+    Main --> State["Workspace<br/>state"]
+    Controllers --> Pages
+    Controllers --> State
+    Controllers --> Services["Recording, analysis<br/>and persistence services"]
+    Services --> Official["Official ParaDigMa<br/>APIs"]
