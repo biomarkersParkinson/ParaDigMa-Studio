@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Organize the scientific test guide around running checks, coverage, independent
+  references, tolerances and presentation, distinguishing direct official
+  comparisons from sequential/parallel consistency checks and clarifying fixtures
+  and maintenance limits.
 - Group the repository map by workflow and component ownership, add direct
   source/script links and current navigation/help/provenance modules, and
   separate change conventions from generated outputs and CI guidance.

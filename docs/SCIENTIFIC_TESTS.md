@@ -1,229 +1,319 @@
 # Scientific equivalence tests
 
-`tests/test_scientific_equivalence.py` and `tests/test_parallel_scientific.py`
-compare the wrapper with an independent official ParaDigMa 1.1.2 workflow using
-identical inputs and settings. These regression and integration tests check
-wrapper equivalence; they do not establish clinical accuracy or validate new
-scientific algorithms.
+These tests check that Studio preserves the behavior and outputs of **official
+ParaDigMa 1.1.2** for the same inputs and settings. They cover preparation,
+scientific processing, spawned workers, presentation and exports. They establish
+wrapper equivalence, not clinical accuracy or validation of new algorithms.
 
-## Basis in the official automated tests
+This guide describes the tests on `main`. Use the [test suite guide](TEST_SUITE.md)
+for the broader regression map, shared helpers and coverage policy, and
+[Development](DEVELOPMENT.md) for environment setup and complete CI checks.
 
-The reference is the official [ParaDigMa test suite at commit
-4735d6d](https://github.com/biomarkersParkinson/paradigma/tree/4735d6d21b2a62b764a0bc7e0f677577e6ce1668/tests):
-
-| Upstream basis | Desktop coverage |
-| --- | --- |
-| `test_gait_analysis.py`, `test_tremor_analysis.py`, `test_pulse_rate_analysis.py`: synthetic pipeline/orchestrator checks | Adapted signals with a fixed random seed, executed through both the app and a direct official workflow |
-| `test_prepare_data.py`: units, preparation and interrupted recordings | Numeric comparisons after mapping, g/m/s² and deg/s/rad/s conversion, signed axis permutation and all six supported numeric time encodings |
-| `conftest.py` and stored TSDF fixtures: reference comparisons | Recorded IMU/PPG inputs decoded from `tests/data/1.prepared_data`; comparison of intermediate signals, features, classifications and derived outputs |
-| `test_orchestrator.py` and gait tests: orchestration and multiple input frames | Gait + tremor, all three modules via independent IMU/PPG calls, both watch sides, filtered/unfiltered branches, independent sections, identifiers, segment timing metadata and aggregation |
-
-The app's existing public Axivity CWA and Physilog Parquet fixtures add raw-import
-and missing-sample coverage. Source attribution, selections and checksums are in
-[`tests/data/paradigma/README.md`](../tests/data/paradigma/README.md) and the bundled
-example recordings' provenance file.
-
-## Independent reference workflow
-
-The expected path calls the official `prepare_raw_data`,
-`correct_watch_orientation` and `run_paradigma` functions directly. It does not
-call the desktop analysis or preparation helpers to generate expected outputs.
-The actual path calls the real desktop `analyze` function. Both paths receive
-fresh configuration objects because upstream preprocessing updates sampling
-frequency settings during a run. Inputs must remain unchanged.
-
-The Signal columns UI tests also compare real gait, tremor and pulse-rate outputs
-with independent official preparation after source renaming, axis swaps and
-independent accelerometer/gyroscope inversions. The reference calls the official
-orientation function directly for each sensor. Current saved-run checks validate
-independent sensor inversions and reject retired global axis permutations or GUI
-preparation-bypass settings without changing the current configuration. All GUI
-runs use normal preparation. Boundary tests compare native-unit inputs exactly,
-converted units and independent inversions numerically, and selected gap/duration
-policies.
-The Python API's explicit preparation bypass remains covered separately.
-
-TSDF import tests use real binary streams and an independent reference multiplication
-of each channel by its metadata `scale_factors`, following the
-[TSDF pandas tutorial](https://biomarkersparkinson.github.io/tsdf/basic_reading_and_writing_pandas.html).
-ParaDigMa 1.1.2's loader returns unscaled stored values; its preparation converts
-units but does not decode these scale factors. Studio decodes them before display
-and preparation. Tests compare every real tremor stage and output with a directly
-scaled official workflow, with preparation both enabled and skipped, and verify
-that Data graphs show the physical values and source files remain unchanged.
-
-For missing data, the Physilog reference uses independently known source row
-intervals: missing gyroscope samples are rows `[2000,2010)`, and time gaps occur
-at rows 6010 and 8010. Each retained interval is passed to the official
-orchestrator as a separate frame. A 30-second minimum-duration case independently
-omits the two 20-second sections. The difference-time case reconstructs elapsed
-time before excluding sensor rows. This avoids using the app's own boundary
-detection to construct its expected output.
-
-The direct orchestrator runs with explicit prepared inputs because its 1.1.2 raw
-preparation has known parameter-forwarding limitations documented in the
-[Python service API documentation](PYTHON_API.md#python-service-apis).
-Comparing a raw default orchestrator call with the app's explicit missing-sample
-exclusion, unit conversion or independent gap processing would compare different
-workflows.
-
-ParaDigMa 1.1.2 does not forward classification tables from its pipelines into the
-final orchestrator result, and its gait pipeline does not return its merged
-classification labels. Test observers therefore record real stage inputs and
-outputs, including quantification inputs containing those labels. Observers call
-the original functions and return their results unchanged; they do not replace
-models, probabilities or signal processing. Both paths must actually execute
-the scientific stages and finish without processing errors.
-
-Both workflows now also request the official classification exports. The desktop
-retains those files in its results, and the independent reference reads its own
-files to compare every classification value, timestamp, column and section key.
-Saving classifications changes output retention, not the pipeline's computations.
-
-## Assertions and tolerances
-
-Comparisons cover:
-
-- Prepared inputs, resampled/filtered signals and extracted features.
-- Classification probabilities and discrete labels, including gait filtering.
-- All quantification rows/columns, both gait branches and tremor power.
-- Every returned official aggregation and scientific metadata value.
-- Exact row counts, order, column names, timestamps and missing-value masks.
-- Real-result Qt zoom, scientific table values and plotted measurements, plus
-  independently derived gait display positions and unchanged official aggregate cards.
-- Checked-tremor interval starts at exactly the positive official timestamps,
-  extending at the official output update cadence without joining recording gaps; plotted
-  counts and checked/resting-window ratios reconcile with the official percentage.
-  Tremor overview rounding is display-only; arm-at-rest percentage agrees with
-  the independent official resting/total window counts.
-  Raw classification/quantification tables preserve all original columns; aggregate
-  tables retain full-run values when the detailed time selection changes or users switch module tabs.
-- Gait display-only window indicators match the saved probabilities compared with
-  each bundled model's threshold, including equality at the threshold and missing
-  values. Filtered-positive display intervals are independently intersected with
-  threshold-positive detected gait in the recorded fixtures. Recorded-output
-  plots, zoom and clicks preserve the raw tables.
-  These indicators are distinct from the pipeline's merged sample-level labels.
-- JSON export/reopening and CSV exports, including missing tremor measurements.
-
-Discrete labels, identifiers and time columns must match exactly. Other floating
-values use `rtol=1e-10`, `atol=1e-12`; NaNs must occur at the same locations. This
-is intentionally tighter than upstream's historical `rtol=1e-5`, `atol=1e-6`
-stored-reference helper because both sides execute the same pinned library in
-one process. No length differences, reordered records or overlapping prefixes
-are accepted. Numeric dtypes may differ without changing values, for example
-when validated integer sensor channels become floats in the app.
-
-JSON converts non-finite scalars to null and dictionary keys to strings, as
-documented by the export format. Comparisons account for that representation
-while checking the restored scientific values. CSV is read with pandas'
-`float_precision="round_trip"` to avoid parser rounding.
-
-The wrapper adds missing-sample provenance under
-`metadata.desktop_preparation`. It is checked separately against the known
-excluded sample count, analyzed sample count and section count. Recording identifiers
-and prepared-input coverage are also desktop metadata, tested separately from official
-scientific metadata. Coverage is checked against the exact prepared frames received
-by the orchestrator, including missing rows and discarded short sections. Complete
-JSON round trips check both scientific and desktop metadata. Overview retains official
-aggregates regardless of plot zoom. Gait-segment summaries and display-only
-time estimates do not modify the scientific tables.
-
-The combined three-module test compares every scientific stage, classification,
-quantification, aggregate and metadata value against two independent official
-workflows. Additional UI tests check absolute-time alignment when IMU and PPG
-missing-sample exclusions create different analysis origins, including JSON reopening.
-
-Multiple recordings of one subject are also compared against a direct official
-dictionary-of-recordings workflow. The recorded IMU cases have unequal lengths;
-classifications, both gait branches, unique gait-segment metadata and pooled
-tremor aggregates must match. UI tests cover original-file inspection, shared
-settings, per-file dates, shared plot limits, source-correct sensor context, JSON
-reopening, file-order fallbacks and protection of all source files during export.
-
-## Positive and empty-output cases
-
-The recorded IMU tests require actual gait measurements and multiple positive
-tremor windows with finite power, plus nonempty aggregations. The right-watch
-case also requires nonempty filtered gait measurements and aggregations.
-Empty synthetic gait or default pulse-rate output is allowed where the official
-pipeline produces it, rather than being mistaken for evidence of positive
-scientific output.
-
-The recorded PPG fixture yields no estimates with ParaDigMa's default
-configuration. That behavior and all its quality probabilities are compared.
-A separate positive-output case passes the official
-`PulseRateConfig(ppg_sampling_frequency=100, min_window_length_s=10)` to both
-paths, matching the preprocessed rate and selecting an explicit 10-second
-minimum estimation window. It requires finite pulse-rate estimates and
-aggregations without bypassing quality classification or changing its threshold.
-This exercises the wrapper's configuration API; it does not change the GUI
-defaults or imply that the same recording produces estimates in the default GUI.
-
-Raw PPG-only regressions use all six numeric time formats and mapped text
-columns. They compare every real pulse stage, quality probability, estimate and
-aggregate with an independent official workflow. Studio validates required
-PPG/time values before using official preparation with its IMU-specific generic
-validator disabled when no complete IMU stream is present. No accelerometer
-channels are synthesized; the analytical functions and quality thresholds are
-unchanged. Additional checks preserve missing-sample clock alignment and the
-IMU requirements for gait and tremor.
+- [Run the checks](#running-and-maintaining-the-tests)
+- [Coverage map](#coverage-map)
+- [Upstream basis and fixtures](#basis-in-the-official-automated-tests)
+- [Independent reference workflow](#independent-reference-workflow)
+- [Assertions and tolerances](#assertions-and-tolerances)
+- [Positive and empty-output cases](#positive-and-empty-output-cases)
+- [Presentation and export checks](#presentation-and-export-checks)
+- [Maintenance and limits](#maintenance-and-limits)
 
 ## Running and maintaining the tests
 
-```bash
-QT_QPA_PLATFORM=offscreen python -m pytest -m scientific -q
+From the repository root, install the locked environment and run the marked
+scientific tests. These commands work in PowerShell and Bash:
+
+```sh
+uv sync --locked --all-groups
+uv run --locked --all-groups python -m pytest -m scientific -q
 ```
 
-The normal `python -m pytest` command also includes these tests. Both Windows
-build workflows run them before packaging and publish JUnit and coverage reports
-in `ParaDigMaStudio-test-results`, including reports from failed tests.
-The committed fixtures make the suite self-contained: no upstream checkout,
-fixture download or patient recording is required. Use `uv sync --locked --all-groups` for the
-[CI coverage check](TEST_SUITE.md#branch-coverage).
+The tests configure offscreen Qt and its virtual screen as described in
+[Test setup](TEST_SUITE.md#test-setup-and-scientific-checks). For headless Linux
+with an explicit writable Matplotlib cache:
 
-The [test suite guide](TEST_SUITE.md) describes the feature-based organization
-and shared UI helpers. The scientific cases, their independent references and
-numerical tolerances are maintained separately from the
-[historical test cleanup](archive/test-suite-cleanup.md).
+```bash
+QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl uv run --locked --all-groups python -m pytest -m scientific -q
+```
 
-These are comparisons with a live independent reference workflow, not frozen
-golden outputs. They detect wrapper differences from the installed official
-version, but cannot detect a change that affects both paths identically.
-The fixture manifest requires ParaDigMa 1.1.2; upgrading the toolbox requires
-explicit review of these references and settings. They cover representative
-recordings and supported preparation choices, not every device or recording.
+To inspect the current selection without running analyses:
 
-Presentation tests cover aligned multi-module bar charts, midnight and daylight-saving
-transitions, named timezones in exported provenance, classifications/quantifications,
-bar clicks and clearly labeled gait estimates. Original values and missingness are
-checked against the official output; no lines interpolate across missing estimates.
-Estimated gait positions stay within their official segments and are never inserted
-into scientific result tables. Plot zoom leaves the complete raw tables unchanged.
-Daily presentation tests independently check the 864-second valid-data minimum
-per metric, zero predictions, missing values, overlapping intervals, recording gaps,
-calendar-midnight boundaries and 23/25-hour daylight-saving days. Daily medians and
-percentages preserve the original scientific tables and the separate 30-minute
-presence rule. Gait metric coverage uses the estimated within-segment support of
-finite outcomes; missing swing values contribute no coverage.
-Binary tests verify positive spans, actual timestamps, gaps, missing states and
-isolated detections. `tests/test_gait_presence.py` checks the common observed-time
-percentage denominator, conditional filtering, unequal cadences, gaps and missing
-filter predictions, overlapping recordings, and recording/participant isolation.
-Filtered gait cannot exceed gait presence in any epoch; unknown time is excluded
-from both denominators. Prepared-input availability comes from the exact pipeline inputs.
-`test_parallel_scientific.py` compares real spawned recording workers with the
-independent official batch workflow, including unequal recorded IMU inputs, both
-watch sides, all module groups, missing-sample and difference-time preparation,
-gap sections, custom duration categories/statistics, empty gait outcomes and
-partial failures. Gait segment IDs and metadata are reconciled in input order;
-official aggregation functions consume pooled quantifications. Original samples,
-classifications, quantifications, aggregates and metadata must remain equivalent.
-The frozen smoke probe forces a small two-worker batch to verify spawned imports
-and private transfers in the executable. See the [test suite map](TEST_SUITE.md#regression-coverage-map)
-for separate worker-policy, cancellation, security and UI/layout regressions.
+```sh
+uv run --locked --all-groups python -m pytest -m scientific --collect-only -q
+```
 
-Upstream's historical IMU preprocessing reference test is currently skipped
-because its stored output needs regeneration. This suite does not copy that
-skip, accept outdated outputs, or silently relax comparisons to make them pass;
-it executes the current pinned official processing independently on both paths.
+The normal full suite includes these tests and the related presentation,
+validation and lifecycle regressions below. Both
+[Windows](../.github/workflows/windows.yml) and
+[signed Windows](../.github/workflows/windows-signed.yml) workflows run the full
+suite before packaging. JUnit and coverage reports are retained in
+`ParaDigMaStudio-test-results`, including available reports when tests fail.
+See [branch coverage](TEST_SUITE.md#branch-coverage) for the measured scope and
+report paths.
+
+## Coverage map
+
+The `scientific` marker selects the following groups. Some compare directly
+with official ParaDigMa; others check that an execution feature preserves
+Studio's already-tested sequential behavior.
+
+| Test module | Comparison and purpose |
+| --- | --- |
+| [test_scientific_equivalence.py](../tests/test_scientific_equivalence.py) | Independent official workflows for synthetic and recorded inputs, preparation, intermediate stages, classifications, quantifications, aggregates and metadata; real-result plots and exports |
+| [test_column_mapping.py](../tests/test_column_mapping.py) — marked case | GUI-selected columns, axis swaps and independent sensor inversions against official preparation and real gait, tremor and pulse processing |
+| [test_pulse_input.py](../tests/test_pulse_input.py) — marked case | Raw PPG-only inputs, mapped numeric text and all six numeric time encodings against an independent official workflow |
+| [test_parallel_scientific.py](../tests/test_parallel_scientific.py) | Real spawned workers against official recorded batch workflows and sequential Studio results, including preparation, empty outputs and partial failures |
+| [test_analysis_progress.py](../tests/test_analysis_progress.py) — marked case | Real processing with and without progress reporting must return equivalent results and preserve source samples |
+
+Other cases in these modules and the [presentation and export checks](#presentation-and-export-checks)
+run with the full suite; the marker does not select every test related to
+scientific data. Worker selection, cancellation, security and UI/layout checks
+are mapped separately in the [regression coverage map](TEST_SUITE.md#regression-coverage-map).
+
+## Basis in the official automated tests
+
+### Upstream reference
+
+The reference is the official [ParaDigMa test suite at commit
+4735d6d](https://github.com/biomarkersParkinson/paradigma/tree/4735d6d21b2a62b764a0bc7e0f677577e6ce1668/tests).
+
+| Upstream basis | Studio coverage |
+| --- | --- |
+| Gait, tremor and pulse-rate pipeline tests | Adapted synthetic signals with a fixed random seed, run through Studio and a direct official workflow |
+| Preparation tests | Column mapping, g/m/s² and deg/s/rad/s conversions, signed axis permutations, missing samples, interrupted recordings and all six numeric time encodings |
+| Stored TSDF fixtures and reference helpers | Recorded IMU/PPG comparisons across intermediate signals, features, classifications and derived outputs |
+| Orchestrator and gait batch tests | Both watch sides, filtered/unfiltered gait, independent sections, recording identifiers, segment timing metadata and pooled aggregation; all three modules through separate IMU/PPG calls |
+
+At that upstream revision, the historical IMU preprocessing reference test is
+skipped because its stored output needs regeneration. Studio instead executes
+the pinned official processing independently on both paths.
+
+### Committed fixtures
+
+The suite needs no upstream checkout, fixture download or private recording.
+
+| Input | Selection and role | Provenance |
+| --- | --- | --- |
+| Recorded IMU | All 72,947 upstream prepared rows; real gait and tremor output, both watch sides and unequal-length recording batches | [Fixture README](../tests/data/paradigma/README.md) and [manifest](../tests/data/paradigma/manifest.json) |
+| Recorded PPG | First 18,000 upstream prepared rows; quality classification, default empty estimates and explicitly configured positive estimates | Same fixture README and manifest |
+| Public Axivity CWA | Raw-import, preparation and gait comparisons | [Bundled recording provenance](../src/paradigma_studio/data/README.txt) |
+| Public Physilog excerpt | Missing samples, known recording gaps and minimum-section rules | Same bundled recording provenance |
+| Generated TSDF streams | Real binary time/value streams with explicit scale factors, written independently of Studio's decoder | [Shared fixture writer](../tests/conftest.py) and [TSDF tests](../tests/test_tsdf_input.py) |
+
+The upstream IMU/PPG binaries were decoded to compressed Parquet without changing
+the selected channel values or timestamps. The manifest records the source
+revision, source hashes, selections and converted-file hashes. Tests verify the
+installed ParaDigMa version, committed Parquet hashes and row counts. These two
+fixtures are source-test data and are not bundled in the app. Attribution,
+licensing and conversion instructions remain in the fixture README.
+
+## Independent reference workflow
+
+### Separate official and Studio paths
+
+The expected path calls official `prepare_raw_data`,
+`correct_watch_orientation` and `run_paradigma` functions directly. It does not
+use Studio's analysis or preparation helpers to generate expected outputs.
+The actual path calls Studio's real `core.analyze` function.
+
+Each path receives fresh configuration objects because upstream preprocessing
+updates sampling-frequency settings during a run. The comparison also verifies
+that source frames remain unchanged.
+
+The official orchestrator receives explicitly prepared frames with
+`skip_preparation=True` and `split_by_gaps=False`. This avoids its 1.1.2
+parameter-forwarding limitations and ensures that both paths process the same
+prepared samples and sections. A default raw orchestrator call would not apply
+Studio's selected missing-sample, unit and gap policies equivalently. See the
+[preparation contract](PYTHON_API.md#python-service-apis).
+
+### Preparation references
+
+| Case | How the expected input is constructed independently |
+| --- | --- |
+| Signal columns and axes | Explicit source renaming and official orientation calls for each sensor; manual GUI choices must override standard-name decoy columns |
+| TSDF scaling | Multiply each decoded channel by its metadata scale factor, following the [TSDF pandas tutorial](https://biomarkersparkinson.github.io/tsdf/basic_reading_and_writing_pandas.html) |
+| Physilog missing samples and gaps | Use known source-row intervals rather than Studio's boundary detection |
+| PPG-only inputs | Convert mapped text to numbers and use official time preparation before the unchanged pulse pipeline; no accelerometer channels are synthesized |
+
+ParaDigMa 1.1.2's TSDF loader returns stored values; its unit preparation does
+not decode metadata scale factors. Studio decodes those factors before display
+and preparation. Tests compare every real tremor stage with the independently
+scaled reference, with preparation enabled and bypassed, guarding against
+double scaling. Related import tests check displayed physical values and
+unchanged source files.
+
+For Physilog, missing gyroscope rows are `[2000, 2010)`, and time gaps occur at
+rows 6010 and 8010. Each retained interval enters the official orchestrator as
+a separate frame. A 30-second minimum independently excludes the two 20-second
+sections. Difference-time inputs reconstruct elapsed time before sensor-row
+exclusion, preserving the original clock.
+
+Related [GUI preparation tests](../tests/test_analysis_preparation.py) inspect
+the orchestrator boundary: native-unit inputs match exactly, converted units
+and independent inversions match numerically, and selected gap/duration rules
+are honored. They stub the orchestration boundary rather than running pipelines;
+the marked comparisons above exercise real scientific processing. GUI runs
+always use normal preparation. Saved-setting checks reject retired global axis
+permutations and GUI preparation bypass without changing current fields; the
+Python API's explicit bypass remains covered separately.
+
+### Intermediate stages and classification retention
+
+ParaDigMa 1.1.2 does not forward pipeline classification tables into its final
+orchestrator result, and its gait pipeline does not return merged sample-level
+classification labels. Test observers record real stage inputs and outputs,
+including quantification inputs containing those labels. Each observer calls
+the original function and returns its output unchanged. Models, probabilities
+and signal processing execute normally.
+
+Both paths also request official classification exports. Studio retains those
+files in its results; the reference independently reads its own files. The
+comparison checks values, timestamps, columns and section identifiers. Retaining
+classifications changes output retention, not scientific computations.
+
+Successful reference comparisons require both workflows to finish without
+processing errors and the scientific stages to execute. Matching failures or
+unexecuted stages do not count as equivalence.
+
+### Multiple recordings and spawned workers
+
+Recorded batch comparisons use the official dictionary-of-recordings workflow,
+including unequal IMU lengths. They check classifications, both gait branches,
+unique segment identifiers, segment metadata and pooled tremor aggregates.
+Combined-module cases compare Studio with separate official IMU and PPG runs.
+
+Spawned-worker tests compare recorded IMU batches and custom gait duration
+categories/statistics with that official reference. Other cases compare spawned
+and sequential Studio results for difference-time preparation, missing samples,
+gap sections, all module groups, empty gait outcomes and partial failures.
+These checks protect execution and merging semantics; they do not construct
+an additional independent preparation reference for every worker case.
+
+Gait identifiers and metadata must reconcile in input order, and official
+aggregation functions consume pooled quantifications. The
+[packaged smoke probe](../src/paradigma_studio/smoke.py) additionally forces a
+small two-worker batch to verify spawned imports and private transfers in the
+executable.
+
+## Assertions and tolerances
+
+The shared `assert_equivalent` helper in
+[test_scientific_equivalence.py](../tests/test_scientific_equivalence.py) compares
+the full result tree and observed stages.
+
+| Compared data | Requirement |
+| --- | --- |
+| Structure | Matching keys, array shapes, table row counts, index/order and column names; no prefix-only comparisons |
+| Discrete values | Exact labels, identifiers and table `time` columns |
+| Other floating values | `rtol=1e-10`, `atol=1e-12` |
+| Missing values | Identical missing-value masks; NaNs at the same locations |
+| Numeric dtypes | May differ when values remain equivalent, such as integer sensor channels converted to floats |
+| Source inputs | Remain unchanged after processing |
+
+These tolerances are tighter than upstream's historical stored-reference helper
+(`rtol=1e-5`, `atol=1e-6`): the comparisons execute the same pinned library and
+numerical stack. They cover prepared inputs, resampled/filtered signals,
+features, probabilities, labels, every quantification row and column, both gait
+branches, tremor power, returned aggregates and official scientific metadata.
+
+Studio-specific metadata is checked separately:
+
+- **`desktop_preparation`:** known excluded/analyzed sample and section counts.
+- **`desktop_recordings`:** recording identities and section ownership.
+- **`desktop_availability`:** coverage from the exact prepared frames handed to
+  the orchestrator, including missing rows and discarded short sections.
+
+Complete JSON round trips check both official and Studio metadata. JSON converts
+non-finite scalars to null and dictionary keys to strings; comparisons account
+for that representation while checking restored values. CSV comparisons use
+pandas' `float_precision="round_trip"` to avoid parser rounding. The persistence
+contract is documented under [saved-run formats](PYTHON_API.md#saved-run-contract).
+
+Plot-coordinate tolerances are separate from scientific-value comparisons.
+Calendar-axis checks use absolute tolerances with zero relative tolerance;
+see the [test suite conventions](TEST_SUITE.md#regression-coverage-map).
+
+## Positive and empty-output cases
+
+An empty official result can be correct. Positive-output cases are required
+separately so agreement on empty tables cannot mask a broken processing path.
+
+| Case | Required official outcome |
+| --- | --- |
+| Recorded IMU, both watch sides | Actual unfiltered gait measurements, multiple checked tremor windows with finite power, and nonempty aggregates |
+| Recorded IMU, right watch | Nonempty filtered gait measurements and aggregates as well |
+| Synthetic inputs | Empty gait or default pulse estimates are accepted when the official pipeline produces them |
+| Recorded PPG, default configuration | No pulse estimates or aggregates; quality probabilities still compared |
+| Recorded PPG, explicit configuration | Finite pulse estimates and nonempty aggregates, with quality classification and its threshold unchanged |
+
+The positive PPG case passes
+`PulseRateConfig(ppg_sampling_frequency=100, min_window_length_s=10)` to both
+paths. It matches the preprocessed rate and explicitly chooses a 10-second
+minimum estimation window. This tests Python configuration support; it does not
+change GUI defaults or imply that the fixture produces estimates in the default GUI.
+
+Raw PPG-only comparisons use that positive configuration across all six numeric
+time encodings and mapped text columns. They check each real pulse stage,
+quality probability, estimate and aggregate. Studio validates required PPG/time
+values before official preparation, disabling its IMU-specific generic validator
+when no complete IMU stream is present. Additional tests preserve source-clock
+alignment and enforce gait/tremor IMU requirements.
+
+## Presentation and export checks
+
+Real official results anchor plot, table and export checks in the marked suite.
+Related tests use small constructed cases to check presentation boundaries.
+Display estimates and summaries must preserve the original scientific tables
+and full-run official aggregates.
+
+| Area | Protected behavior and related tests |
+| --- | --- |
+| Detailed graphs and Overview | Correct measured values, checked-tremor intervals/cadence and gaps; tremor percentage matches checked/resting-window counts, and arm-at-rest percentage matches resting/total counts. Rounding is display-only. [Results view](../tests/test_results_view.py), [gait overview](../tests/test_gait_overview.py) |
+| Gait window indicators | Saved probabilities compared with bundled model thresholds, including equality and missing values; filtered-positive spans intersect detected gait. These display indicators differ from merged sample-level pipeline labels. [Graph workspace](../tests/test_graph_workspace.py), [gait presence](../tests/test_gait_presence.py) |
+| Clocks and recording alignment | IMU/PPG origins after independent missing-row exclusion, per-file dates, midnight, daylight-saving transitions and named timezone provenance survive reopening; unknown/incomparable clocks use explicit file order. [Results view](../tests/test_results_view.py), [recordings](../tests/test_recordings.py) |
+| Navigation and tables | Zoom, clicks, selections and module switches preserve raw classification/quantification columns and full-run aggregates; estimated gait positions remain within their official segments. [Results view](../tests/test_results_view.py), [result navigation](../tests/test_result_navigation.py) |
+| Binary and epoch summaries | Correct positive spans, actual timestamps, isolated detections, gaps, missing states and separate 30-minute presence rules. [Epochs](../tests/test_epochs.py), [presence thresholds](../tests/test_epoch_presence_threshold.py) |
+| Daily summaries | Per-metric 864-second valid-data minimum, medians/percentages, zero predictions, overlaps, missing values, gaps, local midnight and 23/25-hour days. Finite estimated gait support determines coverage; missing swing values add none. [Daily tests](../tests/test_daily.py) |
+| Exports and sensor context | JSON reopening and CSV values retain missing measurements; context uses the correct original recording, shared limits and settings, with every source file protected during export. [Result exports](../tests/test_result_exports.py), [recordings](../tests/test_recordings.py) |
+
+Gait presence and filtered gait share an observed-time denominator. Tests cover
+unequal cadences, missing filter predictions, overlapping recordings and
+recording/participant isolation. Filtered gait cannot exceed gait presence in
+an epoch; unknown time contributes to neither denominator. Prepared-input
+availability comes from the exact pipeline inputs.
+
+Presentation checks also require aligned multi-module bars, missing-estimate
+gaps without interpolation, and clearly labeled gait time estimates. Those
+estimates are never inserted into scientific result tables.
+
+## Maintenance and limits
+
+When preparation, processing, dependencies or result handling change:
+
+1. Run the relevant feature tests and marked scientific comparisons. Use the
+   full suite for the related presentation and boundary cases, and the
+   [packaged executable check](DEVELOPMENT.md#build-and-verify-a-windows-executable)
+   for packaging changes.
+2. Investigate the first differing stage, including settings, source selection,
+   units, clocks, retained rows and section identities. Keep expected inputs
+   independent of the Studio logic being tested.
+3. For a ParaDigMa upgrade, explicitly review reference calls, mutable
+   configuration defaults, retained outputs and fixture version expectations.
+   Follow the [dependency update procedure](DEPENDENCIES.md#update-deliberately).
+4. Review any intentional fixture replacement against decoded source values
+   before updating hashes. Parquet bytes can vary with writer versions; the
+   fixture README documents conversion and provenance requirements.
+5. Report the tested commit and relevant results. Do not relax comparisons,
+   copy upstream skips or accept stale outputs to make a failure pass.
+
+These are comparisons against a live reference, not frozen golden outputs.
+They detect Studio differences from the installed official library, but cannot
+detect a change that affects both paths identically. The manifest enforces
+ParaDigMa 1.1.2; an upgrade therefore requires deliberate review. The fixtures
+cover representative recordings and preparation choices, not every device or
+recording.
+
+Current conventions belong in this guide and the [test suite guide](TEST_SUITE.md).
+The [historical test cleanup](archive/test-suite-cleanup.md) retains evidence and
+decisions for its own revision.
