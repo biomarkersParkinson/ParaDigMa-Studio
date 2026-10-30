@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Embed rendered architecture diagrams for GitHub Mobile and other Markdown
-  viewers, retaining editable Mermaid sources beside the images.
+  viewers, matching component labels to the ownership table and retaining
+  editable Mermaid sources beside the images.
 - Explain the architecture through ownership and execution diagrams, data-flow
   boundaries, worker lifecycles and result persistence, with links to the code.
 - Organize the development guide around setup, testing and packaging, with

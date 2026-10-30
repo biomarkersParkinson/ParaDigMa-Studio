@@ -1,8 +1,10 @@
 flowchart TD
-    Main["MainWindow<br/>composition root"] --> Pages["Page builders<br/>and frozen views"]
-    Main --> Controllers["Controllers<br/>and named callbacks"]
+    Main["MainWindow"] --> Pages["Page builders"]
+    Main --> Controllers["Controllers"]
     Main --> State["Workspace<br/>state"]
     Controllers --> Pages
     Controllers --> State
-    Controllers --> Services["Recording, analysis<br/>and persistence services"]
+    Controllers --> Background["Background<br/>execution"]
+    Controllers --> Services["Qt-independent<br/>services"]
+    Background --> Services
     Services --> Official["Official ParaDigMa<br/>APIs"]

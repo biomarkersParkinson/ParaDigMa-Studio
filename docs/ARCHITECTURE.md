@@ -35,8 +35,9 @@ threads. Each controller receives only the state, view and services it needs.
 | Page builders | Construct widgets and expose frozen views/callbacks; graph handles can remain deferred |
 | Controllers | Turn user actions and job completions into state changes, service calls and view updates |
 | Workspace state | Holds the current inputs, results, run identities and transient UI/cache state |
+| Background execution | Runs blocking service operations outside the GUI thread and forwards results and diagnostics to controllers |
 | Qt-independent services | Load/validate data, prepare inputs/results, run official processing and encode saved data |
-| Background execution | Keeps blocking operations away from Qt; returns values and diagnostics through signals |
+| Official ParaDigMa APIs | Provide the upstream preparation, pipeline and aggregation implementations called by Studio |
 
 [`app.py`](../src/paradigma_studio/app.py) is the composition root.
 [`workspace_state.py`](../src/paradigma_studio/workspace_state.py) defines the
