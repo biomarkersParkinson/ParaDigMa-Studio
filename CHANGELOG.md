@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Structure the release guide around preparation, tag-triggered publication,
+  artifact verification and recovery, clarifying prereleases, Git receipts and
+  the separate signed-build workflow.
 - Clarify the Python API and saved-run reference with an integration example,
   explicit processing defaults, separate execution/verification contracts and
   structured format, storage and provenance guidance.
