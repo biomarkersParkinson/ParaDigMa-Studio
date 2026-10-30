@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Organize the security policy by reporting, current trust boundaries, dated
+  release evidence, dependency checks and remaining limits, with clearer
+  integrity/authentication distinctions and links to the owning technical guides.
 - Clarify the contributing workflow with structured bug reports, pull-request
   steps, change-specific validation links and documentation ownership, asset
   maintenance and check guidance.
