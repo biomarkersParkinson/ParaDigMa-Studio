@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Clarify the contributing workflow with structured bug reports, pull-request
+  steps, change-specific validation links and documentation ownership, asset
+  maintenance and check guidance.
 - Group the test suite map by workflow with direct links to every test module,
   separate setup, shared helpers and assertion conventions, and bring the
   coverage-scope and report guidance into line with current configuration.
