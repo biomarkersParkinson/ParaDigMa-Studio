@@ -1,222 +1,373 @@
 # Application architecture
 
-This guide explains the current source implementation. Start with the
-[repository map](REPOSITORY.md) for module locations and
-[Development](DEVELOPMENT.md) for setup and coding checks. Service entry points
-and the on-disk contract live in the [API reference](PYTHON_API.md).
+Studio is a PySide6 desktop application around the official ParaDigMa toolbox.
+Controllers coordinate the four pages, background jobs and shared state;
+scientific services prepare recordings and call the official pipelines.
+This guide describes the current source on `main`.
 
-## Component ownership and lifecycle
+- [Components and ownership](#components-and-ownership)
+- [Startup and Qt lifecycle](#startup-and-qt-lifecycle)
+- [Loading, configuration and previews](#loading-configuration-and-previews)
+- [Preparation and input contracts](#preparation-and-input-contracts)
+- [Execution and cancellation](#execution-and-cancellation)
+- [Results and sensor context](#results-and-sensor-context)
+- [Graph coordinates, navigation and rendering](#graph-coordinates-navigation-and-rendering)
+- [Saving and reopening](#saving-and-reopening)
+- [Analysis progress](#analysis-progress)
+- [Extending the application](#extending-the-application)
 
-`MainWindow` composes the page builders and controllers. Shared state belongs to
-`workspace_state.py`; frozen views and explicit callbacks connect components.
-Qt parents provide ownership and dialog APIs. Controllers use their declared
-state, view and service ports. Graph construction stays deferred until first use.
-See the [composition conventions](REPOSITORY.md#conventions-for-changes) for
-thread affinity, signal ordering and the internal automation driver.
+Use the [repository map](REPOSITORY.md) to locate modules,
+[Development](DEVELOPMENT.md) for commands and coding policy, and the
+[API reference](PYTHON_API.md) for service signatures and the saved-run contract.
 
-`ui/result_graphs.py` owns series rendering, axis reuse and viewport restoration.
-`ui/result_graph_interactions.py` owns graph clicks, linked table selection,
-selection markers and sensor-context availability. Both share the same explicit
-view/state objects and `ResultPlotData`, including its existing cache. The renderer
-keeps its callback entry points; interaction updates on an empty or unopened graph
-must not initialize a canvas.
+## Components and ownership
 
-`ui/results_page.py` owns Results tabs, controls, its deferred result canvas and
-frozen workspace/graph views, following the `DataPage`/`AnalysisPage` composition
-pattern. `ResultsPageHost` supplies the parent, page layout and shared raw-channel
-graph builder/accessor. `WorkspaceLayout` retains page composition and explicit
-widget ports; it still builds the shared raw-data/sensor canvases. Constructing
-the page or obtaining its views must leave both result and sensor canvases deferred.
+The arrows below show construction and dependencies, rather than execution
+threads. Each controller receives only the state, view and services it needs.
 
-`AnalysisPage` owns the info buttons and their non-modal `AnalysisHelpDialog`
-windows. Opening one explanation closes the others without changing the form's
-layout or scroll range. Dialogs reuse the existing explanation labels so
-`FileDefaults` can update value sources while help is open. Long text and the
-input-orientation figure scroll inside the window; Close, Escape and the native
-close control dismiss it. New input and an accepted application close dismiss
-open help; cancelling an application close preserves it. The controller view
-exposes these windows for lifecycle cleanup rather than retaining inline-help
-layout state or toggle callbacks.
+```mermaid
+flowchart TD
+    Main["MainWindow: composition root"] --> Pages["Page builders and frozen views"]
+    Main --> Controllers["Controllers and named callbacks"]
+    Main --> State["Workspace state"]
+    Controllers --> Pages
+    Controllers --> State
+    Controllers --> Services["Recording, analysis and persistence services"]
+    Services --> Official["Official ParaDigMa APIs"]
+```
+
+| Component | Responsibility and boundary |
+| --- | --- |
+| `MainWindow` | Creates state, pages and controllers; connects signals and provides thin Qt receiver adapters |
+| Page builders | Construct widgets and expose frozen views/callbacks; graph handles can remain deferred |
+| Controllers | Turn user actions and job completions into state changes, service calls and view updates |
+| Workspace state | Holds the current inputs, results, run identities and transient UI/cache state |
+| Qt-independent services | Load/validate data, prepare inputs/results, run official processing and encode saved data |
+| Background execution | Keeps blocking operations away from Qt; returns values and diagnostics through signals |
+
+[`app.py`](../src/paradigma_studio/app.py) is the composition root.
+[`workspace_state.py`](../src/paradigma_studio/workspace_state.py) defines the
+mutable state objects:
+
+| State | What it retains |
+| --- | --- |
+| `InputState` | Original loaded frames, source paths and the inspected recording |
+| `DataState` | Recording descriptives, raw-graph dirty state and channel colors |
+| `AnalysisState` | Manual-origin override state; full Analyze values are owned by the controller and its widgets |
+| `ResultState` | Original results, provenance, source alignment, display clock and derived presentation caches |
+| `RunState` | Run records and active/current/selected run identities |
+| `SensorState`, `GraphState` | Sensor context/navigation, selected markers, linked axes and plot-cache state |
+| `JobState` | Active worker lifetime and analysis cancellation event |
+| `ShellState` | Sidebar and About-dialog state |
+
+Frozen views make component dependencies explicit; their widgets and DataFrames
+remain mutable. Treat original recording and result frames as read-only. A Qt
+parent supplies ownership and dialog APIs. Cross-component actions use named
+callbacks, and controllers use their declared ports.
+
+The internal `ui/compatibility.py` driver exposes convenience ports to tests,
+probes and benchmarks. Application code uses explicit owners and works without
+the driver decorator. Its maintenance policy is in
+[Development](DEVELOPMENT.md#internal-workspace-driver).
+
+## Startup and Qt lifecycle
+
+Startup creates the shell, page controls, controllers and signal connections.
+Pandas, Arrow, Matplotlib and ParaDigMa pipeline imports stay deferred until
+needed. Font-cache configuration runs before plotting imports.
+
+Data graphs, Results graphs and sensor context initialize independently through
+[`DeferredWidget`](../src/paradigma_studio/ui/deferred.py) and graphics accessors.
+Opening a graph or explicitly requesting its graphics builds it once; later
+visits reuse it. Building a page or obtaining its frozen view must preserve that
+deferral. Callbacks created before their target controllers use deferred calls.
+
+Controllers that receive Qt signals keep GUI-thread affinity. Worker signals
+connect before the worker starts; completion installs data before terminal
+cleanup restores controls. Preserve the actual receiver methods and connection
+ordering when changing wiring.
+
+`AnalysisPage` owns reusable non-modal help windows. They reuse explanation
+labels so file-source guidance stays current while open. Opening help leaves the
+form geometry fixed. New input and an accepted application close dismiss help;
+cancelling a close preserves it.
+
+## Loading, configuration and previews
+
+### Loading a recording or batch
+
+[`DataController`](../src/paradigma_studio/data_controller.py) starts a load job
+that reads the files and calculates initial descriptives. The GUI installs the
+completed payload, supplies column-name schemas to the mapping editor and resets
+Analyze to defaults from the new input. A cancelled picker or failed load leaves
+the previous input/configuration in place.
+
+One Analyze configuration applies to an entire batch. Switching the recording
+being inspected changes Data's view and diagnostics while retaining the shared
+configuration. Studio expects compatible column names, units, time formats and
+axis conventions across the batch; metadata warnings do not establish that the
+physical recordings match the user's declarations.
+
+### Configuration authority
+
+`AnalysisController` owns the shared settings. File metadata proposes defaults;
+the selected control values, including an explicit **Not included**, determine
+the processing inputs. `FileDefaults` and the mapping editor track file/manual
+provenance.
+Data's time controls call the Analyze selection paths and mirror an immutable
+`TimeConfiguration` under signal blockers.
+
+Input resets and saved-parameter restoration validate/install settings under one
+guard: cancel superseded origin requests, block intermediate widget signals,
+apply the complete settings and perform one refresh. Manual origins take
+precedence over pending previews. Confirming an unchanged value can update its
+provenance without recomputing statistics.
+
+| Event | Main dependent updates |
+| --- | --- |
+| Module selection | Required signals, watch-side relevance, Run availability and origin preview |
+| Signal-column edit or mapping Default | File unit defaults, sensor-unit availability, origin preview and shared Data diagnostics/plots |
+| Time-unit edit on either page | Shared value/provenance, origin preview and affected Data diagnostics/plots |
+| Acceleration/gyroscope unit edit | Value/provenance; the input clock is unchanged |
+| Gap-splitting switch | Availability of gap and minimum-section fields |
+| Missing-sample policy | Origin preview |
+| New input, restored settings or job completion | One complete controller refresh |
+
+### Preview delivery and clocks
+
+[`CachedPreview`](../src/paradigma_studio/previews.py) debounces requests, reuses a
+bounded cache and runs one read-only operation at a time per preview executor.
+Generation and request keys prevent obsolete results from replacing the current
+request. Cancelling a request does not stop an already-running scan; its result
+must respect the current request and manual-origin state. Shutdown prevents
+late delivery to a closed workspace.
+
+The selected time column and representation drive diagnostics, analysis timing
+and automatic clock previews. An unrelated date column cannot supply a fallback
+clock. An automatic calendar origin can come from the selected absolute time or
+explicit recording-start metadata. The chosen display origin is retained in
+provenance; `plot_time_origin` is removed before scientific execution.
 
 ## Preparation and input contracts
 
-`preparation_contracts` defines supported signal names, signed axes, sensor units
-and the six numeric time encodings. `PreparationSettings` describes preparation
-keywords; the column mapping and missing-sample policy remain explicit `analyze`
-arguments. The Analyze controller constructs these settings before adding the
-open saved/display metadata. Qt combo values are narrowed at that boundary;
-runtime column/axis/timestamp validation still handles external inputs.
+[`core.py`](../src/paradigma_studio/core.py) owns Studio's preparation sequence;
+[`paradigma_api.py`](../src/paradigma_studio/paradigma_api.py) supplies typed, lazy
+adapters to the pinned official toolbox. `preparation_contracts.py` describes
+accepted signals, units, axes and numeric time encodings. These types complement
+runtime validation; they cannot verify a recording's physical units or mounting.
 
-`paradigma_api` provides typed lazy adapters for the pinned ParaDigMa 1.1.2 API.
-`Unpack` constrains orchestrator and `analyze` keyword names and values without
-injecting defaults into forwarded run options. Boundary casts account for
-incomplete upstream annotations; they do not validate a recording's actual unit
-or orientation. Adapter tests compare the pinned signatures/defaults and check
-that supplied objects pass through unchanged. The normal mypy target also includes
-`tests/typing/preparation_contracts.py`: valid calls must pass, and invalid units,
-axes, signals and keywords must continue producing the expected type errors.
-Scientific equivalence tests independently compare real preparation and pipeline
-outputs with direct official calls. Raw/prepared frames and result schemas remain
-unchanged.
+The GUI path performs these steps for each original recording:
 
-The header-only `column_mapping` model and pure `axis_mapping` service are also
-checked; the Qt editor is covered by the recursive UI target. Controllers supply
-column-name schemas once per loaded batch and use the editor's explicit
-mapping/module APIs and `changed` signal. Mapping validation never scans sensor
-samples. Run settings retain the
-source-to-target dictionary for the explicit supported signal choices.
-Run settings also store `signal_columns`, the complete canonical-signal to
-source-column dictionary, with `null` for unassigned signals. These selections are
-authoritative for preparation, validation and clock previews: unselected canonical
-signal columns cannot supply fallback inputs. Selection metadata is restored
-with the rest of the Analyze settings under one signal guard and is not
-forwarded to ParaDigMa. Normal editor changes still emit one `changed` signal.
-Direct Python API calls without `signal_columns` retain literal renaming
-semantics. Original frames remain available for raw-data inspection.
-`axis_inversions` stores inverted canonical IMU target channels separately. The
-preparation service passes independent signed `x,y,z` lists to the official
-accelerometer and gyroscope orientation calls after renaming; permutations belong
-only in column mapping. This desktop setting is removed before calling the official
-orchestrator. The Python `device_orientation` API remains supported when
-`axis_inversions` is absent. Saved GUI settings require explicit selections and
-inversions; global permutations and the retired preparation bypass are rejected.
-Restoration validates the full settings before changing widgets and installs them
-under one signal guard. The editor no longer preserves arbitrary extra mappings,
-duplicate targets or redundant identity mapping entries.
-Inversion edits do not emit the mapping `changed` signal because they affect
-neither clock previews nor original raw plots.
+1. Apply authoritative `signal_columns` selections and the source-to-target
+   mapping to a separate frame. Unassigned canonical signals cannot provide
+   fallback inputs. Reject duplicate target columns and missing required channels.
+2. Validate required numeric values and the selected timeline. Apply the chosen
+   missing-sample policy; reconstruct a complete difference timeline before
+   excluding sensor rows so their time intervals are preserved.
+3. Use official preparation functions for unit/time conversion and independent
+   accelerometer/gyroscope axis correction. Column mapping handles permutations;
+   `axis_inversions` describes signed canonical targets.
+4. Apply the chosen gap and minimum-section policy using the official
+   segmentation helpers. Pass the resulting contiguous sections separately so
+   downstream filtering and feature windows cannot bridge those boundaries.
+5. Call `run_paradigma` with prepared inputs, `skip_preparation=True` and
+   `split_by_gaps=False` to avoid preparing/splitting a second time. Studio-only
+   selection and inversion metadata is removed from that handoff.
 
-GUI runs always use Studio's normal preparation path with the selected input
-conventions. New GUI settings do not contain `skip_preparation`. The Python API
-retains that option for explicit callers and their result interpretation.
-After Studio prepares inputs, its internal call to the official orchestrator
-still sets `skip_preparation=True` to prevent a second preparation pass.
+Studio also reads official classification exports from a fresh run directory
+where ParaDigMa 1.1.2 omits those tables from its orchestrator return value.
 
-Studio calls official preparation and orientation functions explicitly before
-`run_paradigma` with prepared inputs. ParaDigMa 1.1.2's raw orchestrator does not
-forward all preparation options; explicit preparation preserves the chosen unit,
-axis, missing-sample and gap policies without interpolating across recordings.
+This explicit preparation preserves the selected policies because ParaDigMa
+1.1.2's raw orchestrator does not forward all preparation options. The GUI has no
+preparation bypass. The Python API retains its explicit bypass, literal renaming
+when `signal_columns` is absent, and a global `device_orientation` option for
+callers without per-sensor inversions.
+`watch_side` is forwarded to the official processing path; users supply the
+expected input orientation and leave wrist-side adjustment to ParaDigMa.
 
-## Analyze configuration and shared time
+IMU and pulse processing can form independent groups, retaining successful
+outputs and reporting failures from another group. Section/recording identifiers
+and timing metadata remain available for later alignment. The
+[scientific tests](SCIENTIFIC_TESTS.md) compare the real processing paths with
+independent official calls; typed adapters preserve the upstream call contract.
 
-Analyze separates file defaults, derived control state and origin-preview requests.
-Its event handlers call the relevant operations directly:
+## Execution and cancellation
 
-| Event | Updates |
-| --- | --- |
-| Module selection | Required signals, watch-side relevance, run action and origin preview |
-| Time-column edit on either page, other signal selection or Signal columns Default | File unit defaults, sensor-unit availability, origin preview and shared Data diagnostics/plots |
-| Time-unit edit on either page or Time units Default | Shared value/provenance and origin preview; Data diagnostics/plots when the value changes |
-| Acceleration/gyroscope unit edit or Default | Manual/file provenance; the input clock is unchanged |
-| Gap-splitting switch | Availability of gap and minimum-section fields |
-| Missing-sample policy | Origin preview |
-| Input reset, saved parameters or job completion | One complete `AnalysisController.refresh` |
+[`JobController`](../src/paradigma_studio/job_controller.py) permits one foreground
+job at a time. It disables conflicting actions, creates a
+[`Worker`](../src/paradigma_studio/jobs.py), connects its signals, then starts it.
+The controller stays on the GUI thread; `Worker.run` executes the operation in a
+QThread. Read-only previews have their own executors.
 
-Input resets and saved-parameter restoration share a guarded settings operation.
-It cancels superseded origin requests and blocks widget signals while modules,
-units, mappings, policies and origins are installed. Named restoration helpers
-apply each group; the controller refreshes once after the guard ends. Pending
-preview results still follow the existing generation/key and manual-origin rules.
+A normal GUI analysis follows this sequence:
 
-`AnalysisCallbacks.sync_input` publishes an immutable `TimeConfiguration` after
-complete settings are available. It carries the selected source column, unit and
-both fields' file/manual provenance. Data edits call the Analyze controller's
-normal selection paths; Analyze remains the configuration owner. Both pages use
-`FileDefaults.value_source` and `ColumnMappingEditor.value_source` for provenance.
-Data applies snapshots under signal blockers so mirroring cannot feed back into
-manual-edit handlers. Its last-rendered snapshot detects effective changes even
-when a user has already changed the Data widget. Confirming an unchanged value
-updates provenance without recomputing sampling statistics.
+```mermaid
+sequenceDiagram
+    participant GUI as GUI thread
+    participant Worker as Worker.run in QThread
+    participant Child as Owned analysis process or processes
+    GUI->>GUI: Snapshot settings, create run, clear prior result views
+    GUI->>Worker: Connect signals, then start
+    Worker->>Child: run_isolated_analysis
+    Child->>Child: Prepare inputs and run official processing
+    Child-->>Worker: Logs, progress and results
+    Worker-->>GUI: completed(results)
+    GUI->>GUI: Prepare presentation data and install results
+    Worker-->>GUI: finished: restore controls and release worker
+```
 
-Data's time-column options match the batch's available signal columns and include
-an explicit Not included option. Switching the viewed recording preserves the
-shared choice, even if it is absent from that file; diagnostics then remain
-unavailable. Cached initial descriptives are reused only for the same source
-column and format. Time and sensor previews scan only the inspected recording and
-reuse their existing caches. New input resets both pages and applies the new
-file defaults through the existing guarded refresh. File-default application
-cannot become a manual edit or start intermediate origin previews.
+[`analysis_process.py`](../src/paradigma_studio/analysis_process.py) uses one owned
+spawned process for a single recording or sequential batch. With multiple
+original recordings and sufficient resources,
+[`parallel_analysis.py`](../src/paradigma_studio/parallel_analysis.py) directly
+owns up to two reusable processes. Gap sections stay with their original
+recording. Outputs merge in input order and official pooled aggregation runs on
+the combined quantifications. CPU/RAM policy and custom-configuration fallbacks
+are defined in `analysis_limits.py`; estimates are not hard resource limits.
+
+The QThread coordinates the owned processes and transfers. Queues carry log and
+progress events; parent-created private files carry large payloads. Their pickle
+format is an internal trusted-code transfer, separate from user-file loading and
+JSON result reopening. See [Security](../SECURITY.md#safeguards-and-trust-boundaries)
+for the trust boundary.
+
+Stop sets an event. The coordinating operation observes it, terminates/joins its
+owned processes and cleans their temporary files before reporting cancellation.
+This process boundary lets Stop end native computation while the Qt thread
+finishes its cleanup normally. Unexpected worker failures retain their
+traceback and emit one concise failure; pipeline-level errors can coexist with
+successful partial outputs. Terminal cleanup stops progress updates, releases
+the worker and restores controls.
+
+## Results and sensor context
+
+[`ResultController`](../src/paradigma_studio/result_controller.py) installs the
+scientific results, provenance and source alignment. Its `analyzed` completion
+path currently also prepares presentation data on the GUI thread. Saved-run
+reopening prepares that data in a background job and then calls
+`install_prepared` on the GUI thread. These paths share the Qt-independent
+[`prepare_results`](../src/paradigma_studio/result_preparation.py) service.
+
+`PreparedResults` and `ResultData` separate original tables from display timing,
+coverage, plot frames and interval bounds. Their frozen containers do not make
+DataFrames immutable. Optional date/timing columns, percentage scales and
+half-hour/day/profile summaries belong to presentation; they must not change
+the stored scientific tables. Replacing results invalidates derived views; the
+graph renderer resets navigation when it installs the replacement. Overview
+installs first; hidden graph construction remains deferred.
+
+`SensorController` uses source alignment and indexed timestamp lookup to select
+the relevant original sensor samples. Those samples retain their source units
+and channel values. The visible graph window can load new samples without
+building its hidden table. Sensor context requires retained source frames;
+saved results can reopen without the original recordings.
 
 ## Graph coordinates, navigation and rendering
 
-`inspection.input_plot_time` converts only display coordinates from the selected
-time column. Absolute Unix timestamps become UTC dates, datetime columns retain
-their stored time zone, and relative/difference/duration values display in seconds.
-Relative values retain their origin; differences include the first increment in
-their cumulative sum. Original table values and analysis settings stay unchanged.
-Data and Results sensor graphs share `RecordingDateLocator` and
-`RecordingTimeFormatter`; the existing graph toolbar uses their date locator to
-read and edit calendar limits. Graph exports use the same coordinates and labels.
+Raw Data and sensor-context graphs convert display coordinates from the selected
+time column: absolute Unix values become UTC dates, native datetimes keep their
+time zone, and relative/difference/duration values display in seconds. Relative
+values keep their origin; cumulative differences include the first increment.
+Tables retain the original timestamps. Results use their prepared display clock
+and view-specific date/hour/profile formatters.
 
-Raw-channel redraws use `RawToolbar.redraw_channels` to preserve time limits
-and manually set value limits across channel changes. Axes have stable sensor-group
-labels so a change from one to multiple axes of the same sensor keeps its scale.
-The new channels' full view is recorded before restoring the zoom, keeping Home
-and Back/Forward usable. Recordings and time-column/format changes reset Data's
-view; a new context or display clock resets sensor-context navigation. Source
-identity tracking uses weak references so it cannot retain discarded recordings.
+`TimeToolbar` and `TimeScroll` share bounded time selection, hand dragging,
+zoom buttons, scrollbar/trackpad navigation and history across raw and Results
+graphs. `RawToolbar` adds source-window loading and visible-sample Y fitting;
+`ResultsToolbar` adds result-renderer hooks. Source bounds are applied before
+sample loading or redraw callbacks.
 
-`TimeToolbar` and `TimeScroll` share interval-only selection, horizontal hand
-dragging, Zoom in/out, scrollbar/trackpad navigation, source bounds and Matplotlib
-history across raw graphs and all four Results views. Results-specific
-canvas/aggregation hooks stay in `ResultsToolbar`. `RawToolbar` starts in
-interval-selection mode and binds its scrollbar to Data's complete plot or the
-sensor navigator's full source limits,
-not just the currently loaded context. Sensor limit callbacks load originals
-before raw Y scaling runs. Automatic X restores the full source range; sensor
-Home and Reset limits retain their original inspection-context behavior.
+The main navigation invariants are:
 
-Automatic raw Y limits use exact finite extrema from selected visible channels,
-reusing `RawSignalLine`'s bounded peak-preserving summaries. Neighbours retained
-for drawing clipped lines cannot influence Y limits from outside the window.
-Binary indicators keep their fixed scale; empty windows retain finite bounds.
-Y fitting settles after hand/scrollbar/trackpad gestures; manual Y limits remain
-fixed. Channel redraws reconnect navigation to the new axes while retaining the
-time view, group-specific manual limits and a usable Home/history. Zoom-in is
-bounded by floating-point precision, and zoom-out by the full source range.
-The smoke probe exercises raw zoom, automatic Y, horizontal scrolling and an
-actual hand drag with its packaged icon and Back history.
+- Hand dragging translates time only, keeps the visible duration and records one
+  settled history step. Mode changes, history/Home, replaced views and lost
+  button capture finish the gesture.
+- Automatic raw Y limits use finite values from selected visible samples;
+  offscreen drawing neighbors cannot affect them. Manual Y limits stay fixed.
+- Channel changes retain the time window and manual scales for remaining sensor
+  groups. New recordings or time representations reset Data navigation; new
+  sensor contexts reset context navigation. Sensor Home retains its initial
+  inspection context while its scrollbar can reach the full source range.
+- The shared Qt canvas paints the blue interval preview over plots and gaps
+  without changing figure data or the exported figure.
 
-The hand uses Matplotlib's Pan action and mouse-capture lifecycle, with a
-time-only translation instead of `Axes.drag_pan` (which would also mark Y as
-manual). `TimeScroll.bounded_limits` clamps each proposed window before sample
-loading or render callbacks. Hand drags use the existing scroll start/end hooks,
-including Results' bounded viewport painting and deferred Y refitting. The
-settled view is saved once on release; mode changes, Home/history, zoom buttons,
-view/data replacement and lost button releases finish the gesture. The shared
-canvas maps Matplotlib's Move cursor to Qt's open/closed hand, retaining normal
-wait-cursor restoration. `scripts/benchmark_pan.py` measures actual hand gestures
-in all four Results views and both raw workspaces, alongside the scroll scenarios.
+`ResultGraphs` owns rendering, axis reuse and viewport restoration;
+`result_graph_interactions.py` owns graph/table selection and sensor-context
+actions. Results uses one plot scroll area with toolbar, time ruler and footer
+outside it. The series tree scrolls independently. Raw drawing summaries and
+result caches bound display work while figure exports render the original
+visible samples/bars. Cache invalidation must follow source, view, clock and
+layout changes. See [Performance](PERFORMANCE.md#current-runtime-behavior) for
+budgets, fallback rendering and measurement commands.
 
-`ScrollableFigureCanvas` paints the shared translucent blue interval preview
-through Qt's rubberband hook for both raw and Results graphs. The band spans
-graphs and gaps without redrawing data or entering the exported figure.
+## Saving and reopening
 
-Results Graphs uses one `QScrollArea` for the canvas. The workspace itself does
-not scroll: the toolbar, axis-limit controls, time ruler and footer stay outside
-that viewport, and the series tree scrolls independently. Canvas minimum heights
-preserve readable plots without imposing a workspace minimum that creates a
-second scrollbar in compact windows. The plot viewport is installed when Graphs
-is first opened, preserving deferred canvas construction.
+[`RunController`](../src/paradigma_studio/run_controller.py) owns run history,
+local snapshots and reopening. `ExportController` owns export selection and the
+unsaved-close workflow. `history.py`, `serialization.py`, `exports.py`,
+`result_integrity.py` and `storage.py` implement the Qt-independent file rules.
+The exact envelope, provenance and receipt fields belong in the
+[saved-run reference](PYTHON_API.md#saved-run-contract).
+
+Saving snapshots the existing results/provenance in a background job and records
+the resulting outputs on completion. It does not rerun analysis. History alone
+cannot restore unsaved tables; private in-memory frame/result caches are not
+restored from history JSON. Independent saves can succeed even if another fails.
+
+An in-memory run reuses its cached payload. For a disk reopen, a local snapshot
+takes precedence over a complete JSON export. Disk reads verify run identity
+and checksum against the same bytes they decode. Large JSON files use an owned
+reader process through
+[`result_reopening.py`](../src/paradigma_studio/result_reopening.py); small reads
+remain in the job thread. The child separates the JSON decoder's interpreter
+lock from Qt. Presentation preparation completes before GUI
+installation, so a failed open leaves the displayed results in place.
+
+Writes protect original sensor files, including companions and aliases. Atomic
+single-file replacement and CSV companions have the limits described in the
+[security policy](../SECURITY.md#safeguards-and-trust-boundaries); checksums detect
+changes but do not authenticate an attacker-controlled file/history pair.
+
+Closing is blocked during a foreground job. Unsaved-close Save starts background
+saving and queues the close after successful completion and job cleanup. Failure
+keeps unsaved runs and the window open; an accepted close shuts down previews.
 
 ## Analysis progress
 
-`analysis_progress` reports a 0–1000 work plan through the existing analysis event
-queues and a dedicated worker signal. Preparation, coverage and final assembly
-use Studio-owned milestones. A read-only logging handler recognizes ParaDigMa
-1.1.2's INFO stage messages, scoped to the current prepared section and selected
-module. Unknown messages leave progress unchanged. Sections and parallel workers
-are weighted by sample count; module groups receive shares based on their stage
-counts. Prefix sums and running totals keep updates independent of recording
-length and batch size. No sensor values are rescanned for progress.
+[`analysis_progress.py`](../src/paradigma_studio/analysis_progress.py) represents
+work on a 0–1000 scale. Studio reports preparation, coverage, transfer and assembly
+milestones; a read-only adapter recognizes the pinned ParaDigMa INFO stage
+messages. Unknown messages leave progress unchanged. Sample counts and stage
+weights combine sections, pipeline groups and recording workers using running
+totals rather than rescanning sensor values.
 
-The job logger carries a dedicated logging `NullHandler` whose callback forwards
-progress to the worker signal, so milestones never become new log/status text.
-Duplicate values are ignored, the GUI coalesces updates at 200 ms intervals, and
-worker identity/cancellation checks reject stale updates.
-Analysis uses the existing text-free bar; other jobs keep its busy mode. Child
-completion/transfer stops below full scale; the GUI marks it full only after its
-results callback finishes on the GUI thread. Cancellation and errors stop pending
-updates. `core.analyze(progress=AnalysisProgress(callback))` optionally exposes the
-same milestones to synchronous integrations without changing pipeline settings
-or result payloads. The callback receives integer work units, not time estimates.
+Progress travels separately from ordinary log/status messages through the
+existing event queues and `Worker.progress` signal. `JobController` rejects stale
+workers and cancelled runs, ignores duplicate/backward values and coalesces GUI
+updates at 200 ms intervals. It marks the bar full only after the GUI result
+installation callback returns. Failures and cancellation stop pending updates;
+non-analysis jobs keep the existing busy indicator. These work units are not an
+elapsed-time estimate and do not alter scientific settings or outputs.
+
+## Extending the application
+
+Place behavior with its existing owner: page builders construct controls,
+controllers coordinate actions, pure services calculate/encode data, and result
+renderers derive display views. Use explicit state, frozen views and named
+callbacks; preserve lazy graphics construction, GUI-thread affinity and job
+ownership. Refer to the [development policy](DEVELOPMENT.md) for annotation,
+exception and complexity requirements.
+
+| Boundary changed | Relevant regression coverage |
+| --- | --- |
+| Composition, driver independence or signal/cleanup ordering | `test_composition_without_facade.py`, `test_composition_order.py` |
+| Deferred imports and graph construction | `test_startup.py` |
+| Shared settings, file resets and late preview delivery | `test_analysis_refresh.py`, `test_shared_time_configuration.py`, `test_origin_preview.py` |
+| Preparation, process isolation or parallel merging | `test_analysis_preparation.py`, `test_parallel_execution.py`, `test_parallel_scientific.py`, `test_scientific_equivalence.py` |
+| Graph retention, navigation and rendering | `test_graph_performance.py`, `test_result_navigation.py`, `test_raw_navigation.py`, `test_hand_navigation.py` |
+| Snapshot integrity, reopening and close-after-save | `test_result_integrity.py`, `test_saved_results.py`, `test_run_provenance.py` |
+
+The [test guide](TEST_SUITE.md) maintains the complete coverage map. Bounded
+individual caches and worker estimates do not bound total session memory:
+inactive runs can retain original recordings and result tables. Representative
+Windows workloads remain necessary when changing these lifetimes or budgets.

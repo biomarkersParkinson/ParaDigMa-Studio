@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explain the architecture through ownership and execution diagrams, data-flow
+  boundaries, worker lifecycles and result persistence, with links to the code.
 - Organize the development guide around setup, testing and packaging, with
   consistent locked uv commands, clearer quality/typing policies and troubleshooting.
 - Separate release-matched and current-source guides, streamline documentation
