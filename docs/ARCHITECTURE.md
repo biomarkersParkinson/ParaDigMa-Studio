@@ -200,8 +200,10 @@ across the GUI thread, coordinating QThread and owned child processes:
 
 [Editable diagram source](images/architecture/analysis-sequence.mmd). Click the image for full size.
 
-Dashed arrows into the GUI represent queued Qt signals. Cancellation and failure
-handling are described below.
+The `par` (parallel) section shows analysis and live updates happening concurrently.
+Its update arrows summarize repeated events; final results follow when processing
+finishes. Dashed arrows into the GUI represent queued Qt signals. Cancellation
+and failure handling are described below.
 
 [`analysis_process.py`](../src/paradigma_studio/analysis_process.py) uses one owned
 spawned process for a single recording or sequential batch. With multiple

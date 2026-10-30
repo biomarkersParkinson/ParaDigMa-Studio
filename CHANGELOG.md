@@ -5,7 +5,8 @@
 - Embed rendered architecture diagrams for GitHub Mobile and other Markdown
   viewers, matching component labels to the ownership table and retaining
   editable Mermaid sources beside the images. Group the analysis sequence into
-  start, processing and completion phases with separate progress/result paths.
+  start, processing and completion phases, showing live updates alongside
+  processing and final results afterward.
 - Explain the architecture through ownership and execution diagrams, data-flow
   boundaries, worker lifecycles and result persistence, with links to the code.
 - Organize the development guide around setup, testing and packaging, with

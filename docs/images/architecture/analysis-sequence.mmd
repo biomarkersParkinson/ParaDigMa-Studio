@@ -29,9 +29,10 @@ sequenceDiagram
         Note over Worker: run_isolated_analysis<br/>Coordinate child processes
         Worker->>Child: Spawn processes<br/>Dispatch recordings
         activate Child
-        Note over Child: Prepare inputs<br/>Run ParaDigMa pipelines
-        loop During processing
-            Child-->>Worker: Logs and progress
+        par Run analysis
+            Note over Child: Prepare inputs<br/>Run ParaDigMa pipelines
+        and Forward live updates
+            Child-->>Worker: Log / progress events<br/>(repeated during analysis)
             Worker-->>GUI: Log and progress signals
         end
         Child-->>Worker: Scientific results
