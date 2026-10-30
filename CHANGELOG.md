@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Align user guidance with the technical references on raw-graph detail,
+  numeric analysis timestamps and cached versus verified disk reopening; use
+  the reviewed uv command for screenshot regeneration.
 - Organize the security policy by reporting, current trust boundaries, dated
   release evidence, dependency checks and remaining limits, with clearer
   integrity/authentication distinctions and links to the owning technical guides.

@@ -93,9 +93,9 @@ For numeric timestamps, choose the representation that matches the recording:
 | Time increments between samples | `difference_s` | `difference_ms` |
 
 A declaration of “seconds” alone cannot distinguish these representations.
-Native datetime values carry their own time representation; Data hides the
-numeric-format control for those columns. Convert CSV date strings to a supported
-numeric representation before analysis.
+Data can display native datetime and duration columns without a numeric-format
+selection. Analysis requires one of the six numeric representations above;
+convert datetime/duration columns and CSV date strings before running it.
 
 The time selection applies to every loaded recording. If it is missing in the
 file currently inspected, or **Not included** is selected, sampling diagnostics
@@ -148,9 +148,10 @@ the visible interval using the original samples.
 *The same recording's original acceleration and angular velocity, with separate
 value axes and a shared time window controlled by the horizontal scrollbar.*
 
-Zoom in to see individual samples at their original timestamps. Wide views
-preserve peaks while limiting display to 20,000 samples per channel; zooming
-restores detail in the visible range. **Tables** retains all original samples.
+Zoom in to see individual samples at their original timestamps. Wide views use
+display summaries that preserve peaks and missing-data breaks; zooming restores
+full detail in the visible range. **Tables** retains all original samples, and
+figure exports draw every original sample in the visible interval.
 See [graph controls](#navigate-and-adjust-graphs) for navigation and axis limits.
 
 Absolute Unix timestamps and date/time columns use **Recording date/time**, with
@@ -655,10 +656,12 @@ available, the action offers **Open exported results** instead. A local save tak
 precedence. Opening runs in the background and returns to Results Overview;
 graphs are built when you open Graphs.
 
-Snapshots and JSON exports identify their owning run, and history records each
-file's SHA-256 checksum. Opening verifies both. A replaced, edited or unrelated
-file cannot reopen under the original run; a failed open leaves displayed
-results intact.
+If the run's results are still in memory, Studio reuses that payload. Otherwise
+it reads the local snapshot or complete JSON export from disk and verifies its
+owning run ID and SHA-256 against history. A mismatch rejects the file; a failed
+open leaves displayed results intact. These checks detect changed or mismatched
+files; they rely on trusted local history. See the
+[security policy](../SECURITY.md#file-protection-and-result-integrity).
 
 Current history and result JSON use **Studio format version 2**, separately from
 the app and ParaDigMa versions. Unversioned or unsupported files cannot reopen;

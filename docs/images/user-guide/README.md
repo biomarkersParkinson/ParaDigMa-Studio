@@ -31,7 +31,7 @@ opens the first unfiltered measurement's full official gait segment.
 To refresh the images from a source checkout with development dependencies:
 
 ```sh
-python scripts/capture_user_guide.py
+uv run --locked --all-groups python scripts/capture_user_guide.py
 ```
 
 Run from the repository root. The script configures offscreen Qt with the
