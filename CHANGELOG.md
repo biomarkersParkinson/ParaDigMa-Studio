@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Group the repository map by workflow and component ownership, add direct
+  source/script links and current navigation/help/provenance modules, and
+  separate change conventions from generated outputs and CI guidance.
 - Structure the release guide around preparation, tag-triggered publication,
   artifact verification and recovery, clarifying prereleases, Git receipts and
   the separate signed-build workflow.
