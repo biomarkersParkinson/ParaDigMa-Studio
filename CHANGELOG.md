@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Clarify the Python API and saved-run reference with an integration example,
+  explicit processing defaults, separate execution/verification contracts and
+  structured format, storage and provenance guidance.
 - Organize the performance guide by workflow, cache/worker budgets and benchmark
   task, with reproducible commands, current hand-navigation coverage and clearer
   guidance for comparing startup, first-use and repeated-action timings.

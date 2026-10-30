@@ -23,7 +23,7 @@ separates unreleased changes from published releases.
 | [Dependencies](DEPENDENCIES.md) | Reviewed uv environment, deliberate updates, auditing and build evidence |
 | [Repository map](REPOSITORY.md) | Folder responsibilities, implementing modules and composition conventions |
 | [Architecture](ARCHITECTURE.md) | Configuration ownership, preparation, shared time, graphs and progress lifecycle |
-| [Python APIs and saved-run reference](PYTHON_API.md) | Service entry points, persistence contract, storage and provenance |
+| [Python API and saved-run formats](PYTHON_API.md) | Service entry points and examples, persistence contract, storage and provenance |
 | [Test suite](TEST_SUITE.md) | Coverage map, shared helpers, headless setup and branch-coverage policy |
 | [Scientific tests](SCIENTIFIC_TESTS.md) | Independent official comparisons, fixtures, tolerances and limitations |
 | [Performance](PERFORMANCE.md) | Current runtime behavior, benchmark commands and report locations |
