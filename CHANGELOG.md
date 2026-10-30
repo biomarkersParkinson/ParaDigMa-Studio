@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Organize the dependency guide by environment, pinning policy, installation,
+  updates, auditing and release evidence, with clearer verification commands
+  and links to development, security and attribution references.
 - Embed rendered architecture diagrams for GitHub Mobile and other Markdown
   viewers, matching component labels to the ownership table and retaining
   editable Mermaid sources beside the images. Group the analysis sequence into
