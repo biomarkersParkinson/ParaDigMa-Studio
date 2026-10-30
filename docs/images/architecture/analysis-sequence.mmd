@@ -1,12 +1,49 @@
+---
+config:
+    themeVariables:
+        noteBkgColor: "#ffffff"
+        noteBorderColor: "#94a3b8"
+        noteTextColor: "#24364b"
+    sequence:
+        mirrorActors: false
+        actorMargin: 70
+        width: 170
+        height: 55
+        messageMargin: 32
+        noteMargin: 12
+---
 sequenceDiagram
-    participant GUI as GUI thread
-    participant Worker as Worker.run<br/>(QThread)
-    participant Child as Owned analysis<br/>process(es)
-    GUI->>GUI: Snapshot settings, create run,<br/>clear prior result views
-    GUI->>Worker: Connect signals, then start
-    Worker->>Child: run_isolated_analysis
-    Child->>Child: Prepare inputs and<br/>run official processing
-    Child-->>Worker: Logs, progress and results
-    Worker-->>GUI: completed(results)
-    GUI->>GUI: Prepare presentation data<br/>and install results
-    Worker-->>GUI: finished: restore controls<br/>and release worker
+    participant GUI as GUI thread<br/>Controllers
+    participant Worker as QThread<br/>Worker.run
+    participant Child as Owned analysis<br/>processes
+
+    rect rgb(246, 248, 250)
+        Note over GUI,Child: 1. Start analysis
+        Note over GUI: Snapshot settings<br/>Create run, clear results<br/>Disable controls
+        GUI->>Worker: Connect signals, then start
+        activate Worker
+    end
+
+    rect rgb(238, 244, 250)
+        Note over GUI,Child: 2. Process recordings
+        Note over Worker: run_isolated_analysis<br/>Coordinate child processes
+        Worker->>Child: Spawn processes<br/>Dispatch recordings
+        activate Child
+        Note over Child: Prepare inputs<br/>Run ParaDigMa pipelines
+        loop During processing
+            Child-->>Worker: Logs and progress
+            Worker-->>GUI: Log and progress signals
+        end
+        Child-->>Worker: Scientific results
+        deactivate Child
+        Note over Worker: Close child processes<br/>Remove temporary files
+    end
+
+    rect rgb(246, 248, 250)
+        Note over GUI,Child: 3. Install results and finish
+        Worker-->>GUI: completed(results)
+        Note over GUI: Prepare display data<br/>Install results<br/>Complete progress
+        Worker-->>GUI: finished
+        deactivate Worker
+        Note over GUI: Restore controls<br/>Release worker
+    end

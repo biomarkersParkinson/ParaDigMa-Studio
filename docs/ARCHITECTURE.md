@@ -193,11 +193,15 @@ job at a time. It disables conflicting actions, creates a
 The controller stays on the GUI thread; `Worker.run` executes the operation in a
 QThread. Read-only previews have their own executors.
 
-A normal GUI analysis follows this sequence:
+A completed GUI analysis follows the three phases below. Read from top to bottom
+across the GUI thread, coordinating QThread and owned child processes:
 
 [![Analysis sequence across the GUI thread, QThread worker and owned processes](images/architecture/analysis-sequence.png)](images/architecture/analysis-sequence.png)
 
 [Editable diagram source](images/architecture/analysis-sequence.mmd). Click the image for full size.
+
+Dashed arrows into the GUI represent queued Qt signals. Cancellation and failure
+handling are described below.
 
 [`analysis_process.py`](../src/paradigma_studio/analysis_process.py) uses one owned
 spawned process for a single recording or sequential batch. With multiple
