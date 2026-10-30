@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Organize the performance guide by workflow, cache/worker budgets and benchmark
+  task, with reproducible commands, current hand-navigation coverage and clearer
+  guidance for comparing startup, first-use and repeated-action timings.
 - Organize the dependency guide by environment, pinning policy, installation,
   updates, auditing and release evidence, with clearer verification commands
   and links to development, security and attribution references.

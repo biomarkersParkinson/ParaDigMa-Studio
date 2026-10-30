@@ -1,207 +1,339 @@
 # Performance and measurement
 
+This guide describes runtime behavior on `main`, the available benchmarks, and
+how to compare a performance change. Use [Development](DEVELOPMENT.md) for setup
+and packaging, and [Architecture](ARCHITECTURE.md) for component ownership and
+execution boundaries. Dated measurements are linked under
+[Historical evidence](#historical-evidence).
+
+- [Current runtime behavior](#current-runtime-behavior)
+- [Cache and worker budgets](#cache-and-worker-budgets)
+- [Reproduce measurements](#reproduce-measurements)
+- [Investigate and compare results](#investigate-and-compare-results)
+- [Historical evidence](#historical-evidence)
+
 ## Current runtime behavior
 
-- Startup defers pandas, Arrow and scientific pipeline imports until data is
-  needed. Matplotlib and the three graph workspaces initialize on first use;
-  opening Analyze, Runs or the empty Results overview does not load plotting.
-  Later graph visits reuse their canvases and controls. The packaged app reuses
-  a per-user Matplotlib font cache. First use still pays the deferred import cost.
-- Data statistics and clock previews use bounded background caches. Recording
-  switches reuse previews; obsolete requests cannot replace the latest selection.
-  Analyze module changes derive only the recording clocks, without constructing
-  result alignments. Equivalent sensor requirements reuse the same clock preview;
-  Time origin stays editable and user edits take precedence over pending previews.
-  Missing-sample checks combine one channel's validity at a time, avoiding copies
-  of the complete sensor matrix.
-  Initial inspection counts missing values once per column and reuses those
-  counts in the channel summaries. Finite channels avoid a filtered sample copy;
-  quantiles retain their own workspace so source values stay unchanged. TSDF
-  scaling casts and multiplies into one double-precision output array through
-  NumPy, retaining the official reader and metadata validation. Every initial
-  statistic still finishes before a recording is displayed.
-- Large multi-recording loads calculate exact initial statistics for up to two
-  recordings concurrently using shared, read-only frames. One CPU and a GiB of
-  RAM are reserved; each statistics worker budgets eight double-precision arrays
-  for the longest recording. Unknown/insufficient RAM, fewer than three available
-  CPUs, a single recording or batches whose longest recording has fewer than
-  100,000 rows use the existing sequential path. Reading, TSDF scaling and
-  pipeline steps are unchanged.
-- Continuous raw plots keep the original samples and select their drawing path
-  from the current visible range. Up to 20,000 visible samples render in full;
-  wider views retain first/last samples, extrema and missing-data boundaries,
-  using the physical plot width to bound drawing work. Each channel retains at
-  most three summary levels within 4 MiB. Time-coordinate conversion/range lookup
-  is shared across channels, and narrow views avoid scanning the full recording.
-  Figure exports render every visible original sample. This applies to Data and
-  sensor context; pipeline inputs and statistical calculations are unchanged.
-- Saved runs decode and prepare clocks, timing and coverage in the background.
-  JSON files of at least 8 MiB use one owned spawned reader process, avoiding
-  long JSON-decoder calls holding the GUI interpreter lock. Small files and
-  in-memory snapshots use the existing worker directly. Only parent-created
-  private transfer files use pickle; user files remain JSON. Opening installs
-  Overview first and leaves full graph construction until Graphs is selected.
-- Results reuse prepared graph data and existing plots where possible. Hidden
-  graphs defer painting, and rendering excludes bars outside the visible range.
-  Compatible selections reuse bounded layout/text measurements. Recently removed
-  bar plots retain original geometry in a four-entry, 128 MiB cache, cleared on
-  result, view or display-clock changes. Detailed metrics share converted time
-  coordinates per dataset/row selection/clock; up to four coordinate entries
-  use at most 32 MiB within the same 128 MiB total budget. Source references are
-  weak, and changed inputs invalidate reuse. The cache owns no detached axes. Exports
-  always solve their complete layout, and unsupported screen layouts fall back
-  to the native solver. Rapid toggles coalesce paints without delaying selection
-  signals; the pinned time ruler paints after the final graph draw.
-  Fresh layouts skip detailed cache-key measurement when no stored shape can
-  match. Within a native screen-layout solve, safe tick updates are reused until
-  limits or row/locator geometry changes. The adapter is removed before painting
-  and on errors; figure exports retain the unmodified native solver.
-  Removing the shared time-axis owner retains the remaining axes, paths and
-  per-graph settings. Results scrollbar drags and horizontal trackpad gestures
-  reuse settled axes, tick positions and measured date-label widths. Ordered
-  intervals use indexed viewport lookup. Dense Results plots retain pixel-column
-  minima/maxima, gaps and long intervals both while moving and at rest, so narrow
-  bars do not disappear on release. Zooming resolves individual intervals, and
-  exports always use original bars. Painting skips offscreen plots after selection
-  and when a horizontal gesture ends. Vertical scrolling extends the existing
-  static image with newly exposed plots; revisiting painted plots needs no new
-  rasterization while limits and layout stay unchanged. This shares the row
-  marker overlay's existing 32 MiB budget, uses weak axis references, and falls
-  back to a fresh viewport draw after changes or when no background is available.
-  Exports render every graph. Interval selection paints directly over the cached
-  Qt image without redrawing graph data,
-  including when the figure exceeds the timepoint overlay's memory budget.
-  Raw and Results graphs share time-interval selection and horizontal scrolling;
-  Results keeps its renderer-specific optimizations. Dense full-recording plots
-  still cost more than zoomed views.
-- Sensor context indexes source timestamps and loads the visible window using
-  the source-rate rendering above, while preserving the initial
-  context, selected time and navigation history. Sensor tables build and size
-  columns only when Tables is selected; time scrolling in Graphs skips that work.
-  Switching to Tables shows the latest window immediately and reuses its model
-  on subsequent visits until the samples change. Original tables and exports
-  retain all samples; Results retain every output value.
-- Analysis uses one owned process for a single recording. Multiple recordings
-  can use two workers, reused within the batch, with one native computation thread
-  per worker. Existing gap sections stay inside their recording's worker.
-  Dispatch reserves a CPU and 1 GiB of available RAM, estimating each worker's
-  need as at least 1 GiB or 12 times the largest loaded frame. Low/unknown RAM,
-  limited CPU, explicit mutable toolbox configs or restricted `run_steps` retain
-  sequential execution. These are conservative estimates, not hard memory limits.
-  The processing log records measured CPU availability, free RAM, frame size and
-  the estimated worker budget, and explains any single-worker fallback.
-  Results merge in input order; official aggregation functions run once on the
-  pooled quantifications, with consistent gait segment IDs. Stop terminates all
-  owned workers before deleting their private temporary files. Worker startup and
-  file transfers can outweigh parallel gains for short recordings.
-- Saving serializes the complete in-memory result to JSON in a background worker.
-  Temporary analysis files have already been removed; saving writes a snapshot,
-  including tables, metadata and provenance. It does not rerun analysis. Large
-  outputs and repeated saves can therefore take time. Normalization reuses fresh
-  string-keyed row dictionaries within each 1,000-row batch, retaining the standard
-  JSON encoder, cooperative yields and atomic file replacement.
+### Startup and first graph use
 
-These cache and worker budgets do not bound total session memory. Saved inactive
-runs can retain original source frames and complete result tables for reopening
-and sensor context. Repeated analyses of different long recordings therefore need
-representative memory testing; saving a run does not necessarily release its
-in-memory data.
+Startup defers pandas, Arrow and scientific pipeline imports until needed.
+Matplotlib and the three graph workspaces initialize on first use. Opening
+Analyze, Runs or an empty Results overview preserves that deferral; later graph
+visits reuse their canvases and controls.
 
-The portable bundle includes Python, Qt, Arrow and the scientific libraries.
-These native dependencies account for most of its size. Collection hooks retain
-models, readers, package metadata, licences and required DLLs while excluding
-redundant loose Python source copies and unused Arrow development components.
-Builds clear their app output and work directories before packaging.
+The portable app reuses a per-user Matplotlib font cache. A first graph opening
+still pays deferred import and construction costs. Measure app startup, first
+graph use and repeated graph interactions separately.
+
+### Loading and configuration previews
+
+Loading finishes exact initial statistics before displaying the recording.
+Inspection counts missing values once per column and reuses those counts in the
+summaries. Channel-wise validity checks avoid copying the complete sensor matrix;
+finite channels avoid a filtered sample copy, and quantiles use their own
+workspace. TSDF scaling casts and multiplies into one double-precision output
+array, retaining the official reader and metadata validation.
+
+Large batches can calculate statistics for two recordings concurrently using
+shared, read-only frames. Decoding and TSDF scaling finish before statistics begin.
+The [worker policy](#worker-selection) decides whether statistics run concurrently.
+
+Statistics and clock previews use bounded background caches. Recording switches
+reuse previews, and obsolete requests cannot replace the current selection.
+Analyze module changes derive recording clocks without constructing result
+alignments. Equivalent sensor requirements reuse their clock preview; manual
+Time origin edits take precedence over pending previews.
+
+### Raw graphs and sensor context
+
+Raw graphs retain original samples and choose a drawing path for the visible
+range. Up to **20,000 visible samples** render in full. Wider views preserve
+first/last samples, extrema and missing-data boundaries, with drawing work based
+on physical plot width. Channels share time-coordinate conversion and range
+lookup; ordered timestamps allow narrow views to avoid scanning the full recording.
+Figure exports render every visible original sample.
+
+Sensor context indexes the source timestamps and loads the visible window while
+preserving its initial context, selected time and navigation history. Sensor
+tables build and size columns when Tables is selected; scrolling in Graphs skips
+that work. Later table visits reuse the model until the samples change. Original
+tables and exports retain all samples.
+
+Raw and Results graphs share time-interval selection, horizontal scrolling and
+hand dragging. Results adds the rendering optimizations below.
+
+### Results graphs
+
+Results reuse prepared graph data, converted time coordinates and existing plots
+where possible. Removing the shared time-axis owner retains the remaining axes,
+paths and per-graph settings. Hidden graphs defer painting, and rendering excludes
+bars outside the visible time range.
+
+The main rendering shortcuts are:
+
+- **Series changes:** recently removed bar plots retain original geometry in a
+  bounded cache. Compatible selections reuse layout/text measurements. Rapid
+  toggles coalesce paints while selection signals remain immediate; the pinned
+  time ruler paints after the final graph draw.
+- **Horizontal navigation:** scrolling reuses settled axes, tick positions and
+  measured date-label widths. Ordered intervals use indexed viewport lookup.
+  Dense plots preserve pixel-column minima/maxima, gaps and long intervals both
+  during movement and after release. Zooming resolves individual intervals.
+- **Vertical scrolling:** the canvas adds newly exposed plots to its static image.
+  Revisiting painted plots reuses that image while limits and layout are unchanged.
+  Missing or invalid backgrounds fall back to a fresh viewport draw.
+- **Selection overlays:** interval selection paints over the cached Qt image
+  without redrawing graph data, including figures too large for the timepoint
+  background cache.
+
+Layout reuse is conditional: unmatched layouts use the native solver. Fresh
+layouts skip cache-key measurement when no stored shape can match; within a
+native screen-layout solve, safe tick updates are reused until limits or geometry
+change. Temporary adapters are removed before painting and on errors.
+Figure exports use the unmodified native solver, original bars and every graph.
+Dense full-recording views still cost more than zoomed views.
+
+### Analysis execution
+
+A single recording uses one owned process. Multiple original recordings can use
+two reusable processes, with one native computation thread per worker. Gap
+sections stay inside their original recording's worker. Resource/configuration
+fallbacks are described under [Worker selection](#worker-selection).
+
+The processing log explains the chosen worker count and any fallback.
+Resource-based decisions include CPU/RAM measurements and frame/worker size
+estimates when known. Process startup and file transfers can outweigh parallel
+gains for short recordings. Results merge in input order; official aggregation
+runs on pooled quantifications, with consistent gait segment IDs. Stop terminates
+and joins owned workers before their private temporary files are removed.
+
+### Saving and reopening
+
+Saving serializes a complete in-memory result snapshot to JSON in a background
+worker, including tables, metadata and provenance. Analysis has already finished
+and its temporary files have been removed. Large outputs and repeated saves can
+therefore take time. Normalization reuses fresh string-keyed dictionaries in
+1,000-row batches, with the standard JSON encoder, cooperative yields and atomic
+file replacement.
+
+Reopening saved runs decodes and prepares clocks, timing and coverage in the
+background. JSON files of at least **8 MiB** use an owned spawned reader process
+to keep long decoder calls away from the GUI interpreter lock. Small files and
+in-memory snapshots use the worker directly. User files remain JSON;
+parent-created private transfer files use pickle. Opening installs Overview first
+and defers full graph construction until Graphs is selected.
+
+### Portable bundle size
+
+The bundle includes Python, Qt, Arrow and the scientific libraries. Native
+dependencies account for most of its size. Collection hooks retain models,
+readers, package metadata, licences and required DLLs while excluding redundant
+loose Python source copies and unused Arrow development components. Builds clear
+their app output and work directories before packaging.
+
+## Cache and worker budgets
+
+### Rendering caches
+
+| Cache | Bound and scope |
+| --- | --- |
+| Raw channel summaries | At most three summary levels within 4 MiB per channel |
+| Results bar geometry | At most four entries; shares a 128 MiB total with converted coordinates |
+| Results time coordinates | At most four entries within 32 MiB, included in the shared 128 MiB total |
+| Static plot background | 32 MiB for row-marker and Results viewport reuse; viewport reuse shares the existing image |
+
+Results caches invalidate on result, view or display-clock changes. Source and
+axis references are weak where retained for reuse; the geometry cache owns no
+detached axes. Changed inputs invalidate their converted coordinates.
+The implementing limits are in
+[`raw_signals.py`](../src/paradigma_studio/raw_signals.py),
+[`result_plot_cache.py`](../src/paradigma_studio/result_plot_cache.py),
+[`plotting.py`](../src/paradigma_studio/plotting.py) and
+[`result_canvas.py`](../src/paradigma_studio/result_canvas.py).
+
+### Worker selection
+
+Two-worker selection leaves one CPU and **1 GiB of available RAM** for the
+interface and other work. Both policies are implemented in
+[`analysis_limits.py`](../src/paradigma_studio/analysis_limits.py):
+
+| Work | Conditions for two workers |
+| --- | --- |
+| Initial statistics | At least two recordings, a longest recording of at least 100,000 rows, at least three available CPUs, and known RAM sufficient for two statistics workers plus the reserve |
+| Analysis | Multiple compatible original recordings, CPU/RAM headroom, and the ordinary complete processing path |
+
+A statistics worker budgets eight double-precision arrays for the longest
+recording, with a **64 MiB minimum**. An analysis worker budgets the larger of
+**1 GiB** or **12 times the largest loaded frame**. Unknown or insufficient RAM
+selects one worker. Custom mutable toolbox configurations, restricted `run_steps`
+and ambiguous recording identifiers also keep analysis sequential.
+
+These are conservative estimates, not hard memory limits. Individual cache
+budgets do not bound total session memory either: inactive runs can retain source
+frames and complete result tables for reopening and sensor context. Saving a run
+does not necessarily release that data. Memory comparisons should cover repeated
+analyses of representative long recordings.
 
 ## Reproduce measurements
 
-Install the development dependencies and build on Windows as described in
-[Development](DEVELOPMENT.md). Run from the repository root in PowerShell:
+### Choose a benchmark
+
+| Task | Probe and report |
+| --- | --- |
+| App launch and bundle size | `benchmark_desktop.py` → `performance.json` |
+| Common UI workflows | `benchmark_workflows.py` → `ui-performance.json` |
+| Time scrolling, hand dragging, interval selection and series changes | `benchmark_pan.py` → `pan-performance.json` |
+| Fresh populated views and unseen metrics | `benchmark_pan.py --first-creation-only` → `creation-performance.json` |
+| Context opening and original-sample raw zooms | `benchmark_sensor_context.py` → `sensor-context-performance.json` |
+| First empty graph workspace in a fresh process | `benchmark_first_use.py`; manual source probe |
+| Loading/statistics, processing and saved-run round trips | `benchmark_processing.py`; manual service probe |
+
+The desktop probe measures the built executable. UI probes run the source app;
+the processing probe calls services directly. Benchmark scripts live under
+[`scripts/`](../scripts/).
+
+### Standard Windows reports
+
+Install the [reviewed environment](DEPENDENCIES.md#install-and-verify) and
+[build the Windows executable](DEVELOPMENT.md#build-and-verify-a-windows-executable).
+Run from the repository root in PowerShell, keeping reports outside the portable
+folder:
 
 ```powershell
 New-Item -ItemType Directory -Force build-reports | Out-Null
-.\.venv\Scripts\python.exe scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
-.\.venv\Scripts\python.exe scripts/benchmark_workflows.py --report build-reports/ui-performance.json
-.\.venv\Scripts\python.exe scripts/benchmark_pan.py --report build-reports/pan-performance.json
-.\.venv\Scripts\python.exe scripts/benchmark_sensor_context.py --report build-reports/sensor-context-performance.json
+uv run --locked --all-groups python scripts/benchmark_desktop.py dist/ParaDigMaStudio/ParaDigMaStudio.exe --report build-reports/performance.json
+uv run --locked --all-groups python scripts/benchmark_workflows.py --report build-reports/ui-performance.json
+uv run --locked --all-groups python scripts/benchmark_pan.py --report build-reports/pan-performance.json
+uv run --locked --all-groups python scripts/benchmark_sensor_context.py --report build-reports/sensor-context-performance.json
+uv run --locked --all-groups python scripts/benchmark_pan.py --first-creation-only --rows 150000 --pixel-ratio 2 --with-controls --report build-reports/creation-performance.json
 ```
 
-The panning benchmark also measures Plot series through real label clicks in
-all four views, recording first selection, repeated selection, median/tail
-latency, retained axes and main/ruler draw counts. To isolate selection work,
-use `--selection-only`; `--rows 150000 --graphs 12` changes the synthetic load,
-`--pixel-ratio 2` checks the second display scale, and `--with-controls` includes
-the limits panel and a selected timepoint. Run identical settings before and
-after an optimization. First-selection timings are reported separately from
-repeated clicks; hardware timings remain diagnostic, not strict CI limits.
-Raw cases use a zoomed interval and the shared horizontal scrollbar, reported as
-`data_scroll_3_modalities` and `context_scroll_3_modalities`. Historical raw-pan
-measurements describe a different interaction.
-`--results path/to/saved-run.json --selection-only` measures actual exported or
-saved results, including gait metrics without individual timestamps. Reports
-also include the bounded cache's retained-geometry accounting after each click.
+Both [Windows](../.github/workflows/windows.yml) and
+[signed Windows](../.github/workflows/windows-signed.yml) workflows publish these
+five reports in the **ParaDigMaStudio-build-reports** artifact. UI probes use
+offscreen Qt in CI. Reports are separate from the application download, which
+retains its security provenance and checksums.
 
-Use `--first-creation-only --repeats 3` to measure fresh graph selections in
-each view, followed by a label click on a previously unseen metric. Each sample
-uses a fresh window; prepared tables and the initialized workspace are outside
-the timers, and display caches are cleared before the first selection. The
-unseen metric can reuse preparation shared by the other metrics in its dataset.
-The same rows/graphs, saved-results, display-scale and controls options apply.
-`--allocations` adds peak traced Python allocations in a separate diagnostic
-run; it changes timings and does not measure all native Qt/renderer memory.
+The startup report includes fresh-process launches, first paint, deferred-import
+checks and bundle component sizes. It uses existing OS/font caches and empty run
+history. Source UI probes report interaction timings with warm imports and
+include queued Qt painting.
 
-| Report | Measures |
-| --- | --- |
-| `performance.json` | Fresh packaged launches, first paint, import boundaries and bundle component sizes |
-| `ui-performance.json` | Synthetic input switching, settings, series selection in all four Results graph views, visible table controls, exports and history |
-| `pan-performance.json` | Results time scrolling, interval selection, shared-axis owner changes in all four views, raw time-scrollbar drags and queued painting |
-| `creation-performance.json` | Fresh selections and unseen metric clicks at double display scale, first-view/metric latency, layout/paint counts and retained caches |
-| `sensor-context-performance.json` | First and repeated context openings on a large synthetic recording |
+### Graph navigation, selection and creation
 
-Both Windows workflows publish these files in the separate
-**ParaDigMaStudio-build-reports** artifact. They are development reports and
-are not needed to run the app. Security provenance and checksums stay in the
-application download.
+The navigation probe measures drag frames and release redraws separately. It
+covers hand dragging in all four Results views and raw Data/context views.
+Raw scrollbar cases are named `data_scroll_3_modalities` and
+`context_scroll_3_modalities`; hand cases use `results_hand_*`,
+`data_hand_3_modalities` and `context_hand_3_modalities`. Older raw-pan reports
+measured a different interaction.
 
-Two additional source benchmarks are available for manual comparisons:
+To isolate Plot series changes, use real label-click measurements:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/benchmark_first_use.py --graph data --report build-reports/first-data-graph.json
-.\.venv\Scripts\python.exe scripts/benchmark_first_use.py --graph results --report build-reports/first-results-graph.json
-.\.venv\Scripts\python.exe scripts/benchmark_processing.py --report build-reports/processing-performance.json
+uv run --locked --all-groups python scripts/benchmark_pan.py --selection-only --rows 150000 --graphs 12 --pixel-ratio 2 --with-controls --report build-reports/series-selection.json
 ```
 
-The first-use probe starts without plotting or scientific imports, measures the
-first graph opening and checks canvas reuse through 120 page changes. It accepts
-`--repeats 3` for independent subprocess
-samples and `--pixel-ratio 2` for the second scale. It reports workspace opening
-and the first explicit scaled draw separately from populated-metric creation.
-The processing probe uses temporary synthetic files, including a 24-hour TSDF recording, and the
-recorded scientific fixture under `tests/data/paradigma`. It measures complete
-loading/statistics, single/two-recording gait and tremor processing, and a
-600,000-row saved-run round trip. It verifies unchanged inputs and output digests
-outside the timers. Its two-worker workload requires sufficient CPU/RAM and fails
-explicitly when the automatic resource policy selects one worker. These manual
-reports are not generated by the Windows workflows.
+Reports separate first selection from repeated toggles in detailed, 30-minute,
+day and 24-hour profile views. They include median/tail latency, retained axes,
+main/ruler draw counts, layout solves and retained geometry/coordinate bytes.
+Removing a series exercises the current shared-axis owner.
 
-The sensor-context probe also checks 20-second raw Data zooms against every
-original timestamp/value and reports `raw_zoom_seconds`, `raw_visible_samples`
-and the full retained-input checksum. `--samples 8640000` exercises one day at
-100 Hz. The checksum and equality checks run outside its action timers.
+Creation mode uses a fresh window per sample. Prepared tables and the initialized
+workspace are outside its timers; display caches are cleared before the first
+view selection. A later label click adds a previously unseen metric, which can
+reuse preparation shared by metrics in its dataset. `--repeats 3` is the default.
 
-Use `--loading-only --recordings 7` with `benchmark_processing.py` to isolate
-multi-recording loading. `--samples 8640000` (the default) represents one day at
-100 Hz per recording. It reports batch decoding, sequential and automatic exact
-statistics, and complete load-plus-statistics timings separately. Complete
-frame/statistic digests and source-file checks run outside the timers; no values
-are sampled or approximated. `--repeats 3` controls the repetitions.
+Both selection and creation modes accept `--results path/to/saved-run.json` to
+measure actual saved/exported results, including metrics without individual
+timestamps. Replace the example path with the file being investigated. The same
+display-scale and controls options apply to both modes and input types.
+`--rows` and `--graphs` size the synthetic input; a supplied results file provides
+its own tables and metrics. The two modes are mutually exclusive. `--allocations`
+is a creation-mode diagnostic for a separate run: it changes timings and measures
+traced Python allocations, excluding some native Qt/renderer memory.
 
-Compare measurements with the same dependencies, inputs, window dimensions and
-cache state. Linux offscreen timings do not predict local Windows performance,
-cold startup or antivirus overhead. CI checks import boundaries, retained values,
-cache reuse and redraw behavior rather than imposing hardware-specific timing
-limits. See the [test guide](TEST_SUITE.md) and
-[scientific methodology](SCIENTIFIC_TESTS.md) before changing these boundaries.
+### First graph use
+
+These manual probes start without plotting or scientific imports and measure the
+first empty graph workspace. Run after creating `build-reports`:
+
+```powershell
+uv run --locked --all-groups python scripts/benchmark_first_use.py --graph data --repeats 3 --report build-reports/first-data-graph.json
+uv run --locked --all-groups python scripts/benchmark_first_use.py --graph results --repeats 3 --report build-reports/first-results-graph.json
+```
+
+Each sample uses a fresh subprocess. The probe separates workspace opening from
+its first explicit scaled draw and checks canvas reuse through 120 page changes.
+Add `--pixel-ratio 2` for the second display scale. Populated-metric creation is
+measured by the creation mode above. These probes retain warm OS/font caches and
+are not generated by the Windows workflows.
+
+### Loading, processing and saved results
+
+The manual processing probe generates temporary synthetic files, including a
+24-hour TSDF recording, and uses the recorded IMU fixture under
+[`tests/data/paradigma`](../tests/data/paradigma/):
+
+```powershell
+uv run --locked --all-groups python scripts/benchmark_processing.py --report build-reports/processing-performance.json
+uv run --locked --all-groups python scripts/benchmark_processing.py --loading-only --recordings 7 --repeats 3 --report build-reports/loading-performance.json
+```
+
+The full run measures loading/statistics, single/two-recording gait and tremor
+processing, and a **600,000-row saved-run round trip**. Its two-worker comparison
+requires sufficient CPU/RAM and fails explicitly if the automatic policy selects
+one worker. `--loading-only` skips analysis and saving; with multiple recordings,
+it reports batch decoding, sequential/automatic exact statistics, and complete
+load-plus-statistics times separately.
+
+`--samples` controls TSDF size. The default, **8,640,000 samples**, represents one
+day at 100 Hz per recording; `--recordings` controls the batch count. Input/output
+digests and source-file checks run outside the timers. The probe uses warm
+imports/file caches, retains complete values, and is not generated by Windows CI.
+
+For raw visual detail on the same scale, add `--samples 8640000` to the
+sensor-context probe. It checks 20-second Data zooms against every original
+visible timestamp/value and reports `raw_zoom_seconds`, `raw_visible_samples`
+and the retained-input checksum. Equality/checksum checks run outside the action
+timers.
+
+## Investigate and compare results
+
+### Capture the slow operation
+
+Record the Studio version or commit, platform, dependency lock and input format,
+size, duration, channel count and number of recordings. State whether the delay
+occurs on first-ever use, the first load after restarting, the first graph visit,
+or repeated actions in the same session. Identify the operation being timed:
+opening a file, preparing statistics, creating a graph, processing or saving.
+
+Choose the corresponding probe above. For analysis slowdowns, include the worker
+selection details from the processing log. Keep source and packaged-app results
+identified separately, along with the Qt backend/style, window dimensions,
+visible time range, graph count and display scale.
+
+### Compare equivalent runs
+
+1. Use the same dependencies, inputs, native thread limits, available CPU/RAM,
+   display settings and cache state before and after a change.
+2. Repeat the workload and compare full samples, medians and tail timings where
+   reported. Check draw/layout counts and retained-cache bytes alongside elapsed
+   time to understand which work changed.
+3. Keep profiling/allocation tracing in separate diagnostic runs. Retain the
+   probes' unchanged-input and output-value checks outside the timed operations.
+4. Run the relevant [regression tests](TEST_SUITE.md) and
+   [scientific comparisons](SCIENTIFIC_TESTS.md) when changing data or processing
+   boundaries.
+
+Fresh-process launch probes reuse OS/font caches; a cold boot or first-ever load
+has different conditions. Linux offscreen timings also do not predict local
+Windows behavior or antivirus overhead. Use representative Windows recordings
+when investigating a local report.
+
+Elapsed times are diagnostic rather than hardware-specific CI thresholds. CI
+checks deferred imports, retained values, cache reuse and redraw behavior. A
+faster draw must preserve source data, scientific outputs and export fidelity.
 
 ## Historical evidence
 
