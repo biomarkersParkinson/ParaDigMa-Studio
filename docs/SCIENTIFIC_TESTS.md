@@ -232,7 +232,7 @@ contract is documented under [saved-run formats](PYTHON_API.md#saved-run-contrac
 
 Plot-coordinate tolerances are separate from scientific-value comparisons.
 Calendar-axis checks use absolute tolerances with zero relative tolerance;
-see the [test suite conventions](TEST_SUITE.md#regression-coverage-map).
+see the [numeric test conventions](TEST_SUITE.md#numeric-values-and-source-integrity).
 
 ## Positive and empty-output cases
 

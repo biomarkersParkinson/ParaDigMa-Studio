@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Group the test suite map by workflow with direct links to every test module,
+  separate setup, shared helpers and assertion conventions, and bring the
+  coverage-scope and report guidance into line with current configuration.
 - Organize the scientific test guide around running checks, coverage, independent
   references, tolerances and presentation, distinguishing direct official
   comparisons from sequential/parallel consistency checks and clarifying fixtures
