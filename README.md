@@ -2,8 +2,6 @@
 <!-- markdownlint-disable-next-line MD041 -->
 ![ParaDigMa Studio](docs/images/readme-banner.png)
 
-# ParaDigMa Studio
-
 A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings,
 based on the **official ParaDigMa 1.1.2 toolbox**. Inspect wrist sensor recordings, run gait, tremor and pulse-rate analysis modules,
 and explore results. Recordings and results stay on your computer.
