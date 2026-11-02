@@ -1,3 +1,7 @@
+<!-- The README intentionally opens with its banner. -->
+<!-- markdownlint-disable-next-line MD041 -->
+![ParaDigMa Studio](docs/images/readme-banner.png)
+
 # ParaDigMa Studio
 
 A Windows app for extracting digital biomarkers for Parkinson's disease from real-life wearable recordings,
