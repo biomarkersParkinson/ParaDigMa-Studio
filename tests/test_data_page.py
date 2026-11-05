@@ -46,7 +46,7 @@ def test_data_page_keeps_tab_order_actions_and_deferred_graphs(data_workspace):
     assert not layout.continue_button.isEnabled()
     assert layout.status_layout.itemAt(0).widget() is layout.status
     assert layout.status_layout.itemAt(1).widget() is layout.continue_button
-    assert workspace.parent.actions() == [layout.open_action, layout.open_folder_action]
+    assert workspace.parent.actions() == [layout.open_action]
     assert layout.open_action.shortcut().toString() == "Ctrl+O"
     assert layout.open_action.parent() is workspace.parent
     assert not layout._data_graph.initialized
@@ -56,10 +56,11 @@ def test_data_page_keeps_tab_order_actions_and_deferred_graphs(data_workspace):
     layout.open_button.click()
     layout.open_action.trigger()
     assert callbacks.open_file.call_count == 2
-    assert layout.open_folder_action.shortcut().toString() == "Ctrl+Shift+O"
-    layout.open_folder_button.click()
-    layout.open_folder_action.trigger()
-    assert callbacks.open_folder.call_count == 2
+    assert [shortcut.toString() for shortcut in layout.open_action.shortcuts()] == [
+        "Ctrl+O",
+        "Ctrl+Shift+O",
+    ]
+    assert layout.open_button.text() == "Open recordings…"
     layout.input_recording.addItems(["first", "second"])
     callbacks.inspect_input_recording.reset_mock()
     layout.input_recording.setCurrentIndex(1)

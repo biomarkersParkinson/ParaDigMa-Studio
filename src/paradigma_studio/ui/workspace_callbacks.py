@@ -17,7 +17,6 @@ class WorkspaceCallbacks:
     inspect_sensor_context: Callable[..., Any]
     navigate: Callable[..., Any]
     open_file: Callable[..., Any]
-    open_folder: Callable[..., Any]
     open_run: Callable[..., Any]
     plot: Callable[..., Any]
     reset_origin: Callable[..., Any]

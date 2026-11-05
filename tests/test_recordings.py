@@ -100,15 +100,13 @@ def load(window, sources, frames):
 
 
 def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
-    window, tmp_path, monkeypatch
+    window, tmp_path, monkeypatch, recording_picker
 ):
     sources, frames = inputs(tmp_path)
     for key, path in sources.items():
         frames[key].to_parquet(path)
         frames[key] = pd.read_parquet(path)  # Parquet restores an equivalent fixed-offset tz type.
-    monkeypatch.setattr(
-        desktop.QFileDialog, "getOpenFileNames", lambda *args: (list(sources.values()), "")
-    )
+    recording_picker(sources.values())
     window.open_file()
     wait_for_worker(window)
     assert window.input_recording.count() == 2 and not window.input_recording.isHidden()
@@ -157,15 +155,13 @@ def test_multiple_file_dialog_loads_inspects_and_runs_all_selected_recordings(
 
 @pytest.mark.parametrize("count", [1, 2], ids=["single", "multiple-recordings"])
 def test_open_recordings_resets_shared_time_after_initial_descriptives(
-    window, tmp_path, monkeypatch, count
+    window, tmp_path, recording_picker, count
 ):
     frame = pd.DataFrame({"time": [0, 10, 20, 10], "gyroscope_x": [1.0, 2.0, 3.0, 4.0]})
     paths = [tmp_path / f"sensor-{index}.csv" for index in range(count)]
     for path in paths:
         frame.to_csv(path, index=False)
-    monkeypatch.setattr(
-        desktop.QFileDialog, "getOpenFileNames", lambda *args: ([str(path) for path in paths], "")
-    )
+    recording_picker(paths)
     window.data_time_unit.setCurrentText("difference_ms")
     window.open_file()
     wait_for_worker(window)

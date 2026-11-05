@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from conftest import wait_for_previews
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QApplication
 from run_fixtures import saved_settings
 
 from paradigma_studio.analysis_help import DEFAULT_MAX_GAP_SECONDS, DEFAULT_MIN_SECTION_SECONDS
@@ -288,22 +288,24 @@ def test_switching_loaded_batch_recordings_keeps_manual_and_saved_settings(windo
 
 @pytest.mark.parametrize("outcome", ["cancelled", "failed"])
 def test_cancelled_or_failed_file_load_keeps_the_existing_analyze_settings(
-    window, monkeypatch, outcome
+    window, tmp_path, recording_picker, outcome
 ):
     frame = recording()
     window.loaded(("old.json", frame))
     edit_all_settings(window)
     before = window._analysis_controller._analysis_settings(window.selected_modules())
     controller = window._data_controller
-    paths = [] if outcome == "cancelled" else ["missing.csv"]
-    monkeypatch.setattr(QFileDialog, "getOpenFileNames", lambda *args: (paths, ""))
+    source = tmp_path / "sensor.csv"
+    source.touch()
+    recording_picker([] if outcome == "cancelled" else [source])
 
     def fail_load(*args, **kwargs):
         raise OSError("Could not read the new file")
 
     controller.services = replace(controller.services, load_recordings=fail_load)
     controller.callbacks = replace(
-        controller.callbacks, start_job=lambda operation, _done: operation(None)
+        controller.callbacks,
+        start_job=lambda operation, completed, **kwargs: completed(operation(None)),
     )
     if outcome == "failed":
         with pytest.raises(OSError, match="Could not read"):

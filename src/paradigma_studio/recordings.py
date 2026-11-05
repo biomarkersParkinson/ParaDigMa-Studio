@@ -25,14 +25,49 @@ from .results_view import analysis_alignment, normalise_clock, recording_clock
 if TYPE_CHECKING:
     import pandas as pd
 
+SENSOR_FILE_PATTERNS = tuple(
+    "*_meta.json" if suffix == ".json" else f"*{suffix}" for suffix in sorted(SUPPORTED)
+)
+
 
 def find_sensor_files(folder: PathInput, *, logger: logging.Logger | None = None) -> list[Path]:
     """Find recordings recursively without treating saved-result JSON as input."""
-    root = Path(folder)
-    if not root.is_dir():
+    if not Path(folder).is_dir():
         raise ValueError("Select a folder containing sensor recordings.")
+    return find_recording_files([folder], logger=logger)
+
+
+def find_recording_files(
+    selections: Iterable[PathInput], *, logger: logging.Logger | None = None
+) -> list[Path]:
+    """Expand mixed selections once, preserving all-or-nothing discovery failures."""
     discovered: dict[Path, Path] = {}
     visited: set[Path] = set()
+    for item in sorted(
+        map(Path, selections), key=lambda path: (path.as_posix().casefold(), path.as_posix())
+    ):
+        if item.is_dir():
+            candidates = _scan_sensor_folder(item, visited)
+        elif item.is_file() and _sensor_file(item):
+            candidates = [item]
+        else:
+            raise ValueError(f"Recording file or folder unavailable or unsupported: {item}")
+        for path in candidates:
+            discovered.setdefault(path.resolve(), path)
+    paths = sorted(
+        discovered.values(), key=lambda path: (path.as_posix().casefold(), path.as_posix())
+    )
+    if not paths:
+        raise ValueError("No supported sensor recordings found in the selected files or folders.")
+    if logger is not None:
+        logger.info("Found %s sensor recordings in the selected files and folders.", len(paths))
+    return paths
+
+
+def _scan_sensor_folder(root: Path, visited: set[Path]) -> list[Path]:
+    if not root.is_dir():
+        raise ValueError("Select a folder containing sensor recordings.")
+    paths = []
     for directory, subfolders, names in os.walk(root, followlinks=False, onerror=_discovery_error):
         current = Path(directory)
         resolved = current.resolve()
@@ -43,22 +78,14 @@ def find_sensor_files(folder: PathInput, *, logger: logging.Logger | None = None
         subfolders[:] = sorted(name for name in subfolders if not _linked_folder(current / name))
         for name in sorted(names):
             path = current / name
-            suffix = path.suffix.lower()
-            if suffix not in SUPPORTED or (
-                suffix == ".json" and not path.name.lower().endswith("_meta.json")
-            ):
-                continue
-            if path.is_file():
-                discovered.setdefault(path.resolve(), path)
-    paths = sorted(
-        discovered.values(),
-        key=lambda path: (path.relative_to(root).as_posix().casefold(), path.as_posix()),
-    )
-    if not paths:
-        raise ValueError("No supported sensor recordings found in the folder or its subfolders.")
-    if logger is not None:
-        logger.info("Found %s sensor recordings in %s and its subfolders.", len(paths), root)
+            if _sensor_file(path) and path.is_file():
+                paths.append(path)
     return paths
+
+
+def _sensor_file(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    return suffix in SUPPORTED and (suffix != ".json" or path.name.lower().endswith("_meta.json"))
 
 
 def _linked_folder(path: Path) -> bool:

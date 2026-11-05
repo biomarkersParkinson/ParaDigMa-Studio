@@ -7,6 +7,19 @@ import pytest
 
 
 @pytest.fixture
+def recording_picker(monkeypatch):
+    """Supply a browser selection while retaining real discovery and file loading."""
+    from paradigma_studio.ui.recording_browser import RecordingBrowser, RecordingSelection
+
+    def select(paths, *, directory=None):
+        paths = tuple(map(Path, paths))
+        selection = RecordingSelection(paths, str(directory or paths[0].parent)) if paths else None
+        monkeypatch.setattr(RecordingBrowser, "choose", lambda *args: selection)
+
+    return select
+
+
+@pytest.fixture
 def tsdf_writer(tmp_path):
     """Write real binary TSDF inputs without using the application's decoder."""
     import json

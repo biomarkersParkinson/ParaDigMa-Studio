@@ -92,8 +92,6 @@ class WorkspaceLayout:
     input_table = component_attribute("_data_page")
     open_action = component_attribute("_data_page")
     open_button = component_attribute("_data_page")
-    open_folder_button = component_attribute("_data_page")
-    open_folder_action = component_attribute("_data_page")
     time_table = component_attribute("_data_page")
 
     _result_view_layouts = component_attribute("_results_page")
@@ -481,7 +479,6 @@ class WorkspaceLayout:
             export_button=self.export_button,
             input_recording=self.input_recording,
             open_button=self.open_button,
-            open_folder_button=self.open_folder_button,
             open_run_button=self.open_run_button,
             progress=self.progress,
             run_button=self.run_button,

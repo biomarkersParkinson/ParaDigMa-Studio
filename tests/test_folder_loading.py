@@ -10,10 +10,11 @@ import pytest
 from conftest import wait_for_job, wait_for_previews
 from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from paradigma_studio import app as desktop, core, recordings
-from paradigma_studio.recordings import find_sensor_files
+from paradigma_studio.recordings import find_recording_files, find_sensor_files
+from paradigma_studio.ui.recording_browser import RecordingBrowser
 
 
 def samples():
@@ -92,7 +93,7 @@ def test_discovery_reports_unreadable_subfolders_instead_of_loading_a_partial_tr
 
 
 def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
-    window, tmp_path, tsdf_writer, monkeypatch
+    window, tmp_path, tsdf_writer, monkeypatch, recording_picker
 ):
     root = tmp_path / "input"
     nested = root / "nested"
@@ -108,11 +109,8 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
     window.loaded(("previous.csv", original))
     wait_for_previews(window)
     window.side.setCurrentText("right")
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args: str(root))
-    monkeypatch.setattr(
-        QFileDialog, "getOpenFileNames", lambda *args: pytest.fail("A busy job opened a picker")
-    )
-    scan = desktop.find_sensor_files
+    recording_picker([root])
+    scan = desktop.find_recording_files
     entered, release = threading.Event(), threading.Event()
     gui_thread, deliveries, beats = threading.get_ident(), [], []
 
@@ -122,7 +120,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
         assert release.wait(10)
         return scan(folder, logger=logger)
 
-    monkeypatch.setattr(desktop, "find_sensor_files", slow_scan)
+    monkeypatch.setattr(desktop, "find_recording_files", slow_scan)
     load = desktop.load_recordings
 
     def observed_load(paths, **kwargs):
@@ -135,17 +133,18 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
     timer.setInterval(5)
     timer.timeout.connect(lambda: beats.append(True))
     try:
-        window._layout.open_folder_button.click()
+        window.open_button.click()
+        monkeypatch.setattr(
+            RecordingBrowser, "choose", lambda *args: pytest.fail("A busy job opened a browser")
+        )
         timer.start()
         deadline = time.monotonic() + 5
         while not (entered.is_set() and len(beats) >= 2) and time.monotonic() < deadline:
             QTest.qWait(10)
             time.sleep(0.01)
         assert entered.is_set() and len(beats) >= 2
-        assert not window._layout.open_folder_button.isEnabled()
         assert not window.open_button.isEnabled()
         assert window._input_state.frame is original and not deliveries
-        window._layout.open_folder_action.trigger()
         window._layout.open_action.trigger()
         release.set()
         wait_for_job(window)
@@ -161,7 +160,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
             pd.testing.assert_frame_equal(window._input_state.recordings[key], frame)
         expected = frame.multiply([1, 2, 3, 4], axis="columns")
         pd.testing.assert_frame_equal(window._input_state.recordings["recording_003"], expected)
-        assert window._layout.open_folder_button.isEnabled()
+        assert window.open_button.isEnabled()
         pd.testing.assert_frame_equal(pd.read_csv(root / "a.csv"), frame)
     finally:
         timer.stop()
@@ -170,7 +169,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
 
 @pytest.mark.parametrize("accepted", [False, True])
 def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
-    window, tmp_path, monkeypatch, accepted
+    window, tmp_path, monkeypatch, recording_picker, accepted
 ):
     root = tmp_path / "input"
     root.mkdir()
@@ -179,13 +178,13 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
     frame.to_pickle(root / "b.pkl")
     window.loaded(("previous.csv", frame))
     window.side.setCurrentText("right")
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args: str(root))
+    recording_picker([root])
     gui_thread, confirmations, reads = threading.get_ident(), [], []
 
     def confirm(parent, title, message, buttons, default):
         assert threading.get_ident() == gui_thread
         assert window._job_state.worker is None
-        assert window._layout.open_folder_button.isEnabled()
+        assert window.open_button.isEnabled()
         assert default == QMessageBox.No and buttons == QMessageBox.Yes | QMessageBox.No
         assert not reads
         confirmations.append(message)
@@ -200,7 +199,7 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
         return loader(path, allow_pickle=allow_pickle)
 
     monkeypatch.setattr(recordings, "load_sensor_file", observed_load)
-    window._layout.open_folder_action.trigger()
+    window._layout.open_action.trigger()
     wait_for_job(window)
     assert len(confirmations) == 1
     assert reads == ([root / "a.csv", root / "b.pkl"] if accepted else [])
@@ -212,7 +211,7 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
 
 @pytest.mark.parametrize("case", ["cancel", "empty", "invalid-recording"])
 def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
-    window, tmp_path, monkeypatch, case
+    window, tmp_path, recording_picker, case
 ):
     root = tmp_path / "input"
     root.mkdir()
@@ -223,20 +222,18 @@ def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
     if case == "invalid-recording":
         frame.to_csv(root / "a.csv", index=False)
         (root / "z.csv").write_text("time,gyroscope_x\n")
-    monkeypatch.setattr(
-        QFileDialog, "getExistingDirectory", lambda *args: "" if case == "cancel" else str(root)
-    )
-    window._layout.open_folder_button.click()
+    recording_picker([] if case == "cancel" else [root])
+    window.open_button.click()
     wait_for_job(window)
     assert window._input_state.frame is frame and window._input_state.source == "previous.csv"
     assert window._analysis_controller._analysis_settings(["gait"]) == before
-    assert window._layout.open_folder_button.isEnabled()
+    assert window.open_button.isEnabled()
     if case != "cancel":
         assert window.status.text() == "Operation failed. See the processing log."
 
 
 @pytest.mark.parametrize("style,font_size", [("Fusion", 13), ("Windows", 18)])
-def test_folder_and_file_buttons_remain_visible_at_compact_native_sizes(window, style, font_size):
+def test_recording_button_remains_visible_at_compact_native_sizes(window, style, font_size):
     app = QApplication.instance()
     original_style = app.style().objectName()
     app.setStyle(style)
@@ -254,8 +251,34 @@ def test_folder_and_file_buttons_remain_visible_at_compact_native_sizes(window, 
                 }
                 window.loaded_recordings((sources, frames, descriptions))
             app.processEvents()
-            for control in (window.open_button, window._layout.open_folder_button):
-                assert control.visibleRegion().boundingRect().contains(control.rect())
+            assert (
+                window.open_button.visibleRegion()
+                .boundingRect()
+                .contains(window.open_button.rect())
+            )
             assert window.size().toTuple() == (960, 650)
     finally:
         app.setStyle(original_style)
+
+
+def test_mixed_selections_expand_multiple_folders_once_and_ignore_empty_ones(tmp_path):
+    first, second, empty = [tmp_path / name for name in ("a", "b", "empty")]
+    nested = first / "nested"
+    for folder in (first, second, empty, nested):
+        folder.mkdir(exist_ok=True)
+    paths = [
+        first / "one.csv",
+        nested / "two.CWA",
+        second / "three.parquet",
+        tmp_path / "four.avro",
+    ]
+    for path in paths:
+        path.touch()
+    assert find_recording_files([second, first, nested, empty, *paths, first]) == sorted(paths)
+
+
+def test_failed_discovery_does_not_return_a_partial_mixed_selection(tmp_path):
+    good = tmp_path / "good.csv"
+    good.touch()
+    with pytest.raises(ValueError, match="unavailable"):
+        find_recording_files([good, tmp_path / "missing"])

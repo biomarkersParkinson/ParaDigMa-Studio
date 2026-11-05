@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -173,22 +173,13 @@ class DataPage:
         self.input_recording.hide()
         self.input_recording.currentIndexChanged.connect(self.callbacks.inspect_input_recording)
         row.addWidget(self.input_recording, 1)
-        self.open_button = button("Open sensor files…", self.callbacks.open_file, primary=True)
-        self.open_button.setToolTip("Ctrl+O · CSV, Parquet, CWA, Avro, TSDF or trusted pickle")
-        self.open_action = QAction("Open recording", self.parent)
-        self.open_action.setShortcut("Ctrl+O")
+        self.open_button = button("Open recordings…", self.callbacks.open_file, primary=True)
+        self.open_button.setToolTip("Ctrl+O · Select recording files and folders together")
+        self.open_action = QAction("Open recordings", self.parent)
+        self.open_action.setShortcuts([QKeySequence("Ctrl+O"), QKeySequence("Ctrl+Shift+O")])
         self.open_action.triggered.connect(self.callbacks.open_file)
         self.parent.addAction(self.open_action)
         row.addWidget(self.open_button)
-        self.open_folder_button = button("Open folder…", self.callbacks.open_folder)
-        self.open_folder_button.setToolTip(
-            "Ctrl+Shift+O · Load supported recordings from a folder and its subfolders"
-        )
-        self.open_folder_action = QAction("Open recording folder", self.parent)
-        self.open_folder_action.setShortcut("Ctrl+Shift+O")
-        self.open_folder_action.triggered.connect(self.callbacks.open_folder)
-        self.parent.addAction(self.open_folder_action)
-        row.addWidget(self.open_folder_button)
         content.addLayout(row)
         layout.addWidget(panel)
 

@@ -43,20 +43,24 @@ def test_worker_failure_is_delivered():
     assert "in fail" in messages[0] and "ValueError: bad recording" in messages[0]
 
 
-def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path):
+def test_declining_pickle_warning_never_starts_loading(monkeypatch, tmp_path, recording_picker):
     _app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    monkeypatch.setattr(
-        desktop_app.QFileDialog,
-        "getOpenFileNames",
-        lambda *args: ([str(tmp_path / "sensor.pkl")], ""),
-    )
+    source = tmp_path / "sensor.pkl"
+    source.touch()
+    recording_picker([source])
     monkeypatch.setattr(
         desktop_app.QMessageBox, "warning", lambda *args: desktop_app.QMessageBox.No
     )
     started = []
-    monkeypatch.setattr(window, "start_job", lambda *args: started.append(args))
+    monkeypatch.setattr(
+        desktop_app, "load_recordings", lambda *args, **kwargs: started.append(args)
+    )
     window.open_file()
+    deadline = time.monotonic() + 10
+    while window._job_state.worker is not None and time.monotonic() < deadline:
+        _app.processEvents()
+        time.sleep(0.01)
     assert started == []
     assert window._job_state.worker is None
     window.close()
@@ -142,12 +146,12 @@ def test_background_pipeline_failure_is_shown_and_controls_recover(monkeypatch):
     window.close()
 
 
-def test_empatica_opens_in_background_without_gyro(monkeypatch):
+def test_empatica_opens_in_background_without_gyro(monkeypatch, recording_picker):
     _app = QApplication.instance() or QApplication([])
     window = MainWindow()
     source = str(files("paradigma_studio") / "data" / "test_data.avro")
     errors = []
-    monkeypatch.setattr(desktop_app.QFileDialog, "getOpenFileNames", lambda *args: ([source], ""))
+    recording_picker([source])
     monkeypatch.setattr(desktop_app.QMessageBox, "critical", lambda *args: errors.append(args))
     window.open_file()
     deadline = time.monotonic() + 10

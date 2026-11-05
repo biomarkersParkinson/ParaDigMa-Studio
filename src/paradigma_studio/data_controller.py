@@ -12,7 +12,6 @@ import numpy as np
 from PySide6.QtCore import QObject, QSignalBlocker, Qt
 from PySide6.QtWidgets import (
     QComboBox,
-    QFileDialog,
     QLabel,
     QListWidget,
     QMessageBox,
@@ -28,6 +27,7 @@ from .sensor_controller import ChannelServices
 from .theme import tooltip_text
 from .ui.column_mapping import ColumnMappingEditor
 from .ui.graph_views import ChannelCanvasView
+from .ui.recording_browser import RecordingBrowser
 from .widgets import FrameModel, ReadableTable
 from .workspace_state import AnalysisState, DataState, InputState, JobState, PreviewServices
 
@@ -62,7 +62,7 @@ class RecordingsLoader(Protocol):
 
 class RecordingFinder(Protocol):
     def __call__(
-        self, folder: PathInput, *, logger: logging.Logger | None = None
+        self, selections: Iterable[PathInput], *, logger: logging.Logger | None = None
     ) -> list[Path]: ...
 
 
@@ -116,7 +116,7 @@ class DataCallbacks:
 
 @dataclass(frozen=True)
 class DataServices:
-    find_sensor_files: RecordingFinder
+    find_recording_files: RecordingFinder
     load_recordings: RecordingsLoader
     inspect_recording: Callable[[pd.DataFrame, str], RecordingDescription]
     sensor_descriptives: Callable[[pd.DataFrame, Hashable | None], pd.DataFrame]
@@ -152,33 +152,20 @@ class DataController(QObject):
         self._rendered_time: TimeConfiguration | None = None
         self._plotted_frame: ref[pd.DataFrame] | None = None
         self._plotted_time: tuple[str | None, str] | None = None
+        self._browser_directory: str | None = None
 
     def open_file(self) -> None:
         if self.jobs.worker is not None:
             return
-        paths, _ = QFileDialog.getOpenFileNames(
-            self.view.parent,
-            "Open recordings for the same subject",
-            "",
-            "Sensor files (*.csv *.parquet *.pkl *.pickle *.json *.avro *.cwa *.CWA);;All files (*)",
-        )
-        if not paths:
+        selection = RecordingBrowser.choose(self.view.parent, self._browser_directory)
+        if selection is None:
             return
-        self._open_paths(paths)
-
-    def open_folder(self) -> None:
-        if self.jobs.worker is not None:
-            return
-        folder = QFileDialog.getExistingDirectory(
-            self.view.parent, "Open a recording folder for the same subject", ""
-        )
-        if not folder:
-            return
+        self._browser_directory = selection.directory
         self.callbacks.show_notice("")
         self.view.status.setText("Finding sensor recordings…")
 
         def discover(logger: logging.Logger) -> list[Path]:
-            return self.services.find_sensor_files(folder, logger=logger)
+            return self.services.find_recording_files(selection.paths, logger=logger)
 
         # The scan must release its worker before a trust prompt or load job.
         self.callbacks.start_job(discover, self._open_paths, after_cleanup=True)

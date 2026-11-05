@@ -160,6 +160,12 @@ QTreeWidget::item { padding: 5px; }
 QListWidget::item:hover, QTreeWidget::item:hover { background: #edf3fa; color: #22324a; }
 QListWidget::item:selected, QTreeWidget::item:selected,
 QListWidget::item:selected:hover, QTreeWidget::item:selected:hover { background: #e3eefb; color: #16253a; }
+QTreeView#recordingFiles { background: white; alternate-background-color: #f8fafc;
+    border: 1px solid #e1e6ee; border-radius: 6px; outline: 0; }
+QTreeView#recordingFiles::item { padding: 5px 8px; min-height: 20px; }
+QTreeView#recordingFiles::item:hover { background: #edf3fa; color: #22324a; }
+QTreeView#recordingFiles::item:selected,
+QTreeView#recordingFiles::item:selected:hover { background: #e3eefb; color: #16253a; }
 QCheckBox::indicator, QListView::indicator, QTreeView::indicator { width: 18px; height: 18px; background: white;
     border: 1px solid #8c9db3; border-radius: 4px; }
 QCheckBox::indicator:hover, QListView::indicator:hover, QTreeView::indicator:hover { border-color: #2563a5; }

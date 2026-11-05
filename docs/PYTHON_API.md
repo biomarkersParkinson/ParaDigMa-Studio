@@ -25,6 +25,7 @@ implementing modules, as shown in the example.
 | --- | --- |
 | [`core.load_sensor_file`](../src/paradigma_studio/core.py) | Supported sensor-file path → loaded DataFrame; trusted pickle input requires `allow_pickle=True` |
 | [`recordings.find_sensor_files`](../src/paradigma_studio/recordings.py) | Folder → recursively discovered sensor paths, sorted by relative path; raises for an empty or unreadable selection |
+| [`recordings.find_recording_files`](../src/paradigma_studio/recordings.py) | Files and folders → unique sensor paths, with recursive folder discovery and deterministic path ordering |
 | [`recordings.load_recordings`](../src/paradigma_studio/recordings.py) | Paths → `(sources, frames)`, two dictionaries sharing recording identifiers |
 | [`core.analyze`](../src/paradigma_studio/core.py) | DataFrame or recording dictionary, plus `pipelines` and processing options → result dictionary |
 | [`serialization.export_results`](../src/paradigma_studio/serialization.py) | Destination, results and provenance → writes structured JSON and returns its SHA-256 string |
@@ -38,11 +39,14 @@ types are defined in [`contracts.py`](../src/paradigma_studio/contracts.py);
 processing keywords are defined in
 [`preparation_contracts.py`](../src/paradigma_studio/preparation_contracts.py).
 
-`find_sensor_files` selects CSV, Parquet, CWA, Avro, pickle and TSDF
-`*_meta.json` paths. It ignores other JSON and linked subfolders, deduplicates
-file aliases and does not decode samples or authorize pickle loading. Pass the
-returned paths to `load_recordings`; pickle still requires `allow_pickle=True`
-after the caller has established trust.
+Both discovery functions select CSV, Parquet, CWA, Avro, pickle and TSDF
+`*_meta.json` paths. They ignore other JSON and linked subfolders, deduplicate
+resolved paths and do not decode samples or authorize pickle loading.
+`find_recording_files` accepts mixed selections and overlapping folders; empty
+folders contribute no files. An entirely empty selection, unavailable path or
+discovery error raises without returning a partial list. Pass the returned paths
+to `load_recordings`; pickle still requires `allow_pickle=True` after the caller
+has established trust.
 
 ### Example: analyze a recording and export the results
 

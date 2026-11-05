@@ -89,6 +89,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
 | Recursive folder discovery, real mixed-format imports, responsive scanning, pickle confirmation and failed-load preservation | [test_folder_loading.py](../tests/test_folder_loading.py) |
+| Combined file/folder selection, Ctrl/Shift gestures, navigation, fixed Load action, compact browser layout and real modal batch import | [test_recording_browser.py](../tests/test_recording_browser.py) |
 | Shared Data/Analyze time choices, sampling diagnostics, selected-channel exclusion and calendar/elapsed graph values | [test_shared_time_configuration.py](../tests/test_shared_time_configuration.py), [test_input_time_plot.py](../tests/test_input_time_plot.py) |
 | Selected-column clock authority, precise device start metadata, pending/manual origins and clock-only previews | [test_recording_clock.py](../tests/test_recording_clock.py), [test_origin_preview.py](../tests/test_origin_preview.py) |
 | PPG-only preparation, numeric time encodings, official pulse stages and required-value/IMU checks | [test_pulse_input.py](../tests/test_pulse_input.py) |

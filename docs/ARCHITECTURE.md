@@ -78,7 +78,7 @@ deferral. Callbacks created before their target controllers use deferred calls.
 
 Controllers that receive Qt signals keep GUI-thread affinity. Worker signals
 connect before the worker starts; completion normally installs data before
-terminal cleanup restores controls. Folder discovery explicitly defers its
+terminal cleanup restores controls. Recording discovery explicitly defers its
 completion until cleanup, so the GUI can confirm pickle trust and start the
 separate load job. Preserve the actual receiver methods and connection ordering
 when changing wiring.
@@ -98,12 +98,17 @@ completed payload, supplies column-name schemas to the mapping editor and resets
 Analyze to defaults from the new input. A cancelled picker or failed load leaves
 the previous input/configuration in place.
 
-For folder selection, `recordings.find_sensor_files` first discovers supported
-paths recursively in a background job. It sorts by relative path, avoids linked
-subfolders and file aliases, and selects only `*_meta.json` among JSON files.
-Discovery errors abort the selection. After the discovery job is cleaned up,
-the GUI requests explicit trust for any pickle files before starting the normal
-batch load. Inputs are installed only when the complete load succeeds.
+The [recording browser](../src/paradigma_studio/ui/recording_browser.py) uses a
+read-only Qt filesystem model to select files and folders together. It returns
+paths and the browsing location; it does not decode recordings. The controller
+remembers the last accepted location for the app session.
+`recordings.find_recording_files` then expands selected folders recursively in a
+background job. It sorts by path, avoids linked subfolders, deduplicates resolved
+paths and selects only `*_meta.json` among JSON files. Empty folders contribute
+no paths; discovery errors abort the whole selection. After the discovery job
+is cleaned up, the GUI requests explicit trust for any pickle files before
+starting the normal batch load. Inputs are installed only when the complete
+load succeeds.
 
 One Analyze configuration applies to an entire batch. Switching the recording
 being inspected changes Data's view and diagnostics while retaining the shared

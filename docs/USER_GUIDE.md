@@ -23,8 +23,7 @@ the full Studio and ParaDigMa licences under separate headings.
 | Shortcut | Action |
 | --- | --- |
 | **Alt+1**, **Alt+2**, **Alt+3**, **Alt+4** | Open Data, Analyze, Results and Runs, respectively. |
-| **Ctrl+O** | Open recordings. |
-| **Ctrl+Shift+O** | Open a recording folder, including its subfolders. |
+| **Ctrl+O** or **Ctrl+Shift+O** | Open the recording browser for files and folders. |
 | **Ctrl+Enter** | Run analysis. |
 | **Ctrl+S** | Save results locally. |
 | **Delete**, with run-list focus | Delete selected runs after confirmation. |
@@ -43,24 +42,34 @@ from the file and shared with Analyze.*
 
 ### Load recordings
 
-1. Click **Open sensor files…** (**Ctrl+O**) to choose individual files, or
-   **Open folder…** (**Ctrl+Shift+O**) to choose a folder.
-2. Select recordings from **the same subject**. File selection supports
-   Ctrl/Shift to choose several files. Folder selection includes all supported
-   recordings in that folder and its subfolders, sorted by relative path.
-3. For a batch, use the recording selector to inspect each file. Analyze will
+1. Click **Open recordings…** or press **Ctrl+O** or **Ctrl+Shift+O**.
+2. Use Ctrl/Shift to select files, folders or both in the current location.
+   All selected recordings must belong to **the same subject**. Double-click a
+   folder to browse inside it; use **Back**, **Up**, **Computer** or the location
+   field to navigate, including to Windows network paths. The browser reopens
+   at the last import location during the app session.
+3. Click **Load**. Selected folders include supported recordings in all their
+   subfolders. Files are sorted by path and loaded once, even when selections
+   overlap. Empty folders are skipped when other selections contain recordings.
+4. For a batch, use the recording selector to inspect each file. Analyze will
    process the entire selection with one configuration.
+
+[![Recording browser with a file and two folders selected and one Load button](images/user-guide/recording-browser.png)](images/user-guide/recording-browser.png)
+
+*Files and folders can be selected together. Load includes supported recordings
+inside every selected folder and its subfolders.*
 
 Use consistently formatted recordings within a batch: source column names,
 units, wrist side and axis conventions must support the same settings. Review
 the recording configuration even when Studio prefills it.
 
-Folder discovery runs in the background. It ignores unrelated file types and
+Discovery and loading run in the background. Discovery ignores unrelated file types and
 JSON other than TSDF `*_meta.json` files; referenced TSDF binaries are read with
 their metadata. It does not follow linked subfolders. Pickle files require
 confirmation before any recording in the selection is loaded. Declining that
 confirmation cancels the whole selection. Choose a folder containing only the
-recordings you want in the batch, or select files individually.
+recordings you want in the batch, or select files individually. No selection
+keeps **Load** disabled; **Cancel** or Escape closes the browser without loading.
 
 | Format | What Studio reads |
 | --- | --- |
