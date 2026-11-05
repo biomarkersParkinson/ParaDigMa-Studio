@@ -7,6 +7,7 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import pytest
+from graph_helpers import install_graph_results
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -19,14 +20,12 @@ def prepare(window, mode=0, pixel_ratio=1):
     frame = pd.DataFrame(
         {"time": times, "metric_a": values, "metric_b": -values, "metric_c": values * 3}
     )
-    window.analyzed({"quantifications": {"tremor": frame}})
-    window.result_tabs.setCurrentIndex(1)
+    install_graph_results(window, {"quantifications": {"tremor": frame}}, view=mode)
     window.result_series.blockSignals(True)
     for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
-    window.result_graph_view.setCurrentIndex(mode)
-    window.plot()
+    window.result_tabs.setCurrentIndex(1)
     window.canvas._set_device_pixel_ratio(pixel_ratio)
     QApplication.instance().processEvents()
     return frame

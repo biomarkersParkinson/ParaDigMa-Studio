@@ -234,32 +234,22 @@ def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
 
 
 @pytest.mark.parametrize("style,font_size", [("Fusion", 13), ("Windows", 18)])
-def test_recording_button_remains_visible_at_compact_native_sizes(window, style, font_size):
+def test_recording_button_remains_visible_at_compact_native_sizes(styled_window, style, font_size):
+    window = styled_window
     app = QApplication.instance()
-    original_style = app.style().objectName()
-    app.setStyle(style)
-    try:
-        window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
-        window.resize(960, 650)
-        window.show()
-        for batch in (False, True):
-            if batch:
-                frames = {f"recording_{index:03d}": samples() for index in (1, 2)}
-                sources = {key: f"{key}.csv" for key in frames}
-                descriptions = {
-                    key: desktop.inspect_recording(frame, "relative_s")
-                    for key, frame in frames.items()
-                }
-                window.loaded_recordings((sources, frames, descriptions))
-            app.processEvents()
-            assert (
-                window.open_button.visibleRegion()
-                .boundingRect()
-                .contains(window.open_button.rect())
-            )
-            assert window.size().toTuple() == (960, 650)
-    finally:
-        app.setStyle(original_style)
+    window.resize(960, 650)
+    window.show()
+    for batch in (False, True):
+        if batch:
+            frames = {f"recording_{index:03d}": samples() for index in (1, 2)}
+            sources = {key: f"{key}.csv" for key in frames}
+            descriptions = {
+                key: desktop.inspect_recording(frame, "relative_s") for key, frame in frames.items()
+            }
+            window.loaded_recordings((sources, frames, descriptions))
+        app.processEvents()
+        assert window.open_button.visibleRegion().boundingRect().contains(window.open_button.rect())
+        assert window.size().toTuple() == (960, 650)
 
 
 def test_mixed_selections_expand_multiple_folders_once_and_ignore_empty_ones(tmp_path):

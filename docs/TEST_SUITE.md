@@ -66,8 +66,12 @@ do not replace them.
 
 Both [Windows](../.github/workflows/windows.yml) and
 [signed Windows](../.github/workflows/windows-signed.yml) workflows verify the
-environment and static checks, run the early Analyze-layout and page-shortcut
-regressions, then run the full suite with coverage before packaging.
+environment and static checks, then run the full suite once with coverage before
+packaging. `--desktop-prechecks` places the native Analyze-layout and page-shortcut
+regressions first in that collection; `--maxfail=1` stops on the first failure.
+The prechecks remain part of the same coverage and JUnit reports. The option
+requires the complete precheck set and is intended for complete-suite runs.
+`--durations=25` reports the slowest setup, call and teardown phases.
 
 The [packaged executable check](DEVELOPMENT.md#build-and-verify-a-windows-executable)
 is a separate step: it loads bundled classifiers, runs real pipelines and spawned
@@ -187,17 +191,27 @@ fixtures for native sizes, dark palettes, styles or background-job lifecycles.
 
 | Location | Fixtures and helpers |
 | --- | --- |
-| [conftest.py](../tests/conftest.py) | Fresh `synthetic_imu` and `tremor_outputs`; visible `window` with temporary history; independent binary `tsdf_writer`; `wait_for_previews`, `wait_for_job`, bar measurements and `select_plot_metric` |
+| [conftest.py](../tests/conftest.py) | Fresh `synthetic_imu` and `tremor_outputs`; `window_factory`, visible `window` and parameter-driven `styled_window` with temporary history; independent binary `tsdf_writer`; preview/job waits, bar measurements and `select_plot_metric` |
 | [analysis_helpers.py](../tests/analysis_helpers.py) | Native Analyze sizing and full-control visibility assertions |
+| [gui_helpers.py](../tests/gui_helpers.py) | Bounded waits for observable Qt conditions and explicit widget-tree disposal |
+| [graph_helpers.py](../tests/graph_helpers.py) | Real prepared-result installation with the view chosen before its first build; data-presence checks for navigation/layout fixtures |
 | [run_fixtures.py](../tests/run_fixtures.py) | Complete current `saved_settings`, `make_run` and checksum-backed `export_receipt` helpers |
 | [ui/compatibility.py](../src/paradigma_studio/ui/compatibility.py) | Internal workspace driver shared by UI tests, startup/smoke probes and benchmarks |
 
 The synthetic data/output fixtures remain function-scoped because tests modify
-samples to exercise validation and missing-data behavior. The shared window
-processes its initial Qt events before yielding and waits for background jobs
-before closing. Global teardown releases closed windows and Qt deferred deletes;
-close-warning tests supply their own responses rather than relying on the normal
-test discard response.
+samples to exercise validation and missing-data behavior. Windows also remain
+fresh per case. `window_factory` accepts a style, font size, initial size and
+visibility; it sets the global style before construction and destroys the owned
+window tree before restoring that style. `styled_window` uses a test's `style`
+and optional `font_size` parameters. This avoids restyling an entire visible
+workspace during setup and teardown.
+
+The shared window processes its initial Qt events before yielding and waits for
+background jobs before disposal. Global teardown also releases independently
+created windows and Qt deferred deletes. Close-warning tests supply their own
+responses rather than relying on the normal test discard response. Isolated
+column-mapping checks create the actual editor with Studio's theme, while
+workspace layout tests retain the full window.
 
 `select_plot_metric` drives the visible Plot series tree and normal signals;
 metric-change tests should not drive a hidden legacy selector. Dataset-row
@@ -269,6 +283,16 @@ device-pixel ratios in the relevant matrices. Navigation tests create the
 eight-graph workspace only for shared/offscreen-axis scenarios; dense single-graph
 cases start from an empty window. Setup processes queued paints and draws only
 if the figure is still stale. Assertion-specific draws and events stay explicit.
+
+Shared graph setup uses the GUI's prepared-result installation path, batches
+initial series choices and chooses the final view before opening Graphs. This
+avoids building intermediate selections during setup. Navigation/layout fixtures
+retain their multi-day span, calendar boundaries and enough valid metric support
+for Day summaries. Setup checks that every graph contains data. Dedicated dense
+rendering, source-detail and viewport pixel-comparison fixtures retain their
+density.
+Wait for an observable layout or timer condition with a bounded deadline where
+possible; keep elapsed-time checks when the timer interval itself is under test.
 
 Rendering checks compare visible pixels with a complete native render at both
 display scales, after horizontal release and at successive vertical positions.
@@ -352,8 +376,6 @@ performance benchmarks.
 | Output | Location |
 | --- | --- |
 | Full-suite JUnit | `test-results.xml` |
-| Early Analyze-layout JUnit | `test-reports/analyze-layout.xml` |
-| Early shortcut JUnit | `test-reports/navigation-shortcuts.xml` |
 | Coverage XML | `test-reports/coverage.xml` |
 | Browsable coverage HTML | `test-reports/coverage-html/index.html` |
 | CI test artifact | `ParaDigMaStudio-test-results` |

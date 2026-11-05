@@ -5,6 +5,7 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import pytest
+from graph_helpers import install_graph_results
 from matplotlib import dates
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -40,14 +41,12 @@ def multi_graph_window(window):
     frame = pd.DataFrame(
         {"time": times, **{f"metric_{i}": 2 + np.sin(times / (50 + i)) for i in range(8)}}
     )
-    window.analyzed({"quantifications": {"tremor": frame}})
-    window.navigate(2)
-    window.result_tabs.setCurrentIndex(1)
+    install_graph_results(window, {"quantifications": {"tremor": frame}})
     window.result_series.blockSignals(True)
     for item in window._result_state._series_items.values():
         item.setCheckState(0, Qt.Checked)
     window.result_series.blockSignals(False)
-    window.plot()
+    window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
     if window.figure.stale:
         window.canvas.draw()

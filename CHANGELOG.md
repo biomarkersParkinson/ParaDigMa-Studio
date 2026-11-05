@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reduce test overhead with style-aware window fixtures, focused mapping-editor
+  fixtures and deferred graph setup. Retain native layout, scientific and pixel
+  checks; run CI's desktop prechecks once within the full covered collection and
+  report its slowest phases.
 - Use one **Open recordings…** menu with **Files…** and **Folders…** options,
   opening the standard Windows selection dialogs. Preserve multi-file selection
   and use the Windows system API for multi-folder selection. Discover folder

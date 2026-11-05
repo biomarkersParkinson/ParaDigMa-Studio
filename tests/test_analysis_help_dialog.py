@@ -2,6 +2,7 @@
 
 import pandas as pd
 import pytest
+from gui_helpers import wait_until
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication, QDialogButtonBox, QLabel, QWidget
@@ -76,39 +77,46 @@ def test_help_closes_and_reopens_using_mouse_and_keyboard(window, close_method):
 @pytest.mark.parametrize("style", ["Fusion", "Windows"])
 @pytest.mark.parametrize("font_size", [13, 18])
 def test_help_text_links_and_close_button_remain_reachable_in_compact_windows(
-    window, style, font_size
+    styled_window, style, font_size
 ):
+    window = styled_window
     app = QApplication.instance()
-    original_style = app.style().objectName()
-    app.setStyle(style)
-    window.setStyleSheet(window.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}")
     window.navigate(1)
-    try:
-        for title, (info, description) in window.analysis_help.items():
-            info.click()
-            dialog = window._analysis_controller.view.analysis_help_dialogs[title]
-            QTest.qWait(10)
-            assert dialog.width() <= dialog.screen().availableGeometry().width()
-            assert dialog.height() <= dialog.screen().availableGeometry().height()
-            dialog.resize(500, 360)
-            QTest.qWait(10)
-            scroll = dialog.scroll_area
-            assert scroll.horizontalScrollBar().maximum() == 0, title
-            assert description.height() >= description.heightForWidth(description.width()), title
-            close = dialog.buttons.button(QDialogButtonBox.StandardButton.Close)
-            assert close.visibleRegion().boundingRect().contains(close.rect()), title
-            link = next(
-                label
-                for label in dialog.findChildren(QLabel)
-                if "ParaDigMa documentation" in label.text()
+    for title, (info, description) in window.analysis_help.items():
+        info.click()
+        dialog = window._analysis_controller.view.analysis_help_dialogs[title]
+        wait_until(
+            lambda dialog=dialog: (
+                dialog.isVisible()
+                and dialog.width() <= dialog.screen().availableGeometry().width()
+                and dialog.height() <= dialog.screen().availableGeometry().height()
             )
-            scroll.ensureWidgetVisible(link, 0, 0)
-            app.processEvents()
-            assert link.openExternalLinks()
-            assert not link.visibleRegion().isEmpty()
-            dialog.close()
-    finally:
-        app.setStyle(original_style)
+        )
+        assert dialog.width() <= dialog.screen().availableGeometry().width()
+        assert dialog.height() <= dialog.screen().availableGeometry().height()
+        dialog.resize(500, 360)
+        scroll = dialog.scroll_area
+        close = dialog.buttons.button(QDialogButtonBox.StandardButton.Close)
+        wait_until(
+            lambda scroll=scroll, description=description, close=close: (
+                scroll.horizontalScrollBar().maximum() == 0
+                and description.height() >= description.heightForWidth(description.width())
+                and close.visibleRegion().boundingRect().contains(close.rect())
+            )
+        )
+        assert scroll.horizontalScrollBar().maximum() == 0, title
+        assert description.height() >= description.heightForWidth(description.width()), title
+        assert close.visibleRegion().boundingRect().contains(close.rect()), title
+        link = next(
+            label
+            for label in dialog.findChildren(QLabel)
+            if "ParaDigMa documentation" in label.text()
+        )
+        scroll.ensureWidgetVisible(link, 0, 0)
+        app.processEvents()
+        assert link.openExternalLinks()
+        assert not link.visibleRegion().isEmpty()
+        dialog.close()
 
 
 def test_open_help_keeps_the_current_file_and_manual_value_source_up_to_date(window):

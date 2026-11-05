@@ -3,30 +3,18 @@
 import pandas as pd
 import pytest
 from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes
-from conftest import wait_for_job
 from PySide6.QtCore import QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
 
-from paradigma_studio.app import MainWindow
 from paradigma_studio.theme import LINK_COLOR
 from paradigma_studio.ui.analysis_figure import InputAxisFigure
 
 
 @pytest.fixture(params=[None, "Windows"], ids=["native-style", "Windows-style"])
-def native_analysis_window(tmp_path, request):
-    app = QApplication.instance() or QApplication([])
-    original_style = app.style().objectName()
-    if request.param is not None:
-        app.setStyle(request.param)
-    widget = MainWindow(history_dir=tmp_path / "runs")
-    try:
+def native_analysis_window(window_factory, request):
+    with window_factory(style=request.param, show=False) as widget:
         yield widget
-    finally:
-        wait_for_job(widget)
-        widget.close()
-        app.processEvents()
-        app.setStyle(original_style)
 
 
 def test_run_button_remains_visible_in_compact_analysis_workspace(window):

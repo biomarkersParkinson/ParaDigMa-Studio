@@ -5,8 +5,10 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import pytest
+from graph_helpers import install_graph_results, require_graph_data
+from gui_helpers import wait_until
 from matplotlib.backend_bases import MouseEvent
-from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtCore import QPoint, QPointF, QSignalBlocker, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionSlider
@@ -20,20 +22,22 @@ def result_graphs(window, *, view=0, calendar=False):
         window._result_state.provenance = {
             "display_clock": {"origin": "2026-10-24T00:00:00+02:00", "timezone": "Europe/Amsterdam"}
         }
-    times = np.arange(0, 3 * 86400, 60)
+    # Keep calendar boundaries, selections and >864 s of valid outcomes per day.
+    times = np.arange(0, 3 * 86400, 120)
     frame = pd.DataFrame(
         {"time": times, "pulse_rate": 65 + np.sin(times / 10000), "other": 70 + times / 86400}
     )
-    window.analyzed({"quantifications": {"pulse_rate": frame}})
-    window._result_state._series_items[("quantifications/pulse_rate", "other")].setCheckState(
-        0, Qt.Checked
-    )
-    window.result_graph_view.setCurrentIndex(view)
+    install_graph_results(window, {"quantifications": {"pulse_rate": frame}}, view=view)
+    with QSignalBlocker(window.result_series):
+        window._result_state._series_items[("quantifications/pulse_rate", "other")].setCheckState(
+            0, Qt.Checked
+        )
     window.navigate(2)
     window.result_tabs.setCurrentIndex(1)
     QApplication.instance().processEvents()
     if window.figure.stale:
         window.canvas.draw()
+    require_graph_data(window.figure)
     return frame
 
 
@@ -322,7 +326,8 @@ def test_trackpad_angle_fallback_debounce_and_recording_edges(window):
     before = axes.get_xlim()
     assert send_wheel(window.canvas, angle=-120, phase=Qt.NoScrollPhase).isAccepted()
     assert axes.get_xlim()[0] > before[0]
-    QTest.qWait(250)
+    assert toolbar.scrolling_time
+    wait_until(lambda: not toolbar.scrolling_time)
     assert not toolbar.scrolling_time
     send_wheel(window.canvas, pixels=-100000, inverted=True)
     assert axes.get_xlim() == pytest.approx((full[1] - span, full[1]), rel=0, abs=1e-10)

@@ -1,9 +1,34 @@
 """Give headless Qt tests enough screen space for the desktop workspace."""
 
 import os
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+
+DESKTOP_PRECHECKS = {
+    "tests/test_analysis_layout.py::"
+    "test_analysis_preserves_spacing_accessible_fields_and_uniform_help_across_window_sizes",
+    "tests/test_workspace.py::"
+    "test_page_shortcuts_survive_sidebar_label_changes_with_focused_controls",
+}
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--desktop-prechecks",
+        action="store_true",
+        help="Run native layout and shortcut regressions first in a complete suite.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--desktop-prechecks"):
+        return
+    found = {item.nodeid.split("[", 1)[0] for item in items} & DESKTOP_PRECHECKS
+    if found != DESKTOP_PRECHECKS:
+        raise pytest.UsageError("--desktop-prechecks requires the complete desktop precheck set.")
+    items.sort(key=lambda item: item.nodeid.split("[", 1)[0] not in DESKTOP_PRECHECKS)
 
 
 @pytest.fixture
@@ -156,22 +181,71 @@ def wait_for_job(window):
 
 
 @pytest.fixture
-def window(tmp_path):
-    """Visible window for UI tests; modules override this for special Qt cases."""
+def qt_app():
+    """Retain the process's Qt application while a widget fixture is alive."""
     from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def window_factory(tmp_path, qt_app):
+    """Create isolated windows; change global styles only without their widgets."""
+    from gui_helpers import dispose_widget
 
     from paradigma_studio.app import MainWindow
 
-    application = QApplication.instance() or QApplication([])
-    widget = MainWindow(history_dir=tmp_path / "runs")
-    widget.show()
-    application.processEvents()
-    try:
+    count = 0
+
+    @contextmanager
+    def create(*, style=None, font_size=None, size=None, show=True):
+        nonlocal count
+        original = qt_app.style().objectName()
+        changed = style is not None and style.casefold() != original.casefold()
+        if changed:
+            qt_app.setStyle(style)
+        widget = None
+        try:
+            count += 1
+            directory = tmp_path / ("runs" if count == 1 else f"runs-{count}")
+            widget = MainWindow(history_dir=directory)
+            if font_size is not None:
+                widget.setStyleSheet(
+                    widget.styleSheet() + f"\nQWidget {{ font-size: {font_size}px; }}"
+                )
+            if size is not None:
+                widget.resize(*size)
+            if show:
+                widget.show()
+                qt_app.processEvents()
+            yield widget
+        finally:
+            try:
+                if widget is not None:
+                    wait_for_job(widget)
+                    dispose_widget(widget)
+            finally:
+                if changed:
+                    qt_app.setStyle(original)
+
+    return create
+
+
+@pytest.fixture
+def window(window_factory):
+    """Visible fresh window; modules override this for specialized Qt cases."""
+    with window_factory() as widget:
         yield widget
-    finally:
-        wait_for_job(widget)
-        widget.close()
-        application.processEvents()
+
+
+@pytest.fixture
+def styled_window(style, request, window_factory):
+    """Use a test's style and optional font_size before showing its fresh window."""
+    font_size = (
+        request.getfixturevalue("font_size") if "font_size" in request.fixturenames else None
+    )
+    with window_factory(style=style, font_size=font_size) as widget:
+        yield widget
 
 
 @pytest.fixture

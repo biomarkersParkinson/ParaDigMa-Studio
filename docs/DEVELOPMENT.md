@@ -115,9 +115,12 @@ QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/paradigma-mpl uv run --locked --all-
 ```
 
 The test setup selects its configured offscreen screen when no Qt platform is
-overridden. Windows CI explicitly selects offscreen Qt and runs the native
-Analyze-layout and page-shortcut regressions before the full suite. Linux
-checks supplement native Windows execution.
+overridden. Windows CI explicitly selects offscreen Qt and adds
+`--desktop-prechecks --maxfail=1 --durations=25` to the complete test command.
+The native Analyze-layout and page-shortcut regressions run first, once, within
+that covered collection; the first failure stops the run. The duration summary
+separates setup, call and teardown costs. Linux checks supplement native Windows
+execution.
 
 Read [coverage policy and reports](TEST_SUITE.md#branch-coverage) for the measured
 scope, floor and output paths. Benchmark commands and interpretation belong in

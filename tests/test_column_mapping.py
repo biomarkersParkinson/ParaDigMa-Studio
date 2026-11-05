@@ -1,10 +1,12 @@
 """Signal mapping choices, header-only batch checks and saved mapping fidelity."""
 
 import pytest
+from gui_helpers import dispose_widget
 from PySide6.QtTest import QSignalSpy
 from run_fixtures import make_run
 
 from paradigma_studio.column_mapping import SIGNALS, ColumnMapping, required_signals
+from paradigma_studio.theme import STYLESHEET, light_palette
 from paradigma_studio.ui.column_mapping import ColumnMappingEditor
 
 
@@ -16,8 +18,12 @@ def model():
 
 
 @pytest.fixture
-def editor(window):
-    return ColumnMappingEditor(window)
+def editor(qt_app):
+    widget = ColumnMappingEditor()
+    widget.setPalette(light_palette())
+    widget.setStyleSheet(STYLESHEET)
+    yield widget
+    dispose_widget(widget)
 
 
 @pytest.mark.parametrize(
@@ -99,15 +105,14 @@ def test_inline_warnings_count_affected_recordings_and_escape_untrusted_headers(
 
 
 @pytest.mark.parametrize("style", ["Fusion", "Windows"])
-def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_aligned(window, style):
+def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_aligned(
+    styled_window, style
+):
+    window = styled_window
     from PySide6.QtCore import QPoint, QRect
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication
 
-    app = QApplication.instance()
-    original_style = app.style().objectName()
     stylesheet = window.styleSheet()
-    app.setStyle(style)
     window.navigate(1)
     window.resize(1450, 920)
     editor = window.mapping
@@ -117,37 +122,32 @@ def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_align
     selector = editor._combos["accelerometer_x"]
     selector.setCurrentIndex(selector.findData("time"))
     changes = QSignalSpy(editor.changed)
-    try:
-        for font_size, minimum_height in ((13, 0), (18, 0), (13, 0), (13, 44)):
-            count = changes.count()
-            window.setStyleSheet(stylesheet + f"\nQWidget {{ font-size: {font_size}px; }}")
-            editor._combos["time"].setMinimumHeight(minimum_height)
-            editor._inversions["accelerometer_x"].setMinimumHeight(minimum_height)
-            QTest.qWait(30)
-            assert not editor._warnings["time"].isHidden()
-            assert editor._warnings["green"].isHidden()
-            for row, target in enumerate(SIGNALS):
-                index = editor.table.model().index(row, 1)
-                cell = editor.table.cellWidget(row, 1)
-                selector = editor._combos[target]
-                assert cell.rect().contains(selector.geometry()), (style, font_size, target)
-                assert selector.height() >= selector.sizeHint().height()
-                rectangle = QRect(
-                    selector.mapTo(editor.table.viewport(), QPoint()), selector.size()
-                )
-                assert editor.table.visualRect(index).contains(rectangle)
-                assert editor.table.viewport().rect().contains(rectangle)
-                if target in editor._inversions:
-                    checkbox = editor._inversions[target]
-                    assert checkbox.parentWidget().rect().contains(checkbox.geometry())
-                badge = editor._file_badges[target]
-                if not badge.isHidden():
-                    assert badge.parentWidget().rect().contains(badge.geometry())
-                    assert badge.width() >= badge.sizeHint().width()
-            assert len({selector.width() for selector in editor._combos.values()}) == 1
-            assert changes.count() == count  # Geometry changes do not change mapping choices.
-    finally:
-        app.setStyle(original_style)
+    for font_size, minimum_height in ((13, 0), (18, 0), (13, 0), (13, 44)):
+        count = changes.count()
+        window.setStyleSheet(stylesheet + f"\nQWidget {{ font-size: {font_size}px; }}")
+        editor._combos["time"].setMinimumHeight(minimum_height)
+        editor._inversions["accelerometer_x"].setMinimumHeight(minimum_height)
+        QTest.qWait(30)
+        assert not editor._warnings["time"].isHidden()
+        assert editor._warnings["green"].isHidden()
+        for row, target in enumerate(SIGNALS):
+            index = editor.table.model().index(row, 1)
+            cell = editor.table.cellWidget(row, 1)
+            selector = editor._combos[target]
+            assert cell.rect().contains(selector.geometry()), (style, font_size, target)
+            assert selector.height() >= selector.sizeHint().height()
+            rectangle = QRect(selector.mapTo(editor.table.viewport(), QPoint()), selector.size())
+            assert editor.table.visualRect(index).contains(rectangle)
+            assert editor.table.viewport().rect().contains(rectangle)
+            if target in editor._inversions:
+                checkbox = editor._inversions[target]
+                assert checkbox.parentWidget().rect().contains(checkbox.geometry())
+            badge = editor._file_badges[target]
+            if not badge.isHidden():
+                assert badge.parentWidget().rect().contains(badge.geometry())
+                assert badge.width() >= badge.sizeHint().width()
+        assert len({selector.width() for selector in editor._combos.values()}) == 1
+        assert changes.count() == count  # Geometry changes do not change mapping choices.
 
 
 @pytest.mark.parametrize("activation", ["mouse", "keyboard"])

@@ -426,45 +426,41 @@ def test_detected_units_are_passed_to_analysis_and_original_samples_stay_unchang
 @pytest.mark.parametrize("style", ["Fusion", "Windows"])
 @pytest.mark.parametrize("minimum_height", [0, 44])
 def test_file_tags_and_controls_fit_and_remain_reachable_at_native_sizes(
-    window, sensor_frame, style, minimum_height
+    styled_window, sensor_frame, style, minimum_height
 ):
+    window = styled_window
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance()
-    original_style = app.style().objectName()
-    app.setStyle(style)
-    try:
-        load(window, sensor_frame)
-        for field in (window.acc, window.gyro, window.time):
-            field.setMinimumHeight(minimum_height)
-        wait_for_previews(window)
-        window.navigate(1)
-        for width, height in ((1450, 1050), (1200, 1050), (960, 650)):
-            window.resize(width, height)
-            QTest.qWait(30)
-            assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
-            fields = (window.acc, window.gyro, window.time, window.clock_input)
-            for field in (
-                *fields,
-                *window._analysis_controller.view.file_badges.values(),
-                *window._analysis_controller.view.file_default_buttons.values(),
-            ):
-                window.analysis_scroll.ensureWidgetVisible(field)
-                app.processEvents()
-                assert_fully_visible(field)
-            for title, source_badge in window._analysis_controller.view.file_badges.items():
-                name = next(
-                    label
-                    for label in window.settings_panel.findChildren(QLabel)
-                    if label.text() == title
-                )
-                name_position = name.mapTo(window, QPoint())
-                badge_position = source_badge.mapTo(window, QPoint())
-                assert badge_position.x() == name_position.x(), title
-                assert badge_position.y() >= name_position.y() + name.height(), title
-            assert_fully_visible(window.run_button)
-    finally:
-        app.setStyle(original_style)
+    load(window, sensor_frame)
+    for field in (window.acc, window.gyro, window.time):
+        field.setMinimumHeight(minimum_height)
+    wait_for_previews(window)
+    window.navigate(1)
+    for width, height in ((1450, 1050), (1200, 1050), (960, 650)):
+        window.resize(width, height)
+        QTest.qWait(30)
+        assert window.analysis_scroll.horizontalScrollBar().maximum() == 0
+        fields = (window.acc, window.gyro, window.time, window.clock_input)
+        for field in (
+            *fields,
+            *window._analysis_controller.view.file_badges.values(),
+            *window._analysis_controller.view.file_default_buttons.values(),
+        ):
+            window.analysis_scroll.ensureWidgetVisible(field)
+            app.processEvents()
+            assert_fully_visible(field)
+        for title, source_badge in window._analysis_controller.view.file_badges.items():
+            name = next(
+                label
+                for label in window.settings_panel.findChildren(QLabel)
+                if label.text() == title
+            )
+            name_position = name.mapTo(window, QPoint())
+            badge_position = source_badge.mapTo(window, QPoint())
+            assert badge_position.x() == name_position.x(), title
+            assert badge_position.y() >= name_position.y() + name.height(), title
+        assert_fully_visible(window.run_button)
 
 
 def test_column_details_distinguish_matching_manual_and_explicit_selections(window, sensor_frame):

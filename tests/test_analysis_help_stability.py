@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes, reveal_control
+from gui_helpers import dispose_widget
 from PySide6.QtCore import QEvent, QPoint, QSize
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
@@ -119,8 +120,7 @@ def test_native_file_labels_do_not_force_columns_that_fit_to_stack(
             if not field.isHidden():
                 assert_fully_visible(field)
     finally:
-        window.close()
-        app.processEvents()
+        dispose_widget(window)
         app.setStyle(original_style)
 
 
@@ -200,8 +200,7 @@ def test_analyze_scroll_extent_shrinks_with_the_form_before_queued_parent_reques
         )
         assert_fully_visible(window.mapping)
     finally:
-        window.close()
-        app.processEvents()
+        dispose_widget(window)
         app.setStyle(original_style)
 
 
@@ -246,8 +245,7 @@ def test_nested_native_control_growth_fits_before_queued_child_layout_requests(s
                     assert field.height() >= minimum
                 assert stack.rect().contains(other_column.geometry())
     finally:
-        stack.close()
-        app.processEvents()
+        dispose_widget(stack)
         app.setStyle(original_style)
 
 

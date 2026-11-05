@@ -180,6 +180,11 @@ def test_ci_uses_native_uv_gates_before_audit_and_packaging(workflow):
     ]
     indexes = [next(i for i, command in enumerate(commands) if gate in command) for gate in gates]
     assert indexes == sorted(indexes)
+    test_runs = [command for command in commands if "python -m pytest" in command]
+    assert len(test_runs) == 1
+    assert "--desktop-prechecks" in test_runs[0] and "--maxfail=1" in test_runs[0]
+    assert "--durations=25" in test_runs[0]
+    assert "--cov" in test_runs[0] and "--cov-branch" in test_runs[0]
     assert not any("sync_dependencies.py" in command for command in commands)
     setup = next(step for step in steps if step.get("uses", "").startswith("astral-sh/setup-uv@"))
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
