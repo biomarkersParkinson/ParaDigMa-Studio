@@ -2,13 +2,17 @@
 
 ## Unreleased
 
+- Restore separate **Open files…** and **Open folders…** buttons while retaining
+  native multi-folder selection. Show draggable scrollbars in long dropdowns,
+  support pixel-based trackpad scrolling, and replace the Signal columns help
+  illustration with the repository owner's updated SVG and matching display PNG.
 - Reduce test overhead with style-aware window fixtures, focused mapping-editor
   fixtures and deferred graph setup. Retain native layout, scientific and pixel
   checks; run CI's desktop prechecks once within the full covered collection and
   report its slowest phases.
-- Use one **Open recordings…** menu with **Files…** and **Folders…** options,
-  opening the standard Windows selection dialogs. Preserve multi-file selection
-  and use the Windows system API for multi-folder selection. Discover folder
+- Use the standard Windows selection dialogs for recording files and folders.
+  Preserve multi-file selection and use the Windows system API for multi-folder
+  selection. Discover folder
   contents recursively in the background, deduplicate overlapping selections,
   confirm pickle trust before loading, and retain existing inputs and settings
   if selection, discovery or loading fails. Ctrl+O opens files; Ctrl+Shift+O

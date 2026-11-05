@@ -93,7 +93,8 @@ identifies exactly which groups the `scientific` marker selects.
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
 | Recursive folder discovery, real mixed-format imports, responsive scanning, pickle confirmation and failed-load preservation | [test_folder_loading.py](../tests/test_folder_loading.py) |
-| Standard-dialog routing, file/folder menu actions and shortcuts, multiple-folder imports and failed-picker preservation | [test_recording_dialogs.py](../tests/test_recording_dialogs.py) |
+| Standard-dialog routing, separate file/folder buttons and shortcuts, multiple-folder imports and failed-picker preservation | [test_recording_dialogs.py](../tests/test_recording_dialogs.py) |
+| Visible scrollbars in long dropdowns, drag/wheel/trackpad and keyboard selection, short lists and large recording batches | [test_dropdown_scrolling.py](../tests/test_dropdown_scrolling.py) |
 | Windows COM marshalling, Unicode/UNC paths, cancellation and error cleanup, plus real Windows interface configuration without opening UI | [test_windows_folder_dialog.py](../tests/test_windows_folder_dialog.py) |
 | Shared Data/Analyze time choices, sampling diagnostics, selected-channel exclusion and calendar/elapsed graph values | [test_shared_time_configuration.py](../tests/test_shared_time_configuration.py), [test_input_time_plot.py](../tests/test_input_time_plot.py) |
 | Selected-column clock authority, precise device start metadata, pending/manual origins and clock-only previews | [test_recording_clock.py](../tests/test_recording_clock.py), [test_origin_preview.py](../tests/test_origin_preview.py) |

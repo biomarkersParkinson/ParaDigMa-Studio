@@ -144,6 +144,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
             time.sleep(0.01)
         assert entered.is_set() and len(beats) >= 2
         assert not window.open_button.isEnabled()
+        assert not window._layout.open_folder_button.isEnabled()
         assert window._input_state.frame is original and not deliveries
         window._layout.open_action.trigger()
         window._layout.open_folder_action.trigger()
@@ -162,6 +163,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
         expected = frame.multiply([1, 2, 3, 4], axis="columns")
         pd.testing.assert_frame_equal(window._input_state.recordings["recording_003"], expected)
         assert window.open_button.isEnabled()
+        assert window._layout.open_folder_button.isEnabled()
         pd.testing.assert_frame_equal(pd.read_csv(root / "a.csv"), frame)
     finally:
         timer.stop()
@@ -234,7 +236,7 @@ def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
 
 
 @pytest.mark.parametrize("style,font_size", [("Fusion", 13), ("Windows", 18)])
-def test_recording_button_remains_visible_at_compact_native_sizes(styled_window, style, font_size):
+def test_recording_buttons_remain_visible_at_compact_native_sizes(styled_window, style, font_size):
     window = styled_window
     app = QApplication.instance()
     window.resize(960, 650)
@@ -249,6 +251,8 @@ def test_recording_button_remains_visible_at_compact_native_sizes(styled_window,
             window.loaded_recordings((sources, frames, descriptions))
         app.processEvents()
         assert window.open_button.visibleRegion().boundingRect().contains(window.open_button.rect())
+        folder = window._layout.open_folder_button
+        assert folder.visibleRegion().boundingRect().contains(folder.rect())
         assert window.size().toTuple() == (960, 650)
 
 

@@ -1,64 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="959" viewBox="0 65 1536 959" role="img" aria-labelledby="figure-title figure-description">
-<title id="figure-title">Expected input sensor orientation: left and right arm</title>
-<desc id="figure-description">Studio illustration of the expected positive input sensor axes for the left and right wrist. Map source columns and axis signs to the illustrated directions. Select the actual watch side; ParaDigMa applies its wrist-side adjustment during processing. The diagram shows the input before that adjustment. Each axis is one uninterrupted straight SVG line.</desc>
-<style>text{font-family:"DejaVu Sans",Arial,sans-serif;fill:#111}.axis-shaft,.axis-head{fill:none;stroke:#111;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none}</style>
-<rect width="1536" height="1024" fill="white"/>
-<text x="465" y="133" font-size="31" text-anchor="middle" font-weight="400">Left arm</text>
-<text x="1071" y="133" font-size="31" text-anchor="middle" font-weight="400">Right arm</text>
-<g id="arms" fill="white" stroke="#111" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
-<path id="left-arm-outline" d="M150,130 A60,60 0 0 1 270,130 L270,365.147186 L598.492424,693.63961 C627.483802,708.842406 663.404827,708.276721 685.113005,727.227182 L729.307179,771.421356 C738.146013,780.260191 742.565431,791.750676 735.494363,800.589511 C729.307179,810.312229 715.165043,810.312229 706.326208,801.473394 L725.771645,824.454365 C734.610479,835.060967 740.797664,846.551452 733.726596,855.390287 C726.655528,864.229121 716.048926,864.229121 704.558441,856.27417 C719.58446,873.067956 726.655528,885.442325 718.700577,895.165043 C710.745626,904.887761 694.835723,901.352227 679.809704,888.093975 C685.996888,897.816693 680.693587,908.423295 670.086986,913.726596 C660.364267,919.91378 644.454365,911.074946 635.61553,900.468344 L603.795725,868.648539 C594.95689,859.809704 580.814755,856.27417 571.092036,862.461354 C564.020968,873.067956 561.369318,900.468344 549.878833,908.423295 C539.272231,913.726596 525.130096,903.119994 528.665629,890.745626 C531.31728,873.95184 542.807765,862.461354 538.388348,845.667568 C535.216974,829.393506 525.519004,801.968369 513.63961,778.492424 L150,414.852814 L150,130 Z"/>
-<path id="right-arm-outline" transform="translate(1536 0) scale(-1 1)" d="M150,130 A60,60 0 0 1 270,130 L270,365.147186 L598.492424,693.63961 C627.483802,708.842406 663.404827,708.276721 685.113005,727.227182 L729.307179,771.421356 C738.146013,780.260191 742.565431,791.750676 735.494363,800.589511 C729.307179,810.312229 715.165043,810.312229 706.326208,801.473394 L725.771645,824.454365 C734.610479,835.060967 740.797664,846.551452 733.726596,855.390287 C726.655528,864.229121 716.048926,864.229121 704.558441,856.27417 C719.58446,873.067956 726.655528,885.442325 718.700577,895.165043 C710.745626,904.887761 694.835723,901.352227 679.809704,888.093975 C685.996888,897.816693 680.693587,908.423295 670.086986,913.726596 C660.364267,919.91378 644.454365,911.074946 635.61553,900.468344 L603.795725,868.648539 C594.95689,859.809704 580.814755,856.27417 571.092036,862.461354 C564.020968,873.067956 561.369318,900.468344 549.878833,908.423295 C539.272231,913.726596 525.130096,903.119994 528.665629,890.745626 C531.31728,873.95184 542.807765,862.461354 538.388348,845.667568 C535.216974,829.393506 525.519004,801.968369 513.63961,778.492424 L150,414.852814 L150,130 Z"/>
-<path id="left-finger-lines" fill="none" d="M706.326208,801.473394C696.60349,793.518443 687.764655,788.215142 678.92582,782.911841 M704.558441,856.27417C690.416306,842.132034 672.738636,826.222132 658.5965,815.61553 M679.809704,888.093975C663.899801,873.95184 647.989899,859.809704 631.196113,846.551452"/>
-<path id="right-finger-lines" fill="none" transform="translate(1536 0) scale(-1 1)" d="M706.326208,801.473394C696.60349,793.518443 687.764655,788.215142 678.92582,782.911841 M704.558441,856.27417C690.416306,842.132034 672.738636,826.222132 658.5965,815.61553 M679.809704,888.093975C663.899801,873.95184 647.989899,859.809704 631.196113,846.551452"/>
-</g>
-<g id="left-watch" transform="translate(481.819805 661.819805) rotate(45)">
-<rect x="-22" y="-65" width="44" height="130" rx="2" fill="#e1e1e1" stroke="#111" stroke-width="3"/>
-<circle r="52" fill="white" stroke="#111" stroke-width="3"/>
-<circle r="46" fill="none" stroke="#111" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="850" viewBox="0 0 1200 850" role="img" aria-labelledby="figure-title figure-description">
+  <title id="figure-title">Watch coordinate system, overhead view</title>
+  <desc id="figure-description">Overhead view of a head and shoulders with both arms extended forward and bent inward at the elbows. On the left wrist, positive X points toward the fingers. On the right wrist, positive X points toward the elbow. On both watches, positive Y points toward 12 o’clock and positive Z points toward the viewer, shown by a circled dot.</desc>
+  <style>
+    text { font-family: "DejaVu Sans", Arial, sans-serif; fill: #111; }
+    .outline { fill: none; stroke: #111; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+    .axis line, .axis polyline { fill: none; stroke: #111; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+    .axis text { font-size: 23px; font-weight: 600; text-anchor: middle; }
+  </style>
+  <defs>
+    <g id="out-of-plane-axis">
+      <circle r="7.5" fill="white" stroke="#111" stroke-width="2"/>
+      <circle r="2.7" fill="#111"/>
+    </g>
+  </defs>
+
+  <rect width="1200" height="850" fill="white"/>
+  <text x="600" y="56" font-size="40" font-weight="600" text-anchor="middle">Watch coordinate system</text>
+  <g id="view-legend" font-size="20">
+    <text x="566" y="96" text-anchor="end">Overhead view</text>
+    <path d="M588 80v21" stroke="#b5b5b5" stroke-width="1.3"/>
+    <use href="#out-of-plane-axis" xlink:href="#out-of-plane-axis" x="610" y="89"/>
+    <text x="625" y="96">+Z toward the viewer</text>
+  </g>
+  <text x="345" y="158" font-size="25" text-anchor="middle">Left arm</text>
+  <text x="855" y="158" font-size="25" text-anchor="middle">Right arm</text>
+
+  <g id="body" class="outline">
+    <path id="shoulder-contours" d="M323 668 C379 643 468 644 540 656 M660 656 C732 644 821 643 877 668 M242 700 C265 764 413 790 600 790 C787 790 935 764 958 700"/>
+    <g id="left-arm">
+      <path d="M242 700 C228 662 214 600 208 561 C202 529 207 505 235 476 L405.865,305.496
+        C417.267,283.752 416.843,256.811 431.056,240.530 L464.201,207.384 C470.830,200.755 479.448,197.441 486.077,202.744 C493.369,207.384 493.369,217.991 486.740,224.620 L503.976,210.036 C511.931,203.407 520.549,198.767 527.178,204.070 C533.807,209.373 533.807,217.328 527.841,225.946 C540.436,214.677 549.717,209.373 557.009,215.339 C564.301,221.306 561.649,233.238 551.706,244.508 C558.998,239.867 566.953,243.845 570.930,251.800 C575.570,259.092 568.941,271.024 560.986,277.653 L537.122,301.518 C530.492,308.147 527.841,318.754 532.481,326.046 C540.436,331.349 560.986,333.338 566.953,341.956 C570.930,349.911 562.975,360.517 553.694,357.866 C541.099,355.877 532.481,347.259 519.886,350.574 C507.680,352.952 487.111,360.226 469.504,369.135
+        L304 535 C294 545 294 557 298 574 C306 609 317 643 323 668"/>
+      <path d="M486.740,224.620C480.774,231.912 476.797,238.541 472.819,245.170 M527.841,225.946C517.234,236.553 505.302,249.811 497.347,260.417 M551.706,244.508C541.099,256.440 530.492,268.372 520.549,280.968" stroke-width="2.35"/>
+    </g>
+    <use id="right-arm" href="#left-arm" xlink:href="#left-arm" transform="translate(1200 0) scale(-1 1)"/>
+    <g id="head" fill="white">
+      <path d="M533 673 C510 663 511 703 532 700 M667 673 C690 663 689 703 668 700"/>
+      <path d="M600 605 C605 605 607 619 615 622 C652 628 670 651 670 681 C670 720 642 749 600 749 C558 749 530 720 530 681 C530 651 548 628 585 622 C593 619 595 605 600 605 Z"/>
+    </g>
+  </g>
+
+  <g id="left-watch" transform="translate(382 393) rotate(-45) scale(0.75)">
+<rect x="-22" y="-65" width="44" height="130" rx="2" fill="#e1e1e1" stroke="#111" stroke-width="3" />
+<circle r="52" fill="white" stroke="#111" stroke-width="3" />
+<circle r="46" fill="none" stroke="#111" stroke-width="2" />
 <g font-size="21" font-weight="500" text-anchor="middle" fill="#111" stroke="none">
 <text x="0" y="-23.203125">12</text>
 <text x="31" y="7.648438">3</text>
 <text x="0" y="38.648438">6</text>
 <text x="-31" y="7.648438">9</text>
 </g></g>
-<g id="right-watch" transform="translate(1054.180195 661.819805) rotate(-45)">
-<rect x="-22" y="-65" width="44" height="130" rx="2" fill="#e1e1e1" stroke="#111" stroke-width="3"/>
-<circle r="52" fill="white" stroke="#111" stroke-width="3"/>
-<circle r="46" fill="none" stroke="#111" stroke-width="2"/>
+
+  <g id="right-watch" transform="translate(818 393) rotate(45) scale(0.75)">
+<rect x="-22" y="-65" width="44" height="130" rx="2" fill="#e1e1e1" stroke="#111" stroke-width="3" />
+<circle r="52" fill="white" stroke="#111" stroke-width="3" />
+<circle r="46" fill="none" stroke="#111" stroke-width="2" />
 <g font-size="21" font-weight="500" text-anchor="middle" fill="#111" stroke="none">
 <text x="0" y="-23.203125">12</text>
 <text x="31" y="7.648438">3</text>
 <text x="0" y="38.648438">6</text>
 <text x="-31" y="7.648438">9</text>
 </g></g>
-<g id="ground" fill="none" stroke="#111" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-<line x1="32" y1="972" x2="1504" y2="972"/>
-</g>
-<text x="1494" y="950" font-size="29" text-anchor="end" font-weight="400">Ground</text>
-<g id="continuous-axis-lines">
-<line id="left-X-shaft" class="axis-shaft" x1="481.819805" y1="661.819805" x2="598.492424" y2="778.492424"/>
-<polyline class="axis-head" points="579.046988,772.482016 598.492424,778.492424 592.482016,759.046988"/>
-<line id="left-Y-shaft" class="axis-shaft" x1="481.819805" y1="661.819805" x2="626.776695" y2="516.862915"/>
-<polyline class="axis-head" points="620.766288,536.308351 626.776695,516.862915 607.331259,522.873323"/>
-<line id="left-Z-shaft" class="axis-shaft" x1="481.819805" y1="661.819805" x2="481.819805" y2="431.819805"/>
-<polyline class="axis-head" points="491.319805,449.819805 481.819805,431.819805 472.319805,449.819805"/>
-<line id="right-X-shaft" class="axis-shaft" x1="1054.180195" y1="661.819805" x2="1199.137085" y2="516.862915"/>
-<polyline class="axis-head" points="1193.126677,536.308351 1199.137085,516.862915 1179.691649,522.873323"/>
-<line id="right-Y-shaft" class="axis-shaft" x1="1054.180195" y1="661.819805" x2="909.223305" y2="516.862915"/>
-<polyline class="axis-head" points="928.668741,522.873323 909.223305,516.862915 915.233712,536.308351"/>
-<line id="right-Z-shaft" class="axis-shaft" x1="1054.180195" y1="661.819805" x2="1054.180195" y2="431.819805"/>
-<polyline class="axis-head" points="1063.680195,449.819805 1054.180195,431.819805 1044.680195,449.819805"/>
-</g>
-<g id="axis-origins" fill="#111">
-<circle id="left-axis-origin" cx="481.819805" cy="661.819805" r="5.2"/>
-<circle id="right-axis-origin" cx="1054.180195" cy="661.819805" r="5.2"/>
-</g>
-<g id="axis-labels">
-<text x="631.492424" y="795.492424" font-size="30" text-anchor="middle" font-weight="600">+X</text>
-<text x="654.776695" y="504.862915" font-size="30" text-anchor="middle" font-weight="600">+Y</text>
-<text x="481.819805" y="409.819805" font-size="30" text-anchor="middle" font-weight="600">+Z</text>
-<text x="1230.137085" y="504.862915" font-size="30" text-anchor="middle" font-weight="600">+X</text>
-<text x="877.223305" y="504.862915" font-size="30" text-anchor="middle" font-weight="600">+Y</text>
-<text x="1054.180195" y="409.819805" font-size="30" text-anchor="middle" font-weight="600">+Z</text>
-</g></svg>
+
+  <g id="left-axes" class="axis">
+    <line id="left-X-shaft" x1="387.66" y1="387.34" x2="469.50" y2="305.50"/>
+    <polyline points="463.85,319.64 469.50,305.50 455.36,311.15"/>
+    <text x="485.77" y="297.23">+X</text>
+    <line id="left-Y-shaft" x1="376.34" y1="387.34" x2="273.28" y2="284.28"/>
+    <polyline points="287.42,289.94 273.28,284.28 278.94,298.42"/>
+    <text x="257.02" y="276.02">+Y</text>
+    <use href="#out-of-plane-axis" xlink:href="#out-of-plane-axis" x="382" y="393"/>
+  </g>
+  <g id="right-axes" class="axis">
+    <line id="right-X-shaft" x1="823.66" y1="398.66" x2="926.72" y2="501.72"/>
+    <polyline points="912.58,496.06 926.72,501.72 921.06,487.58"/>
+    <text x="942.98" y="525.98">+X</text>
+    <line id="right-Y-shaft" x1="823.66" y1="387.34" x2="926.72" y2="284.28"/>
+    <polyline points="921.06,298.42 926.72,284.28 912.58,289.94"/>
+    <text x="942.98" y="276.02">+Y</text>
+    <use href="#out-of-plane-axis" xlink:href="#out-of-plane-axis" x="818" y="393"/>
+  </g>
+</svg>

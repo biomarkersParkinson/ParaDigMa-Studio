@@ -1,4 +1,4 @@
-"""Platform dialog routing, menu actions and safe native-picker failures."""
+"""Platform dialog routing, separate buttons and safe native-picker failures."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 from conftest import wait_for_job, wait_for_previews
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog
 
@@ -73,7 +73,7 @@ def test_both_shortcuts_open_their_respective_standard_dialogs(window, monkeypat
     assert calls == ["files", "folders"]
 
 
-def test_single_open_button_menu_offers_file_and_folder_modes(window, monkeypatch):
+def test_separate_buttons_open_their_respective_native_dialogs(window, monkeypatch):
     calls = []
     monkeypatch.setattr(
         data_controller, "choose_recording_files", lambda *args: calls.append("files") or []
@@ -81,11 +81,10 @@ def test_single_open_button_menu_offers_file_and_folder_modes(window, monkeypatc
     monkeypatch.setattr(
         data_controller, "choose_recording_folders", lambda *args: calls.append("folders") or []
     )
-    menu = window.open_button.menu()
-    for action in menu.actions():
-        menu.popup(window.open_button.mapToGlobal(QPoint(0, window.open_button.height())))
-        QTest.qWait(10)
-        QTest.mouseClick(menu, Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
+    assert window.open_button.menu() is None
+    assert window._layout.open_folder_button.menu() is None
+    QTest.mouseClick(window.open_button, Qt.MouseButton.LeftButton)
+    QTest.mouseClick(window._layout.open_folder_button, Qt.MouseButton.LeftButton)
     assert calls == ["files", "folders"]
 
 
@@ -121,4 +120,5 @@ def test_failed_native_picker_preserves_current_input_and_reports_the_error(wind
     window._layout.open_folder_action.trigger()
     assert window._input_state.frame is frame and window.side.currentText() == "right"
     assert window._job_state.worker is None and window.open_button.isEnabled()
+    assert window._layout.open_folder_button.isEnabled()
     assert "Could not open" in window.notice.text()

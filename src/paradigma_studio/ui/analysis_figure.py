@@ -51,8 +51,10 @@ class InputAxisFigure(QWidget):
         self.setObjectName("inputAxisFigure")
         self.setAccessibleName("Expected input sensor orientation: left and right arm")
         self.setAccessibleDescription(
-            "Positive input axes shown on watches worn on the left and right wrist, "
-            "before ParaDigMa applies its wrist-side adjustment."
+            "Overhead view. Positive X points toward the fingers on the left wrist and "
+            "toward the elbow on the right wrist. Positive Y points toward 12 o'clock "
+            "on both watches; positive Z points toward the viewer. Input axes before "
+            "ParaDigMa applies its wrist-side adjustment."
         )
         policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         policy.setHeightForWidth(True)

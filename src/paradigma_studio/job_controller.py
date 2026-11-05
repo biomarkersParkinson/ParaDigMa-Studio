@@ -34,6 +34,7 @@ class JobView:
     export_button: QPushButton
     input_recording: QComboBox
     open_button: QPushButton
+    open_folder_button: QPushButton
     open_run_button: QPushButton
     progress: QProgressBar
     run_button: QPushButton
@@ -96,6 +97,7 @@ class JobController(QObject):
             return
         for widget in (
             self.view.open_button,
+            self.view.open_folder_button,
             self.view.run_button,
             self.view.settings_panel,
             self.view.analysis_controls,
@@ -180,6 +182,7 @@ class JobController(QObject):
         worker = self.jobs.worker
         self.jobs.worker = None
         self.view.open_button.setEnabled(True)
+        self.view.open_folder_button.setEnabled(True)
         self.view.settings_panel.setEnabled(True)
         self.view.analysis_controls.setEnabled(True)
         self.view.data_time_channel.setEnabled(True)

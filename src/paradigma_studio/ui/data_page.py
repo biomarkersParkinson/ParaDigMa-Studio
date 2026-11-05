@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QLayout,
     QListWidget,
     QMainWindow,
-    QMenu,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -174,21 +173,20 @@ class DataPage:
         self.input_recording.hide()
         self.input_recording.currentIndexChanged.connect(self.callbacks.inspect_input_recording)
         row.addWidget(self.input_recording, 1)
-        self.open_button = button("Open recordings…", primary=True)
-        self.open_button.setToolTip("Files: Ctrl+O · Folders: Ctrl+Shift+O")
-        menu = QMenu(self.open_button)
-        self.open_action = QAction("Files…", self.parent)
+        self.open_button = button("Open files…", self.callbacks.open_file, primary=True)
+        self.open_button.setToolTip("Ctrl+O")
+        self.open_folder_button = button("Open folders…", self.callbacks.open_folder)
+        self.open_folder_button.setToolTip("Ctrl+Shift+O · Include supported files in subfolders")
+        self.open_action = QAction("Open files…", self.parent)
         self.open_action.setShortcut(QKeySequence("Ctrl+O"))
         self.open_action.triggered.connect(self.callbacks.open_file)
         self.parent.addAction(self.open_action)
-        menu.addAction(self.open_action)
-        self.open_folder_action = QAction("Folders…", self.parent)
+        self.open_folder_action = QAction("Open folders…", self.parent)
         self.open_folder_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
         self.open_folder_action.triggered.connect(self.callbacks.open_folder)
         self.parent.addAction(self.open_folder_action)
-        menu.addAction(self.open_folder_action)
-        self.open_button.setMenu(menu)
         row.addWidget(self.open_button)
+        row.addWidget(self.open_folder_button)
         content.addLayout(row)
         layout.addWidget(panel)
 

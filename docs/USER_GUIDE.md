@@ -43,7 +43,7 @@ from the file and shared with Analyze.*
 
 ### Load recordings
 
-1. Click **Open recordings…** and choose **Files…** or **Folders…** from its menu.
+1. Click **Open files…** or **Open folders…**.
    **Ctrl+O** opens files directly; **Ctrl+Shift+O** opens folders directly.
 2. Use the standard Windows dialog to choose recordings from **the same
    subject**. Ctrl/Shift selects multiple files in file mode or multiple folders
@@ -57,6 +57,11 @@ from the file and shared with Analyze.*
    is remembered as the starting location during the app session.
 4. For a batch, use the recording selector to inspect each file. Analyze will
    process the entire selection with one configuration.
+
+Long dropdown lists show a vertical scrollbar. Drag its handle, use the mouse
+wheel or trackpad, or use the arrow, Page Up/Page Down, Home and End keys to
+reach another entry. Scrolling an open list keeps the current selection until
+you choose an entry with a click or Enter.
 
 Use consistently formatted recordings within a batch: source column names,
 units, wrist side and axis conventions must support the same settings. Review

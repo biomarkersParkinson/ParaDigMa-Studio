@@ -11,10 +11,13 @@ on 28 October for the shared hand tool and navigation controls; see
 [commit `1337c33`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/1337c33).
 The full set was regenerated and reviewed on 5 November 2026 for the
 **Open folder…** control in Data; the Data images and Runs capture were updated.
-The current set was regenerated and reviewed on 5 November for the single
+An earlier set was regenerated and reviewed on 5 November for the single
 **Open recordings…** menu with **Files…** and **Folders…** choices. Selection
 uses the standard Windows dialogs; those OS windows are not illustrated by
 these Linux captures. The earlier custom-browser illustration was removed.
+The latest refresh restores separate **Open files…** and **Open folders…**
+buttons while retaining native multi-folder selection. Long dropdowns now use
+the same light scrollbar design as the workspace.
 These images illustrate the current source. The
 [tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
 retains the screenshots for the published candidate.

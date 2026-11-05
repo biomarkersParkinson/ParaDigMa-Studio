@@ -557,6 +557,19 @@ class RecordModel(FrameModel):
             return str(self._columns[section]) if orientation == Qt.Horizontal else str(section + 1)
 
 
+class DropdownListView(QListView):
+    """Keep pixel-based trackpad gestures inside an open dropdown list."""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        pixels = event.pixelDelta().y()
+        if pixels:
+            bar = self.verticalScrollBar()
+            bar.setValue(bar.value() - pixels)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+
 class ReadableComboBox(QComboBox):
     wheel_scroll_target: QAbstractScrollArea | None = None
 
@@ -673,10 +686,14 @@ def combo(items=(), *, combo_type=ReadableComboBox):
     combo = combo_type()
     # A Qt list view and explicit palette avoid native dark-theme popups
     # combining dark selection backgrounds with inherited dark text.
-    view = QListView()
+    view = DropdownListView()
     view.setUniformItemSizes(True)
     view.setPalette(light_palette())
     combo.setView(view)
+    # QComboBox installs its list with scrollbars hidden. Restore an ordinary
+    # scrollbar so an overflowing popup exposes a draggable scroll position.
+    view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
     combo.setPalette(light_palette())
     combo.setMaxVisibleItems(12)
     combo.addItems(items)

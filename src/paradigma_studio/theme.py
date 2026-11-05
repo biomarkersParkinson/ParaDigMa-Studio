@@ -152,6 +152,12 @@ QComboBox QAbstractItemView::item { padding: 8px; min-height: 20px; }
 QComboBox QAbstractItemView::item:hover { background: #edf3fa; color: #22324a; }
 QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:selected:hover {
     background: #2563a5; color: white; }
+QComboBox QAbstractItemView QScrollBar:vertical { background: #f4f6fa; width: 12px;
+    margin: 2px 0; border: none; }
+QComboBox QAbstractItemView QScrollBar::handle:vertical { background: #8c9db3;
+    min-height: 30px; border-radius: 4px; }
+QComboBox QAbstractItemView QScrollBar::handle:vertical:hover { background: #68778c; }
+QComboBox QAbstractItemView QScrollBar::handle:vertical:pressed { background: #2563a5; }
 QCheckBox { spacing: 9px; padding: 4px 0; }
 QListWidget, QTreeWidget { background: white; border: 1px solid #e1e6ee; border-radius: 6px;
     selection-background-color: #e3eefb; selection-color: #16253a; }

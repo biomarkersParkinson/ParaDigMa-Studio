@@ -98,7 +98,7 @@ completed payload, supplies column-name schemas to the mapping editor and resets
 Analyze to defaults from the new input. A cancelled picker or failed load leaves
 the previous input/configuration in place.
 
-The **Open recordings…** menu routes to separate file and folder callbacks.
+The **Open files…** and **Open folders…** buttons route to separate callbacks.
 [recording_dialogs.py](../src/paradigma_studio/ui/recording_dialogs.py) uses Qt's
 standard multi-file picker. On Windows,
 [windows_folder_dialog.py](../src/paradigma_studio/ui/windows_folder_dialog.py)
