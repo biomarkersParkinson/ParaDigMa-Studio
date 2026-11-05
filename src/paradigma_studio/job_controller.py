@@ -34,6 +34,7 @@ class JobView:
     export_button: QPushButton
     input_recording: QComboBox
     open_button: QPushButton
+    open_folder_button: QPushButton
     open_run_button: QPushButton
     progress: QProgressBar
     run_button: QPushButton
@@ -82,16 +83,21 @@ class JobController(QObject):
         self._progress_worker: object | None = None
         self._analysis_completed: JobCompletion | None = None
         self._pending_progress = 0
+        self._after_cleanup: JobCompletion | None = None
+        self._deferred_completion: Callable[[], None] | None = None
         self._progress_timer = QTimer(self)
         self._progress_timer.setSingleShot(True)
         self._progress_timer.setInterval(200)
         self._progress_timer.timeout.connect(self._flush_progress)
 
-    def start_job(self, operation: JobOperation, completed: JobCompletion) -> None:
+    def start_job(
+        self, operation: JobOperation, completed: JobCompletion, *, after_cleanup: bool = False
+    ) -> None:
         if self.jobs.worker is not None:
             return
         for widget in (
             self.view.open_button,
+            self.view.open_folder_button,
             self.view.run_button,
             self.view.settings_panel,
             self.view.analysis_controls,
@@ -118,8 +124,18 @@ class JobController(QObject):
         self._progress_worker = worker if analysis else None
 
         self._analysis_completed = completed if analysis else None
-        self.callbacks.connect_worker(worker, self._analysis_ready if analysis else completed)
+        self._after_cleanup = completed if after_cleanup else None
+        self._deferred_completion = None
+        receiver = self._analysis_ready if analysis else completed
+        self.callbacks.connect_worker(worker, self._defer_completion if after_cleanup else receiver)
         self.jobs.worker.start()
+
+    @Slot(object)
+    def _defer_completion(self, payload: Any) -> None:
+        callback = self._after_cleanup
+        sender = self.sender()
+        if callback is not None and (sender is None or sender is self.jobs.worker):
+            self._deferred_completion = lambda: callback(payload)
 
     @Slot(object)
     def _analysis_ready(self, payload: Any) -> None:
@@ -158,12 +174,15 @@ class JobController(QObject):
             self.view.progress.setValue(self._pending_progress)
 
     def job_finished(self) -> None:
+        deferred, self._deferred_completion = self._deferred_completion, None
+        self._after_cleanup = None
         self._progress_timer.stop()
         self._progress_worker = None
         self._analysis_completed = None
         worker = self.jobs.worker
         self.jobs.worker = None
         self.view.open_button.setEnabled(True)
+        self.view.open_folder_button.setEnabled(True)
         self.view.settings_panel.setEnabled(True)
         self.view.analysis_controls.setEnabled(True)
         self.view.data_time_channel.setEnabled(True)
@@ -183,8 +202,12 @@ class JobController(QObject):
         if self.runs._close_after_save:
             self.runs._close_after_save = False
             QTimer.singleShot(0, self.callbacks.close)
+        if deferred is not None:
+            deferred()
 
     def failure(self, message: str) -> None:
+        self._after_cleanup = None
+        self._deferred_completion = None
         self._progress_timer.stop()
         self._progress_worker = None
         self.runs._close_after_save = False

@@ -24,6 +24,7 @@ implementing modules, as shown in the example.
 | Entry point | Input and return value |
 | --- | --- |
 | [`core.load_sensor_file`](../src/paradigma_studio/core.py) | Supported sensor-file path → loaded DataFrame; trusted pickle input requires `allow_pickle=True` |
+| [`recordings.find_sensor_files`](../src/paradigma_studio/recordings.py) | Folder → recursively discovered sensor paths, sorted by relative path; raises for an empty or unreadable selection |
 | [`recordings.load_recordings`](../src/paradigma_studio/recordings.py) | Paths → `(sources, frames)`, two dictionaries sharing recording identifiers |
 | [`core.analyze`](../src/paradigma_studio/core.py) | DataFrame or recording dictionary, plus `pipelines` and processing options → result dictionary |
 | [`serialization.export_results`](../src/paradigma_studio/serialization.py) | Destination, results and provenance → writes structured JSON and returns its SHA-256 string |
@@ -36,6 +37,12 @@ remain available for existing callers. Shared frame, path, pipeline and result
 types are defined in [`contracts.py`](../src/paradigma_studio/contracts.py);
 processing keywords are defined in
 [`preparation_contracts.py`](../src/paradigma_studio/preparation_contracts.py).
+
+`find_sensor_files` selects CSV, Parquet, CWA, Avro, pickle and TSDF
+`*_meta.json` paths. It ignores other JSON and linked subfolders, deduplicates
+file aliases and does not decode samples or authorize pickle loading. Pass the
+returned paths to `load_recordings`; pickle still requires `allow_pickle=True`
+after the caller has established trust.
 
 ### Example: analyze a recording and export the results
 

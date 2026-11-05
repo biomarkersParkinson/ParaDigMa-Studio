@@ -60,6 +60,12 @@ class RecordingsLoader(Protocol):
     ) -> tuple[dict[str, str], dict[str, pd.DataFrame]]: ...
 
 
+class RecordingFinder(Protocol):
+    def __call__(
+        self, folder: PathInput, *, logger: logging.Logger | None = None
+    ) -> list[Path]: ...
+
+
 @dataclass(frozen=True)
 class DataView:
     parent: QWidget
@@ -110,6 +116,7 @@ class DataCallbacks:
 
 @dataclass(frozen=True)
 class DataServices:
+    find_sensor_files: RecordingFinder
     load_recordings: RecordingsLoader
     inspect_recording: Callable[[pd.DataFrame, str], RecordingDescription]
     sensor_descriptives: Callable[[pd.DataFrame, Hashable | None], pd.DataFrame]
@@ -157,6 +164,31 @@ class DataController(QObject):
         )
         if not paths:
             return
+        self._open_paths(paths)
+
+    def open_folder(self) -> None:
+        if self.jobs.worker is not None:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self.view.parent, "Open a recording folder for the same subject", ""
+        )
+        if not folder:
+            return
+        self.callbacks.show_notice("")
+        self.view.status.setText("Finding sensor recordings…")
+
+        def discover(logger: logging.Logger) -> list[Path]:
+            return self.services.find_sensor_files(folder, logger=logger)
+
+        # The scan must release its worker before a trust prompt or load job.
+        self.callbacks.start_job(discover, self._open_paths, after_cleanup=True)
+
+    def _open_paths(self, paths: Iterable[PathInput]) -> None:
+        if self.jobs.worker is not None:
+            return
+        paths = list(paths)
+        if not paths:
+            return
         allow_pickle = False
         if any(Path(path).suffix.lower() in (".pkl", ".pickle") for path in paths):
             reply = QMessageBox.warning(
@@ -167,6 +199,7 @@ class DataController(QObject):
                 QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
+                self.view.status.setText("Loading cancelled.")
                 return
             allow_pickle = True
         self.callbacks.show_notice("")

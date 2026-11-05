@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,11 +19,54 @@ from .contracts import (
     RecordingAlignment,
     TimeOffsets,
 )
-from .core import load_sensor_file
+from .core import SUPPORTED, load_sensor_file
 from .results_view import analysis_alignment, normalise_clock, recording_clock
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+def find_sensor_files(folder: PathInput, *, logger: logging.Logger | None = None) -> list[Path]:
+    """Find recordings recursively without treating saved-result JSON as input."""
+    root = Path(folder)
+    if not root.is_dir():
+        raise ValueError("Select a folder containing sensor recordings.")
+    discovered: dict[Path, Path] = {}
+    visited: set[Path] = set()
+    for directory, subfolders, names in os.walk(root, followlinks=False, onerror=_discovery_error):
+        current = Path(directory)
+        resolved = current.resolve()
+        if resolved in visited:
+            subfolders.clear()
+            continue
+        visited.add(resolved)
+        subfolders[:] = sorted(name for name in subfolders if not _linked_folder(current / name))
+        for name in sorted(names):
+            path = current / name
+            suffix = path.suffix.lower()
+            if suffix not in SUPPORTED or (
+                suffix == ".json" and not path.name.lower().endswith("_meta.json")
+            ):
+                continue
+            if path.is_file():
+                discovered.setdefault(path.resolve(), path)
+    paths = sorted(
+        discovered.values(),
+        key=lambda path: (path.relative_to(root).as_posix().casefold(), path.as_posix()),
+    )
+    if not paths:
+        raise ValueError("No supported sensor recordings found in the folder or its subfolders.")
+    if logger is not None:
+        logger.info("Found %s sensor recordings in %s and its subfolders.", len(paths), root)
+    return paths
+
+
+def _linked_folder(path: Path) -> bool:
+    return path.is_symlink() or bool(getattr(path, "is_junction", lambda: False)())
+
+
+def _discovery_error(error: OSError) -> None:
+    raise error
 
 
 def load_recordings(

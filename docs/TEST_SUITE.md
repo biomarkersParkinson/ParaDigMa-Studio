@@ -88,6 +88,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Real CWA/Avro imports, fractional timestamps, TSDF physical scaling, metadata and source integrity | [test_cwa.py](../tests/test_cwa.py), [test_empatica.py](../tests/test_empatica.py), [test_tsdf_input.py](../tests/test_tsdf_input.py) |
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
+| Recursive folder discovery, real mixed-format imports, responsive scanning, pickle confirmation and failed-load preservation | [test_folder_loading.py](../tests/test_folder_loading.py) |
 | Shared Data/Analyze time choices, sampling diagnostics, selected-channel exclusion and calendar/elapsed graph values | [test_shared_time_configuration.py](../tests/test_shared_time_configuration.py), [test_input_time_plot.py](../tests/test_input_time_plot.py) |
 | Selected-column clock authority, precise device start metadata, pending/manual origins and clock-only previews | [test_recording_clock.py](../tests/test_recording_clock.py), [test_origin_preview.py](../tests/test_origin_preview.py) |
 | PPG-only preparation, numeric time encodings, official pulse stages and required-value/IMU checks | [test_pulse_input.py](../tests/test_pulse_input.py) |

@@ -157,7 +157,9 @@ class FinishRunCallback(Protocol):
 
 
 class StartJobCallback(Protocol):
-    def __call__(self, operation: JobOperation, completed: JobCompletion) -> None: ...
+    def __call__(
+        self, operation: JobOperation, completed: JobCompletion, *, after_cleanup: bool = False
+    ) -> None: ...
 
 
 class ConnectWorkerCallback(Protocol):

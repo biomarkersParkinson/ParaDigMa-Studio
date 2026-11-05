@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add **Open folder…** (Ctrl+Shift+O) to discover supported sensor recordings
+  recursively in the background and load them as a same-subject batch. Recognize
+  TSDF metadata without loading unrelated JSON, confirm pickle trust before
+  loading, and retain existing inputs and settings if discovery or loading fails.
 - Align user guidance with the technical references on raw-graph detail,
   numeric analysis timestamps and cached versus verified disk reopening; use
   the reviewed uv command for screenshot regeneration.

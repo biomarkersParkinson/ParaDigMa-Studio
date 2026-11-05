@@ -77,9 +77,11 @@ visits reuse it. Building a page or obtaining its frozen view must preserve that
 deferral. Callbacks created before their target controllers use deferred calls.
 
 Controllers that receive Qt signals keep GUI-thread affinity. Worker signals
-connect before the worker starts; completion installs data before terminal
-cleanup restores controls. Preserve the actual receiver methods and connection
-ordering when changing wiring.
+connect before the worker starts; completion normally installs data before
+terminal cleanup restores controls. Folder discovery explicitly defers its
+completion until cleanup, so the GUI can confirm pickle trust and start the
+separate load job. Preserve the actual receiver methods and connection ordering
+when changing wiring.
 
 `AnalysisPage` owns reusable non-modal help windows. They reuse explanation
 labels so file-source guidance stays current while open. Opening help leaves the
@@ -95,6 +97,13 @@ that reads the files and calculates initial descriptives. The GUI installs the
 completed payload, supplies column-name schemas to the mapping editor and resets
 Analyze to defaults from the new input. A cancelled picker or failed load leaves
 the previous input/configuration in place.
+
+For folder selection, `recordings.find_sensor_files` first discovers supported
+paths recursively in a background job. It sorts by relative path, avoids linked
+subfolders and file aliases, and selects only `*_meta.json` among JSON files.
+Discovery errors abort the selection. After the discovery job is cleaned up,
+the GUI requests explicit trust for any pickle files before starting the normal
+batch load. Inputs are installed only when the complete load succeeds.
 
 One Analyze configuration applies to an entire batch. Switching the recording
 being inspected changes Data's view and diagnostics while retaining the shared

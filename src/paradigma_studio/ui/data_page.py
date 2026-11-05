@@ -180,6 +180,15 @@ class DataPage:
         self.open_action.triggered.connect(self.callbacks.open_file)
         self.parent.addAction(self.open_action)
         row.addWidget(self.open_button)
+        self.open_folder_button = button("Open folder…", self.callbacks.open_folder)
+        self.open_folder_button.setToolTip(
+            "Ctrl+Shift+O · Load supported recordings from a folder and its subfolders"
+        )
+        self.open_folder_action = QAction("Open recording folder", self.parent)
+        self.open_folder_action.setShortcut("Ctrl+Shift+O")
+        self.open_folder_action.triggered.connect(self.callbacks.open_folder)
+        self.parent.addAction(self.open_folder_action)
+        row.addWidget(self.open_folder_button)
         content.addLayout(row)
         layout.addWidget(panel)
 

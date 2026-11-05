@@ -8,6 +8,8 @@ The full set was regenerated and visually reviewed for **1.0.0rc1** on
 26 October 2026. Data graphs, Results graphs and sensor context were refreshed
 on 28 October for the shared hand tool and navigation controls; see
 [commit `1337c33`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/1337c33).
+The full set was regenerated and reviewed on 5 November 2026 for the
+**Open folder…** control in Data; the Data images and Runs capture were updated.
 These images illustrate the current source. The
 [tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
 retains the screenshots for the published candidate.

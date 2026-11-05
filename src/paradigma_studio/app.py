@@ -40,7 +40,12 @@ from .inspection import input_plot_time, inspect_recording, sensor_descriptives,
 from .job_controller import JobCallbacks, JobController, JobServices
 from .jobs import SignalHandler as SignalHandler, Worker
 from .previews import CachedPreview
-from .recordings import align_recordings, load_recordings, preview_recording_clock
+from .recordings import (
+    align_recordings,
+    find_sensor_files,
+    load_recordings,
+    preview_recording_clock,
+)
 from .result_controller import ResultCallbacks, ResultController, ResultView
 from .result_workspace_controller import ResultWorkspaceCallbacks, ResultWorkspaceController
 from .results_view import (
@@ -171,6 +176,7 @@ class MainWindow(QMainWindow):
             ),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             open_file=lambda *args, **kwargs: self._data_controller.open_file(*args, **kwargs),
+            open_folder=lambda *args, **kwargs: self._data_controller.open_folder(*args, **kwargs),
             open_run=lambda *args, **kwargs: self._run_controller.open_run(*args, **kwargs),
             plot=lambda *args, **kwargs: self._graph_controller.plot(*args, **kwargs),
             reset_origin=lambda *args, **kwargs: self._analysis_controller.reset_origin(
@@ -355,6 +361,7 @@ class MainWindow(QMainWindow):
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
         )
         services = DataServices(
+            find_sensor_files=lambda *args, **kwargs: find_sensor_files(*args, **kwargs),
             load_recordings=lambda *args, **kwargs: load_recordings(*args, **kwargs),
             inspect_recording=lambda *args, **kwargs: inspect_recording(*args, **kwargs),
             sensor_descriptives=lambda *args, **kwargs: sensor_descriptives(*args, **kwargs),

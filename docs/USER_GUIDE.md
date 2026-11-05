@@ -24,6 +24,7 @@ the full Studio and ParaDigMa licences under separate headings.
 | --- | --- |
 | **Alt+1**, **Alt+2**, **Alt+3**, **Alt+4** | Open Data, Analyze, Results and Runs, respectively. |
 | **Ctrl+O** | Open recordings. |
+| **Ctrl+Shift+O** | Open a recording folder, including its subfolders. |
 | **Ctrl+Enter** | Run analysis. |
 | **Ctrl+S** | Save results locally. |
 | **Delete**, with run-list focus | Delete selected runs after confirmation. |
@@ -42,15 +43,24 @@ from the file and shared with Analyze.*
 
 ### Load recordings
 
-1. Click **Open sensor files…** or press **Ctrl+O**.
-2. Select one recording, or use Ctrl/Shift to select several recordings from
-   **the same subject**.
+1. Click **Open sensor files…** (**Ctrl+O**) to choose individual files, or
+   **Open folder…** (**Ctrl+Shift+O**) to choose a folder.
+2. Select recordings from **the same subject**. File selection supports
+   Ctrl/Shift to choose several files. Folder selection includes all supported
+   recordings in that folder and its subfolders, sorted by relative path.
 3. For a batch, use the recording selector to inspect each file. Analyze will
    process the entire selection with one configuration.
 
 Use consistently formatted recordings within a batch: source column names,
 units, wrist side and axis conventions must support the same settings. Review
 the recording configuration even when Studio prefills it.
+
+Folder discovery runs in the background. It ignores unrelated file types and
+JSON other than TSDF `*_meta.json` files; referenced TSDF binaries are read with
+their metadata. It does not follow linked subfolders. Pickle files require
+confirmation before any recording in the selection is loaded. Declining that
+confirmation cancels the whole selection. Choose a folder containing only the
+recordings you want in the batch, or select files individually.
 
 | Format | What Studio reads |
 | --- | --- |
