@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes
+from analysis_helpers import assert_fully_visible, configure_native_analysis_sizes, reveal_control
 from PySide6.QtCore import QEvent, QPoint, QSize
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
@@ -343,11 +343,9 @@ def test_time_origin_fits_viewport_with_larger_native_editor_widths(
                 window.clock_input.calendar,
                 window.origin_reset,
             ):
-                center = control.mapTo(body, control.rect().center())
-                window.analysis_scroll.ensureVisible(
-                    center.x(), center.y(), 0, control.height() // 2 + 8
-                )
-                app.processEvents()
+                # Font/style changes can post another layout request after the
+                # first resize; scroll using the settled widget geometry.
+                reveal_control(window.analysis_scroll, control)
                 assert_fully_visible(control)
             assert window.clock_input.editors.currentWidget() is window.clock_input.calendar
             assert window.clock_input.calendar.width() >= calendar_width
