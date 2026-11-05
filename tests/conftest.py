@@ -8,13 +8,13 @@ import pytest
 
 @pytest.fixture
 def recording_picker(monkeypatch):
-    """Supply a browser selection while retaining real discovery and file loading."""
-    from paradigma_studio.ui.recording_browser import RecordingBrowser, RecordingSelection
+    """Supply dialog paths while retaining real discovery and file loading."""
+    from paradigma_studio import data_controller
 
-    def select(paths, *, directory=None):
-        paths = tuple(map(Path, paths))
-        selection = RecordingSelection(paths, str(directory or paths[0].parent)) if paths else None
-        monkeypatch.setattr(RecordingBrowser, "choose", lambda *args: selection)
+    def select(paths, *, folders=False):
+        selection = list(map(str, paths))
+        name = "choose_recording_folders" if folders else "choose_recording_files"
+        monkeypatch.setattr(data_controller, name, lambda *args: selection)
 
     return select
 

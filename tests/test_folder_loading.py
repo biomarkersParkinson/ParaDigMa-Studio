@@ -12,9 +12,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from paradigma_studio import app as desktop, core, recordings
+from paradigma_studio import app as desktop, core, data_controller, recordings
 from paradigma_studio.recordings import find_recording_files, find_sensor_files
-from paradigma_studio.ui.recording_browser import RecordingBrowser
 
 
 def samples():
@@ -109,7 +108,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
     window.loaded(("previous.csv", original))
     wait_for_previews(window)
     window.side.setCurrentText("right")
-    recording_picker([root])
+    recording_picker([root], folders=True)
     scan = desktop.find_recording_files
     entered, release = threading.Event(), threading.Event()
     gui_thread, deliveries, beats = threading.get_ident(), [], []
@@ -133,10 +132,11 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
     timer.setInterval(5)
     timer.timeout.connect(lambda: beats.append(True))
     try:
-        window.open_button.click()
-        monkeypatch.setattr(
-            RecordingBrowser, "choose", lambda *args: pytest.fail("A busy job opened a browser")
-        )
+        window._layout.open_folder_action.trigger()
+        for name in ("choose_recording_files", "choose_recording_folders"):
+            monkeypatch.setattr(
+                data_controller, name, lambda *args: pytest.fail("A busy job opened a dialog")
+            )
         timer.start()
         deadline = time.monotonic() + 5
         while not (entered.is_set() and len(beats) >= 2) and time.monotonic() < deadline:
@@ -146,6 +146,7 @@ def test_folder_scan_runs_off_thread_and_loads_nested_csv_parquet_and_real_tsdf(
         assert not window.open_button.isEnabled()
         assert window._input_state.frame is original and not deliveries
         window._layout.open_action.trigger()
+        window._layout.open_folder_action.trigger()
         release.set()
         wait_for_job(window)
         wait_for_previews(window)
@@ -178,7 +179,7 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
     frame.to_pickle(root / "b.pkl")
     window.loaded(("previous.csv", frame))
     window.side.setCurrentText("right")
-    recording_picker([root])
+    recording_picker([root], folders=True)
     gui_thread, confirmations, reads = threading.get_ident(), [], []
 
     def confirm(parent, title, message, buttons, default):
@@ -199,7 +200,7 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
         return loader(path, allow_pickle=allow_pickle)
 
     monkeypatch.setattr(recordings, "load_sensor_file", observed_load)
-    window._layout.open_action.trigger()
+    window._layout.open_folder_action.trigger()
     wait_for_job(window)
     assert len(confirmations) == 1
     assert reads == ([root / "a.csv", root / "b.pkl"] if accepted else [])
@@ -222,8 +223,8 @@ def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
     if case == "invalid-recording":
         frame.to_csv(root / "a.csv", index=False)
         (root / "z.csv").write_text("time,gyroscope_x\n")
-    recording_picker([] if case == "cancel" else [root])
-    window.open_button.click()
+    recording_picker([] if case == "cancel" else [root], folders=True)
+    window._layout.open_folder_action.trigger()
     wait_for_job(window)
     assert window._input_state.frame is frame and window._input_state.source == "previous.csv"
     assert window._analysis_controller._analysis_settings(["gait"]) == before

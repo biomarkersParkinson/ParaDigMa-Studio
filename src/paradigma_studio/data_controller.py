@@ -27,7 +27,7 @@ from .sensor_controller import ChannelServices
 from .theme import tooltip_text
 from .ui.column_mapping import ColumnMappingEditor
 from .ui.graph_views import ChannelCanvasView
-from .ui.recording_browser import RecordingBrowser
+from .ui.recording_dialogs import choose_recording_files, choose_recording_folders
 from .widgets import FrameModel, ReadableTable
 from .workspace_state import AnalysisState, DataState, InputState, JobState, PreviewServices
 
@@ -155,17 +155,30 @@ class DataController(QObject):
         self._browser_directory: str | None = None
 
     def open_file(self) -> None:
+        self._open_selection(choose_recording_files)
+
+    def open_folder(self) -> None:
+        self._open_selection(choose_recording_folders)
+
+    def _open_selection(self, picker: Callable[[QWidget, str], list[str]]) -> None:
         if self.jobs.worker is not None:
             return
-        selection = RecordingBrowser.choose(self.view.parent, self._browser_directory)
-        if selection is None:
+        try:
+            paths = picker(self.view.parent, self._browser_directory or "")
+        except OSError as error:
+            self.callbacks.append_log(str(error))
+            self.callbacks.show_notice(
+                "Could not open the recording picker. See the processing log.", "error"
+            )
             return
-        self._browser_directory = selection.directory
+        if not paths:
+            return
+        self._browser_directory = str(Path(paths[0]).parent)
         self.callbacks.show_notice("")
         self.view.status.setText("Finding sensor recordings…")
 
         def discover(logger: logging.Logger) -> list[Path]:
-            return self.services.find_recording_files(selection.paths, logger=logger)
+            return self.services.find_recording_files(paths, logger=logger)
 
         # The scan must release its worker before a trust prompt or load job.
         self.callbacks.start_job(discover, self._open_paths, after_cleanup=True)

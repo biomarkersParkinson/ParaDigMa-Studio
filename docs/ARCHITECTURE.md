@@ -98,10 +98,15 @@ completed payload, supplies column-name schemas to the mapping editor and resets
 Analyze to defaults from the new input. A cancelled picker or failed load leaves
 the previous input/configuration in place.
 
-The [recording browser](../src/paradigma_studio/ui/recording_browser.py) uses a
-read-only Qt filesystem model to select files and folders together. It returns
-paths and the browsing location; it does not decode recordings. The controller
-remembers the last accepted location for the app session.
+The **Open recordings…** menu routes to separate file and folder callbacks.
+[recording_dialogs.py](../src/paradigma_studio/ui/recording_dialogs.py) uses Qt's
+standard multi-file picker. On Windows,
+[windows_folder_dialog.py](../src/paradigma_studio/ui/windows_folder_dialog.py)
+uses the system `IFileOpenDialog` with folder and multi-selection flags, since
+Qt exposes only a single-folder getter. Other platforms use that Qt folder
+getter for supplemental development. Selection runs on the GUI thread and
+returns paths without decoding recordings. The controller remembers their
+parent location for the session; picker errors preserve existing inputs.
 `recordings.find_recording_files` then expands selected folders recursively in a
 background job. It sorts by path, avoids linked subfolders, deduplicates resolved
 paths and selects only `*_meta.json` among JSON files. Empty folders contribute
@@ -109,6 +114,10 @@ no paths; discovery errors abort the whole selection. After the discovery job
 is cleaned up, the GUI requests explicit trust for any pickle files before
 starting the normal batch load. Inputs are installed only when the complete
 load succeeds.
+
+The Windows adapter owns its COM initialization, interface references and
+returned path buffers. Cancellation returns an empty list. HRESULT failures
+release partial results and are reported without installing a partial batch.
 
 One Analyze configuration applies to an entire batch. Switching the recording
 being inspected changes Data's view and diagnostics while retaining the shared

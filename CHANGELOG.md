@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- Add one **Open recordings…** browser for selecting multiple files and folders
-  together, with a fixed **Load** button, folder navigation and Ctrl/Shift
-  selection. Discover folder contents recursively in the background, deduplicate
-  overlapping selections, confirm pickle trust before loading, and retain
-  existing inputs and settings if discovery or loading fails. Ctrl+O and
-  Ctrl+Shift+O open the same browser.
+- Use one **Open recordings…** menu with **Files…** and **Folders…** options,
+  opening the standard Windows selection dialogs. Preserve multi-file selection
+  and use the Windows system API for multi-folder selection. Discover folder
+  contents recursively in the background, deduplicate overlapping selections,
+  confirm pickle trust before loading, and retain existing inputs and settings
+  if selection, discovery or loading fails. Ctrl+O opens files; Ctrl+Shift+O
+  opens folders.
 - Align user guidance with the technical references on raw-graph detail,
   numeric analysis timestamps and cached versus verified disk reopening; use
   the reviewed uv command for screenshot regeneration.

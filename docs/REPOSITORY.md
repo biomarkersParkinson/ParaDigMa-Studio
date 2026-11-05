@@ -64,7 +64,7 @@ service/helper for calculations and file operations.
 | Responsibility | Start here |
 | --- | --- |
 | Loading actions, recording selection, previews and raw Data views | [data_controller.py](../src/paradigma_studio/data_controller.py) |
-| Combined file/folder browser, navigation and read-only filesystem selection | [ui/recording_browser.py](../src/paradigma_studio/ui/recording_browser.py) |
+| Standard file/folder selection and Windows multi-folder integration | [ui/recording_dialogs.py](../src/paradigma_studio/ui/recording_dialogs.py), [ui/windows_folder_dialog.py](../src/paradigma_studio/ui/windows_folder_dialog.py) |
 | File decoding, recursive folder discovery and batch loading | `core.load_sensor_file` in [core.py](../src/paradigma_studio/core.py), [recordings.py](../src/paradigma_studio/recordings.py); device readers in [empatica.py](../src/paradigma_studio/empatica.py) and [tsdf_input.py](../src/paradigma_studio/tsdf_input.py) |
 | Exact statistics and replaceable read-only previews | [inspection.py](../src/paradigma_studio/inspection.py), [previews.py](../src/paradigma_studio/previews.py) |
 | Analyze values, shared time configuration, origin previews and new-run configuration | [analysis_controller.py](../src/paradigma_studio/analysis_controller.py) |

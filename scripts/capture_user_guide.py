@@ -7,14 +7,13 @@ import tempfile
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QToolTip
 
 from paradigma_studio.app import MainWindow
 from paradigma_studio.core import load_sensor_file
 from paradigma_studio.history import run_is_saved
-from paradigma_studio.ui.recording_browser import RecordingBrowser
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,39 +38,11 @@ def snapshot(window, app, destination):
     QTest.mouseMove(window, QPoint(window.width() - 20, 20))
     window._layout.sidebar.setExpanded(False, animated=False)
     QToolTip.hideText()
-    save_snapshot(window, app, destination)
-
-
-def save_snapshot(window, app, destination):
     app.processEvents()
     QTest.qWait(150)
     if not window.grab().save(str(destination)):
         raise OSError(f"Could not save screenshot: {destination}")
     print(f"Captured {destination.name}", flush=True)
-
-
-def capture_browser(window, app, source, output):
-    # Extra public-example copies illustrate selection; only source is analyzed.
-    selections = [source]
-    for name in ("Session A", "Session B"):
-        folder = source.parent / name
-        folder.mkdir()
-        shutil.copyfile(source, folder / "test_data.CWA")
-        selections.append(folder)
-    browser = RecordingBrowser(window, str(source.parent))
-    browser.show()
-    try:
-        wait_until(app, lambda: browser.model.rowCount(browser.entries.rootIndex()) == 3)
-        for path in selections:
-            browser.entries.selectionModel().select(
-                browser.model.index(str(path)),
-                QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
-            )
-        save_snapshot(browser, app, output / "recording-browser.png")
-    finally:
-        browser.reject()
-        browser.deleteLater()
-        app.processEvents()
 
 
 def capture(output):
@@ -88,7 +59,6 @@ def capture(output):
         window.resize(1450, 1000)
         window.show()
         try:
-            capture_browser(window, app, source, output)
             window.loaded((str(source), load_sensor_file(source)))
             wait_for_previews(window, app)
             snapshot(window, app, output / "data.png")

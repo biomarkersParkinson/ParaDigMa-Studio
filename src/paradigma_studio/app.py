@@ -176,6 +176,7 @@ class MainWindow(QMainWindow):
             ),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             open_file=lambda *args, **kwargs: self._data_controller.open_file(*args, **kwargs),
+            open_folder=lambda *args, **kwargs: self._data_controller.open_folder(*args, **kwargs),
             open_run=lambda *args, **kwargs: self._run_controller.open_run(*args, **kwargs),
             plot=lambda *args, **kwargs: self._graph_controller.plot(*args, **kwargs),
             reset_origin=lambda *args, **kwargs: self._analysis_controller.reset_origin(

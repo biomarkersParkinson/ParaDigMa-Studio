@@ -2,8 +2,8 @@
 
 These are native captures of the current source app, not the historical images
 under `docs/archive/screenshots`. The seven workspace images are 1450 × 1000
-pixels; the recording browser is 900 × 580 pixels. All use Qt's Fusion style at
-scale factor 1. The captures were made on Linux; the Windows app
+pixels. All use Qt's Fusion style at scale factor 1. The captures were made on
+Linux; the Windows app
 uses the same page controls, with platform-dependent fonts and window decoration.
 The full set was regenerated and visually reviewed for **1.0.0rc1** on
 26 October 2026. Data graphs, Results graphs and sensor context were refreshed
@@ -11,9 +11,10 @@ on 28 October for the shared hand tool and navigation controls; see
 [commit `1337c33`](https://github.com/biomarkersParkinson/ParaDigMa-Studio/commit/1337c33).
 The full set was regenerated and reviewed on 5 November 2026 for the
 **Open folder…** control in Data; the Data images and Runs capture were updated.
-The set was regenerated and reviewed again on 5 November for the combined
-**Open recordings…** browser; Data now has one opening control, and
-`recording-browser.png` illustrates a mixed file/folder selection.
+The current set was regenerated and reviewed on 5 November for the single
+**Open recordings…** menu with **Files…** and **Folders…** choices. Selection
+uses the standard Windows dialogs; those OS windows are not illustrated by
+these Linux captures. The earlier custom-browser illustration was removed.
 These images illustrate the current source. The
 [tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
 retains the screenshots for the published candidate.
@@ -33,8 +34,6 @@ quantifications, warnings and no errors. Warnings and absent filtered measures
 are left visible; output values and run status are not invented or retouched.
 The Results graph additionally selects unfiltered range of motion. Sensor context
 opens the first unfiltered measurement's full official gait segment.
-The additional browser image illustrates selecting that example alongside two
-folders containing copies of it; those copies are not included in the analysis.
 
 To refresh the images from a source checkout with development dependencies:
 

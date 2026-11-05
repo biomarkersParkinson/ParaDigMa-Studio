@@ -91,6 +91,7 @@ class WorkspaceLayout:
     input_recording = component_attribute("_data_page")
     input_table = component_attribute("_data_page")
     open_action = component_attribute("_data_page")
+    open_folder_action = component_attribute("_data_page")
     open_button = component_attribute("_data_page")
     time_table = component_attribute("_data_page")
 
