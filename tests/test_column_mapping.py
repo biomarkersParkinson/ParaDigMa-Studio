@@ -150,6 +150,46 @@ def test_mapping_controls_fit_their_cells_and_warning_icons_keep_dropdowns_align
         assert changes.count() == count  # Geometry changes do not change mapping choices.
 
 
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+@pytest.mark.parametrize("font_size", [13, 18])
+def test_signal_names_fit_when_optional_rows_are_shown_without_reopening_analyze(
+    styled_window, style, font_size
+):
+    from PySide6.QtTest import QTest
+
+    window = styled_window
+    editor = window.mapping
+    editor.set_recordings({"one": list(SIGNALS)}, {})
+    window.set_modules(["tremor"])
+    window.resize(1450, 920)
+    window.navigate(1)
+    QTest.qWait(30)
+    choices = editor.signal_columns()
+    changes = QSignalSpy(editor.changed)
+    for modules in (["tremor"], ["pulse_rate"]):
+        window.set_modules(modules)
+        QTest.qWait(30)
+        collapsed_width = editor.table.columnWidth(0)
+        for _ in range(2):
+            editor.optional_button.click()
+            QTest.qWait(30)
+            for row, title in enumerate(SIGNALS.values()):
+                assert not editor.table.isRowHidden(row)
+                cell = editor.table.cellWidget(row, 0)
+                margins = cell.layout().contentsMargins()
+                text_width = editor.table.fontMetrics().horizontalAdvance(title)
+                assert text_width + margins.left() + margins.right() <= cell.width(), (
+                    style,
+                    font_size,
+                    title,
+                )
+            assert editor.table.columnWidth(0) > collapsed_width
+            editor.optional_button.click()
+            QTest.qWait(30)
+            assert editor.table.columnWidth(0) == collapsed_width
+    assert editor.signal_columns() == choices and changes.count() == 0
+
+
 @pytest.mark.parametrize("activation", ["mouse", "keyboard"])
 def test_warning_activation_opens_current_plain_text_message_without_changing_mapping(
     editor, activation

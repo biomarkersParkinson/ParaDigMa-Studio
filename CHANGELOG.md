@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Resize the Analyze signal-name column when optional signals are shown or
+  hidden, keeping accelerometer axis labels clear of their From file badges.
 - Create a Runs entry when a recording selection starts loading, retain its
   loading log for the first analysis and subsequent separate analysis attempts,
   and route job diagnostics independently of history selection. Preserve older

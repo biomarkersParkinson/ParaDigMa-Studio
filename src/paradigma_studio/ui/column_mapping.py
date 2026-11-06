@@ -401,6 +401,8 @@ class ColumnMappingEditor(QWidget):
             )
         )
         self.optional_button.setVisible(len(required) < len(SIGNALS))
+        # Showing/hiding rows does not invalidate Qt's cached content widths.
+        self.table.horizontalHeader().resizeSections()
         self._fit_table()
 
     def _selection_details(self) -> list[str]:
