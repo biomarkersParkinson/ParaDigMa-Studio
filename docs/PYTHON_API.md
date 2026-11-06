@@ -94,6 +94,18 @@ configuration for the recordings, and pass **all original source paths** through
 `protected_sources=sources.values()` when exporting. Destination protection also
 accounts for TSDF companion binaries.
 
+For mapping-based batches, insufficient recordings are skipped independently:
+fewer than two usable samples, or no continuous sections surviving the selected
+minimum duration. Other preparation errors still raise. Skips appear in
+`results["errors"]` with `file`, `pipelines`, `stage: "preparation"` and
+`skipped: true`; `metadata.desktop_preparation.by_recording` retains their
+`skipped_reason`, original sample count and zero analyzed samples/sections.
+Source identities remain in `metadata.desktop_recordings`, while
+`metadata.desktop_availability` includes only sections passed to ParaDigMa.
+An all-skipped batch returns empty official result tables with those diagnostics.
+Single-DataFrame preparation failures continue to raise. The same batch policy
+applies through the process-isolated execution service below.
+
 ### Input conventions and defaults
 
 `pipelines` accepts `"gait"`, `"tremor"`, `"pulse_rate"`, or a sequence of those

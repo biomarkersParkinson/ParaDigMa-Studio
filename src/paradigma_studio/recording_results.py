@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from .analysis_progress import AnalysisProgress, milestone
 from .contracts import AnalysisResults, AnalysisSettings, Pipeline
+from .recording_skips import skipped_recording_errors
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -55,6 +56,7 @@ def merge_recording_results(
                 if error.get("pipeline") in group and error not in combined["errors"]:
                     combined["errors"].append(deepcopy(error))
         details = _merge_preparation(outputs, group[0], grouped)
+        combined["errors"].extend(skipped_recording_errors(details, group))
         if grouped:
             preparation.update({pipeline: deepcopy(details) for pipeline in group})
         else:
@@ -76,9 +78,9 @@ def merge_recording_results(
 
 
 def _group_failure(outputs, group):
-    # The sequential adapter validates every recording before running a group.
-    # One preparation failure therefore invalidates that entire group, while
-    # another independent module group can still succeed.
+    # Sequential preparation skips only known insufficient recordings. Other
+    # preparation failures still invalidate the entire group, while another
+    # independent module group can succeed.
     return next(
         (
             deepcopy(error)

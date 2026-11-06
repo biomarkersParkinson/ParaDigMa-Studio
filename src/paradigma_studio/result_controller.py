@@ -21,6 +21,7 @@ from .contracts import (
     TimeOffsets,
 )
 from .history import merge_errors
+from .recording_skips import all_recordings_skipped
 from .result_preparation import PreparedResults, prepare_results
 from .workspace_state import InputState, ResultState, RunState, SensorState
 
@@ -204,6 +205,8 @@ class ResultController:
                 merge_errors(self.runs.active_run["errors"] if self.runs.active_run else [], errors)
             )
             message = f"Analysis returned {count} processing error(s); inspect Runs and the partial results."
+            if all_recordings_skipped(results):
+                message = "No usable recordings remain; all recordings were skipped. See Runs for details."
             self.view.status.setText(message)
             self.callbacks.show_notice(message, "error")
             self.callbacks.finish_run("Partial", errors)

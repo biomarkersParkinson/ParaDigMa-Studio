@@ -92,6 +92,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Real CWA/Avro imports, fractional timestamps, TSDF physical scaling, metadata and source integrity | [test_cwa.py](../tests/test_cwa.py), [test_empatica.py](../tests/test_empatica.py), [test_tsdf_input.py](../tests/test_tsdf_input.py) |
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
+| Short batch members, all-skipped batches, unchanged usable outputs, one/two workers, run diagnostics and saved source identities | [test_short_recordings.py](../tests/test_short_recordings.py) |
 | Recursive folder discovery, real mixed-format imports, responsive scanning, pickle confirmation and failed-load preservation | [test_folder_loading.py](../tests/test_folder_loading.py) |
 | Standard-dialog routing, separate file/folder buttons and shortcuts, multiple-folder imports and failed-picker preservation | [test_recording_dialogs.py](../tests/test_recording_dialogs.py) |
 | Visible scrollbars in long dropdowns, drag/wheel/trackpad and keyboard selection, short lists and large recording batches | [test_dropdown_scrolling.py](../tests/test_dropdown_scrolling.py) |

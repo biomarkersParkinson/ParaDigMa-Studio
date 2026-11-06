@@ -63,6 +63,7 @@ Studio's already-tested sequential behavior.
 | [test_column_mapping.py](../tests/test_column_mapping.py) — marked case | GUI-selected columns, axis swaps and independent sensor inversions against official preparation and real gait, tremor and pulse processing |
 | [test_pulse_input.py](../tests/test_pulse_input.py) — marked case | Raw PPG-only inputs, mapped numeric text and all six numeric time encodings against an independent official workflow |
 | [test_parallel_scientific.py](../tests/test_parallel_scientific.py) | Real spawned workers against official recorded batch workflows and sequential Studio results, including preparation, empty outputs and partial failures |
+| [test_short_recordings.py](../tests/test_short_recordings.py) — marked cases | Independent official short-file batch reference; spawned one/two-worker consistency, recorded gait/tremor outputs and aggregates, separate module groups and all-skipped batches |
 | [test_analysis_progress.py](../tests/test_analysis_progress.py) — marked case | Real processing with and without progress reporting must return equivalent results and preserve source samples |
 
 Other cases in these modules and the [presentation and export checks](#presentation-and-export-checks)
@@ -189,6 +190,13 @@ and sequential Studio results for difference-time preparation, missing samples,
 gap sections, all module groups, empty gait outcomes and partial failures.
 These checks protect execution and merging semantics; they do not construct
 an additional independent preparation reference for every worker case.
+
+Short-recording cases independently call the official raw batch orchestrator
+with explicit gap/minimum-duration settings, then compare usable tremor windows
+and aggregates with Studio. Other skip cases compare Studio with the same inputs
+after removing unusable recordings, or compare actual spawned workers with the
+sequential adapter. Recorded gait cases require populated filtered quantifications
+and classifications so an empty result cannot satisfy the comparison.
 
 Gait identifiers and metadata must reconcile in input order, and official
 aggregation functions consume pooled quantifications. The

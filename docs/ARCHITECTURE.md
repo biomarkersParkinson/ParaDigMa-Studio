@@ -194,6 +194,16 @@ The GUI path performs these steps for each original recording:
 Studio also reads official classification exports from a fresh run directory
 where ParaDigMa 1.1.2 omits those tables from its orchestrator return value.
 
+For a recording mapping, preparation catches only the typed insufficient-data
+failure defined in [`recording_skips.py`](../src/paradigma_studio/recording_skips.py).
+This covers fewer than two usable samples and the pinned official segment
+helper's specific all-sections-removed error. Other preparation errors propagate.
+Skipped originals retain their identities, sample counts and reasons in
+preparation metadata and structured errors; they contribute no sections,
+availability or quantifications. Even an all-skipped batch uses the official
+orchestrator's empty-result schemas. Parallel merging retains the same skip
+diagnostics and computes official aggregates from the usable recordings.
+
 This explicit preparation preserves the selected policies because ParaDigMa
 1.1.2's raw orchestrator does not forward all preparation options. The GUI has no
 preparation bypass. The Python API retains its explicit bypass, literal renaming

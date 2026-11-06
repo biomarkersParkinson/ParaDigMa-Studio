@@ -353,6 +353,14 @@ functions; see the [scientific validation](SCIENTIFIC_TESTS.md) for equivalence 
 
 ### Empty or partial output
 
+In a batch, a recording with fewer than two usable samples, or no sections meeting
+**Minimum section duration**, is skipped while other recordings continue.
+Review each skipped recording and its reason under **Errors** in Runs. The run
+is **Partial**, and saved results retain those diagnostics and all source paths.
+If every recording is skipped, Studio reports that no usable recordings remain.
+Missing required channels, invalid timelines and unexpected worker failures still
+stop the affected workflow rather than being treated as short recordings.
+
 Empty output is distinct from a failed run. A short recording or too few detected
 tremor windows can leave aggregation unavailable while retaining window outputs.
 The default PPG quality classifier can reject a recording's windows, producing no

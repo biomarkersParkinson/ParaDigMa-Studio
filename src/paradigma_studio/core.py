@@ -38,6 +38,7 @@ from .preparation_contracts import (
     SignedAxis,
     TimeInputUnit,
 )
+from .recording_skips import InsufficientRecordingData, skipped_recording_errors
 from .serialization import (
     export_results as export_results,
     export_table_csv as export_table_csv,
@@ -285,6 +286,12 @@ def _prepare_analysis_inputs(
                     drop_missing_samples,
                     settings.copy(),
                 )
+            except InsufficientRecordingData as exc:
+                prepared, count = {}, 0
+                excluded = {**exc.details, "skipped_reason": str(exc)}
+                (logger or logging.getLogger("paradigma")).info(
+                    "Skipping recording %s: %s", key, exc
+                )
             except (ValueError, TypeError) as exc:
                 raise ValueError(f"{key}: {exc}") from exc
             pieces = prepared if isinstance(prepared, dict) else {"": prepared}
@@ -457,11 +464,16 @@ def _complete_analysis_results(
     results["classifications"] = classifications
     if recordings is not None and len(keys) == 1:
         for quantified in result_tables(results.get("quantifications", {})).values():
-            if isinstance(quantified, pd.DataFrame) and "file_key" not in quantified:
+            if (
+                isinstance(quantified, pd.DataFrame)
+                and not quantified.empty
+                and "file_key" not in quantified
+            ):
                 quantified["file_key"] = keys[0]
     for error in errors:
         if error not in results.setdefault("errors", []):
             results["errors"].append(error)
+    results.setdefault("errors", []).extend(skipped_recording_errors(exclusion, list(coverage)))
     if exclusion:
         results.setdefault("metadata", {})["desktop_preparation"] = {
             **exclusion,
@@ -571,7 +583,11 @@ def _prepare_recording(
         mapped[column] = values[column]
     prepared = mapped
     if not settings.get("skip_preparation", False):
-        prepared = _convert_recording(mapped, axes, time_unit, settings)
+        try:
+            prepared = _convert_recording(mapped, axes, time_unit, settings)
+        except InsufficientRecordingData as exc:
+            exc.details.update(exclusion or {})
+            raise
     inputs = _contiguous_recording_inputs(prepared)
     return inputs, exclusion, len(prepared)
 
@@ -583,8 +599,6 @@ def _validate_required_channels(
 
     required = _required_sensor_channels(mapped, pipelines)
     _validate_present_channels(mapped, required)
-    if len(mapped) < 2:
-        raise ValueError("At least two samples are required.")
     if pd.api.types.is_datetime64_any_dtype(
         mapped["time"].dtype
     ) or pd.api.types.is_timedelta64_dtype(mapped["time"].dtype):
@@ -598,6 +612,8 @@ def _validate_required_channels(
         raise ValueError(
             "Prepared data must use relative seconds. Enable preparation to convert time units."
         )
+    if len(mapped) < 2:
+        raise InsufficientRecordingData("At least two samples are required.")
     return required, time_unit
 
 
@@ -683,9 +699,17 @@ def _exclude_invalid_samples(
         time_unit = "relative_s"
         settings["time_input_unit"] = time_unit
     positions = np.flatnonzero(~invalid)
+    exclusion = {
+        "input_samples": len(frame),
+        "excluded_samples": excluded_count,
+        "samples_after_exclusion": len(positions),
+        "invalid_columns": bad_columns,
+        "split_at_excluded_samples": True,
+    }
     if len(positions) < 2:
-        raise ValueError(
-            "At least two valid samples must remain after excluding missing sensor samples."
+        raise InsufficientRecordingData(
+            "At least two valid samples must remain after excluding missing sensor samples.",
+            exclusion,
         )
     mapped = mapped.iloc[positions].copy().reset_index(drop=True)
     values = values.iloc[positions].reset_index(drop=True)
@@ -698,13 +722,6 @@ def _exclude_invalid_samples(
             .to_numpy(dtype=bool)
         )
     mapped["data_segment_nr"] = np.cumsum(boundaries)
-    exclusion = {
-        "input_samples": len(frame),
-        "excluded_samples": excluded_count,
-        "samples_after_exclusion": len(mapped),
-        "invalid_columns": bad_columns,
-        "split_at_excluded_samples": True,
-    }
     (logger or logging.getLogger("paradigma")).info(
         "Excluded %s of %s samples with missing/non-finite values in %s; processing valid sections separately.",
         excluded_count,
@@ -781,9 +798,16 @@ def _split_recording_gaps(prepared: pd.DataFrame, settings: PreparationSettings)
             prepared["data_segment_nr"].ne(prepared["data_segment_nr"].shift()).fillna(True)
         )
     prepared["data_segment_nr"] = boundaries.cumsum()
-    prepared = discard_segments(prepared, "data_segment_nr", minimum, frequency).reset_index(
-        drop=True
-    )
+    try:
+        prepared = discard_segments(prepared, "data_segment_nr", minimum, frequency).reset_index(
+            drop=True
+        )
+    except ValueError as exc:
+        # The pinned official helper raises this specific error when nothing
+        # meets the selected minimum. Other validation failures remain fatal.
+        if str(exc).startswith("All segments were removed: no segment "):
+            raise InsufficientRecordingData(str(exc)) from exc
+        raise
     return prepared
 
 

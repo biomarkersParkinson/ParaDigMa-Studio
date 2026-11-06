@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Skip batch recordings with fewer than two usable samples or no continuous
+  sections meeting the selected minimum duration. Retain other recordings'
+  results and pooled aggregates with either worker count, preserve skip reasons
+  and source identities in Runs and saved results, and report all-skipped batches.
 - Update the Signal columns sensor-orientation figure to the repository owner's
   supplied version 3, including its matching display image in the user guide.
 - Restore separate **Open files…** and **Open folders…** buttons while retaining
