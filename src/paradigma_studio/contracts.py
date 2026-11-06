@@ -31,7 +31,7 @@ AnalysisResults: TypeAlias = dict[str, Any]
 AnalysisError: TypeAlias = str | dict[str, Any]
 Provenance: TypeAlias = dict[str, Any]
 RunStatus: TypeAlias = Literal[
-    "Running", "Completed", "Partial", "Failed", "Cancelled", "Unfinished"
+    "Loading", "Loaded", "Running", "Completed", "Partial", "Failed", "Cancelled", "Unfinished"
 ]
 OutputKind: TypeAlias = Literal["CSV", "JSON"]
 JobOperation: TypeAlias = "Callable[[logging.Logger], object]"
@@ -86,6 +86,19 @@ class SoftwareVersions(TypedDict):
     studio_build_commit: NotRequired[str]
 
 
+class LoadingInfo(TypedDict):
+    """Import context shared by analysis attempts without storing sensor samples."""
+
+    id: str
+    started: str
+    finished: str | None
+    selections: list[str]
+    software: SoftwareVersions
+    log: str
+    warnings: list[str]
+    errors: list[str]
+
+
 class RunRecord(SoftwareVersions):
     """Normalized run history plus optional, never-persisted workspace caches."""
 
@@ -102,6 +115,9 @@ class RunRecord(SoftwareVersions):
     outputs: list[RunOutput]
     log: str
     sources: NotRequired[dict[str, str]]
+    loading: NotRequired[LoadingInfo]
+    analysis_started: NotRequired[str]
+    _history_dirty: NotRequired[bool]
     _frame: NotRequired[SensorInput]
     _results: NotRequired[AnalysisResults]
     _provenance: NotRequired[Provenance]
@@ -164,6 +180,7 @@ class StartJobCallback(Protocol):
         *,
         after_cleanup: bool = False,
         track_progress: bool = False,
+        owner: RunRecord | None = None,
     ) -> None: ...
 
 

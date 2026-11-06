@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+from copy import deepcopy
 from importlib.metadata import version
 from pathlib import Path
 
@@ -63,13 +64,17 @@ def recorded_software(record: RunRecord) -> SoftwareVersions:
 
 
 def run_provenance(record: RunRecord) -> Provenance:
-    return {
+    origin: Provenance = {
         "run_id": record["id"],
         "source": record["source"],
         "settings": record["settings"],
         **recorded_software(record),
         "sources": dict(record.get("sources", {})),
     }
+    for name in ("loading", "analysis_started"):
+        if name in record:
+            origin[name] = deepcopy(record[name])
+    return origin
 
 
 def provenance_for_record(provenance: Provenance, record: RunRecord) -> Provenance:

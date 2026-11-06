@@ -12,7 +12,6 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QToolTip
 
 from paradigma_studio.app import MainWindow
-from paradigma_studio.core import load_sensor_file
 from paradigma_studio.history import run_is_saved
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +23,7 @@ def wait_until(app, ready, timeout=180):
         if time.monotonic() >= deadline:
             raise TimeoutError("The screenshot workflow did not finish.")
         app.processEvents()
-        QTest.qWait(20)
+        time.sleep(0.01)
     app.processEvents()
 
 
@@ -59,7 +58,12 @@ def capture(output):
         window.resize(1450, 1000)
         window.show()
         try:
-            window.loaded((str(source), load_sensor_file(source)))
+            window._data_controller._open_paths([source])
+            wait_until(app, lambda: window._job_state.worker is None)
+            if window._input_state.frame is None:
+                raise RuntimeError(
+                    f"The example recording could not be loaded: {window.status.text()}"
+                )
             wait_for_previews(window, app)
             snapshot(window, app, output / "data.png")
 

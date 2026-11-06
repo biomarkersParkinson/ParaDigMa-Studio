@@ -182,9 +182,9 @@ def test_job_callbacks_connect_before_start_and_terminal_cleanup_restores_contro
         "completed": completed,
         "failed": window.failure,
         "cancelled": window.analysis_cancelled,
-        "message": window.append_log,
-        "warning": window.capture_warning,
-        "error": window.capture_error,
+        "message": window._job_controller.job_message,
+        "warning": window._job_controller.job_warning,
+        "error": window._job_controller.job_error,
         "progress": window._job_controller.job_progress,
         "finished": window.job_finished,
     }

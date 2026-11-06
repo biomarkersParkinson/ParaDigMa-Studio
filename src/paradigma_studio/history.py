@@ -32,6 +32,7 @@ from .result_integrity import (
     validate_checksum,
     verify_run_id,
 )
+from .run_lifecycle import validate_lifecycle
 from .saved_format import FORMAT_VERSION, RESULT_FORMAT, RUN_FORMAT, validate_saved_format
 from .serialization import json_value
 from .storage import atomic_file, recording_files, same_file
@@ -164,7 +165,8 @@ def _read_run_record(path: Path) -> RunRecord:
             raise ValueError("Invalid run completion time.")
         datetime.fromisoformat(finished)
     _validate_run_outputs(record)
-    validate_run_settings(settings)
+    if not validate_lifecycle(record):
+        validate_run_settings(settings)
     # All required fields and known optional fields are now validated.
     return cast(RunRecord, record)
 
@@ -318,7 +320,7 @@ class RunHistory:
         for path in paths:
             try:
                 record = _read_run_record(path)
-                if record["status"] == "Running":
+                if record["status"] in ("Loading", "Running"):
                     record["status"] = "Unfinished"
                 records.append(record)
             except (OSError, ValueError, TypeError) as exc:
@@ -344,6 +346,11 @@ class RunHistory:
     ) -> list[RunOutput]:
         """Save complete outputs and their history link before reporting success."""
         from .serialization import export_results
+
+        if "loading" in record and (
+            not record.get("analysis_started") or record["status"] in ("Loading", "Loaded")
+        ):
+            raise ValueError("Loading-only entries have no analysis results to save.")
 
         if not re.fullmatch(r"[0-9a-f]{32}", record["id"]):
             raise ValueError("Invalid run identifier.")

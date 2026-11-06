@@ -30,7 +30,7 @@ from .analysis_help import (
 )
 from .contracts import TimeConfiguration
 from .core import validate_column_mapping
-from .history import new_run, validate_run_settings
+from .history import validate_run_settings
 from .provenance import run_provenance
 from .results_view import normalise_clock
 from .time_controls import TimeField
@@ -97,6 +97,7 @@ class AnalysisView:
 
 @dataclass(frozen=True)
 class AnalysisCallbacks:
+    begin_analysis: Callable[[AnalysisSettings], RunRecord]
     analyzed: Callable[[AnalysisResults], None]
     clear_results: Callable[[], None]
     failure: Callable[[str], None]
@@ -446,14 +447,13 @@ class AnalysisController(QObject):
 
     def _initialize_analysis_run(self, settings: AnalysisSettings) -> SensorInput:
         self.callbacks.show_notice("")
-        record = new_run(self.inputs.source, settings)
+        record = self.callbacks.begin_analysis(settings)
         if self.inputs.recordings:
             record["sources"] = dict(self.inputs.sources)
         frame = cast(
             "SensorInput", self.inputs.recordings if self.inputs.recordings else self.inputs.frame
         )
         record["_frame"] = frame
-        self.runs.runs.insert(0, record)
         self.runs.active_run = self.runs.current_run = self.runs.selected_run = record
         self.results.provenance = run_provenance(record)
         self.results.result_source_frame = frame

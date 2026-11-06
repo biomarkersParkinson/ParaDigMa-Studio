@@ -574,8 +574,9 @@ def test_failed_bulk_save_preserves_other_snapshot_and_keeps_unsaved_run_open(
     assert all(Path(record["source"]).read_text() == "original recording" for record in records)
     assert "Unexpected snapshot failure" in window.notice.text()
     assert Path(failed["source"]).name in window.notice.text()
-    log = window.log.toPlainText()
+    log = failed["log"]
     assert "Traceback" in log and "in save_with_failure" in log
+    assert "Unexpected snapshot failure" not in saved["log"]
     assert "RuntimeError: Unexpected snapshot failure" in log
 
 

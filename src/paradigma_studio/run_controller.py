@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import traceback
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +28,7 @@ from .provenance import provenance_for_record, run_provenance
 from .result_integrity import provenance_for_run, validate_checksum
 from .result_preparation import PreparedResults
 from .result_reopening import load_saved_results
+from .run_lifecycle import analysis_record, close_loading, new_loading_run
 from .theme import STYLESHEET, light_palette
 from .widgets import RecordModel
 from .workspace_state import InputState, ResultState, RunState
@@ -86,30 +89,34 @@ class RunController:
         self.state, self.results, self.inputs = state, results, inputs
         self.history, self.view, self.callbacks, self.parent = history, view, callbacks, parent
 
-    def append_log(self, message):
-        if self.state.active_run is not None:
-            self.state.active_run["log"] += message + "\n"
-            if self.state.selected_run is self.state.active_run:
+    def append_log(self, message, *, owner=None):
+        record = owner or self.state.active_run
+        if record is not None:
+            record["log"] += message + "\n"
+            record["_history_dirty"] = True
+            if self.state.selected_run is record:
                 self.view.log.appendPlainText(message)
-        else:
-            # Export/save/preview failures can occur with a historical run selected.
-            # Retain diagnostics across refreshes without changing its run status.
-            if self.state.selected_run is not None:
-                self.state.selected_run["log"] += message + "\n"
+        elif self.state.selected_run is None:
             self.view.log.appendPlainText(message)
 
-    def capture_warning(self, message):
-        if self.state.active_run is not None and message not in self.state.active_run["warnings"]:
-            self.state.active_run["warnings"].append(message)
-            self.update_run_problems()
+    def capture_warning(self, message, *, owner=None):
+        record = owner or self.state.active_run
+        if record is not None and message not in record["warnings"]:
+            record["warnings"].append(message)
+            record["_history_dirty"] = True
+            self.update_run_problems(record)
 
-    def capture_error(self, message):
-        if self.state.active_run is not None and message not in self.state.active_run["errors"]:
-            self.state.active_run["errors"].append(message)
-            self.update_run_problems()
+    def capture_error(self, message, *, owner=None):
+        record = owner or self.state.active_run
+        if record is not None and message not in record["errors"]:
+            record["errors"].append(message)
+            record["_history_dirty"] = True
+            self.update_run_problems(record)
 
-    def update_run_problems(self):
-        record = self.state.active_run
+    def update_run_problems(self, record=None):
+        record = record or self.state.active_run
+        if record is None:
+            return
         if self.state.selected_run is record:
             self.view.run_warnings.setPlainText(
                 "\n\n".join(record["warnings"]) or "No recorded warnings."
@@ -130,12 +137,59 @@ class RunController:
     def persist_run(self, record):
         try:
             self.history.save(record)
+            record.pop("_history_dirty", None)
             return True
         except (OSError, ValueError, TypeError) as exc:
-            self.callbacks.show_notice(
-                f"Analysis remains available, but run history could not be saved: {exc}"
-            )
+            self.callbacks.show_notice(f"Run history could not be saved: {exc}")
             return False
+
+    def persist_diagnostics(self, record):
+        if record is not None and record.get("_history_dirty"):
+            self.persist_run(record)
+
+    def start_loading(self, selections: list[str]) -> RunRecord:
+        record = new_loading_run(selections)
+        self.state.runs.insert(0, record)
+        self.state.active_run = self.state.selected_run = record
+        self.persist_run(record)
+        self.refresh_runs()
+        return record
+
+    def prepare_loading(self, paths: list[PathInput]) -> RunRecord:
+        selected = list(dict.fromkeys(map(str, paths)))
+        record = self.state.active_run
+        if record is None or record["status"] != "Loading":
+            record = self.start_loading(selected)
+        record["source"] = selected[0]
+        record["sources"] = {
+            f"recording_{index:03d}": path for index, path in enumerate(selected, 1)
+        }
+        self.persist_run(record)
+        self.refresh_runs()
+        return record
+
+    def finish_loading(self) -> None:
+        record = self.state.active_run
+        if record is None or record["status"] != "Loading":
+            self.inputs.load_run_id, self.inputs.loading = None, None
+            return
+        record["source"], record["sources"] = self.inputs.source, dict(self.inputs.sources)
+        close_loading(record, now())
+        record["status"] = "Loaded"
+        self.inputs.load_run_id = record["id"]
+        self.inputs.loading = deepcopy(record["loading"])
+        self.persist_run(record)
+        self.state.active_run = None
+        self.refresh_runs()
+
+    def begin_analysis(self, settings: dict) -> RunRecord:
+        pending = next(
+            (record for record in self.state.runs if record["id"] == self.inputs.load_run_id), None
+        )
+        record = analysis_record(pending, self.inputs.source, settings, self.inputs.loading)
+        if not any(existing is record for existing in self.state.runs):
+            self.state.runs.insert(0, record)
+        return record
 
     def finish_run(self, status, errors=()):
         if self.state.active_run is None:
@@ -143,6 +197,8 @@ class RunController:
         record = self.state.active_run
         record["status"], record["finished"] = status, now()
         record["errors"] = merge_errors(record["errors"], errors)
+        if "loading" in record and "analysis_started" not in record:
+            close_loading(record, record["finished"])
         if record["errors"] and status == "Completed":
             record["status"] = "Partial"
         self.persist_run(record)
@@ -241,13 +297,16 @@ class RunController:
         self.view.run_heading.setToolTip(f"Run ID: {record['id']}")
         self.view.run_summary.setText(self.run_summary_text(record))
         self.view.run_recordings.setPlainText(
-            "\n".join(record.get("sources", {}).values()) or record["source"]
+            "\n".join(record.get("sources", {}).values())
+            or "\n".join(record.get("loading", {}).get("selections", []))
+            or record["source"]
         )
         self.view.run_details.setPlainText(
             "\n".join(
                 f"{key.replace('_', ' ').capitalize()}: {json.dumps(value, ensure_ascii=False)}"
                 for key, value in record["settings"].items()
             )
+            or "Analysis has not started. Parameters are recorded when Run Analysis starts."
         )
         self.view.run_warnings.setPlainText(
             "\n\n".join(str(value) for value in record["warnings"]) or "No recorded warnings."
@@ -283,10 +342,18 @@ class RunController:
             if record.get("finished")
             else "—"
         )
+        stages = ""
+        if record.get("loading", {}).get("finished"):
+            loaded = datetime.fromisoformat(record["loading"]["finished"]).astimezone()
+            stages += f" · Loaded {loaded:%H:%M:%S}"
+        if "analysis_started" in record:
+            began = datetime.fromisoformat(record["analysis_started"]).astimezone()
+            stages += f" · Analysis started {began:%H:%M:%S}"
         return (
             f"{started} – {finished} · Studio {record['studio_version']} · "
             f"ParaDigMa {record['paradigma_version']} · "
             f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)"
+            + stages
         )
 
     def selected_run_records(self):
@@ -333,7 +400,10 @@ class RunController:
             bool(available) and count == 1 and not self.callbacks.is_busy()
         )
         self.view.use_parameters_button.setEnabled(
-            record is not None and count == 1 and not self.callbacks.is_busy()
+            record is not None
+            and bool(record["settings"])
+            and count == 1
+            and not self.callbacks.is_busy()
         )
         self.view.delete_run_button.setEnabled(count > 0 and not self.callbacks.is_busy())
         self.view.delete_run_button.setText(f"Delete {count} Runs…" if count > 1 else "Delete Run…")
@@ -349,7 +419,11 @@ class RunController:
 
     def delete_runs(self, records, *, clear_all=False):
         """Confirm once, delete safely, and retain state after partial failures."""
-        if not records or self.callbacks.is_busy():
+        if (
+            not records
+            or self.callbacks.is_busy()
+            or any(record is self.state.active_run for record in records)
+        ):
             return
         original_runs = list(self.state.runs)
         protected = [
@@ -457,7 +531,7 @@ class RunController:
                 origin = provenance_for_run(origin, run_id)
             return run_id, self.callbacks.prepare_results(values, origin, source_frame)
 
-        self.callbacks.start_job(read, self._restore_prepared_run)
+        self.callbacks.start_job(read, self._restore_prepared_run, owner=record)
 
     @staticmethod
     def _run_provenance(record: RunRecord) -> Provenance:
@@ -555,10 +629,15 @@ class RunController:
                 try:
                     outputs = self.history.save_results(record, results, provenance, protected)
                     saved.append((record["id"], outputs))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 -- Route independent save failures on the GUI.
                     # Continue saving independent runs, including serialization failures.
-                    logger.exception("Could not save results for %s", Path(record["source"]).name)
-                    failures.append(f"{Path(record['source']).name}: {exc}")
+                    failures.append(
+                        (
+                            record["id"],
+                            f"{Path(record['source']).name}: {exc}",
+                            traceback.format_exc(),
+                        )
+                    )
             return saved, failures
 
         def completed(payload):
@@ -567,11 +646,18 @@ class RunController:
                 record = next(record for record in self.state.runs if record["id"] == run_id)
                 record["outputs"] = outputs
                 record["_unsaved_results"] = False
+            messages = []
+            for run_id, message, diagnostic in failures:
+                record = next(record for record in self.state.runs if record["id"] == run_id)
+                self.append_log(diagnostic, owner=record)
+                self.capture_error(message, owner=record)
+                self.persist_diagnostics(record)
+                messages.append(message)
             self.refresh_runs()
             if failures:
                 self.state._close_after_save = False
                 self.callbacks.show_notice(
-                    "Results could not be saved: " + "; ".join(failures), "error"
+                    "Results could not be saved: " + "; ".join(messages), "error"
                 )
                 self.view.status.setText(
                     "Some results remain unsaved. Keep the app open and try again."
@@ -581,4 +667,4 @@ class RunController:
                 self.callbacks.show_notice("")
 
         self.view.status.setText("Saving results…")
-        self.callbacks.start_job(write, completed)
+        self.callbacks.start_job(write, completed, owner=records[0] if len(records) == 1 else None)

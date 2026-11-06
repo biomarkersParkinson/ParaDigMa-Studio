@@ -81,6 +81,12 @@ advances as files finish reading, followed by progress through the initial
 statistics. It can pause during a large read or calculation and reaches full
 only after the recordings are displayed. It does not estimate time remaining.
 
+Confirming a selection creates a **Loading** entry in Runs. It records discovery,
+reading and statistics messages for that selection. Successful loading changes
+the entry to **Loaded**, with analysis still pending. The first **Run Analysis**
+continues that same entry; later analyses create separate entries with the same
+loading context. Previously displayed results retain their original run.
+
 | Format | What Studio reads |
 | --- | --- |
 | CSV and Parquet | Table columns and original values. The format alone does not establish sensor units. |
@@ -653,7 +659,7 @@ there is no need to edit JSON to configure signals.
 
 ## Runs
 
-Review what happened in each analysis, reopen saved results or reuse its configuration.
+Review recording imports and analyses, reopen saved results or reuse a configuration.
 
 [![Runs showing the completed saved example and its Parameters detail tab](images/user-guide/runs.png)](images/user-guide/runs.png)
 
@@ -667,9 +673,9 @@ Select a row to inspect its details:
 | Tab | Contents |
 | --- | --- |
 | **Recordings** | Input filenames and paths. |
-| **Parameters** | The configuration used for that run. |
+| **Parameters** | The configuration captured when analysis started; Loaded entries explain that analysis has not started yet. |
 | **Warnings / Errors** | Separate diagnostic messages, matching the counts in the run list. |
-| **Processing log** | Progress, preparation details, worker selection and diagnostic output. |
+| **Processing log** | Loading, statistics, preparation, worker selection and processing diagnostics for that entry. Selecting another row does not redirect an active job's messages. |
 | **Saved run** | Availability and location of the complete local result snapshot. |
 | **Exports** | Locations of separately exported files. |
 
@@ -679,12 +685,25 @@ these locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installa
 History alone does not preserve unsaved result tables.
 
 The run summary displays the Studio and official ParaDigMa versions used for
-that analysis. The **Exports** detail also lists CSV metadata companions.
+loading, or for analysis once it starts. The **Exports** detail also lists CSV
+metadata companions.
 
 A completed run can contain warnings; partial results can include both successful
 outputs and failed workflows. **Cancelled** records a requested stop without
 treating it as an analysis error. Inspect the messages before interpreting
 missing or partial outputs.
+
+**Loading** means an import is active. **Loaded** means import succeeded and no
+analysis has started. Import failures and declined pickle loading are recorded
+as **Failed** or **Cancelled** while previous inputs and results remain available.
+Cancelling the picker creates no entry. Loading and analysis start times are
+shown separately. Starting analysis captures its parameters and software versions;
+later attempts retain their own settings, logs and outputs.
+
+Loaded-only entries remain as import history after restarting, with no saved
+result tables. Load the source recordings again before analysis. Interrupted
+Loading or Running entries appear as **Unfinished**. **Open results** and
+**Use these parameters** are available only when the entry contains their inputs.
 
 ### Reopen results
 

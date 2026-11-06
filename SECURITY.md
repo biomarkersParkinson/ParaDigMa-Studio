@@ -58,8 +58,10 @@ encryption or authentication. Sensitive files rely on operating-system permissio
 and disk encryption. See the [storage reference](docs/PYTHON_API.md#application-storage)
 for directory details.
 
-Processing logs and worker tracebacks can contain paths, error details and
-recording/subject information. Logs have no automatic redaction; review them
+Import history is created when a recording selection starts loading, before
+analysis. History records paths and diagnostics without storing raw sensor
+samples. Processing logs and worker tracebacks can contain paths, error details
+and recording/subject information. Logs have no automatic redaction; review them
 before sharing.
 
 ### File protection and result integrity

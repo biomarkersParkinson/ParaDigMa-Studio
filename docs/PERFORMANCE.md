@@ -45,6 +45,10 @@ the GUI coalesces display updates at 200 ms intervals. File readers and numerica
 operations keep their existing bulk operations. A single uninterrupted read uses
 the busy indicator until its reader returns; progress is not a time estimate.
 
+Import history writes occur at phase boundaries, not per diagnostic message.
+Linking later analysis attempts to their import copies only the loading-context
+metadata; it does not reload or duplicate sensor frames.
+
 Statistics and clock previews use bounded background caches. Recording switches
 reuse previews, and obsolete requests cannot replace the current selection.
 Analyze module changes derive recording clocks without constructing result

@@ -115,6 +115,21 @@ is cleaned up, the GUI requests explicit trust for any pickle files before
 starting the normal batch load. Inputs are installed only when the complete
 load succeeds.
 
+Before discovery starts, `RunController.start_loading` creates a **Loading**
+history entry without changing the run that owns displayed results. Discovery
+and loading share that owner across their separate jobs and the pickle prompt.
+Successful publication freezes the import context and changes the entry to
+**Loaded**; failure/cancellation closes that import entry while preserving the
+previous inputs and result owner. Input state retains only its loading context
+and history ID, independently of which row is selected.
+
+[`run_lifecycle.py`](../src/paradigma_studio/run_lifecycle.py) reuses a pending
+Loaded entry for its first analysis. Later attempts get new IDs and copies of
+the original loading context, without copying sensor samples or previous
+analysis logs. Analysis start captures its own settings/software identity and
+`analysis_started` timestamp. The original loading timestamps, software identity
+and transcript remain available in history and result provenance.
+
 The Windows adapter owns its COM initialization, interface references and
 returned path buffers. Cancellation returns an empty list. HRESULT failures
 release partial results and are reported without installing a partial batch.
@@ -244,6 +259,13 @@ job at a time. It disables conflicting actions, creates a
 [`Worker`](../src/paradigma_studio/jobs.py), connects its signals, then starts it.
 The controller stays on the GUI thread; `Worker.run` executes the operation in a
 QThread. Read-only previews have their own executors.
+
+Each foreground job captures a run owner. GUI-thread slots accept log/warning/error
+signals only from the current worker and update that owner, independently of
+history selection. Reopening and exporting use their result owner's record;
+bulk-save failures are returned with individual IDs for GUI routing. Unowned
+diagnostics do not append to an unrelated historical row. History writes occur
+at lifecycle/operation boundaries; log messages alone do not write history files.
 
 A completed GUI analysis follows the three phases below. Read from top to bottom
 across the GUI thread, coordinating QThread and owned child processes:

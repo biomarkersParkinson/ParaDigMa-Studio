@@ -219,9 +219,11 @@ History validation is implemented in
 | --- | --- |
 | `format`, `format_version`, `id` | Current envelope; a 32-character lowercase hexadecimal ID matching the history filename |
 | `started`, `finished`, `status` | Explicit timestamps/status; `finished` may be `None` |
-| `source`, `settings`, optional `sources` | Original source information and the complete current Analyze configuration |
-| `studio_version`, `paradigma_version`, optional `studio_build_commit` | Recorded analysis-time software identity |
+| `source`, `settings`, optional `sources` | Source information; complete Analyze settings once analysis starts, or an empty dictionary for loading-only entries |
+| `studio_version`, `paradigma_version`, optional `studio_build_commit` | Recorded operation identity; captured again at analysis start for a loading-created entry |
 | `warnings`, `errors`, `log`, `outputs` | Diagnostics and kind-specific output receipts |
+| Optional `loading` | Import ID, selections, start/finish timestamps, loader software identity and frozen loading log/warnings/errors |
+| Optional `analysis_started` | Time analysis began, separately from import and time spent adjusting settings |
 
 `history.new_run(source, settings)` stamps the envelope, ID, initial lifecycle
 fields and software identity. Callers supply the complete current Analyze
@@ -231,10 +233,19 @@ settings: pipeline names, units, watch side, explicit `signal_columns`,
 runs use normal preparation and identity global axes; the Python-only bypass and
 non-identity global orientations are excluded from this contract.
 
+The desktop additionally creates loading-only records through `run_lifecycle`.
+Their statuses are `Loading`, `Loaded`, or a loading outcome (`Failed`,
+`Cancelled`, `Unfinished`); they require valid loading context, empty settings and
+no output receipts. Once `analysis_started` is present, the full existing Analyze
+settings contract applies. Loading/Loaded entries cannot contain an analysis
+outcome or reopen/save result tables. The first analysis reuses the import ID;
+subsequent attempts inherit only the import context and receive new IDs.
+Existing analysis records without these optional fields remain supported.
+
 Public extension metadata is retained. Top-level private keys beginning with `_`,
 including frame/result caches, are excluded from persisted history and never
 restored from JSON. `RunHistory.load()` returns `(records, issues)`, reporting
-invalid entries alongside valid records. Interrupted `Running` entries appear
+invalid entries alongside valid records. Interrupted `Loading` and `Running` entries appear
 as `Unfinished` in memory.
 
 ### Result files and output receipts

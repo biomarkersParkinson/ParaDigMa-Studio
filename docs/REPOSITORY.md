@@ -78,6 +78,7 @@ service/helper for calculations and file operations.
 | --- | --- |
 | Validation, explicit preparation and official ParaDigMa orchestration | `core.analyze` in [core.py](../src/paradigma_studio/core.py) |
 | Insufficient-recording failures and attributable batch skip diagnostics | [recording_skips.py](../src/paradigma_studio/recording_skips.py) |
+| Loading-created entries, separate analysis attempts and phase-specific history validation | [run_lifecycle.py](../src/paradigma_studio/run_lifecycle.py); workflow ownership in [run_controller.py](../src/paradigma_studio/run_controller.py) |
 | Shared payload types and processing keywords | [contracts.py](../src/paradigma_studio/contracts.py), [preparation_contracts.py](../src/paradigma_studio/preparation_contracts.py); [py.typed](../src/paradigma_studio/py.typed) marks the typed package |
 | Typed, lazy calls to the official toolbox | [paradigma_api.py](../src/paradigma_studio/paradigma_api.py) |
 | Owned analysis processes, cancellation and resource selection | [analysis_process.py](../src/paradigma_studio/analysis_process.py), [parallel_analysis.py](../src/paradigma_studio/parallel_analysis.py), [analysis_limits.py](../src/paradigma_studio/analysis_limits.py) |

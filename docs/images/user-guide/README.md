@@ -18,6 +18,9 @@ these Linux captures. The earlier custom-browser illustration was removed.
 The latest refresh restores separate **Open files…** and **Open folders…**
 buttons while retaining native multi-folder selection. Long dropdowns now use
 the same light scrollbar design as the workspace.
+The full set was regenerated and reviewed on 6 November 2026 for the
+loading-created Runs workflow. Only the Runs image changed: it now shows
+separate loading and analysis start times for the same saved example.
 These images illustrate the current source. The
 [tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
 retains the screenshots for the published candidate.
@@ -32,7 +35,8 @@ The recording is distributed under ParaDigMa's Apache 2.0 licence; see the
 The capture uses the GUI's gait configuration, file-derived units and clock,
 left watch side, no axis inversions, and enabled missing-sample exclusion and
 gap splitting. It runs the official analysis and saves the complete result
-through the normal application services. The source example returns gait
+through the normal application services, beginning with a real background
+import that creates the Runs entry. The source example returns gait
 quantifications, warnings and no errors. Warnings and absent filtered measures
 are left visible; output values and run status are not invented or retouched.
 The Results graph additionally selects unfiltered range of motion. Sensor context

@@ -11,7 +11,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .contracts import ClockMetadata, RecordingDescription, RunRecord as RunRecord
+from .contracts import ClockMetadata, LoadingInfo, RecordingDescription, RunRecord as RunRecord
 from .result_plot_cache import ResultPlotCache
 
 if TYPE_CHECKING:
@@ -35,6 +35,8 @@ class InputState:
     source: str = ""
     sources: dict[str, str] = field(default_factory=dict)
     recordings: dict[str, pd.DataFrame] = field(default_factory=dict)
+    load_run_id: str | None = None
+    loading: LoadingInfo | None = None
 
 
 @dataclass
@@ -117,6 +119,7 @@ class AnalysisState:
 
 @dataclass
 class JobState:
+    run_owner: RunRecord | None = None
     worker: Worker | None = None
     _analysis_stop: Event | None = None
 

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Create a Runs entry when a recording selection starts loading, retain its
+  loading log for the first analysis and subsequent separate analysis attempts,
+  and route job diagnostics independently of history selection. Preserve older
+  result ownership, add Loading/Loaded states and separate analysis timestamps,
+  and retain compatible history validation for existing analyses.
 - Show completed-file and initial-statistics progress while loading recordings,
   using the existing quiet blue bar. Keep discovery and uninterrupted single-file
   decoding in busy mode, coalesce updates, and reach full only after display.

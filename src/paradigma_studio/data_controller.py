@@ -40,12 +40,14 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from .contracts import (
+        FinishRunCallback,
         NoticeCallback,
         PathInput,
         RecordingDescription,
         RecordingInspector,
         RecordingLoadPayload,
         RecordingsLoadPayload,
+        RunRecord,
         StartJobCallback,
     )
     from .plotting import ScrollableFigureCanvas
@@ -115,6 +117,10 @@ class DataCallbacks:
     choose_time_unit: Callable[[str], None]
     show_notice: NoticeCallback
     start_job: StartJobCallback
+    start_loading: Callable[[list[str]], RunRecord]
+    prepare_loading: Callable[[list[PathInput]], RunRecord]
+    finish_loading: Callable[[], None]
+    finish_run: FinishRunCallback
 
 
 @dataclass(frozen=True)
@@ -169,13 +175,11 @@ class DataController(QObject):
         try:
             paths = picker(self.view.parent, self._browser_directory or "")
         except OSError as error:
-            self.callbacks.append_log(str(error))
-            self.callbacks.show_notice(
-                "Could not open the recording picker. See the processing log.", "error"
-            )
+            self.callbacks.show_notice(f"Could not open the recording picker: {error}", "error")
             return
         if not paths:
             return
+        self.callbacks.start_loading(paths)
         self._browser_directory = str(Path(paths[0]).parent)
         self.callbacks.show_notice("")
         self.view.status.setText("Finding sensor recordings…")
@@ -192,6 +196,7 @@ class DataController(QObject):
         paths = list(paths)
         if not paths:
             return
+        self.callbacks.prepare_loading(paths)
         allow_pickle = False
         if any(Path(path).suffix.lower() in (".pkl", ".pickle") for path in paths):
             reply = QMessageBox.warning(
@@ -203,6 +208,7 @@ class DataController(QObject):
             )
             if reply != QMessageBox.StandardButton.Yes:
                 self.view.status.setText("Loading cancelled.")
+                self.callbacks.finish_run("Cancelled")
                 return
             allow_pickle = True
         self.callbacks.show_notice("")
@@ -251,6 +257,7 @@ class DataController(QObject):
         self.inspect_input_recording(new_selection=True)
         self.callbacks.reset_analysis()
         self.view.status.setText(f"{len(recordings)} recordings loaded for one subject.")
+        self.callbacks.finish_loading()
 
     def inspect_input_recording(self, *_: object, new_selection: bool = False) -> None:
         key = self.view.input_recording.currentData()
@@ -303,6 +310,7 @@ class DataController(QObject):
             self.callbacks.append_log(message)
         else:
             self.view.status.setText("Recording loaded.")
+        self.callbacks.finish_loading()
 
     def _supply_mapping_schemas(self) -> None:
         frames = self.inputs.recordings or {

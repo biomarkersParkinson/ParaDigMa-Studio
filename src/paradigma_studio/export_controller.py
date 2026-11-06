@@ -219,7 +219,7 @@ class ExportController(QObject):
             )
 
         self.view.status.setText("Exporting results…")
-        self.callbacks.start_job(write, completed)
+        self.callbacks.start_job(write, completed, owner=run)
 
     def _complete_selection_export(
         self,

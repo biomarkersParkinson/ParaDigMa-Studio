@@ -288,7 +288,9 @@ class MainWindow(QMainWindow):
             result_tabs=self._layout.result_tabs,
         )
         result_callbacks = ResultCallbacks(
-            append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
+            append_log=lambda message: self._run_controller.append_log(
+                message, owner=self._run_state.active_run or self._run_state.current_run
+            ),
             build_result_overview=lambda *args, **kwargs: (
                 self._workspace_controller.build_result_overview(*args, **kwargs)
             ),
@@ -306,7 +308,9 @@ class MainWindow(QMainWindow):
             ),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             finish_run=lambda *args, **kwargs: self._run_controller.finish_run(*args, **kwargs),
-            capture_warning=lambda *args, **kwargs: self.capture_warning(*args, **kwargs),
+            capture_warning=lambda message: self._run_controller.capture_warning(
+                message, owner=self._run_state.active_run or self._run_state.current_run
+            ),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             is_busy=lambda: self._job_state.worker is not None,
             align_recordings=lambda *args, **kwargs: align_recordings(*args, **kwargs),
@@ -359,6 +363,10 @@ class MainWindow(QMainWindow):
             choose_time_unit=lambda unit: self._analysis_controller.choose_time_unit(unit),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
+            start_loading=lambda paths: self._run_controller.start_loading(paths),
+            prepare_loading=lambda paths: self._run_controller.prepare_loading(paths),
+            finish_loading=lambda: self._run_controller.finish_loading(),
+            finish_run=lambda *args: self._run_controller.finish_run(*args),
         )
         services = DataServices(
             find_recording_files=lambda *args, **kwargs: find_recording_files(*args, **kwargs),
@@ -388,6 +396,7 @@ class MainWindow(QMainWindow):
 
     def _compose_analysis(self):
         callbacks = AnalysisCallbacks(
+            begin_analysis=lambda settings: self._run_controller.begin_analysis(settings),
             analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
             clear_results=lambda *args, **kwargs: self._workspace_controller.clear_results(
                 *args, **kwargs
@@ -424,7 +433,14 @@ class MainWindow(QMainWindow):
 
     def _compose_job(self):
         callbacks = JobCallbacks(
-            append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
+            append_log=lambda *args, **kwargs: self._run_controller.append_log(*args, **kwargs),
+            capture_error=lambda *args, **kwargs: self._run_controller.capture_error(
+                *args, **kwargs
+            ),
+            persist_diagnostics=lambda record: self._run_controller.persist_diagnostics(record),
+            capture_warning=lambda *args, **kwargs: self._run_controller.capture_warning(
+                *args, **kwargs
+            ),
             close=lambda *args, **kwargs: self.close(*args, **kwargs),
             finish_run=lambda *args, **kwargs: self._run_controller.finish_run(*args, **kwargs),
             refresh_analysis=lambda: self._analysis_controller.refresh(),
@@ -477,8 +493,12 @@ class MainWindow(QMainWindow):
 
     def _compose_export(self):
         callbacks = ExportCallbacks(
-            append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
-            failure=lambda *args, **kwargs: self.failure(*args, **kwargs),
+            append_log=lambda message: self._run_controller.append_log(
+                message, owner=self._run_state.current_run
+            ),
+            failure=lambda message: self._job_controller.failure(
+                message, owner=self._run_state.current_run
+            ),
             persist_run=lambda *args, **kwargs: self._run_controller.persist_run(*args, **kwargs),
             record_output=lambda *args, **kwargs: self._run_controller.record_output(
                 *args, **kwargs
@@ -578,9 +598,9 @@ class MainWindow(QMainWindow):
         worker.completed.connect(completed)
         worker.failed.connect(self.failure)
         worker.cancelled.connect(self.analysis_cancelled)
-        worker.message.connect(self.append_log)
-        worker.warning.connect(self.capture_warning)
-        worker.error.connect(self.capture_error)
+        worker.message.connect(self._job_controller.job_message)
+        worker.warning.connect(self._job_controller.job_warning)
+        worker.error.connect(self._job_controller.job_error)
         worker.progress.connect(self._job_controller.job_progress)
         worker.finished.connect(self.job_finished)
 

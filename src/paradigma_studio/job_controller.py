@@ -15,6 +15,7 @@ from .contracts import (
     JobCompletion,
     JobOperation,
     NoticeCallback,
+    RunRecord,
 )
 from .widgets import WrappedForm
 from .workspace_state import JobState, ResultState, RunState
@@ -48,7 +49,10 @@ class JobView:
 @dataclass(frozen=True)
 class JobCallbacks:
     connect_worker: ConnectWorkerCallback
-    append_log: Callable[[str], None]
+    append_log: Callable[..., None]
+    capture_error: Callable[..., None]
+    capture_warning: Callable[..., None]
+    persist_diagnostics: Callable[[RunRecord | None], None]
     close: Callable[[], object]
     finish_run: FinishRunCallback
     refresh_analysis: Callable[[], None]
@@ -97,6 +101,7 @@ class JobController(QObject):
         *,
         after_cleanup: bool = False,
         track_progress: bool = False,
+        owner: RunRecord | None = None,
     ) -> None:
         if self.jobs.worker is not None:
             return
@@ -126,6 +131,7 @@ class JobController(QObject):
             self.view.progress.setValue(0)
         self.view.progress.show()
         self.jobs.worker = self.services.worker_factory(operation)
+        self.jobs.run_owner = owner or self.runs.active_run
         worker = self.jobs.worker
         self._progress_worker = worker if measured else None
 
@@ -142,6 +148,21 @@ class JobController(QObject):
         sender = self.sender()
         if callback is not None and (sender is None or sender is self.jobs.worker):
             self._deferred_completion = lambda: callback(payload)
+
+    @Slot(str)
+    def job_message(self, message: str) -> None:
+        if self.jobs.worker is not None and self.sender() is self.jobs.worker:
+            self.callbacks.append_log(message, owner=self.jobs.run_owner)
+
+    @Slot(str)
+    def job_warning(self, message: str) -> None:
+        if self.jobs.worker is not None and self.sender() is self.jobs.worker:
+            self.callbacks.capture_warning(message, owner=self.jobs.run_owner)
+
+    @Slot(str)
+    def job_error(self, message: str) -> None:
+        if self.jobs.worker is not None and self.sender() is self.jobs.worker:
+            self.callbacks.capture_error(message, owner=self.jobs.run_owner)
 
     @Slot(object)
     def _progress_ready(self, payload: Any) -> None:
@@ -184,6 +205,9 @@ class JobController(QObject):
             self.view.progress.setValue(self._pending_progress)
 
     def job_finished(self) -> None:
+        owner, self.jobs.run_owner = self.jobs.run_owner, None
+        if owner is not None and owner is self.runs.active_run:
+            self.callbacks.persist_diagnostics(owner)
         deferred, self._deferred_completion = self._deferred_completion, None
         self._after_cleanup = None
         self._progress_timer.stop()
@@ -215,16 +239,19 @@ class JobController(QObject):
         if deferred is not None:
             deferred()
 
-    def failure(self, message: str) -> None:
+    def failure(self, message: str, *, owner: RunRecord | None = None) -> None:
         self._after_cleanup = None
         self._deferred_completion = None
         self._progress_timer.stop()
         self._progress_worker = None
         self.runs._close_after_save = False
         self.view.status.setText("Operation failed. See the processing log.")
-        self.callbacks.append_log(message)
+        owner = owner or self.jobs.run_owner or self.runs.active_run
+        self.callbacks.append_log(message, owner=owner)
+        self.callbacks.capture_error(message, owner=owner)
         self.callbacks.show_notice(message, "error")
-        self.callbacks.finish_run("Failed", [message])
+        if owner is self.runs.active_run:
+            self.callbacks.finish_run("Failed", [message])
 
     def stop_analysis(self) -> None:
         cancel = getattr(self.jobs, "_analysis_stop", None)
