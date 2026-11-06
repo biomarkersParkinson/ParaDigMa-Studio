@@ -55,8 +55,8 @@ graphics. These original application graphics follow Studio's Apache 2.0
 licence in notices/LICENSE-studio.txt.
 
 input-axis-orientation.svg is the repository owner's supplied
-expected-sensor-orientationv2.svg, retained unchanged for the Signal columns
-explanation. input-axis-orientation.png is its lossless 2400 x 1700 display
+expected-sensor-orientationv3.svg, retained unchanged for the Signal columns
+explanation. input-axis-orientation.png is its lossless 2000 x 1600 display
 rendering. The overhead illustration shows the expected input sensor axes on
 the left and right wrist. It replaces the earlier Studio illustration, which
 had replaced the upstream directions_axes.png reference figure. The graphics

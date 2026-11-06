@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update the Signal columns sensor-orientation figure to the repository owner's
+  supplied version 3, including its matching display image in the user guide.
 - Restore separate **Open files…** and **Open folders…** buttons while retaining
   native multi-folder selection. Show draggable scrollbars in long dropdowns,
   support pixel-based trackpad scrolling, and replace the Signal columns help
