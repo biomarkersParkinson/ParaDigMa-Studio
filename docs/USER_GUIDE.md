@@ -679,6 +679,12 @@ Select a row to inspect its details:
 | **Saved run** | Availability and location of the complete local result snapshot. |
 | **Exports** | Locations of separately exported files. |
 
+**Errors** combines repeated diagnostic messages and returned reports for the
+same failure into one entry. Failures in different recordings, segments, modules
+or identified processing steps remain separate. The counts use this summary;
+**Processing log** retains the original message chain and tracebacks. Diagnostics
+without a matching returned report remain visible in Errors.
+
 **Saved** in the run list indicates a local result snapshot; **Exports** counts
 user exports separately. Run history stores status, parameters, diagnostics and
 these locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installations.

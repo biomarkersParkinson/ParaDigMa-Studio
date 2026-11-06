@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reconcile repeated pipeline diagnostics and structured failures in Runs so
+  Errors and their counts represent matching failures once. Preserve separate
+  recording/segment, module, stage and exception contexts, retain unmatched
+  log-only errors and complete processing logs, and clean older summaries in
+  memory when history is opened.
 - Resize the Analyze signal-name column when optional signals are shown or
   hidden, keeping accelerometer axis labels clear of their From file badges.
 - Create a Runs entry when a recording selection starts loading, retain its

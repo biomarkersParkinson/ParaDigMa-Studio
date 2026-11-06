@@ -15,7 +15,6 @@ from uuid import uuid4
 from .axis_mapping import validate_axis_inversions
 from .column_mapping import validate_signal_columns
 from .contracts import (
-    AnalysisError,
     AnalysisResults,
     AnalysisSettings,
     OutputKind,
@@ -26,6 +25,7 @@ from .contracts import (
     RunStatus,
 )
 from .core import validate_column_mapping
+from .error_reporting import error_text as error_text, merge_errors as merge_errors
 from .provenance import provenance_for_record, software_versions
 from .result_integrity import (
     read_verified_text,
@@ -58,16 +58,6 @@ def new_run(source: str, settings: AnalysisSettings) -> RunRecord:
         "outputs": [],
         "log": "",
     }
-
-
-def error_text(error: AnalysisError) -> str:
-    if isinstance(error, str):
-        return error
-    module = error.get("pipeline") or ", ".join(error.get("pipelines", []))
-    context = " · ".join(
-        str(value) for value in (module, error.get("stage"), error.get("file")) if value
-    )
-    return f"{context}: {error['error']}" if context else str(error["error"])
 
 
 def failure_log(message: str) -> bool:
@@ -106,21 +96,6 @@ def run_is_saved(record: RunRecord) -> bool:
 
 def run_exports(record: RunRecord) -> list[RunOutput]:
     return [output for output in record["outputs"] if not output.get("local")]
-
-
-def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
-    """Prefer structured pipeline errors over duplicate log messages."""
-    messages = [error_text(error) for error in errors]
-    details = [
-        str(error.get("error", "")) if isinstance(error, dict) else error for error in errors
-    ]
-    for message in existing:
-        detail = message.split(" pipeline returned error: ", 1)[-1]
-        if message.startswith("Modules ") and " failed: " in message:
-            detail = message.split(" failed: ", 1)[1]
-        if not any(detail and (detail in value or value in detail) for value in details):
-            messages.append(message)
-    return list(dict.fromkeys(messages))
 
 
 def _read_run_record(path: Path) -> RunRecord:
@@ -320,6 +295,7 @@ class RunHistory:
         for path in paths:
             try:
                 record = _read_run_record(path)
+                record["errors"] = merge_errors(record["errors"], [])
                 if record["status"] in ("Loading", "Running"):
                     record["status"] = "Unfinished"
                 records.append(record)

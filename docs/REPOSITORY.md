@@ -83,6 +83,7 @@ service/helper for calculations and file operations.
 | Typed, lazy calls to the official toolbox | [paradigma_api.py](../src/paradigma_studio/paradigma_api.py) |
 | Owned analysis processes, cancellation and resource selection | [analysis_process.py](../src/paradigma_studio/analysis_process.py), [parallel_analysis.py](../src/paradigma_studio/parallel_analysis.py), [analysis_limits.py](../src/paradigma_studio/analysis_limits.py) |
 | QThread job signals, worker lifetime and control restoration | [jobs.py](../src/paradigma_studio/jobs.py), [job_controller.py](../src/paradigma_studio/job_controller.py) |
+| Context-aware error summaries, live counts and normalization of historical diagnostics | [error_reporting.py](../src/paradigma_studio/error_reporting.py); integration in `RunController` and `RunHistory` |
 | Weighted progress milestones and upstream stage-log adapters | [analysis_progress.py](../src/paradigma_studio/analysis_progress.py); visual delivery in `JobController` |
 | Thread-safe, dimension-weighted progress through initial recording statistics | [loading_progress.py](../src/paradigma_studio/loading_progress.py); milestones in [inspection.py](../src/paradigma_studio/inspection.py) |
 | Ordered recording-output merging and official pooled aggregation | [recording_results.py](../src/paradigma_studio/recording_results.py) |

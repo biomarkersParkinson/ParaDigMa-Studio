@@ -173,6 +173,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Application workflows with the internal driver disabled | [test_composition_without_facade.py](../tests/test_composition_without_facade.py) |
 | Typed lazy adapters, pinned upstream signatures/defaults and object-preserving forwarding | [test_paradigma_api.py](../tests/test_paradigma_api.py); static examples in [preparation_contracts.py](../tests/typing/preparation_contracts.py) |
 | Specific input errors, complete worker/UI tracebacks, failed startup/smoke status and unchanged failure counts | [test_error_handling.py](../tests/test_error_handling.py) |
+| Duplicate diagnostic chains, distinct recording/segment/module/stage/exception contexts, log-only fallback, live/final counts and history cleanup without file rewrites | [test_error_reporting.py](../tests/test_error_reporting.py) |
 
 ### Build, security and source guards
 
@@ -356,7 +357,7 @@ the floor and report paths. Its current scope is:
 | Controllers | Every `*_controller.py` under `src/paradigma_studio/`, including new or untested controllers |
 | Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `loading_progress`, `parallel_analysis`, `previews`, `recording_results`, `run_lifecycle` |
 | Input and rendering boundaries | `axis_mapping`, `column_mapping`, `input_metadata`, `raw_signals`, `recording_skips` |
-| Result preparation and persistence | `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
+| Result preparation and persistence | `error_reporting`, `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
 
 Other Studio modules and the upstream toolbox are outside this reporting scope.
 Static lint, size and [typing checks](DEVELOPMENT.md#type-checking) complement

@@ -302,6 +302,15 @@ traceback and emit one concise failure; pipeline-level errors can coexist with
 successful partial outputs. Terminal cleanup stops progress updates, releases
 the worker and restores controls.
 
+[`error_reporting.py`](../src/paradigma_studio/error_reporting.py) reconciles live
+diagnostics and returned errors for the Runs summary. It removes known message
+wrappers and compares complete error details with the available pipeline, step,
+recording/segment and exception context. A parent-recording diagnostic can match
+its returned segment; different identified contexts remain separate. Unmatched
+log-only failures remain available. The processing log and scientific result
+payload are unchanged. History loading applies the same summary cleanup in
+memory without rewriting stored logs, receipts or result files.
+
 ## Results and sensor context
 
 [`ResultController`](../src/paradigma_studio/result_controller.py) installs the

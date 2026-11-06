@@ -15,6 +15,7 @@ from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QMessageBox
 
 from .contracts import AnalysisResults, Provenance, SensorInput
+from .error_reporting import append_error
 from .history import (
     RunHistory,
     merge_errors,
@@ -109,9 +110,11 @@ class RunController:
     def capture_error(self, message, *, owner=None):
         record = owner or self.state.active_run
         if record is not None and message not in record["errors"]:
-            record["errors"].append(message)
-            record["_history_dirty"] = True
-            self.update_run_problems(record)
+            errors = append_error(record["errors"], message)
+            if errors != record["errors"]:
+                record["errors"] = errors
+                record["_history_dirty"] = True
+                self.update_run_problems(record)
 
     def update_run_problems(self, record=None):
         record = record or self.state.active_run

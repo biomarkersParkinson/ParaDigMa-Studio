@@ -248,6 +248,13 @@ restored from JSON. `RunHistory.load()` returns `(records, issues)`, reporting
 invalid entries alongside valid records. Interrupted `Loading` and `Running` entries appear
 as `Unfinished` in memory.
 
+Run error summaries reconcile repeated diagnostics with structured failures using
+their available recording/segment, pipeline, processing step and exception
+context. Unmatched log-only failures are retained. `RunHistory.load()` applies
+the same reconciliation to older rendered summaries in memory; it does not
+rewrite history files or processing logs. This concerns history's `errors`
+list; the scientific result payload's `errors` remains as returned by analysis.
+
 ### Result files and output receipts
 
 A result envelope contains an `analysis` provenance dictionary and a `results`
