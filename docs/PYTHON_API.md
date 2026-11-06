@@ -255,6 +255,11 @@ the same reconciliation to older rendered summaries in memory; it does not
 rewrite history files or processing logs. This concerns history's `errors`
 list; the scientific result payload's `errors` remains as returned by analysis.
 
+Results Overview derives per-module counts from those same contexts, separating
+explicit skips and mapping sections to original recordings through stored
+recording metadata and provenance. Unknown attribution is omitted. The summary
+is presentation data; it is not written into the scientific result payload.
+
 ### Result files and output receipts
 
 A result envelope contains an `analysis` provenance dictionary and a `results`

@@ -328,6 +328,20 @@ the stored scientific tables. Replacing results invalidates derived views; the
 graph renderer resets navigation when it installs the replacement. Overview
 installs first; hidden graph construction remains deferred.
 
+[`module_issues.py`](../src/paradigma_studio/module_issues.py) derives compact
+per-module diagnostics from the same reconciled error contexts used by Runs,
+including attributable log-only failures. Explicit skips are separate from
+processing failures, and section IDs map to original recordings only when that
+mapping is available. Nonempty detailed tables or finite aggregate values support
+a partial-results notice; metadata alone does not. Aggregation failures explain
+missing summary statistics without hiding remaining details. These summaries
+do not modify scientific tables or stored errors.
+
+The overview's details action captures the displayed provenance's run ID.
+`RunController` selects that record and its Errors tab through explicit view and
+navigation ports. Neither the selected history row nor a newly loaded input batch
+can redirect the action to another run.
+
 `SensorController` uses source alignment and indexed timestamp lookup to select
 the relevant original sensor samples. Those samples retain their source units
 and channel values. The visible graph window can load new samples without

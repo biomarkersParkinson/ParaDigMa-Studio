@@ -36,7 +36,7 @@ from .workspace_state import InputState, ResultState, RunState
 
 if TYPE_CHECKING:
     from PySide6.QtCore import QModelIndex
-    from PySide6.QtWidgets import QLabel, QPlainTextEdit, QPushButton, QWidget
+    from PySide6.QtWidgets import QLabel, QPlainTextEdit, QPushButton, QTabWidget, QWidget
 
     from .contracts import OutputKind, PathInput, RunOutput, RunRecord
     from .widgets import ReadableTable
@@ -53,6 +53,7 @@ class RunView:
     run_recordings: QPlainTextEdit
     run_warnings: QPlainTextEdit
     run_errors: QPlainTextEdit
+    run_detail_tabs: QTabWidget
     run_saved: QPlainTextEdit
     run_outputs: QPlainTextEdit
     open_run_button: QPushButton
@@ -63,6 +64,7 @@ class RunView:
 
 @dataclass(frozen=True)
 class RunCallbacks:
+    navigate: Callable[[int], None]
     show_notice: Callable[..., None]
     clear_results: Callable[[], None]
     start_job: Callable[..., None]
@@ -89,6 +91,25 @@ class RunController:
     ):
         self.state, self.results, self.inputs = state, results, inputs
         self.history, self.view, self.callbacks, self.parent = history, view, callbacks, parent
+
+    def error_messages(self, run_id: str) -> list[str] | None:
+        record = next((record for record in self.state.runs if record["id"] == run_id), None)
+        return list(record["errors"]) if record is not None else None
+
+    def show_errors(self, run_id: str) -> None:
+        if self.error_messages(run_id) is None:
+            self.callbacks.show_notice("This run is no longer available in Runs.")
+            return
+        self.refresh_runs()
+        row = next(
+            i for i, record in enumerate(self.state._run_row_records) if record["id"] == run_id
+        )
+        self.view.run_table.selectionModel().setCurrentIndex(
+            self.view.run_table.model().index(row, 0),
+            QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows,
+        )
+        self.view.run_detail_tabs.setCurrentWidget(self.view.run_errors)
+        self.callbacks.navigate(3)
 
     def append_log(self, message, *, owner=None):
         record = owner or self.state.active_run

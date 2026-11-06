@@ -135,6 +135,7 @@ identifies exactly which groups the `scientific` marker selects.
 | --- | --- |
 | Prepared-input coverage, stable selected outcomes and readable recording extents | [test_availability.py](../tests/test_availability.py), [test_availability_plot_stability.py](../tests/test_availability_plot_stability.py), [test_recording_overview.py](../tests/test_recording_overview.py) |
 | Overview, original table selection, timing, provenance and table-model values | [test_results_view.py](../tests/test_results_view.py), [test_table_models.py](../tests/test_table_models.py) |
+| Compact issue notices, explicit/shared skips, affected original recordings, missing aggregates, large batches and links to the owning run after loading/reopening | [test_module_issues.py](../tests/test_module_issues.py), [test_overview_issues.py](../tests/test_overview_issues.py) |
 | Official gait aggregates, observed-time gait percentages and filtered-gait subset rules | [test_gait_overview.py](../tests/test_gait_overview.py), [test_gait_presence.py](../tests/test_gait_presence.py) |
 | Epoch medians/percentages, metric-specific presence gates and daily coverage/calendars | [test_epochs.py](../tests/test_epochs.py), [test_epoch_presence_threshold.py](../tests/test_epoch_presence_threshold.py), [test_daily.py](../tests/test_daily.py) |
 | Mean 24-hour profiles, equal daily weighting, local clock slots, missingness and presence gates | [test_epoch_profile.py](../tests/test_epoch_profile.py) |
@@ -357,7 +358,7 @@ the floor and report paths. Its current scope is:
 | Controllers | Every `*_controller.py` under `src/paradigma_studio/`, including new or untested controllers |
 | Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `loading_progress`, `parallel_analysis`, `previews`, `recording_results`, `run_lifecycle` |
 | Input and rendering boundaries | `axis_mapping`, `column_mapping`, `input_metadata`, `raw_signals`, `recording_skips` |
-| Result preparation and persistence | `error_reporting`, `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
+| Result preparation and persistence | `error_reporting`, `module_issues`, `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
 
 Other Studio modules and the upstream toolbox are outside this reporting scope.
 Static lint, size and [typing checks](DEVELOPMENT.md#type-checking) complement

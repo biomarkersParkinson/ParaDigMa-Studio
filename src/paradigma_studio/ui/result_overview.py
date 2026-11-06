@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QWidget
 
+from ..module_issues import ModuleIssues, module_issue_summaries
 from ..overview import pulse_estimate_availability, recording_summary
 from ..results_view import MODULE_NAMES, flat_values, readable_key, tremor_overview_entries
 from ..theme import tooltip_text
-from ..widgets import card, label, precision_tooltip
+from ..widgets import button, card, label, precision_tooltip
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -29,9 +31,18 @@ OverviewHandles = tuple[
 
 
 class ResultOverview:
-    def __init__(self, layout: QVBoxLayout, scroll_area: QScrollArea) -> None:
+    def __init__(
+        self,
+        layout: QVBoxLayout,
+        scroll_area: QScrollArea,
+        *,
+        run_errors: Callable[[str], Sequence[str] | None] | None = None,
+        open_errors: Callable[[str], None] | None = None,
+    ) -> None:
         self.layout = layout
         self.scroll_area = scroll_area
+        self.run_errors = run_errors
+        self.open_errors = open_errors
 
     def render(
         self,
@@ -43,12 +54,23 @@ class ResultOverview:
         """Replace overview widgets without transforming the scientific outputs."""
         self._clear()
         results = results or {}
+        run_id = provenance.get("run_id", "")
+        diagnostics = (
+            self.run_errors(run_id) if self.run_errors and isinstance(run_id, str) else None
+        )
+        issues = module_issue_summaries(results, provenance, diagnostics or ())
         self._recording_cards(recording_summary(results, provenance, clock, prepared_views))
-        modules = self._modules(results)
+        modules = self._modules(results, issues)
         if not modules:
             self.layout.addWidget(label("Run an analysis to see module aggregates.", "muted"))
         for module in modules:
-            self._module_card(module, results, provenance)
+            self._module_card(
+                module,
+                results,
+                provenance,
+                issues.get(module),
+                run_id if diagnostics is not None else "",
+            )
         self.layout.addStretch()
         return self.overview_values, self.overview_module_cards, self.overview_gait_charts
 
@@ -97,7 +119,7 @@ class ResultOverview:
             self.layout.addWidget(panel)
 
     @staticmethod
-    def _modules(results):
+    def _modules(results, issues):
         modules = list(
             dict.fromkeys(
                 [
@@ -105,6 +127,7 @@ class ResultOverview:
                     *results.get("metadata", {}),
                     *results.get("quantifications", {}),
                     *results.get("classifications", {}),
+                    *issues,
                 ]
             )
         )
@@ -119,18 +142,15 @@ class ResultOverview:
             )
         ]
 
-    def _module_card(self, module, results, provenance):
+    def _module_card(self, module, results, provenance, issues, run_id):
         panel, content = card()
         panel.setProperty("analysisModule", module)
         self.overview_module_cards[module] = panel
         heading = label(MODULE_NAMES.get(module, module.replace("_", " ").title()), "pageTitle")
         heading.setProperty("analysisModule", module)
         content.addWidget(heading)
-        for error in results.get("errors", []):
-            if isinstance(error, dict) and (
-                error.get("pipeline") == module or module in error.get("pipelines", [])
-            ):
-                content.addWidget(label(str(error.get("error", "Processing failed")), "notice"))
+        if issues is not None:
+            self._issue_summary(content, module, issues, run_id)
         if module == "tremor":
             self._tremor_cards(content, results)
         elif module == "pulse_rate":
@@ -143,6 +163,21 @@ class ResultOverview:
             metadata = results.get("metadata", {}).get(module, {})
             self._metric_cards(content, module, "Metadata", list(flat_values(metadata)))
         self.layout.addWidget(panel)
+
+    def _issue_summary(
+        self, content: QVBoxLayout, module: str, issues: ModuleIssues, run_id: str
+    ) -> None:
+        notice = label(f"{issues.title}\n{issues.description}", "notice")
+        notice.setWordWrap(True)
+        notice.setProperty("severity", issues.severity)
+        notice.setAccessibleName(f"{MODULE_NAMES.get(module, module)} processing summary")
+        content.addWidget(notice)
+        if run_id and self.open_errors is not None:
+            callback = self.open_errors
+            action = button("View errors in Runs →", lambda: callback(run_id))
+            action.setObjectName("overviewRunErrors")
+            action.setAccessibleName(f"View {MODULE_NAMES.get(module, module)} errors in Runs")
+            content.addWidget(action, alignment=Qt.AlignmentFlag.AlignLeft)
 
     def _pulse_cards(self, content, results, provenance):
         grid = QGridLayout()

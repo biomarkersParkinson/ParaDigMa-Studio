@@ -215,7 +215,10 @@ class MainWindow(QMainWindow):
     def _compose_controllers(self):
         """Wire only the state, widgets and actions each component needs."""
         self._overview = ResultOverview(
-            self._layout.overview_layout, self._layout._result_view_scrolls[0]
+            self._layout.overview_layout,
+            self._layout._result_view_scrolls[0],
+            run_errors=lambda run_id: self._run_controller.error_messages(run_id),
+            open_errors=lambda run_id: self._run_controller.show_errors(run_id),
         )
         self._series = ResultSeries(self._layout.result_series)
         self._compose_run_controller()
@@ -243,6 +246,7 @@ class MainWindow(QMainWindow):
             run_recordings=self._layout.run_recordings,
             run_warnings=self._layout.run_warnings,
             run_errors=self._layout.run_errors,
+            run_detail_tabs=self._layout.run_detail_tabs,
             run_saved=self._layout.run_saved,
             run_outputs=self._layout.run_outputs,
             open_run_button=self._layout.open_run_button,
@@ -251,6 +255,7 @@ class MainWindow(QMainWindow):
             clear_runs_button=self._layout.clear_runs_button,
         )
         run_callbacks = RunCallbacks(
+            navigate=lambda index: self._shell_controller.navigate(index),
             show_notice=lambda *args, **kwargs: self._shell_controller.show_notice(*args, **kwargs),
             clear_results=lambda *args, **kwargs: self._workspace_controller.clear_results(
                 *args, **kwargs

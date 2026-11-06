@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Show one compact issue summary per affected module in Results Overview,
+  separating processing errors, affected original recordings and explicit skips.
+  Explain unavailable aggregate statistics, preserve neutral empty outcomes, and
+  link directly to the displayed result's own run and Errors tab.
 - Reconcile repeated pipeline diagnostics and structured failures in Runs so
   Errors and their counts represent matching failures once. Preserve separate
   recording/segment, module, stage and exception contexts, retain unmatched

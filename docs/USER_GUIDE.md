@@ -399,6 +399,21 @@ individual outputs; Save results and Export are available from every Results tab
 Recording summaries report timespan, covered days and hours, coverage percentage
 and gaps. Identical workflow summaries are shown once.
 
+An affected module shows one compact issue summary above its measures. It reports
+processing errors, affected original recordings when known, and explicitly
+skipped recordings separately. Several failed segments can affect one recording.
+Shared skips can appear in each affected module; the overall run count remains
+deduplicated. Unknown recording attribution is omitted rather than estimated.
+
+**Partial results** means detailed tables or aggregate values remain available.
+**No results available** means the module returned neither. An aggregation
+failure explains that some summary statistics are unavailable, while remaining
+details can still be explored. Empty outcomes without errors keep their neutral
+presentation. **View errors in Runs →** selects the run that owns these results
+and opens its Errors tab, including after a new recording batch has been loaded.
+Full messages and tracebacks remain in Runs; module-unattributed errors remain
+in the overall run diagnostics.
+
 - **Gait:** Quantity, Range of motion and Peak velocity charts are grouped by
   filtered/unfiltered gait and duration category. Quantity shows minutes and
   integer segment counts; segment-count bins use original unfiltered durations,

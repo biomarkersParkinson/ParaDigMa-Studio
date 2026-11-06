@@ -35,7 +35,9 @@ _RECORDING_SUFFIX = re.compile(r"(.+) \[([^\[\]\r\n]+)\]$", re.DOTALL)
 
 
 @dataclass(frozen=True)
-class _Entry:
+class ErrorContext:
+    """Immutable failure identity shared by Runs and derived overview summaries."""
+
     text: str
     body: str
     pipelines: frozenset[str] = frozenset()
@@ -43,6 +45,7 @@ class _Entry:
     file: str = ""
     structured: bool = False
     exception: str = ""
+    skipped: bool = False
 
     @property
     def key(self) -> tuple[str, frozenset[str], str, str, str]:
@@ -96,7 +99,7 @@ def _rendered_context(head: str) -> tuple[frozenset[str], str, str] | None:
     return None
 
 
-def _parse_text(text: str) -> _Entry:
+def _parse_text(text: str) -> ErrorContext:
     body, file = text, ""
     suffix = _RECORDING_SUFFIX.fullmatch(body)
     if suffix:
@@ -105,14 +108,15 @@ def _parse_text(text: str) -> _Entry:
     rendered = _rendered_context(head) if separator else None
     if rendered is not None:
         pipelines, stage, section = rendered
+        skipped = stage == "preparation" and detail.startswith("Skipped recording: ")
         body, stage, exception = _normalise(detail, stage)
-        return _Entry(text, body, pipelines, stage, section or file, True, exception)
+        return ErrorContext(text, body, pipelines, stage, section or file, True, exception, skipped)
     for prefix, stage in _LOG_PREFIXES:
         match = prefix.match(body)
         if match:
             context = match.groupdict()
             body, stage, exception = _normalise(body[match.end() :], stage)
-            return _Entry(
+            return ErrorContext(
                 text,
                 body,
                 _pipelines(context["pipelines"]),
@@ -120,16 +124,21 @@ def _parse_text(text: str) -> _Entry:
                 context.get("file") or file,
                 exception=exception,
             )
+    skipped = body.startswith("Skipped recording: ")
     body, stage, exception = _normalise(body, "")
-    return _Entry(text, body, stage=stage, file=file, exception=exception)
+    return ErrorContext(text, body, stage=stage, file=file, exception=exception, skipped=skipped)
 
 
-def _parse(error: AnalysisError) -> _Entry:
+def _parse(error: AnalysisError) -> ErrorContext:
     if isinstance(error, str):
         return _parse_text(error)
     body, stage, exception = _normalise(str(error["error"]), str(error.get("stage") or ""))
     pipelines = error.get("pipeline") or ", ".join(error.get("pipelines", []))
-    return _Entry(
+    skipped = error.get("skipped") is True or (
+        error.get("stage") == "preparation"
+        and str(error["error"]).startswith("Skipped recording: ")
+    )
+    return ErrorContext(
         error_text(error),
         body,
         _pipelines(pipelines),
@@ -137,10 +146,11 @@ def _parse(error: AnalysisError) -> _Entry:
         str(error.get("file") or ""),
         True,
         exception,
+        skipped,
     )
 
 
-def _covered(candidate: _Entry, detailed: _Entry) -> bool:
+def _covered(candidate: ErrorContext, detailed: ErrorContext) -> bool:
     if not candidate.body or candidate.body != detailed.body:
         return False
     if candidate.pipelines and candidate.pipelines != detailed.pipelines:
@@ -158,7 +168,7 @@ def _covered(candidate: _Entry, detailed: _Entry) -> bool:
     return True
 
 
-def _append(entries: list[_Entry], candidate: _Entry) -> None:
+def _append(entries: list[ErrorContext], candidate: ErrorContext) -> None:
     for index, existing in enumerate(entries):
         if candidate.text == existing.text or _covered(candidate, existing):
             return
@@ -175,11 +185,13 @@ def append_error(existing: Sequence[str], message: str) -> list[str]:
     return [entry.text for entry in entries]
 
 
-def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
-    """Prefer structured errors; suppress only diagnostics their context covers."""
+def reconciled_errors(
+    existing: Iterable[str], errors: Sequence[AnalysisError]
+) -> list[ErrorContext]:
+    """Prefer structured errors; retain their context for derived presentation."""
     parsed = [_parse(error) for error in errors] + [_parse_text(text) for text in existing]
     # Rendered history entries carry the same context as newly returned dictionaries.
-    preferred: dict[tuple[str, frozenset[str], str, str, str], _Entry] = {}
+    preferred: dict[tuple[str, frozenset[str], str, str, str], ErrorContext] = {}
     for entry in parsed:
         if entry.structured:
             preferred.setdefault(entry.key, entry)
@@ -187,4 +199,9 @@ def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> li
     for entry in parsed:
         if not entry.structured:
             _append(entries, entry)
-    return [entry.text for entry in entries]
+    return entries
+
+
+def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
+    """Prefer structured errors; suppress only diagnostics their context covers."""
+    return [entry.text for entry in reconciled_errors(existing, errors)]

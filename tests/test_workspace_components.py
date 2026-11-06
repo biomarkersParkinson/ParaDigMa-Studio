@@ -119,7 +119,7 @@ def test_result_components_keep_scientific_frames_and_handle_partial_outputs(
     assert not workspace.state._epoch_views and not workspace.state._table_views
     assert record["_results"] is tremor_outputs and record["_unsaved_results"]
     assert record["_provenance"] == workspace.state.provenance
-    assert set(workspace.rendered["modules"]) == {"tremor"}
+    assert set(workspace.rendered["modules"]) == ({"gait", "tremor"} if partial else {"tremor"})
     assert (
         workspace.items["classifications/tremor", "pred_tremor_checked"].checkState(0) == Qt.Checked
     )
@@ -175,6 +175,7 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
         run_recordings=QPlainTextEdit(parent),
         run_warnings=QPlainTextEdit(parent),
         run_errors=QPlainTextEdit(parent),
+        run_detail_tabs=QTabWidget(parent),
         run_saved=QPlainTextEdit(parent),
         run_outputs=QPlainTextEdit(parent),
         open_run_button=QPushButton(parent),
@@ -191,6 +192,7 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
     for record in records:
         history.save(record)
     callbacks = RunCallbacks(
+        navigate=Mock(),
         show_notice=Mock(),
         clear_results=Mock(),
         start_job=Mock(),

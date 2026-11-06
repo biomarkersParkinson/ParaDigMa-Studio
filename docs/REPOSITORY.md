@@ -96,6 +96,7 @@ service/helper for calculations and file operations.
 | Result tables, detail selection, series and shared view controls | [result_workspace_controller.py](../src/paradigma_studio/result_workspace_controller.py) |
 | Original tables, display clocks, recording alignment and optional table columns | [result_data.py](../src/paradigma_studio/result_data.py), [results_view.py](../src/paradigma_studio/results_view.py), [recordings.py](../src/paradigma_studio/recordings.py) |
 | Overview and plot-series tree rendering | [ui/result_overview.py](../src/paradigma_studio/ui/result_overview.py), [ui/result_series.py](../src/paradigma_studio/ui/result_series.py) |
+| Compact module issue counts, original-recording attribution and output-availability states | [module_issues.py](../src/paradigma_studio/module_issues.py); shared reconciliation in [error_reporting.py](../src/paradigma_studio/error_reporting.py) |
 | Results graph rendering and prepared plot data | [ui/result_graphs.py](../src/paradigma_studio/ui/result_graphs.py), [ui/result_plot_data.py](../src/paradigma_studio/ui/result_plot_data.py) |
 | Graph clicks, linked table selection, result markers and context actions | [ui/result_graph_interactions.py](../src/paradigma_studio/ui/result_graph_interactions.py) |
 | Sensor context selection and indexed window navigation | [sensor_controller.py](../src/paradigma_studio/sensor_controller.py), [exploration.py](../src/paradigma_studio/exploration.py), [sensor_navigation.py](../src/paradigma_studio/sensor_navigation.py) |
