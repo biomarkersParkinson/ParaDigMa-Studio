@@ -66,7 +66,9 @@ def test_batch_statistics_are_exact_and_keep_read_only_recordings_unchanged(monk
         for column in ("time", "sensor"):
             frame[column].to_numpy().flags.writeable = False
     monkeypatch.setattr(inspection, "inspection_worker_count", lambda _: 2)
-    actual = inspect_recordings(frames, unit)
+    progress = []
+    actual = inspect_recordings(frames, unit, progress=progress.append)
+    assert progress == sorted(set(progress)) and progress[-1] == 1000
     assert list(actual) == list(frames)
     for key, report in actual.items():
         for name in ("missing", "time_column", "time_unit"):

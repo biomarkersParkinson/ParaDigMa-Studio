@@ -125,6 +125,25 @@ configuration. Studio expects compatible column names, units, time formats and
 axis conventions across the batch; metadata warnings do not establish that the
 physical recordings match the user's declarations.
 
+### Loading progress
+
+Recording load jobs opt into `JobController` progress through `track_progress`.
+Discovery retains its busy indicator; a load switches to a determinate bar when
+its first measured event arrives. Batch reads emit an initial zero and advance
+after each unique file. A single-file read emits only after decoding returns.
+The controller reserves work units 0–650 for reads, 650–980 for initial
+statistics and 980–1000 for GUI installation.
+
+[`loading_progress.py`](../src/paradigma_studio/loading_progress.py) combines
+per-channel statistics milestones across the existing inspection workers.
+Already-known row/column counts weight recordings, and a lock serializes updates
+without changing worker concurrency or returned recording order. Milestones
+reuse the existing missing-count, sensor-statistics and time-statistics work;
+they introduce no additional sample scans, file reads or metadata requests.
+Updates use the same quiet signal, stale-worker checks and 200 ms GUI coalescing
+as analysis. An import failure leaves the previous inputs installed and never
+marks the bar full.
+
 ### Configuration authority
 
 `AnalysisController` owns the shared settings. File metadata proposes defaults;
@@ -367,8 +386,9 @@ Progress travels separately from ordinary log/status messages through the
 existing event queues and `Worker.progress` signal. `JobController` rejects stale
 workers and cancelled runs, ignores duplicate/backward values and coalesces GUI
 updates at 200 ms intervals. It marks the bar full only after the GUI result
-installation callback returns. Failures and cancellation stop pending updates;
-non-analysis jobs keep the existing busy indicator. These work units are not an
+installation callback returns. Failures and cancellation stop pending updates.
+Recording loads opt into the same delivery; other background jobs keep the busy
+indicator. These work units are not an
 elapsed-time estimate and do not alter scientific settings or outputs.
 
 ## Extending the application

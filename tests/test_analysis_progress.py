@@ -191,15 +191,15 @@ def test_bar_uses_the_same_layout_and_no_added_text_with_coalesced_updates(windo
     assert not window.progress.isTextVisible() and window.progress.height() == 4
     changes = QSignalSpy(window.progress.valueChanged)
     for value in (100, 400, 250, 700, 700):
-        controller.analysis_progress(worker, value)
+        controller.job_progress(worker, value)
     assert window.progress.value() == 0
     wait_for_progress(window, 700)
     assert window.progress.value() == 700 and changes.count() == 1
     assert window.progress.geometry() == geometry and window.status.text() == status
     assert not window.log.toPlainText()
-    controller.analysis_progress(object(), 950)
-    controller.analysis_progress(worker, 1000)
-    controller.analysis_progress(worker, -1)
+    controller.job_progress(object(), 950)
+    controller.job_progress(worker, 1000)
+    controller.job_progress(worker, -1)
     assert not controller._progress_timer.isActive()
     assert window.progress.value() == 700
     release.set()
@@ -211,10 +211,10 @@ def test_bar_uses_the_same_layout_and_no_added_text_with_coalesced_updates(windo
 def test_cancelling_freezes_the_bar_and_discards_late_updates(window, live_analysis):
     worker, _release, cancel, completed = live_analysis
     controller = window._job_controller
-    controller.analysis_progress(worker, 400)
+    controller.job_progress(worker, 400)
     wait_for_progress(window, 400)
     controller.stop_analysis()
-    controller.analysis_progress(worker, 980)
+    controller.job_progress(worker, 980)
     QTest.qWait(230)
     wait_for_job(window)
     assert cancel.is_set() and not completed
@@ -230,7 +230,7 @@ def test_late_worker_updates_cannot_change_a_new_job(window, live_analysis):
     window._job_state._analysis_stop = Event()
     window.start_job(lambda logger: new_release.wait(5), lambda _: None)
     try:
-        window._job_controller.analysis_progress(old, 900)
+        window._job_controller.job_progress(old, 900)
         QTest.qWait(230)
         assert window.progress.value() == 0
     finally:

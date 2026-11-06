@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .analysis_progress import AnalysisProgress, ProgressCallback, report_progress
 from .contracts import TimeConfiguration
 from .inspection import inspect_recordings
 from .sensor_controller import ChannelServices
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
         NoticeCallback,
         PathInput,
         RecordingDescription,
+        RecordingInspector,
         RecordingLoadPayload,
         RecordingsLoadPayload,
         StartJobCallback,
@@ -57,6 +59,7 @@ class RecordingsLoader(Protocol):
         *,
         allow_pickle: bool = False,
         logger: logging.Logger | None = None,
+        progress: ProgressCallback | None = None,
     ) -> tuple[dict[str, str], dict[str, pd.DataFrame]]: ...
 
 
@@ -118,7 +121,7 @@ class DataCallbacks:
 class DataServices:
     find_recording_files: RecordingFinder
     load_recordings: RecordingsLoader
-    inspect_recording: Callable[[pd.DataFrame, str], RecordingDescription]
+    inspect_recording: RecordingInspector
     sensor_descriptives: Callable[[pd.DataFrame, Hashable | None], pd.DataFrame]
     time_descriptives: Callable[[pd.Series, str], pd.DataFrame]
     input_plot_time: Callable[[pd.Series, str], tuple[pd.Series | None, str, tzinfo | None]]
@@ -207,15 +210,23 @@ class DataController(QObject):
         unit = self.view.data_time_unit.currentText()
 
         def load(logger: logging.Logger) -> RecordingsLoadPayload:
+            progress = AnalysisProgress(lambda value: report_progress(logger, value))
             sources, frames = self.services.load_recordings(
-                paths, allow_pickle=allow_pickle, logger=logger
+                paths,
+                allow_pickle=allow_pickle,
+                logger=logger,
+                progress=progress.span(0, 650).report,
             )
             descriptions = inspect_recordings(
-                frames, unit, describe=self.services.inspect_recording, logger=logger
+                frames,
+                unit,
+                describe=self.services.inspect_recording,
+                logger=logger,
+                progress=progress.span(650, 980).report,
             )
             return sources, frames, descriptions
 
-        self.callbacks.start_job(load, self.loaded_recordings)
+        self.callbacks.start_job(load, self.loaded_recordings, track_progress=True)
 
     def loaded_recordings(self, payload: RecordingsLoadPayload) -> None:
         sources, recordings, descriptions = payload

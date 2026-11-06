@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Show completed-file and initial-statistics progress while loading recordings,
+  using the existing quiet blue bar. Keep discovery and uninterrupted single-file
+  decoding in busy mode, coalesce updates, and reach full only after display.
 - Skip batch recordings with fewer than two usable samples or no continuous
   sections meeting the selected minimum duration. Retain other recordings'
   results and pooled aggregates with either worker count, preserve skip reasons

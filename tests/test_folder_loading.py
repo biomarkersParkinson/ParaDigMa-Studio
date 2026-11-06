@@ -210,6 +210,7 @@ def test_discovered_pickles_require_gui_confirmation_before_any_file_is_loaded(
     if not accepted:
         assert window._input_state.frame is frame and not window._input_state.recordings
         assert window.status.text() == "Loading cancelled."
+        assert window.progress.isHidden()
 
 
 @pytest.mark.parametrize("case", ["cancel", "empty", "invalid-recording"])
@@ -233,6 +234,7 @@ def test_cancelled_or_failed_folder_load_keeps_the_previous_input_and_settings(
     assert window.open_button.isEnabled()
     if case != "cancel":
         assert window.status.text() == "Operation failed. See the processing log."
+        assert window.progress.isHidden() and window.progress.value() < 1000
 
 
 @pytest.mark.parametrize("style,font_size", [("Fusion", 13), ("Windows", 18)])

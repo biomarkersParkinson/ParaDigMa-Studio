@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .analysis_progress import ProgressCallback
 from .contracts import (
     AnalysisResults,
     AnalysisSettings,
@@ -101,9 +102,13 @@ def load_recordings(
     *,
     allow_pickle: bool = False,
     logger: logging.Logger | None = None,
+    progress: ProgressCallback | None = None,
 ) -> tuple[dict[str, str], dict[str, pd.DataFrame]]:
     sources, frames = {}, {}
-    for index, path in enumerate(dict.fromkeys(map(str, paths)), start=1):
+    selected_paths = list(dict.fromkeys(map(str, paths)))
+    if progress is not None and len(selected_paths) > 1:
+        progress(0)
+    for index, path in enumerate(selected_paths, start=1):
         key = f"recording_{index:03d}"
         if logger:
             logger.info("Loading %s: %s", key, path)
@@ -112,6 +117,8 @@ def load_recordings(
         except (OSError, ValueError) as exc:
             raise ValueError(f"{Path(path).name}: {exc}") from exc
         sources[key] = path
+        if progress is not None:
+            progress(1000 * index // len(selected_paths))
     if not frames:
         raise ValueError("Select at least one sensor recording.")
     return sources, frames

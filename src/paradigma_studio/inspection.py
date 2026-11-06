@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import tzinfo
 from typing import TYPE_CHECKING, cast
@@ -10,6 +9,9 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 
 from .analysis_limits import inspection_worker_count
+from .analysis_progress import AnalysisProgress, ProgressCallback
+from .contracts import RecordingInspector
+from .loading_progress import InspectionProgress
 
 if TYPE_CHECKING:
     import logging
@@ -26,11 +28,13 @@ def inspect_recordings(
     frames: dict[str, pd.DataFrame],
     time_unit: str,
     *,
-    describe: Callable[[pd.DataFrame, str], RecordingDescription] | None = None,
+    describe: RecordingInspector | None = None,
     logger: logging.Logger | None = None,
+    progress: ProgressCallback | None = None,
 ) -> dict[str, RecordingDescription]:
     """Finish exact initial statistics for every recording before publishing any."""
     describe = describe or inspect_recording
+    tracking = InspectionProgress(frames, progress) if progress is not None else None
     workers = inspection_worker_count(frames)
     if logger is not None:
         logger.info(
@@ -39,16 +43,20 @@ def inspect_recordings(
             workers,
             "s" if workers != 1 else "",
         )
-    if workers == 1:
-        return {key: describe(frame, time_unit) for key, frame in frames.items()}
 
-    def inspect(frame: pd.DataFrame) -> RecordingDescription:
+    def inspect(item: tuple[str, pd.DataFrame]) -> RecordingDescription:
+        key, frame = item
+        if tracking is not None:
+            return describe(frame, time_unit, progress=tracking.for_recording(key))
         return describe(frame, time_unit)
+
+    if workers == 1:
+        return {key: inspect((key, frame)) for key, frame in frames.items()}
 
     # NumPy's exact quantiles release the GIL. Share read-only frames between
     # two threads instead of copying large recordings to separate processes.
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="paradigma-inspection") as pool:
-        return dict(zip(frames, pool.map(inspect, frames.values()), strict=True))
+        return dict(zip(frames, pool.map(inspect, frames.items()), strict=True))
 
 
 def input_plot_time(
@@ -108,11 +116,13 @@ def sensor_descriptives(frame, time_column):
     return _sensor_descriptives(frame, time_column, {})
 
 
-def _sensor_descriptives(frame, time_column, missing_counts):
+def _sensor_descriptives(frame, time_column, missing_counts, progress=None):
     import pandas as pd
 
     records = []
-    for column in frame:
+    for index, column in enumerate(frame):
+        if progress is not None:
+            progress(index * 1000 // max(1, len(frame.columns)))
         series = frame[column]
         if (
             column == time_column
@@ -149,9 +159,12 @@ def _sensor_descriptives(frame, time_column, missing_counts):
                     Range=f"{finite.min():.5g} – {finite.max():.5g}", Median=median, IQR=q3 - q1
                 )
         records.append(record)
-    return pd.DataFrame(
+    report = pd.DataFrame(
         records, columns=["Channel", "Type", "Missing", "Infinite", "Range", "Median", "IQR"]
     )
+    if progress is not None:
+        progress(1000)
+    return report
 
 
 def time_descriptives(series: pd.Series, unit: str = "relative_s") -> pd.DataFrame:
@@ -248,15 +261,31 @@ def _time_statistics(intervals: FloatArray, span: float, missing_samples: int) -
     )
 
 
-def inspect_recording(frame: pd.DataFrame, time_unit: str) -> RecordingDescription:
+def inspect_recording(
+    frame: pd.DataFrame, time_unit: str, *, progress: ProgressCallback | None = None
+) -> RecordingDescription:
     column = default_time_column(frame)
+    tracking = AnalysisProgress(progress) if progress is not None else None
     # Count each column once, including time/non-sensor columns in the total,
     # without constructing another full-table missingness mask.
-    missing_counts = {column: int(frame[column].isna().sum()) for column in frame}
-    return {
+    missing_counts = {}
+    for index, name in enumerate(frame, 1):
+        missing_counts[name] = int(frame[name].isna().sum())
+        if tracking is not None:
+            tracking.report(150 * index / max(1, len(frame.columns)))
+    sensors = _sensor_descriptives(
+        frame,
+        column,
+        missing_counts,
+        progress=tracking.span(150, 800).report if tracking is not None else None,
+    )
+    report: RecordingDescription = {
         "time_column": column,
         "time_unit": time_unit,
         "missing": sum(missing_counts.values()),
-        "sensors": _sensor_descriptives(frame, column, missing_counts),
+        "sensors": sensors,
         "time": time_descriptives(frame[column], time_unit) if column is not None else None,
     }
+    if tracking is not None:
+        tracking.report(1000)
+    return report

@@ -158,8 +158,23 @@ class FinishRunCallback(Protocol):
 
 class StartJobCallback(Protocol):
     def __call__(
-        self, operation: JobOperation, completed: JobCompletion, *, after_cleanup: bool = False
+        self,
+        operation: JobOperation,
+        completed: JobCompletion,
+        *,
+        after_cleanup: bool = False,
+        track_progress: bool = False,
     ) -> None: ...
+
+
+class RecordingInspector(Protocol):
+    def __call__(
+        self,
+        frame: pd.DataFrame,
+        time_unit: str,
+        *,
+        progress: Callable[[int], None] | None = None,
+    ) -> RecordingDescription: ...
 
 
 class ConnectWorkerCallback(Protocol):

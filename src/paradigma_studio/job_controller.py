@@ -81,7 +81,7 @@ class JobController(QObject):
         self.callbacks = callbacks
         self.services = services
         self._progress_worker: object | None = None
-        self._analysis_completed: JobCompletion | None = None
+        self._progress_completed: JobCompletion | None = None
         self._pending_progress = 0
         self._after_cleanup: JobCompletion | None = None
         self._deferred_completion: Callable[[], None] | None = None
@@ -91,7 +91,12 @@ class JobController(QObject):
         self._progress_timer.timeout.connect(self._flush_progress)
 
     def start_job(
-        self, operation: JobOperation, completed: JobCompletion, *, after_cleanup: bool = False
+        self,
+        operation: JobOperation,
+        completed: JobCompletion,
+        *,
+        after_cleanup: bool = False,
+        track_progress: bool = False,
     ) -> None:
         if self.jobs.worker is not None:
             return
@@ -115,18 +120,19 @@ class JobController(QObject):
         self._progress_timer.stop()
         self._pending_progress = 0
         analysis = self.jobs._analysis_stop is not None
+        measured = analysis or track_progress
         self.view.progress.setRange(0, 1000 if analysis else 0)
         if analysis:
             self.view.progress.setValue(0)
         self.view.progress.show()
         self.jobs.worker = self.services.worker_factory(operation)
         worker = self.jobs.worker
-        self._progress_worker = worker if analysis else None
+        self._progress_worker = worker if measured else None
 
-        self._analysis_completed = completed if analysis else None
+        self._progress_completed = completed if measured else None
         self._after_cleanup = completed if after_cleanup else None
         self._deferred_completion = None
-        receiver = self._analysis_ready if analysis else completed
+        receiver = self._progress_ready if measured else completed
         self.callbacks.connect_worker(worker, self._defer_completion if after_cleanup else receiver)
         self.jobs.worker.start()
 
@@ -138,30 +144,34 @@ class JobController(QObject):
             self._deferred_completion = lambda: callback(payload)
 
     @Slot(object)
-    def _analysis_ready(self, payload: Any) -> None:
+    def _progress_ready(self, payload: Any) -> None:
         worker = self._progress_worker
         sender = self.sender()
         if worker is not self.jobs.worker or (sender is not None and sender is not worker):
             return
-        if self._analysis_completed is not None:
-            self._analysis_completed(payload)
+        if self._progress_completed is not None:
+            self._progress_completed(payload)
             if self._accept_progress(worker):
                 self._progress_timer.stop()
                 self._pending_progress = 1000
+                self.view.progress.setRange(0, 1000)
                 self.view.progress.setValue(1000)
 
     def _accept_progress(self, worker: object) -> bool:
         cancel = self.jobs._analysis_stop
         return (
-            worker is self.jobs.worker
+            worker is not None
+            and worker is self.jobs.worker
             and worker is self._progress_worker
-            and cancel is not None
-            and not cancel.is_set()
+            and (cancel is None or not cancel.is_set())
         )
 
     @Slot(object, int)
-    def analysis_progress(self, worker: object, value: int) -> None:
+    def job_progress(self, worker: object, value: int) -> None:
         if self._accept_progress(worker) and 0 <= value < 1000:
+            if self.view.progress.maximum() == 0:
+                self.view.progress.setRange(0, 1000)
+                self.view.progress.setValue(0)
             self._pending_progress = max(self._pending_progress, value)
             if (
                 self._pending_progress > self.view.progress.value()
@@ -178,7 +188,7 @@ class JobController(QObject):
         self._after_cleanup = None
         self._progress_timer.stop()
         self._progress_worker = None
-        self._analysis_completed = None
+        self._progress_completed = None
         worker = self.jobs.worker
         self.jobs.worker = None
         self.view.open_button.setEnabled(True)

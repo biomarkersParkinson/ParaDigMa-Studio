@@ -38,6 +38,13 @@ Large batches can calculate statistics for two recordings concurrently using
 shared, read-only frames. Decoding and TSDF scaling finish before statistics begin.
 The [worker policy](#worker-selection) decides whether statistics run concurrently.
 
+Loading progress uses completed files and milestones in the existing per-column
+statistics work. Row/column dimensions supply inspection weights without extra
+sample scans or filesystem requests. A small lock orders concurrent updates;
+the GUI coalesces display updates at 200 ms intervals. File readers and numerical
+operations keep their existing bulk operations. A single uninterrupted read uses
+the busy indicator until its reader returns; progress is not a time estimate.
+
 Statistics and clock previews use bounded background caches. Recording switches
 reuse previews, and obsolete requests cannot replace the current selection.
 Analyze module changes derive recording clocks without constructing result

@@ -48,6 +48,16 @@ discovery error raises without returning a partial list. Pass the returned paths
 to `load_recordings`; pickle still requires `allow_pickle=True` after the caller
 has established trust.
 
+`load_recordings` accepts an optional `progress(value)` callback on a 0–1000
+scale. It reports completed unique files; a batch first reports zero, while a
+single-file read first reports completion after its reader returns. The optional
+callbacks on `inspection.inspect_recording` and `inspection.inspect_recordings`
+report existing statistics milestones on the same scale. Batch inspection
+weights row/column counts and can invoke the callback from inspection threads;
+callbacks must remain lightweight and GUI changes require queued delivery.
+A custom `describe` used with inspection progress must accept the optional
+`progress` keyword, as specified by `contracts.RecordingInspector`.
+
 ### Example: analyze a recording and export the results
 
 This example expects a CSV with numeric relative seconds in `time` and canonical

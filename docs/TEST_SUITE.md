@@ -93,6 +93,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
 | Short batch members, all-skipped batches, unchanged usable outputs, one/two workers, run diagnostics and saved source identities | [test_short_recordings.py](../tests/test_short_recordings.py) |
+| Loading progress, single-file busy mode, completed-file counts, parallel/channel statistics, GUI delivery, stale updates and failed-import preservation | [test_loading_progress.py](../tests/test_loading_progress.py) |
 | Recursive folder discovery, real mixed-format imports, responsive scanning, pickle confirmation and failed-load preservation | [test_folder_loading.py](../tests/test_folder_loading.py) |
 | Standard-dialog routing, separate file/folder buttons and shortcuts, multiple-folder imports and failed-picker preservation | [test_recording_dialogs.py](../tests/test_recording_dialogs.py) |
 | Visible scrollbars in long dropdowns, drag/wheel/trackpad and keyboard selection, short lists and large recording batches | [test_dropdown_scrolling.py](../tests/test_dropdown_scrolling.py) |
@@ -352,8 +353,8 @@ the floor and report paths. Its current scope is:
 | Group | Included modules |
 | --- | --- |
 | Controllers | Every `*_controller.py` under `src/paradigma_studio/`, including new or untested controllers |
-| Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `parallel_analysis`, `previews`, `recording_results` |
-| Input and rendering boundaries | `axis_mapping`, `column_mapping`, `input_metadata`, `raw_signals` |
+| Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `loading_progress`, `parallel_analysis`, `previews`, `recording_results` |
+| Input and rendering boundaries | `axis_mapping`, `column_mapping`, `input_metadata`, `raw_signals`, `recording_skips` |
 | Result preparation and persistence | `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
 
 Other Studio modules and the upstream toolbox are outside this reporting scope.

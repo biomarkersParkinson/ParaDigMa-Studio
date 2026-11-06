@@ -75,6 +75,12 @@ confirmation cancels the whole selection. Choose a folder containing only the
 recordings you want in the batch, or select files individually. **Cancel** or
 Escape closes a selection dialog without loading.
 
+The thin blue bar shows loading progress without additional text. Folder discovery
+and an uninterrupted single-file read use a moving busy indicator. A batch
+advances as files finish reading, followed by progress through the initial
+statistics. It can pause during a large read or calculation and reaches full
+only after the recordings are displayed. It does not estimate time remaining.
+
 | Format | What Studio reads |
 | --- | --- |
 | CSV and Parquet | Table columns and original values. The format alone does not establish sensor units. |
