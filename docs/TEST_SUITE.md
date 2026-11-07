@@ -161,6 +161,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Analysis-time software/build identity, JSON/ZIP/CSV metadata, checksum companions and safe deletion | [test_run_provenance.py](../tests/test_run_provenance.py) |
 | Complete local snapshots, responsive reopening, isolated-reader cleanup, exact restored values and unsaved-close/bulk-save behavior | [test_saved_results.py](../tests/test_saved_results.py) |
 | Run history, cancellation, owned-output deletion and native multi-selection | [test_run_management.py](../tests/test_run_management.py), [test_bulk_runs.py](../tests/test_bulk_runs.py) |
+| Compact run descriptions, separate phase durations, unfinished/legacy entries and elapsed time across midnight or timezone changes | [test_run_summary.py](../tests/test_run_summary.py) |
 | Exact-byte checksums and run ownership, rejected edits/replacements, failure-state preservation and snapshot/history consistency | [test_result_integrity.py](../tests/test_result_integrity.py) |
 | Versioned history/results, required fields, rejection without migration and explicit export completeness | [test_saved_format.py](../tests/test_saved_format.py) |
 

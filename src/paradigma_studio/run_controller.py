@@ -8,7 +8,7 @@ import traceback
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import get_ident
 from typing import TYPE_CHECKING, Any
@@ -56,6 +56,24 @@ class _SaveProblems(logging.Handler):
             self.problems.append(
                 (self.run_id, event.levelno, event.getMessage(), self.format(event))
             )
+
+
+def _phase_duration(start: str | None, finish: str | None) -> str | None:
+    if not start or not finish:
+        return None
+    seconds = (
+        datetime.fromisoformat(finish).astimezone(UTC)
+        - datetime.fromisoformat(start).astimezone(UTC)
+    ).total_seconds()
+    if seconds < 0:
+        return None
+    remaining = int(seconds)
+    parts = []
+    for size, unit in ((86400, "d"), (3600, "h"), (60, "min"), (1, "s")):
+        value, remaining = divmod(remaining, size)
+        if value:
+            parts.append(f"{value} {unit}")
+    return " ".join(parts) or "0 s"
 
 
 @dataclass(frozen=True)
@@ -416,27 +434,21 @@ class RunController:
 
     @staticmethod
     def run_summary_text(record):
-        started = (
-            datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M:%S")
-        )
-        finished = (
-            datetime.fromisoformat(record["finished"]).astimezone().strftime("%H:%M:%S")
-            if record.get("finished")
-            else "—"
-        )
-        stages = ""
-        if record.get("loading", {}).get("finished"):
-            loaded = datetime.fromisoformat(record["loading"]["finished"]).astimezone()
-            stages += f" · Loaded {loaded:%H:%M:%S}"
-        if "analysis_started" in record:
-            began = datetime.fromisoformat(record["analysis_started"]).astimezone()
-            stages += f" · Analysis started {began:%H:%M:%S}"
-        return (
-            f"{started} – {finished} · Studio {record['studio_version']} · "
-            f"ParaDigMa {record['paradigma_version']} · "
-            f"{len(record['warnings'])} warning(s), {len(record.get('errors', []))} error(s)"
-            + stages
-        )
+        warnings, errors = len(record["warnings"]), len(record.get("errors", []))
+        parts = [
+            f"Studio {record['studio_version']}",
+            f"ParaDigMa {record['paradigma_version']}",
+            f"{warnings} warning{'' if warnings == 1 else 's'}, {errors} error{'' if errors == 1 else 's'}",
+        ]
+        loading = record.get("loading", {})
+        loaded = _phase_duration(loading.get("started"), loading.get("finished"))
+        if loaded is not None:
+            parts.append(f"Loading {loaded}")
+        began = record.get("analysis_started") or (record["started"] if not loading else None)
+        analyzed = _phase_duration(began, record.get("finished"))
+        if analyzed is not None:
+            parts.append(f"Analysis {analyzed}")
+        return " · ".join(parts)
 
     def selected_run_records(self):
         selection = self.view.run_table.selectionModel()

@@ -725,8 +725,10 @@ these locations in `%LOCALAPPDATA%\ParaDigMaStudio\runs` on new Windows installa
 History alone does not preserve unsaved result tables.
 
 The run summary displays the Studio and official ParaDigMa versions used for
-loading, or for analysis once it starts. The **Exports** detail also lists CSV
-metadata companions.
+loading, or for analysis once it starts, warning and error counts, and completed
+loading and analysis durations when available. Analysis duration excludes any
+wait after loading; unfinished phases have no duration yet. The summary omits
+start/end timestamps. The **Exports** detail also lists CSV metadata companions.
 
 A completed run can contain warnings; partial results can include both successful
 outputs and failed workflows. **Cancelled** records a requested stop without
@@ -736,7 +738,7 @@ missing or partial outputs.
 **Loading** means an import is active. **Loaded** means import succeeded and no
 analysis has started. Import failures and declined pickle loading are recorded
 as **Failed** or **Cancelled** while previous inputs and results remain available.
-Cancelling the picker creates no entry. Loading and analysis start times are
+Cancelling the picker creates no entry. Loading and analysis durations are
 shown separately. Starting analysis captures its parameters and software versions;
 later attempts retain their own settings, logs and outputs.
 

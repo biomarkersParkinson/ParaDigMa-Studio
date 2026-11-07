@@ -642,7 +642,7 @@ def test_completed_and_failed_runs_persist_and_previous_result_can_reopen(window
     assert window._run_state.runs[0]["errors"] == ["ValueError: Sensor validation failed"]
     assert window.run_errors.toPlainText() == "ValueError: Sensor validation failed"
     assert window.run_warnings.toPlainText() == "No recorded warnings."
-    assert "0 warning(s), 1 error(s)" in window.run_summary.text()
+    assert "0 warnings, 1 error" in window.run_summary.text()
     assert window.run_button.isEnabled() and window.open_button.isEnabled()
     assert window.settings_panel.isEnabled() and window.analysis_controls.isEnabled()
     window.run_table.setCurrentIndex(window.run_table.model().index(1, 0))
@@ -827,7 +827,7 @@ def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_f
     assert len(record["errors"]) == 2
     assert "tremor" in record["errors"][0] and "pulse_rate" in record["errors"][1]
     assert window.run_table.model().frame.loc[0, ["Warnings", "Errors"]].tolist() == [1, 2]
-    assert "1 warning(s), 2 error(s)" in window.run_summary.text()
+    assert "1 warning, 2 errors" in window.run_summary.text()
     assert window.run_warnings.toPlainText() == "Some windows excluded"
     assert window.run_errors.toPlainText() == "\n\n".join(record["errors"])
     assert (
@@ -875,7 +875,7 @@ def test_running_problem_counts_update_immediately(window):
     window.capture_warning("Quality warning")
     window.capture_error("Pipeline error")
     assert window.run_table.model().frame.loc[0, ["Warnings", "Errors"]].tolist() == [1, 1]
-    assert "1 warning(s), 1 error(s)" in window.run_summary.text()
+    assert "1 warning, 1 error" in window.run_summary.text()
     assert window.run_warnings.toPlainText() == "Quality warning"
     assert window.run_errors.toPlainText() == "Pipeline error"
     window.finish_run("Completed")

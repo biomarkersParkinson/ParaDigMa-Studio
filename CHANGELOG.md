@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compact run descriptions to software versions, warning/error counts and
+  available loading/analysis durations, without start or end timestamps.
 - Align Results banners and module notices, distinguishing processing errors,
   explicit skips, operation failures and warnings. Reopening results no longer
   replays analysis completion or adds warnings for legitimate empty outcomes.
