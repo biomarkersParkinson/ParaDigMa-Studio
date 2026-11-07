@@ -414,6 +414,12 @@ and opens its Errors tab, including after a new recording batch has been loaded.
 Full messages and tracebacks remain in Runs; module-unattributed errors remain
 in the overall run diagnostics.
 
+The main banner uses the same reconciled diagnostics for the displayed run,
+including when reopening saved results. Partial outputs use an amber notice;
+errors or skips leaving no usable output use red. Processing errors, skips,
+warnings and later operation errors are reported separately. Reopening a result
+does not finish the analysis again or add warnings for an empty outcome.
+
 - **Gait:** Quantity, Range of motion and Peak velocity charts are grouped by
   filtered/unfiltered gait and duration category. Quantity shows minutes and
   integer segment counts; segment-count bins use original unfiltered durations,
@@ -699,6 +705,19 @@ same failure into one entry. Failures in different recordings, segments, modules
 or identified processing steps remain separate. The counts use this summary;
 **Processing log** retains the original message chain and tracebacks. Diagnostics
 without a matching returned report remain visible in Errors.
+
+The Errors total includes explicit skip reports and later operation failures;
+it is not solely a processing-error count. Results notices distinguish these
+categories. Export, Open results and Save results diagnostics identify their
+operation and retain the owning analysis's historical status. They are saved
+with that run even when another history row is selected. Rejected destinations
+that would overwrite a saved run or its history are reported before exporting.
+
+Loading compatibility warnings appear in Warnings and the saved loading
+context. A current recording-preview failure also produces a warning and keeps
+its traceback with the input batch. If an obsolete preview fails after another
+batch opens, its traceback stays with its original batch without adding a
+warning to the new batch. Field-validation hints remain beside their controls.
 
 **Saved** in the run list indicates a local result snapshot; **Exports** counts
 user exports separately. Run history stores status, parameters, diagnostics and

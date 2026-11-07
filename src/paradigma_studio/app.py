@@ -112,17 +112,22 @@ class MainWindow(QMainWindow):
         self._graph_state._result_shared_axes = None
         self._result_state._result_layout_index = None
         self._analysis_state._origin_override = False
-        self._origin_preview = CachedPreview(self)
+
+        def preview_context():
+            return self._run_controller.preview_context()
+
+        self._origin_preview = CachedPreview(self, context=preview_context)
         self._origin_preview.value_ready.connect(self.apply_origin_preview)
-        self._origin_preview.failed.connect(self.append_log)
-        self._time_preview = CachedPreview(self)
+        self._time_preview = CachedPreview(self, context=preview_context)
         self._time_preview.value_ready.connect(self.apply_time_preview)
-        self._time_preview.failed.connect(self.append_log)
-        self._sensor_preview = CachedPreview(self)
+        self._sensor_preview = CachedPreview(self, context=preview_context)
         self._sensor_preview.value_ready.connect(self.apply_sensor_preview)
-        self._sensor_preview.failed.connect(self.append_log)
         for preview in (self._origin_preview, self._time_preview, self._sensor_preview):
-            preview.diagnostic.connect(self.append_log)
+            preview.problem.connect(
+                lambda context, message, diagnostic, current: self._run_controller.preview_failure(
+                    context, message, diagnostic, current
+                )
+            )
         self._data_state._data_plot_dirty = True
         self._result_state.active_positions = np.array([], dtype=int)
         self._shell_state.sidebar_collapsed = True
@@ -261,7 +266,6 @@ class MainWindow(QMainWindow):
                 *args, **kwargs
             ),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
-            analyzed=lambda *args, **kwargs: self.analyzed(*args, **kwargs),
             prepare_results=lambda *args: self._result_controller.prepare(*args),
             install_prepared=lambda prepared: self._result_controller.install_prepared(prepared),
             selected_export_table=lambda *args, **kwargs: (
@@ -362,6 +366,8 @@ class MainWindow(QMainWindow):
     def _compose_data(self):
         callbacks = DataCallbacks(
             append_log=lambda *args, **kwargs: self.append_log(*args, **kwargs),
+            capture_warning=lambda message: self._run_controller.capture_warning(message),
+            input_installed=lambda: self._run_controller.input_installed(),
             navigate=lambda *args, **kwargs: self._shell_controller.navigate(*args, **kwargs),
             reset_analysis=lambda: self._analysis_controller.reset_for_input(),
             choose_time_column=lambda column: self._analysis_controller.choose_time_column(column),
@@ -442,7 +448,7 @@ class MainWindow(QMainWindow):
             capture_error=lambda *args, **kwargs: self._run_controller.capture_error(
                 *args, **kwargs
             ),
-            persist_diagnostics=lambda record: self._run_controller.persist_diagnostics(record),
+            persist_diagnostics=lambda record: self._run_controller.finish_operation(record),
             capture_warning=lambda *args, **kwargs: self._run_controller.capture_warning(
                 *args, **kwargs
             ),
@@ -502,7 +508,7 @@ class MainWindow(QMainWindow):
                 message, owner=self._run_state.current_run
             ),
             failure=lambda message: self._job_controller.failure(
-                message, owner=self._run_state.current_run
+                message, owner=self._run_state.current_run, context="Export"
             ),
             persist_run=lambda *args, **kwargs: self._run_controller.persist_run(*args, **kwargs),
             record_output=lambda *args, **kwargs: self._run_controller.record_output(
@@ -516,6 +522,7 @@ class MainWindow(QMainWindow):
                 self._workspace_controller.selected_export_table(*args, **kwargs)
             ),
             start_job=lambda *args, **kwargs: self._job_controller.start_job(*args, **kwargs),
+            show_notice=lambda *args: self._shell_controller.show_notice(*args),
         )
         services = ExportServices(
             export_results=lambda *args, **kwargs: export_results(*args, **kwargs),

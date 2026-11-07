@@ -32,6 +32,7 @@ _STEP_PREFIX = re.compile(
 )
 _EXCEPTION_PREFIX = re.compile(r"^(?:[\w.]*(?:Error|Exception)|InsufficientRecordingData):\s*")
 _RECORDING_SUFFIX = re.compile(r"(.+) \[([^\[\]\r\n]+)\]$", re.DOTALL)
+OPERATION_NAMES = frozenset({"Export", "Open results", "Save results"})
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,11 @@ class ErrorContext:
     structured: bool = False
     exception: str = ""
     skipped: bool = False
+
+    @property
+    def operation(self) -> str:
+        head = self.text.partition(": ")[0]
+        return head if head in OPERATION_NAMES else ""
 
     @property
     def key(self) -> tuple[str, frozenset[str], str, str, str]:

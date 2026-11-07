@@ -180,7 +180,7 @@ def test_gui_live_and_final_counts_use_one_summary_while_processing_log_keeps_me
     record = window._run_state.current_run
     expected = [error_text(error) for error in returned] + [orphan]
     assert record["status"] == "Partial" and record["errors"] == expected
-    assert "23 processing error(s)" in window.status.text()
+    assert "20 processing errors. 3 reports of skipped recordings" in window.status.text()
     assert window.run_table.model().frame.loc[0, "Errors"] == 23
     assert window.run_errors.toPlainText() == "\n\n".join(expected)
     assert all(

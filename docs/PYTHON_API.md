@@ -260,6 +260,12 @@ explicit skips and mapping sections to original recordings through stored
 recording metadata and provenance. Unknown attribution is omitted. The summary
 is presentation data; it is not written into the scientific result payload.
 
+Global Results banners use the owning run's same reconciled contexts, including
+log-only failures. Explicit skips and prefixed Export/Open results/Save results
+operation errors are counted separately from processing failures. Operational
+diagnostics persist in history's existing lists without a format change;
+reopening does not replay analysis completion or rewrite the scientific payload.
+
 ### Result files and output receipts
 
 A result envelope contains an `analysis` provenance dictionary and a `results`

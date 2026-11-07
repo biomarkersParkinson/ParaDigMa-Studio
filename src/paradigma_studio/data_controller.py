@@ -111,6 +111,8 @@ class DataView:
 @dataclass(frozen=True)
 class DataCallbacks:
     append_log: Callable[[str], None]
+    capture_warning: Callable[[str], None]
+    input_installed: Callable[[], None]
     navigate: Callable[[int], None]
     reset_analysis: Callable[[], None]
     choose_time_column: Callable[[str | None], None]
@@ -252,6 +254,7 @@ class DataController(QObject):
             )
         self.view.input_recording.blockSignals(False)
         self.inputs.sources, self.inputs.recordings = sources, recordings
+        self.callbacks.input_installed()
         self._supply_mapping_schemas()
         self.state._input_descriptions = descriptions
         self.inspect_input_recording(new_selection=True)
@@ -284,6 +287,7 @@ class DataController(QObject):
         self.previews._sensor_preview.clear()
         self.inputs.source, self.inputs.frame = payload[:2]
         self.inputs.sources, self.inputs.recordings = {"recording_001": self.inputs.source}, {}
+        self.callbacks.input_installed()
         self._supply_mapping_schemas()
         self.state._input_descriptions = {}
         self.view.input_recording.hide()
@@ -308,6 +312,7 @@ class DataController(QObject):
             self.view.status.setText(message)
             self.callbacks.show_notice(message)
             self.callbacks.append_log(message)
+            self.callbacks.capture_warning(message)
         else:
             self.view.status.setText("Recording loaded.")
         self.callbacks.finish_loading()

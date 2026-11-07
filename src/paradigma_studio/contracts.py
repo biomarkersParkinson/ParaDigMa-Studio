@@ -181,6 +181,7 @@ class StartJobCallback(Protocol):
         after_cleanup: bool = False,
         track_progress: bool = False,
         owner: RunRecord | None = None,
+        context: str = "",
     ) -> None: ...
 
 

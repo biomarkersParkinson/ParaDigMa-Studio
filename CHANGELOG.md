@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Align Results banners and module notices, distinguishing processing errors,
+  explicit skips, operation failures and warnings. Reopening results no longer
+  replays analysis completion or adds warnings for legitimate empty outcomes.
+  Persist diagnostics from completed-run operations, bind preview failures to
+  their original input batch, and count loading compatibility warnings in Runs.
 - Show one compact issue summary per affected module in Results Overview,
   separating processing errors, affected original recordings and explicit skips.
   Explain unavailable aggregate statistics, preserve neutral empty outcomes, and

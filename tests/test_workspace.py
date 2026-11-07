@@ -830,14 +830,18 @@ def test_run_warning_and_error_counts_match_details_without_duplicate_pipeline_f
     assert "1 warning(s), 2 error(s)" in window.run_summary.text()
     assert window.run_warnings.toPlainText() == "Some windows excluded"
     assert window.run_errors.toPlainText() == "\n\n".join(record["errors"])
-    assert "2 processing error(s)" in window.status.text()
-    assert window.notice.property("severity") == "error"
+    assert (
+        window.status.text()
+        == "Partial results: 2 processing errors. 1 warning. See Runs for details."
+    )
+    assert window.notice.text() == window.status.text()
+    assert window.notice.property("severity") == "warning"
     saved, issues = window.history.load()
     assert not issues and saved[0]["errors"] == record["errors"]
     assert saved[0]["warnings"] == record["warnings"]
 
 
-def test_no_quantified_windows_is_a_warning_without_processing_errors(window, monkeypatch):
+def test_no_quantified_windows_without_reported_problems_is_neutral(window, monkeypatch):
     window.loaded(("sensor.csv", pd.DataFrame({"time": [0.0, 1.0]})))
     monkeypatch.setattr(
         desktop,
@@ -853,10 +857,12 @@ def test_no_quantified_windows_is_a_warning_without_processing_errors(window, mo
     wait_for_job(window)
     record = window._run_state.runs[0]
     assert record["status"] == "Completed"
-    assert len(record["warnings"]) == 1 and record["errors"] == []
-    assert window.run_table.model().frame.loc[0, "Status"] == "Completed with warnings"
-    assert window.run_heading.text().startswith("Completed with warnings")
-    assert window.notice.property("severity") == "warning"
+    assert record["warnings"] == record["errors"] == []
+    assert window.run_table.model().frame.loc[0, "Status"] == "Completed"
+    assert window.run_heading.text().startswith("Completed ·")
+    assert window.run_warnings.toPlainText() == "No recorded warnings."
+    assert not window.notice.text() and not window.notice.isVisible()
+    assert "No quantified windows" in window.status.text()
 
 
 def test_running_problem_counts_update_immediately(window):

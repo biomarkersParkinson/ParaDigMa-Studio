@@ -61,7 +61,7 @@ def test_shared_skips_count_in_each_module_without_inflating_the_run_total(prove
     assert summaries["gait"].skipped_recordings == 1
     assert summaries["tremor"].processing_errors == 0
     assert summaries["tremor"].skipped_recordings == 1
-    assert summaries["tremor"].severity == "warning"
+    assert summaries["tremor"].severity == "error"  # No usable Tremor output remains.
     assert len(merge_errors([], errors)) == 2
 
 
@@ -149,7 +149,7 @@ def test_missing_skip_attribution_is_not_reported_as_a_known_number_of_recording
         ]
     }
     summary = module_issue_summaries(results, {})["gait"]
-    assert summary.skipped_recordings is None and summary.severity == "warning"
+    assert summary.skipped_recordings is None and summary.severity == "error"
     assert summary.description == "1 report of skipped recordings."
 
 

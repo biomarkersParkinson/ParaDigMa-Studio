@@ -128,7 +128,7 @@ def test_result_components_keep_scientific_frames_and_handle_partial_outputs(
     workspace.callbacks.navigate.assert_called_once_with(2)
     if partial:
         workspace.callbacks.finish_run.assert_called_once_with("Partial", tremor_outputs["errors"])
-        assert "1 processing error(s)" in workspace.view.status.text()
+        assert "1 processing error" in workspace.view.status.text()
     else:
         workspace.callbacks.finish_run.assert_called_once_with("Completed")
         assert workspace.view.status.text() == "Analysis completed."
@@ -196,7 +196,6 @@ def test_run_component_deletion_preserves_remaining_runs_after_partial_failure(
         show_notice=Mock(),
         clear_results=Mock(),
         start_job=Mock(),
-        analyzed=Mock(),
         prepare_results=Mock(),
         install_prepared=Mock(),
         selected_export_table=Mock(),

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import traceback
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from threading import get_ident
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QItemSelectionModel, Qt
@@ -42,6 +44,20 @@ if TYPE_CHECKING:
     from .widgets import ReadableTable
 
 
+class _SaveProblems(logging.Handler):
+    """Retain each bulk-save problem with the run currently being written."""
+
+    def __init__(self, run_id: str, problems: list[tuple[str, int, str, str]]) -> None:
+        super().__init__(logging.WARNING)
+        self.run_id, self.problems, self.thread_id = run_id, problems, get_ident()
+
+    def emit(self, event: logging.LogRecord) -> None:
+        if event.thread == self.thread_id:
+            self.problems.append(
+                (self.run_id, event.levelno, event.getMessage(), self.format(event))
+            )
+
+
 @dataclass(frozen=True)
 class RunView:
     status: QLabel
@@ -68,7 +84,6 @@ class RunCallbacks:
     show_notice: Callable[..., None]
     clear_results: Callable[[], None]
     start_job: Callable[..., None]
-    analyzed: Callable[[dict], None]
     prepare_results: Callable[[AnalysisResults, Provenance, SensorInput | None], PreparedResults]
     install_prepared: Callable[[PreparedResults], None]
     selected_export_table: Callable[[], tuple[str, Any]]
@@ -91,6 +106,7 @@ class RunController:
     ):
         self.state, self.results, self.inputs = state, results, inputs
         self.history, self.view, self.callbacks, self.parent = history, view, callbacks, parent
+        self._preview_persistence: set[str] = set()
 
     def error_messages(self, run_id: str) -> list[str] | None:
         record = next((record for record in self.state.runs if record["id"] == run_id), None)
@@ -149,12 +165,17 @@ class RunController:
                 "\n\n".join(record["errors"]) or "No recorded errors."
             )
             self.view.run_summary.setText(self.run_summary_text(record))
+            suffix = self.view.run_heading.text().partition(" · ")[2]
+            self.view.run_heading.setText(f"{run_status(record)} · {suffix}")
         model = self.view.run_table.model()
-        row = next((i for i, run in enumerate(self.state.runs) if run is record), None)
+        row = next((i for i, run in enumerate(self.state._run_row_records) if run is record), None)
         if model is not None and row is not None:
-            for name in ("Warnings", "Errors"):
+            for name in ("Status", "Warnings", "Errors"):
                 column = model.frame.columns.get_loc(name)
-                model.frame.iat[row, column] = len(record[name.lower()])
+                value = run_status(record) if name == "Status" else len(record[name.lower()])
+                if model.frame.iat[row, column] == value:
+                    continue
+                model.frame.iat[row, column] = value
                 index = model.index(row, column)
                 model.dataChanged.emit(index, index, [Qt.DisplayRole])
 
@@ -170,6 +191,43 @@ class RunController:
     def persist_diagnostics(self, record):
         if record is not None and record.get("_history_dirty"):
             self.persist_run(record)
+
+    def finish_operation(self, owner):
+        self.persist_diagnostics(owner)
+        pending, self._preview_persistence = self._preview_persistence, set()
+        for record in self.state.runs:
+            if record is not owner and record["id"] in pending:
+                self.persist_diagnostics(record)
+
+    def input_installed(self) -> None:
+        active = self.state.active_run
+        self.inputs.load_run_id = (
+            active["id"] if active is not None and active["status"] == "Loading" else None
+        )
+        self.inputs.loading = None
+
+    def preview_context(self) -> RunRecord | None:
+        return next(
+            (record for record in self.state.runs if record["id"] == self.inputs.load_run_id), None
+        )
+
+    def preview_failure(
+        self, context: object, message: str, diagnostic: str, current: bool
+    ) -> None:
+        owner = next((record for record in self.state.runs if record is context), None)
+        if owner is not None:
+            self.append_log(diagnostic, owner=owner)
+            if current:
+                self.capture_warning(f"Recording preview unavailable: {message}", owner=owner)
+            if self.callbacks.is_busy():
+                # A snapshot writer may still publish an earlier history copy.
+                self._preview_persistence.add(owner["id"])
+            else:
+                self.persist_diagnostics(owner)
+        else:
+            logging.getLogger(__name__).warning("%s\n%s", message, diagnostic)
+        if current:
+            self.callbacks.show_notice(f"Recording preview unavailable: {message}")
 
     def start_loading(self, selections: list[str]) -> RunRecord:
         record = new_loading_run(selections)
@@ -555,7 +613,9 @@ class RunController:
                 origin = provenance_for_run(origin, run_id)
             return run_id, self.callbacks.prepare_results(values, origin, source_frame)
 
-        self.callbacks.start_job(read, self._restore_prepared_run, owner=record)
+        self.callbacks.start_job(
+            read, self._restore_prepared_run, owner=record, context="Open results"
+        )
 
     @staticmethod
     def _run_provenance(record: RunRecord) -> Provenance:
@@ -584,7 +644,11 @@ class RunController:
     def restore_run(self, payload):
         run_id, provenance, results = payload
         self._restore_record(run_id, provenance, results)
-        self.callbacks.analyzed(results)
+        self.callbacks.install_prepared(
+            self.callbacks.prepare_results(
+                results, self.results.provenance, self.results.result_source_frame
+            )
+        )
         self.update_run_actions()
 
     def _restore_record(self, run_id, provenance, results):
@@ -638,6 +702,17 @@ class RunController:
             self.persist_run(self.state.current_run)
             self.refresh_runs()
 
+    def _capture_save_problems(self, records, problems):
+        # Single-run diagnostics already arrive through the owned worker signals.
+        if len(records) == 1:
+            return
+        for run_id, level, message, diagnostic in problems:
+            record = next(record for record in self.state.runs if record["id"] == run_id)
+            self.append_log(diagnostic, owner=record)
+            capture = self.capture_error if level >= logging.ERROR else self.capture_warning
+            capture(f"Save results: {message}", owner=record)
+            self.persist_diagnostics(record)
+
     def save_run_results(self, records: list[RunRecord], *, close_after: bool = False) -> None:
         if self.callbacks.is_busy() or not records:
             return
@@ -648,8 +723,11 @@ class RunController:
         self.state._close_after_save = close_after
 
         def write(logger):
-            saved, failures = [], []
+            saved, failures, problems = [], [], []
             for record, results, provenance in snapshots:
+                handler = _SaveProblems(record["id"], problems)
+                package_logger = logging.getLogger("paradigma")
+                package_logger.addHandler(handler)
                 try:
                     outputs = self.history.save_results(record, results, provenance, protected)
                     saved.append((record["id"], outputs))
@@ -662,19 +740,23 @@ class RunController:
                             traceback.format_exc(),
                         )
                     )
-            return saved, failures
+                finally:
+                    package_logger.removeHandler(handler)
+                    handler.close()
+            return saved, failures, problems
 
         def completed(payload):
-            saved, failures = payload
+            saved, failures, problems = payload
             for run_id, outputs in saved:
                 record = next(record for record in self.state.runs if record["id"] == run_id)
                 record["outputs"] = outputs
                 record["_unsaved_results"] = False
+            self._capture_save_problems(records, problems)
             messages = []
             for run_id, message, diagnostic in failures:
                 record = next(record for record in self.state.runs if record["id"] == run_id)
                 self.append_log(diagnostic, owner=record)
-                self.capture_error(message, owner=record)
+                self.capture_error(f"Save results: {message}", owner=record)
                 self.persist_diagnostics(record)
                 messages.append(message)
             self.refresh_runs()
@@ -691,4 +773,9 @@ class RunController:
                 self.callbacks.show_notice("")
 
         self.view.status.setText("Saving results…")
-        self.callbacks.start_job(write, completed, owner=records[0] if len(records) == 1 else None)
+        self.callbacks.start_job(
+            write,
+            completed,
+            owner=records[0] if len(records) == 1 else None,
+            context="Save results",
+        )

@@ -267,6 +267,21 @@ bulk-save failures are returned with individual IDs for GUI routing. Unowned
 diagnostics do not append to an unrelated historical row. History writes occur
 at lifecycle/operation boundaries; log messages alone do not write history files.
 
+Completed-run jobs also persist dirty diagnostics at cleanup. Export destination
+preflight rejects protected snapshots/history before starting the operation;
+that rejection does not rewrite the protected history as a side effect of error
+reporting. Later operation diagnostics carry an explicit operation prefix and
+preserve the analysis outcome. Persistence failures remain visible as notices.
+
+`CachedPreview` snapshots an input-batch context at request time and delivers it
+with failure details. `RunController` retains tracebacks with that owner, adds
+warnings only for current requests, and never falls back to a newly active run
+for obsolete or deleted owners. Standalone preview diagnostic signals remain
+available; the application uses the context-bearing problem signal.
+Ownership changes when new inputs are published, rather than when another import
+starts. Preview persistence waits for foreground snapshot writers to finish so
+their earlier history copy cannot overwrite a newly captured diagnostic.
+
 A completed GUI analysis follows the three phases below. Read from top to bottom
 across the GUI thread, coordinating QThread and owned child processes:
 
@@ -336,6 +351,12 @@ mapping is available. Nonempty detailed tables or finite aggregate values suppor
 a partial-results notice; metadata alone does not. Aggregation failures explain
 missing summary statistics without hiding remaining details. These summaries
 do not modify scientific tables or stored errors.
+
+The same helper derives the global banner using the displayed provenance's owner,
+separating skips and operation errors from processing failures. Banners and module
+cards share output-availability severity rules. Reopening installs presentation
+data without replaying completion, changing the analysis status or manufacturing
+empty-output warnings. Actual analysis completion alone finalizes its lifecycle.
 
 The overview's details action captures the displayed provenance's run ID.
 `RunController` selects that record and its Errors tab through explicit view and

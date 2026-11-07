@@ -20,8 +20,7 @@ from .contracts import (
     SensorInput,
     TimeOffsets,
 )
-from .history import merge_errors
-from .recording_skips import all_recordings_skipped
+from .module_issues import result_issue_summary
 from .result_preparation import PreparedResults, prepare_results
 from .workspace_state import InputState, ResultState, RunState, SensorState
 
@@ -88,7 +87,7 @@ class ResultController:
                 self.inputs.recordings if self.inputs.recordings else self.inputs.frame
             )
         prepared = self.prepare(results, self.state.provenance, self.state.result_source_frame)
-        self._install(prepared)
+        self._install(prepared, completing=True)
 
     def prepare(
         self, results: AnalysisResults, provenance: Provenance, source_frame: SensorInput | None
@@ -121,7 +120,7 @@ class ResultController:
         finally:
             self.state._installing_results = False
 
-    def _install(self, prepared: PreparedResults) -> None:
+    def _install(self, prepared: PreparedResults, *, completing: bool = False) -> None:
         results, data = prepared.results, prepared.data
         self.state.provenance = prepared.provenance
         self.state.result_timeline = prepared.timeline
@@ -131,14 +130,15 @@ class ResultController:
         self.state.display_clock = prepared.clock
         for notice in prepared.notices:
             self.callbacks.append_log(notice)
-        if self.runs.active_run is not None:
+            self.callbacks.capture_warning(notice)
+        if completing and self.runs.active_run is not None:
             self.runs.active_run["_results"] = results
             self.runs.active_run["_provenance"] = dict(self.state.provenance)
             self.runs.active_run["_unsaved_results"] = True
         self.state._detail_selections = {}
         self._install_data(data)
         self._show_outputs(data)
-        self._finish_analysis(results)
+        self._report_results(results, completing=completing)
         self.view.result_tabs.setCurrentIndex(0)
         self.callbacks.navigate(2)
 
@@ -197,40 +197,24 @@ class ResultController:
             not self.callbacks.is_busy() and self.runs.current_run is not None
         )
 
-    def _finish_analysis(self, results: AnalysisResults) -> None:
+    def _report_results(self, results: AnalysisResults, *, completing: bool) -> None:
         errors = results.get("errors", [])
-        if errors:
+        if completing and errors:
             self.callbacks.append_log(json.dumps(errors, indent=2, default=str))
-            count = len(
-                merge_errors(self.runs.active_run["errors"] if self.runs.active_run else [], errors)
-            )
-            message = f"Analysis returned {count} processing error(s); inspect Runs and the partial results."
-            if all_recordings_skipped(results):
-                message = "No usable recordings remain; all recordings were skipped. See Runs for details."
-            self.view.status.setText(message)
-            self.callbacks.show_notice(message, "error")
-            self.callbacks.finish_run("Partial", errors)
-        else:
-            has_rows = any(
-                len(v) for k, v in self.state.tables.items() if k.startswith("quantifications/")
-            )
-            message = (
-                "Analysis completed."
-                if has_rows
-                else "No quantified windows. See Runs for details."
-            )
-            if not has_rows:
-                self.callbacks.capture_warning(message)
+        run_id = self.state.provenance.get("run_id")
+        record = next((run for run in self.runs.runs if run["id"] == run_id), None)
+        if record is None and completing:
             record = self.runs.active_run or self.runs.current_run
-            warnings = len(record["warnings"]) if record else 0
-            logged_errors = len(record.get("errors", [])) if record else 0
-            if logged_errors:
-                message = f"Analysis returned {logged_errors} processing error(s); inspect Runs and the partial results."
-                self.callbacks.show_notice(message, "error")
-            elif warnings and has_rows:
-                message = f"Analysis completed with {warnings} warning(s). See Runs."
-                self.callbacks.show_notice(message)
-            elif not has_rows:
-                self.callbacks.show_notice(message)
-            self.view.status.setText(message)
-            self.callbacks.finish_run("Completed")
+        summary = result_issue_summary(
+            results,
+            self.state.provenance,
+            record["errors"] if record else (),
+            record["warnings"] if record else (),
+        )
+        self.view.status.setText(summary.message)
+        self.callbacks.show_notice(summary.message if summary.severity else "", summary.severity)
+        if completing:
+            if errors:
+                self.callbacks.finish_run("Partial", errors)
+            else:
+                self.callbacks.finish_run("Completed")

@@ -11,10 +11,15 @@ from typing import Any
 
 from .contracts import AnalysisResults, Provenance
 from .error_reporting import ErrorContext, reconciled_errors
+from .recording_skips import all_recordings_skipped
 
 
 def _quantity(count: int, noun: str) -> str:
     return f"{count:,} {noun}{'' if count == 1 else 's'}"
+
+
+def issue_severity(has_results: bool) -> str:
+    return "warning" if has_results else "error"
 
 
 @dataclass(frozen=True)
@@ -32,7 +37,7 @@ class ModuleIssues:
 
     @property
     def severity(self) -> str:
-        return "error" if self.processing_errors and not self.has_results else "warning"
+        return issue_severity(self.has_results)
 
     @property
     def description(self) -> str:
@@ -53,15 +58,15 @@ class ModuleIssues:
         return ". ".join(parts) + "."
 
 
-def _has_output(value: Any) -> bool:
+def has_output(value: Any) -> bool:
     import pandas as pd
 
     if isinstance(value, pd.DataFrame):
         return not value.empty
     if isinstance(value, Mapping):
-        return any(_has_output(child) for child in value.values())
+        return any(has_output(child) for child in value.values())
     if isinstance(value, (list, tuple)):
-        return any(_has_output(child) for child in value)
+        return any(has_output(child) for child in value)
     return isinstance(value, Integral) or (isinstance(value, Real) and math.isfinite(float(value)))
 
 
@@ -123,8 +128,65 @@ def module_issue_summaries(
             ),
             aggregation_failed=any(error.stage == "aggregation" for error in failures),
             has_results=any(
-                _has_output(results.get(category, {}).get(module))
+                has_output(results.get(category, {}).get(module))
                 for category in ("quantifications", "classifications", "aggregations")
             ),
         )
     return summaries
+
+
+@dataclass(frozen=True)
+class ResultIssues:
+    message: str
+    severity: str = ""
+
+
+def result_issue_summary(
+    results: AnalysisResults,
+    provenance: Provenance,
+    diagnostics: Iterable[str] = (),
+    warnings: Iterable[str] = (),
+) -> ResultIssues:
+    """Describe the owning run without replaying its completion lifecycle."""
+    errors = reconciled_errors(diagnostics, results.get("errors", []))
+    skips = [error for error in errors if error.skipped]
+    failures = [error for error in errors if not error.skipped and not error.operation]
+    operations = [error for error in errors if error.operation]
+    warning_count = len(set(warnings))
+    available = any(
+        has_output(results.get(category, {}))
+        for category in ("quantifications", "classifications", "aggregations")
+    )
+    parts = []
+    if failures:
+        parts.append(_quantity(len(failures), "processing error"))
+    if skips:
+        recordings = results.get("metadata", {}).get("desktop_recordings", {})
+        count = _recording_count(
+            skips,
+            recordings.get("sections", {}),
+            set(provenance.get("sources", {})) | set(recordings.get("recordings", [])),
+            provenance.get("source", ""),
+        )
+        parts.append(
+            f"{_quantity(count, 'recording')} skipped"
+            if count is not None
+            else f"{_quantity(len(skips), 'report')} of skipped recordings"
+        )
+    if operations:
+        parts.append(_quantity(len(operations), "operation error"))
+    if warning_count:
+        parts.append(_quantity(warning_count, "warning"))
+    if not parts:
+        return ResultIssues(
+            "Analysis completed." if available else "No quantified windows. See Runs for details."
+        )
+    title = (
+        ("Partial results" if available else "No results available")
+        if failures or skips
+        else "Analysis completed"
+    )
+    message = f"{title}: {'. '.join(parts)}. See Runs for details."
+    if all_recordings_skipped(results) and not available:
+        message = "No usable recordings remain; all recordings were skipped. See Runs for details."
+    return ResultIssues(message, issue_severity(available) if failures or skips else "warning")

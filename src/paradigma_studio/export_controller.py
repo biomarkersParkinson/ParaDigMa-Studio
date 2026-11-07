@@ -100,6 +100,7 @@ class ExportCallbacks:
     save_run_results: SaveRunResultsCallback
     selected_export_table: Callable[[], tuple[str, pd.DataFrame | None]]
     start_job: StartJobCallback
+    show_notice: Callable[..., None]
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,15 @@ class ExportController(QObject):
         self.previews = previews
         self.history = history
 
+    def _valid_destinations(self, *paths: PathInput) -> bool:
+        try:
+            for path in paths:
+                self.history.validate_export_destination(path, self.runs.runs)
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.callbacks.show_notice(str(exc), "error")
+            return False
+        return True
+
     def export(self) -> None:
         if self.results.results is None or self.jobs.worker is not None:
             return
@@ -143,6 +153,8 @@ class ExportController(QObject):
             self.view.parent, "Export complete results", "paradigma-results.json", "JSON (*.json)"
         )
         if path:
+            if not self._valid_destinations(path):
+                return
             try:
                 self.history.validate_export_destination(path, self.runs.runs)
                 checksum = self.services.export_results(
@@ -194,6 +206,8 @@ class ExportController(QObject):
             else None
         )
         protected = [*self.inputs.sources.values(), *provenance.get("sources", {}).values()]
+        if not self._valid_destinations(path, *([companion] if companion is not None else [])):
+            return
 
         def write(logger: logging.Logger) -> tuple[str, str | None]:
             self.history.validate_export_destination(path, self.runs.runs)
@@ -219,7 +233,7 @@ class ExportController(QObject):
             )
 
         self.view.status.setText("Exporting results…")
-        self.callbacks.start_job(write, completed, owner=run)
+        self.callbacks.start_job(write, completed, owner=run, context="Export")
 
     def _complete_selection_export(
         self,
@@ -265,6 +279,8 @@ class ExportController(QObject):
             self.view.parent, "Export selected rows", "output.csv", "CSV (*.csv)"
         )
         if path:
+            if not self._valid_destinations(path, csv_metadata_path(path)):
+                return
             try:
                 self.history.validate_export_destination(path, self.runs.runs)
                 companion = csv_metadata_path(path)

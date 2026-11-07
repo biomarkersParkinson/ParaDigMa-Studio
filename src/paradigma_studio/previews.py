@@ -13,7 +13,7 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 
 PreviewKey: TypeAlias = tuple[int, Hashable]
 PreviewOperation: TypeAlias = Callable[[], object]
-PreviewResult: TypeAlias = tuple[PreviewKey, object, str | None, str | None]
+PreviewResult: TypeAlias = tuple[PreviewKey, object, str | None, str | None, object]
 
 
 class CachedPreview(QObject):
@@ -22,10 +22,16 @@ class CachedPreview(QObject):
     value_ready = Signal(object)
     failed = Signal(str)
     diagnostic = Signal(str)
+    problem = Signal(object, str, str, bool)
     _completed = Signal(object)
 
     def __init__(
-        self, parent: QObject | None = None, *, delay: int = 120, capacity: int = 16
+        self,
+        parent: QObject | None = None,
+        *,
+        delay: int = 120,
+        capacity: int = 16,
+        context: Callable[[], object] | None = None,
     ) -> None:
         super().__init__(parent)
         self._timer = QTimer(self)
@@ -37,7 +43,8 @@ class CachedPreview(QObject):
         self._capacity = capacity
         self._cache: OrderedDict[PreviewKey, object] = OrderedDict()
         self._generation = 0
-        self._desired: tuple[PreviewKey, PreviewOperation] | None = None
+        self._desired: tuple[PreviewKey, PreviewOperation, object] | None = None
+        self._context = context or (lambda: None)
         self._published: PreviewKey | None = None
         self._future: Future[object] | None = None
         self._executor: ThreadPoolExecutor | None = None
@@ -55,13 +62,13 @@ class CachedPreview(QObject):
             return
         cache_key = self._generation, key
         if cache_key in self._cache:
-            self._desired = cache_key, operation
+            self._desired = cache_key, operation, self._context()
             self._timer.stop()
             self._published = cache_key
             self._cache.move_to_end(cache_key)
             self.value_ready.emit(self._cache[cache_key])
         elif self._desired is None or self._desired[0] != cache_key:
-            self._desired = cache_key, operation
+            self._desired = cache_key, operation, self._context()
             self._timer.start(self._delay)
 
     def cancel_pending(self) -> None:
@@ -86,7 +93,7 @@ class CachedPreview(QObject):
     def _dispatch(self) -> None:
         if self._closed or self._future is not None or self._desired is None:
             return
-        key, operation = self._desired
+        key, operation, context = self._desired
         if key == self._published:
             return
         if self._executor is None:
@@ -107,7 +114,7 @@ class CachedPreview(QObject):
             if not self._closed:
                 # The parent window may have been deleted before delivery.
                 with suppress(RuntimeError):
-                    self._completed.emit((key, value, error, details))
+                    self._completed.emit((key, value, error, details, context))
 
         self._future.add_done_callback(completed)
 
@@ -116,7 +123,10 @@ class CachedPreview(QObject):
         self._future = None
         if self._closed:
             return
-        key, value, error, details = payload
+        key, value, error, details, context = payload
+        current = self._desired is not None and self._desired[0] == key
+        if error:
+            self.problem.emit(context, error, details or "", current)
         if details:
             self.diagnostic.emit(details)
         if key[0] == self._generation and error is None:
