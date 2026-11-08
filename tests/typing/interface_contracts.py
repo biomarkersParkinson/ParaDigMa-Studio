@@ -20,6 +20,7 @@ from paradigma_studio.contracts import (
 from paradigma_studio.epochs import epoch_summary
 from paradigma_studio.exploration import SensorContext, select_rows, source_timeline
 from paradigma_studio.gait_presence import gait_epoch_summaries, gait_presence_intervals
+from paradigma_studio.recordings import load_recordings
 from paradigma_studio.run_controller import RunController
 from paradigma_studio.sensor_navigation import SensorNavigator, SensorTimeIndex
 from paradigma_studio.serialization import _write_export, _write_json
@@ -59,6 +60,7 @@ def interfaces(
     epoch_summary(times, times, binary=True)
     runs.capture_error("Could not save", owner=owner)
     toolbar.zoom_time(0.5)
+    load_recordings(["data.csv"], mode="threads", max_workers=2)
 
     def text_writer(stream: TextIO) -> str:
         _write_json(stream, {"original": frame})
@@ -87,6 +89,8 @@ def interfaces(
     state._detail_selections["tremor"] = (frame, times)  # type: ignore[assignment]
     state._display_offsets["tremor"] = [1.0]  # type: ignore[assignment]
     runs.capture_error("Failure", owner="previous run")  # type: ignore[arg-type]
+    load_recordings(["data.csv"], mode="threaded")  # type: ignore[arg-type]
+    load_recordings(["data.csv"], max_workers="two")  # type: ignore[arg-type]
     toolbar.zoom_time("in")  # type: ignore[arg-type]
     digest = _write_export("binary.bin", binary_writer, binary=True)  # type: ignore[assignment]
     _write_export("binary.bin", text_writer, binary=True)  # type: ignore[call-overload]

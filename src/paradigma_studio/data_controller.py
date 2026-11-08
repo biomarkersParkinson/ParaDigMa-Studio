@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import TYPE_CHECKING, Protocol, cast
 from weakref import ref
 
@@ -187,7 +188,11 @@ class DataController(QObject):
         self.view.status.setText("Finding sensor recordings…")
 
         def discover(logger: logging.Logger) -> list[Path]:
-            return self.services.find_recording_files(paths, logger=logger)
+            started = perf_counter()
+            try:
+                return self.services.find_recording_files(paths, logger=logger)
+            finally:
+                logger.info("Recording discovery wall time: %.3f s.", perf_counter() - started)
 
         # The scan must release its worker before a trust prompt or load job.
         self.callbacks.start_job(discover, self._open_paths, after_cleanup=True)
@@ -218,6 +223,7 @@ class DataController(QObject):
         unit = self.view.data_time_unit.currentText()
 
         def load(logger: logging.Logger) -> RecordingsLoadPayload:
+            started = perf_counter()
             progress = AnalysisProgress(lambda value: report_progress(logger, value))
             sources, frames = self.services.load_recordings(
                 paths,
@@ -225,13 +231,21 @@ class DataController(QObject):
                 logger=logger,
                 progress=progress.span(0, 650).report,
             )
-            descriptions = inspect_recordings(
-                frames,
-                unit,
-                describe=self.services.inspect_recording,
-                logger=logger,
-                progress=progress.span(650, 980).report,
-            )
+            statistics_started = perf_counter()
+            try:
+                descriptions = inspect_recordings(
+                    frames,
+                    unit,
+                    describe=self.services.inspect_recording,
+                    logger=logger,
+                    progress=progress.span(650, 980).report,
+                )
+            finally:
+                logger.info(
+                    "Initial statistics wall time: %.3f s; loading job wall time: %.3f s.",
+                    perf_counter() - statistics_started,
+                    perf_counter() - started,
+                )
             return sources, frames, descriptions
 
         self.callbacks.start_job(load, self.loaded_recordings, track_progress=True)

@@ -92,6 +92,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Real CWA/Avro imports, fractional timestamps, TSDF physical scaling, metadata and source integrity | [test_cwa.py](../tests/test_cwa.py), [test_empatica.py](../tests/test_empatica.py), [test_tsdf_input.py](../tests/test_tsdf_input.py) |
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
+| Bounded native/process loading, exact values and metadata across formats, progress/order, trust gates, startup/crash cleanup and atomic GUI publication | [test_parallel_loading.py](../tests/test_parallel_loading.py) |
 | Short batch members, all-skipped batches, unchanged usable outputs, one/two workers, run diagnostics and saved source identities | [test_short_recordings.py](../tests/test_short_recordings.py) |
 | Loading progress, single-file busy mode, completed-file counts, parallel/channel statistics, GUI delivery, stale updates and failed-import preservation | [test_loading_progress.py](../tests/test_loading_progress.py) |
 | Loading-created history, selected-row independence, first/repeated analyses, result ownership, cancelled/failed imports and restart/schema validation | [test_loading_runs.py](../tests/test_loading_runs.py) |
@@ -360,7 +361,7 @@ the floor and report paths. Its current scope is:
 | Group | Included modules |
 | --- | --- |
 | Controllers | Every `*_controller.py` under `src/paradigma_studio/`, including new or untested controllers |
-| Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `loading_progress`, `parallel_analysis`, `previews`, `recording_results`, `run_lifecycle` |
+| Processing and jobs | `analysis_process`, `analysis_progress`, `core`, `jobs`, `loading_progress`, `loading_timing`, `parallel_analysis`, `recording_loading`, `recordings`, `previews`, `recording_results`, `run_lifecycle` |
 | Input and rendering boundaries | `axis_mapping`, `column_mapping`, `input_metadata`, `raw_signals`, `recording_skips` |
 | Result preparation and persistence | `error_reporting`, `module_issues`, `result_preparation`, `result_reopening`, `result_integrity`, `provenance`, `saved_format`, `storage` |
 

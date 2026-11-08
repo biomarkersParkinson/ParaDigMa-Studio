@@ -23,6 +23,7 @@ from .column_mapping import apply_signal_columns
 from .contracts import AnalysisResults, PathInput, Pipeline, SensorInput
 from .empatica import load_empatica_imu
 from .input_metadata import record_import_units
+from .loading_timing import load_phase
 from .paradigma_api import (
     correct_watch_orientation as correct_watch_orientation,
     create_segments as create_segments,
@@ -117,7 +118,9 @@ def load_sensor_file(path: PathInput, *, allow_pickle: bool = False) -> pd.DataF
         if start is not None:
             frame.attrs["desktop_recording_start"] = str(start)
     else:
-        _, frame, start = load_single_data_file(path)
+        # Native/device readers combine I/O, decoding and their own conversions.
+        with load_phase("read_decode"):
+            _, frame, start = load_single_data_file(path)
         if path.suffix.lower() == ".cwa":
             # Only this device loader defines time_dt as its sample clock.
             # Generic table loaders infer start from arbitrary time_dt columns;

@@ -12,6 +12,7 @@ from avro.datafile import DataFileReader
 from avro.io import DatumReader
 
 from .input_metadata import record_import_units
+from .loading_timing import load_phase
 
 
 def _motion_stream(sensor, name, version):
@@ -60,9 +61,11 @@ def load_empatica_imu(path):
     Only IMU channels are imported. Processed BVP is not raw green PPG. Reject
     unaligned IMU streams instead of pairing measurements at different times.
     """
-    import pandas as pd
-
-    with Path(path).open("rb") as stream, DataFileReader(stream, DatumReader()) as reader:
+    with (
+        load_phase("read_decode"),
+        Path(path).open("rb") as stream,
+        DataFileReader(stream, DatumReader()) as reader,
+    ):
         record = next(reader, None)
         if record is None:
             raise ValueError("The Empatica Avro file contains no records.")
@@ -70,6 +73,13 @@ def load_empatica_imu(path):
             raise ValueError(
                 "Empatica import requires one recording per Avro file; split multi-record files first."
             )
+    with load_phase("conversion"):
+        return _convert_record(record)
+
+
+def _convert_record(record):
+    import pandas as pd
+
     try:
         raw = record["rawData"]
         schema = record["schemaVersion"]

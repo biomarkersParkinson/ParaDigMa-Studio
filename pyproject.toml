@@ -89,6 +89,9 @@ include = [
     "src/paradigma_studio/analysis_process.py",
     "src/paradigma_studio/analysis_progress.py",
     "src/paradigma_studio/loading_progress.py",
+    "src/paradigma_studio/recordings.py",
+    "src/paradigma_studio/recording_loading.py",
+    "src/paradigma_studio/loading_timing.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/recording_skips.py",
     "src/paradigma_studio/run_lifecycle.py",
@@ -177,6 +180,8 @@ files = [
     "src/paradigma_studio/column_mapping.py",
     "src/paradigma_studio/axis_mapping.py",
     "src/paradigma_studio/recordings.py",
+    "src/paradigma_studio/recording_loading.py",
+    "src/paradigma_studio/loading_timing.py",
     "src/paradigma_studio/inspection.py",
     "src/paradigma_studio/raw_signals.py",
     "src/paradigma_studio/history.py",
@@ -221,6 +226,8 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = [
     "paradigma_studio.axis_mapping",
+    "paradigma_studio.recording_loading",
+    "paradigma_studio.loading_timing",
     "paradigma_studio.ui.result_plot_data",
     "paradigma_studio.plot_controls",
     "paradigma_studio.time_navigation",

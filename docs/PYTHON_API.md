@@ -48,8 +48,25 @@ discovery error raises without returning a partial list. Pass the returned paths
 to `load_recordings`; pickle still requires `allow_pickle=True` after the caller
 has established trust.
 
+`load_recordings` defaults to `mode="auto"` and `max_workers=2`. The automatic
+policy chooses sequential, threaded or spawned-process loading from the format,
+first decoded frame/work estimate and CPU/RAM headroom. `max_workers=1` caps the
+operation at sequential loading. Explicit `mode="sequential"`, `"threads"` or
+`"processes"` supports benchmarking and troubleshooting; RAM guards and small
+batch fallbacks still apply. Explicit parallel modes can use both CPUs on a
+two-CPU machine, whereas automatic selection reserves a CPU for the interface.
+The returned dictionaries retain input order and identifiers in every mode.
+No partial batch is returned on failure, and pickle consent applies to the
+complete selection before any file is read. Spawned callers should use the
+normal `if __name__ == "__main__":` guard (and `freeze_support()` when frozen).
+Automatic AVRO loading stays sequential in interactive callers without a main
+file and in daemonic processes.
+`load_recordings` loads samples; the desktop separately finishes exact initial
+statistics before publishing them.
+
 `load_recordings` accepts an optional `progress(value)` callback on a 0–1000
-scale. It reports completed unique files; a batch first reports zero, while a
+scale. The callback runs in the coordinating caller, including with parallel
+readers. It reports completed unique files; a batch first reports zero, while a
 single-file read first reports completion after its reader returns. The optional
 callbacks on `inspection.inspect_recording` and `inspection.inspect_recordings`
 report existing statistics milestones on the same scale. Batch inspection

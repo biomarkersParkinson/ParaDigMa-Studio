@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import traceback
 from collections.abc import Callable
+from copy import copy
 
 from PySide6.QtCore import QThread, Signal
 
@@ -12,6 +13,7 @@ from .analysis_process import AnalysisCancelled
 from .analysis_progress import ProgressLogHandler
 from .contracts import TextSignal
 from .history import error_summary, failure_log
+from .loading_timing import defer_loading_error, loading_recording
 
 
 class SignalHandler(logging.Handler):
@@ -24,12 +26,26 @@ class SignalHandler(logging.Handler):
         self.error = error
 
     def emit(self, record: logging.LogRecord) -> None:
+        # Native reader threads share the job handler. Tag their diagnostics in
+        # the emitting thread, before forwarding them to the GUI owner.
+        recording = loading_recording()
+        if recording:
+            record = copy(record)
+            record.msg = f"{record.getMessage()} [{recording}]"
+            record.args = ()
         self.signal.emit(self.format(record))
         if error_summary(record.getMessage()):
             return  # Keep the log; count the individual pipeline failures.
         if record.levelno >= logging.ERROR or failure_log(record.getMessage()):
             if self.error is not None:
-                self.error.emit(record.getMessage())
+                message = record.getMessage()
+                error = self.error
+
+                def publish_error() -> None:
+                    error.emit(message)
+
+                if not defer_loading_error(publish_error):
+                    publish_error()
         elif self.warning is not None and record.levelno >= logging.WARNING:
             self.warning.emit(record.getMessage())
 

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from .input_metadata import METADATA_KEY
+from .loading_timing import load_phase
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -24,11 +25,13 @@ def load_tsdf_sensor_file(path: Path) -> tuple[pd.DataFrame, datetime | None]:
     from paradigma.load import load_tsdf_data
 
     prefix = path.stem.replace("_meta", "")
-    frame, time_metadata, value_metadata = load_tsdf_data(path.parent, prefix)
+    with load_phase("read_decode"):
+        frame, time_metadata, value_metadata = load_tsdf_data(path.parent, prefix)
     if not frame.columns.is_unique:
         raise ValueError("TSDF metadata must contain unique channel names across streams.")
-    for metadata in (time_metadata, value_metadata):
-        _scale_stream(frame, metadata)
+    with load_phase("conversion"):
+        for metadata in (time_metadata, value_metadata):
+            _scale_stream(frame, metadata)
     frame.attrs[METADATA_KEY] = {
         "format": "tsdf",
         "units": {

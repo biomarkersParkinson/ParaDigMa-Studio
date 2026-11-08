@@ -115,6 +115,24 @@ is cleaned up, the GUI requests explicit trust for any pickle files before
 starting the normal batch load. Inputs are installed only when the complete
 load succeeds.
 
+[`recording_loading.py`](../src/paradigma_studio/recording_loading.py) stages
+completed frames by their original index. The first file is decoded once in the
+calling worker and supplies a memory/work estimate. An eligible batch then uses
+at most two native reader threads or two directly owned, reusable spawned
+processes. Work and result buffers stay bounded; publication restores input
+order after out-of-order completions. Process messages carry finished frames,
+timings and diagnostics over private parent-created pipes. Failures stop further
+dispatch and close/join the owned readers before the load fails. Exact initial
+statistics still finish for every frame before the GUI installs the batch.
+See the [loading worker policy](PERFORMANCE.md#worker-selection).
+
+[`loading_timing.py`](../src/paradigma_studio/loading_timing.py) keeps each
+reader's timings and diagnostic context local to its task. Native reader
+warnings retain their recording IDs. A decoder error followed by an exception
+stays in the processing log while the exception supplies one failed-file report;
+an error from a reader that returns usable data remains independently counted.
+Timing messages use the existing import's log owner.
+
 Before discovery starts, `RunController.start_loading` creates a **Loading**
 history entry without changing the run that owns displayed results. Discovery
 and loading share that owner across their separate jobs and the pickle prompt.

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Speed up eligible recording batches with bounded, reusable loading processes
+  for AVRO and threads for native readers, with CPU/RAM and small-workload
+  fallbacks. Preserve exact initial statistics and input order, record loading
+  phase timings in Runs, and keep failed-file diagnostics attributable without
+  counting a decoder log and its raised exception twice.
+
 - Extend meaningful typing to time/selection and gait-summary helpers, recording
   worker events, export streams and callbacks, graph navigation and selected
   controllers. Carry concrete timelines, positions and caches through workspace

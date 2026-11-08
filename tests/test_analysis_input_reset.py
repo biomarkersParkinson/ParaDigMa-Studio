@@ -1,6 +1,7 @@
 """Successful replacement loads start Analyze afresh; inspection keeps batch edits."""
 
 import copy
+import logging
 import time
 from dataclasses import replace
 from threading import Event
@@ -305,7 +306,9 @@ def test_cancelled_or_failed_file_load_keeps_the_existing_analyze_settings(
     controller.services = replace(controller.services, load_recordings=fail_load)
     controller.callbacks = replace(
         controller.callbacks,
-        start_job=lambda operation, completed, **kwargs: completed(operation(None)),
+        start_job=lambda operation, completed, **kwargs: completed(
+            operation(logging.getLogger("test-analysis-input-reset"))
+        ),
     )
     if outcome == "failed":
         with pytest.raises(OSError, match="Could not read"):

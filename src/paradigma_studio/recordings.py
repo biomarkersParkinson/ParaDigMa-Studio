@@ -21,6 +21,7 @@ from .contracts import (
     TimeOffsets,
 )
 from .core import SUPPORTED, load_sensor_file
+from .recording_loading import LoadingBatch, LoadMode, load_parallel, loading_plan, read_recording
 from .results_view import analysis_alignment, normalise_clock, recording_clock
 
 if TYPE_CHECKING:
@@ -103,24 +104,65 @@ def load_recordings(
     allow_pickle: bool = False,
     logger: logging.Logger | None = None,
     progress: ProgressCallback | None = None,
+    mode: LoadMode = "auto",
+    max_workers: int = 2,
 ) -> tuple[dict[str, str], dict[str, pd.DataFrame]]:
-    sources, frames = {}, {}
+    """Stage a complete batch, preserving input order through bounded readers.
+
+    The first file supplies a real decoded-memory/work estimate without an extra
+    read. Explicit modes support reproducible benchmarks and troubleshooting.
+    """
+    # Validate options before opening a source, including empty/single batches.
+    loading_plan([], 0, 0.0, mode=mode, max_workers=max_workers)
     selected_paths = list(dict.fromkeys(map(str, paths)))
-    if progress is not None and len(selected_paths) > 1:
-        progress(0)
-    for index, path in enumerate(selected_paths, start=1):
-        key = f"recording_{index:03d}"
-        if logger:
-            logger.info("Loading %s: %s", key, path)
-        try:
-            frames[key] = load_sensor_file(path, allow_pickle=allow_pickle)
-        except (OSError, ValueError) as exc:
-            raise ValueError(f"{Path(path).name}: {exc}") from exc
-        sources[key] = path
-        if progress is not None:
-            progress(1000 * index // len(selected_paths))
-    if not frames:
+    if not selected_paths:
         raise ValueError("Select at least one sensor recording.")
+    blocked_pickle = next(
+        (Path(path) for path in selected_paths if Path(path).suffix.lower() in {".pkl", ".pickle"}),
+        None,
+    )
+    if not allow_pickle and blocked_pickle is not None:
+        raise ValueError(
+            f"{blocked_pickle.name}: Pickle loading is disabled unless the file is explicitly trusted."
+        )
+    batch = LoadingBatch(selected_paths, logger, progress)
+    try:
+        batch.begin(0)
+        first, timing = read_recording(load_sensor_file, selected_paths[0], allow_pickle)
+        batch.completed(0, first, timing)
+        sample_bytes = int(first.memory_usage(deep=True).sum())
+        plan = loading_plan(
+            selected_paths[1:],
+            sample_bytes,
+            timing.read_decode_s + timing.conversion_s,
+            mode=mode,
+            max_workers=max_workers,
+            sample_suffix=Path(selected_paths[0]).suffix,
+        )
+        if logger is not None:
+            logger.info(
+                "Loading strategy: %s, %s worker(s). %s", plan.mode, plan.workers, plan.reason
+            )
+        remaining = list(enumerate(selected_paths))[1:]
+        if plan.workers == 1:
+            for index, path in remaining:
+                batch.begin(index)
+                batch.completed(index, *read_recording(load_sensor_file, path, allow_pickle))
+        else:
+            load_parallel(
+                remaining,
+                plan,
+                load_sensor_file,
+                allow_pickle,
+                batch.completed,
+                logger,
+                batch.begin,
+            )
+    finally:
+        batch.report()
+
+    sources = {f"recording_{index + 1:03d}": path for index, path in enumerate(selected_paths)}
+    frames = {key: batch.frames[index] for index, key in enumerate(sources)}
     return sources, frames
 
 
