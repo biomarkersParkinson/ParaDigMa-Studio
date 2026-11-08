@@ -297,6 +297,7 @@ class MainWindow(QMainWindow):
             result_tabs=self._layout.result_tabs,
         )
         result_callbacks = ResultCallbacks(
+            update_displayed_run=lambda: self._run_controller.update_displayed_run(),
             show_run=lambda run_id: self._run_controller.show_run(run_id),
             append_log=lambda message: self._run_controller.append_log(
                 message, owner=self._run_state.active_run or self._run_state.current_run
@@ -476,6 +477,7 @@ class MainWindow(QMainWindow):
 
     def _compose_workspace(self):
         callbacks = ResultWorkspaceCallbacks(
+            update_displayed_run=lambda: self._run_controller.update_displayed_run(),
             disconnect_sensor_view=lambda *args, **kwargs: (
                 self._sensor_controller.disconnect_sensor_view(*args, **kwargs)
             ),

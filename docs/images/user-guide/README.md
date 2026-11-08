@@ -28,7 +28,8 @@ retains the screenshots for the published candidate.
 The full set was regenerated and reviewed on 8 November 2026 for the compact
 run reference in Results. Overview, Graphs and Sensor context now identify the
 same entry shown in Runs; the Runs capture also shows the compact duration
-summary. Data and Analyze captures were unchanged.
+summary and the blue eye marking the displayed run. Data and Analyze captures
+were unchanged.
 
 The seven workspace images follow one real gait analysis of the public, unmodified Axivity
 example `src/paradigma_studio/data/test_data.CWA` (36,400 original samples).

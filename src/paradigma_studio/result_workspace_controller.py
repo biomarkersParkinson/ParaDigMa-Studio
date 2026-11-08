@@ -120,6 +120,7 @@ class ResultWorkspaceView:
 
 @dataclass(frozen=True)
 class ResultWorkspaceCallbacks:
+    update_displayed_run: Callable[[], None]
     disconnect_sensor_view: Callable[[], None]
     hide_sensor_context: Callable[[], None]
     highlight_result_row: Callable[[], None]
@@ -212,6 +213,7 @@ class ResultWorkspaceController(QObject):
         self.results._table_views.clear()
         self.view.result_overlay.invalidate()
         self.results.results, self.results.active_frame = None, None
+        self.callbacks.update_displayed_run()
         self.results.display_clock = None
         self.results._source_timelines, self.results._display_offsets = {}, {}
         self.results.tables = {}

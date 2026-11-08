@@ -14,7 +14,7 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 from run_fixtures import make_run
@@ -383,6 +383,11 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
             tremor_outputs["quantifications"]["tremor"],
         )
         assert reopened._run_state.current_run["id"] == record["id"]
+        model = reopened.run_table.model()
+        assert (
+            model.data(model.index(0, 0), Qt.ItemDataRole.AccessibleDescriptionRole)
+            == "Currently displayed in Results"
+        )
         assert record["id"] in reopened.results_source.toolTip()
         assert reopened.results_source.accessibleName().endswith(" · sensor.csv")
     finally:

@@ -43,7 +43,8 @@ from .result_preparation import PreparedResults
 from .result_reopening import load_saved_results
 from .run_lifecycle import analysis_record, close_loading, new_loading_run
 from .theme import STYLESHEET, light_palette
-from .widgets import FrameModel, RecordModel
+from .ui.runs_model import RunsModel
+from .widgets import FrameModel
 from .workspace_state import InputState, ResultState, RunState
 
 if TYPE_CHECKING:
@@ -364,27 +365,26 @@ class RunController:
         }
 
     def _install_run_model(self) -> None:
-        model = RecordModel(
+        model = RunsModel(
             [self._run_row(record) for record in self.state.runs],
-            columns=[
-                "Started",
-                "Status",
-                "Input",
-                "Modules",
-                "Saved",
-                "Warnings",
-                "Errors",
-                "Exports",
-            ],
+            [record["id"] for record in self.state.runs],
+            self.results.provenance.get("run_id") if self.results.results is not None else None,
         )
         self.state._run_row_records = tuple(self.state.runs)
         self.view.run_table.setModel(model)
-        self.view.run_table.setColumnWidth(0, 176)
+        self.view.run_table.setColumnWidth(0, max(196, self.view.run_table.sizeHintForColumn(0)))
         self.view.run_table.setColumnWidth(2, 170)
         self.view.run_table.selectionModel().currentRowChanged.connect(self.callbacks.select_run)
         self.view.run_table.selectionModel().selectionChanged.connect(
             self.callbacks.update_run_actions
         )
+
+    def update_displayed_run(self) -> None:
+        model = self.view.run_table.model()
+        if isinstance(model, RunsModel):
+            model.set_displayed_run(
+                self.results.provenance.get("run_id") if self.results.results is not None else None
+            )
 
     def _restore_run_selection(self, selected_ids: set[str]) -> None:
         index = next(

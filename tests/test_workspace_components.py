@@ -64,6 +64,7 @@ def result_workspace():
         items.update(series.populate(state._plot_tables, state._plot_labels, state.tables))
 
     callbacks = ResultCallbacks(
+        update_displayed_run=Mock(),
         show_run=Mock(),
         append_log=Mock(),
         build_result_overview=render,

@@ -60,6 +60,7 @@ class ResultCallbacks:
     navigate: Callable[[int], None]
     is_busy: Callable[[], bool]
     show_run: Callable[[str], None]
+    update_displayed_run: Callable[[], None]
     align_recordings: Callable[
         [dict[str, pd.DataFrame], AnalysisSettings, AnalysisResults], RecordingAlignment
     ]
@@ -168,6 +169,7 @@ class ResultController:
 
     def _show_outputs(self, data: ResultData) -> None:
         self._show_run_reference()
+        self.callbacks.update_displayed_run()
         self.callbacks.build_result_overview((data.coverage, data.coverage_labels))
         self.callbacks.populate_result_series()
         self.view.dataset.blockSignals(True)

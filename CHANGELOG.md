@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Mark the run currently displayed in Results with a small blue eye beside its
+  Started timestamp in Runs, independently of row selection or loading status.
+
 - Identify the displayed result's run with a compact date/time and source line
   on Results. Click it to select the matching Runs entry; long sources use an
   ellipsis and tooltip without adding a header row.

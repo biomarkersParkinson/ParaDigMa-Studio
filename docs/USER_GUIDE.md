@@ -691,6 +691,12 @@ there is no need to edit JSON to configure signals.
 
 Review recording imports and analyses, reopen saved results or reuse a configuration.
 
+A small blue eye beside the **Started** timestamp marks the run currently
+displayed in Results. Hover for **Currently displayed in Results**; screen
+readers expose the same description. Selecting another row or loading new
+recordings leaves the marker with the displayed results. It moves when different
+results open successfully and disappears when results are cleared.
+
 [![Runs showing the completed saved example and its Parameters detail tab](images/user-guide/runs.png)](images/user-guide/runs.png)
 
 *The same analysis is saved and Completed with warnings. The list shows warning
