@@ -1,13 +1,31 @@
 """Compact coverage of the actual prepared frames handed to the toolbox."""
 
+from __future__ import annotations
+
 import json
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 
+from .contracts import AnalysisResults, Pipeline, SensorInput, TimeOffsets
+from .result_contracts import AvailabilitySection, PreparedAvailability
 
-def prepared_availability(inputs, pipelines):
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+class _CoverageGroup(TypedDict):
+    modules: list[str]
+    frame: pd.DataFrame
+    samples: int
+
+
+def prepared_availability(
+    inputs: SensorInput, pipelines: Sequence[Pipeline]
+) -> PreparedAvailability:
     frames = inputs if isinstance(inputs, dict) else {"df_1": inputs}
-    sections = {}
+    sections: dict[str, AvailabilitySection] = {}
     for key, frame in frames.items():
         times = frame["time"].to_numpy(dtype=float)
         positive = np.diff(times)
@@ -22,13 +40,16 @@ def prepared_availability(inputs, pipelines):
     return dict.fromkeys(pipelines, sections)
 
 
-def availability_views(results, offsets):
+def availability_views(
+    results: AnalysisResults, offsets: TimeOffsets
+) -> tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]]:
     """Group identical prepared inputs; dates/offsets remain display-only."""
     from .recordings import timeline_offsets
     from .results_view import MODULE_NAMES
 
-    groups = {}
-    for module, sections in results.get("metadata", {}).get("desktop_availability", {}).items():
+    groups: dict[str, _CoverageGroup] = {}
+    coverage: PreparedAvailability = results.get("metadata", {}).get("desktop_availability", {})
+    for module, sections in coverage.items():
         import pandas as pd
 
         rows = [

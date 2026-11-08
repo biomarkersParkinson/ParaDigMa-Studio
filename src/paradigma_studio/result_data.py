@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 if TYPE_CHECKING:
     import pandas as pd
+    from numpy.typing import NDArray
 
 from .availability import availability_views
-from .contracts import AnalysisResults, ClockMetadata, TimeOffsets
+from .contracts import AnalysisResults, ClockMetadata, FloatArray, TimeOffsets
 from .recordings import timeline_offsets
 from .results_view import (
     aggregation_tables,
@@ -30,8 +31,8 @@ class ResultData:
     plot_frames: dict[str, pd.DataFrame]
     plot_labels: dict[tuple[str, str], str]
     timings: dict[str, pd.DataFrame]
-    interval_ends: dict[str, np.ndarray]
-    bar_bounds: dict[str, tuple[np.ndarray, np.ndarray]]
+    interval_ends: dict[str, FloatArray]
+    bar_bounds: dict[str, tuple[FloatArray, FloatArray]]
     coverage: dict[str, pd.DataFrame]
     coverage_labels: dict[tuple[str, str], str]
 
@@ -106,7 +107,7 @@ def detail_table_view(
     view = frame.copy(deep=False)
     if timing is None:
         return view
-    fields = {
+    fields: dict[str, NDArray[Any] | pd.DatetimeIndex] = {
         "Analysis time (s)": timing["Analysis time (s)"].to_numpy(),
         "Time basis": timing["Time basis"].to_numpy(),
     }

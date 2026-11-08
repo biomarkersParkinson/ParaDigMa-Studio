@@ -8,7 +8,7 @@ import tempfile
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Unpack
+from typing import TYPE_CHECKING, Any, Unpack, cast
 
 import numpy as np
 
@@ -39,6 +39,16 @@ from .preparation_contracts import (
     TimeInputUnit,
 )
 from .recording_skips import InsufficientRecordingData, skipped_recording_errors
+from .result_contracts import (
+    AnalysisError,
+    ClassificationTables,
+    PreparationMetadata,
+    PreparedAvailability,
+    ProcessingError,
+    RecordingMetadata,
+    RecordingPreparation,
+    ResultCategory,
+)
 from .serialization import (
     export_results as export_results,
     export_table_csv as export_table_csv,
@@ -73,16 +83,17 @@ def validate_column_mapping(mapping: object) -> dict[str, str]:
 class _PipelineFailures(logging.Handler):
     """Recover failures that ParaDigMa 1.1.2 logs but omits from results.errors."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(logging.WARNING)
-        self.errors = []
+        self.errors: list[ProcessingError] = []
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         message = record.getMessage()
-        for pipeline in ("tremor", "pulse_rate"):
+        pipelines: tuple[Pipeline, ...] = ("tremor", "pulse_rate")
+        for pipeline in pipelines:
             prefix = f"{pipeline} pipeline returned error: "
             if message.startswith(prefix):
-                error = {
+                error: ProcessingError = {
                     "pipeline": pipeline,
                     "stage": "pipeline_execution",
                     "error": message[len(prefix) :],
@@ -154,7 +165,7 @@ def analyze(
     if progress:
         progress.report(120)
 
-    def run(output_dir):
+    def run(output_dir: PathInput) -> AnalysisResults:
         return _run_prepared_analysis(
             inputs,
             pipelines,
@@ -177,9 +188,18 @@ def analyze(
 
 
 def _analyze_pipeline_groups(
-    frame, pipelines, column_mapping, logger, drop_missing_samples, settings, progress=None
-):
-    groups = [[pipeline for pipeline in pipelines if pipeline != "pulse_rate"], ["pulse_rate"]]
+    frame: SensorInput,
+    pipelines: Sequence[Pipeline],
+    column_mapping: dict[str, str] | None,
+    logger: logging.Logger | None,
+    drop_missing_samples: bool,
+    settings: AnalysisOptions,
+    progress: AnalysisProgress | None = None,
+) -> AnalysisResults:
+    groups: list[list[Pipeline]] = [
+        [pipeline for pipeline in pipelines if pipeline != "pulse_rate"],
+        ["pulse_rate"],
+    ]
     combined: AnalysisResults = {
         "quantifications": {},
         "classifications": {},
@@ -187,7 +207,7 @@ def _analyze_pipeline_groups(
         "metadata": {},
         "errors": [],
     }
-    preparation = {}
+    preparation: dict[str, PreparationMetadata] = {}
     total = sum(len(STAGES[name]) for name in pipelines)
     completed = 0
     for group in groups:
@@ -228,12 +248,19 @@ def _analyze_pipeline_groups(
             if group_progress:
                 group_progress.report(1000)
             continue
-        for category in ("quantifications", "classifications", "aggregations"):
+        categories: tuple[ResultCategory, ...] = (
+            "quantifications",
+            "classifications",
+            "aggregations",
+        )
+        for category in categories:
             combined[category].update(output.get(category, {}))
         metadata = dict(output.get("metadata", {}))
         details = metadata.pop("desktop_preparation", None)
         if details:
-            preparation.update({pipeline: dict(details) for pipeline in group})
+            preparation.update(
+                {pipeline: cast(PreparationMetadata, dict(details)) for pipeline in group}
+            )
         recording_details = metadata.pop("desktop_recordings", None)
         if recording_details:
             previous = combined["metadata"].get("desktop_recordings", {})
@@ -260,17 +287,17 @@ def _prepare_analysis_inputs(
     drop_missing_samples: bool,
     settings: PreparationSettings,
     progress: AnalysisProgress | None = None,
-) -> tuple[SensorInput, dict[str, Any], int, dict[str, Any] | None]:
+) -> tuple[SensorInput, PreparationMetadata, int, RecordingMetadata | None]:
     """Prepare inputs and retain source/section identities for combined outputs."""
 
-    recordings = None
+    recordings: RecordingMetadata | None = None
     inputs: SensorInput
-    exclusion: dict[str, Any] | None
+    exclusion: PreparationMetadata | None
     if isinstance(frame, dict):
         validate_recordings(frame)
         inputs = {}
         sections: dict[str, str] = {}
-        preparation: dict[str, dict[str, Any]] = {}
+        preparation: dict[str, RecordingPreparation] = {}
         total = max(1, sum(len(recording) for recording in frame.values()))
         completed = 0
         for key, recording in frame.items():
@@ -393,23 +420,25 @@ def _analysis_logging(
 
 
 def _run_prepared_analysis(
-    inputs,
-    pipelines,
-    logger,
-    settings,
-    output_dir,
-    recordings,
-    exclusion,
-    analyzed_samples,
-    coverage,
-    progress=None,
-):
+    inputs: SensorInput,
+    pipelines: Sequence[Pipeline],
+    logger: logging.Logger | None,
+    settings: AnalysisOptions,
+    output_dir: PathInput,
+    recordings: RecordingMetadata | None,
+    exclusion: PreparationMetadata,
+    analyzed_samples: int,
+    coverage: PreparedAvailability,
+    progress: AnalysisProgress | None = None,
+) -> AnalysisResults:
     # Retain the official classification exports that 1.1.2 computes but
     # omits from its orchestrator return value. A fresh directory prevents
     # a failed run from reading a previous run's predictions.
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     run_directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
     with _analysis_logging(inputs, pipelines, logger, progress) as (active_logger, recorder):
+        # Filtering a TypedDict loses its individual keyword types in mypy.
+        # Keep that dynamic unpack confined to the typed official-adapter call.
         results = run_paradigma(
             dfs=inputs,
             pipelines=pipelines,
@@ -417,16 +446,19 @@ def _run_prepared_analysis(
             save_intermediate=["classification"],
             return_intermediate=["classification", "quantification"],
             custom_logger=active_logger,
-            **{
-                **{
-                    key: value
-                    for key, value in settings.items()
-                    if key not in {"axis_inversions", "signal_columns"}
+            **cast(
+                Any,
+                {
+                    **{
+                        key: value
+                        for key, value in settings.items()
+                        if key not in {"axis_inversions", "signal_columns"}
+                    },
+                    "output_dir": run_directory,
+                    "skip_preparation": True,
+                    "split_by_gaps": False,
                 },
-                "output_dir": run_directory,
-                "skip_preparation": True,
-                "split_by_gaps": False,
-            },
+            ),
         )
         milestone(progress, 920)
         classifications, keys = _read_classification_outputs(
@@ -449,16 +481,16 @@ def _run_prepared_analysis(
 
 
 def _complete_analysis_results(
-    results,
-    classifications,
-    keys,
-    recordings,
-    errors,
-    exclusion,
-    analyzed_samples,
-    inputs,
-    coverage,
-):
+    results: AnalysisResults,
+    classifications: ClassificationTables,
+    keys: list[str],
+    recordings: RecordingMetadata | None,
+    errors: Sequence[AnalysisError],
+    exclusion: PreparationMetadata,
+    analyzed_samples: int,
+    inputs: SensorInput,
+    coverage: PreparedAvailability,
+) -> AnalysisResults:
     import pandas as pd
 
     results["classifications"] = classifications
@@ -486,7 +518,12 @@ def _complete_analysis_results(
     return results
 
 
-def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
+def _read_classification_outputs(
+    run_directory: Path,
+    inputs: SensorInput,
+    pipelines: Sequence[Pipeline],
+    recordings: RecordingMetadata | None,
+) -> tuple[ClassificationTables, list[str]]:
     """Read only official prediction files produced in this run's fresh directory."""
     import pandas as pd
 
@@ -499,7 +536,7 @@ def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
         "pulse_rate": {"": "ppg_quality_predictions.parquet"},
     }
     keys = list(inputs) if isinstance(inputs, dict) else ["df_1"]
-    classifications: dict[str, pd.DataFrame | dict[str, pd.DataFrame]] = {}
+    classifications: ClassificationTables = {}
     for pipeline in pipelines:
         for name, filename in files[pipeline].items():
             frames = []
@@ -513,13 +550,16 @@ def _read_classification_outputs(run_directory, inputs, pipelines, recordings):
             if frames:
                 classified = pd.concat(frames, ignore_index=True)
                 if name:
-                    classifications.setdefault(pipeline, {})[name] = classified
+                    # Gait's named classification stages always form a mapping.
+                    cast("dict[str, pd.DataFrame]", classifications.setdefault(pipeline, {}))[
+                        name
+                    ] = classified
                 else:
                     classifications[pipeline] = classified
     return classifications, keys
 
 
-def result_tables(value: Any, path: str = "") -> dict[str, pd.DataFrame]:
+def result_tables(value: object, path: str = "") -> dict[str, pd.DataFrame]:
     """Flatten nested results, preserving filtered/unfiltered gait branches."""
     import pandas as pd
 
@@ -550,7 +590,7 @@ def _prepare_recording(
     logger: logging.Logger | None,
     drop_missing_samples: bool,
     settings: PreparationSettings,
-) -> tuple[SensorInput, dict[str, Any] | None, int]:
+) -> tuple[SensorInput, PreparationMetadata | None, int]:
     mapping = validate_column_mapping(column_mapping)
     axes = preparation_orientations(settings)
     mapped = (
@@ -671,7 +711,7 @@ def _exclude_invalid_samples(
     settings: PreparationSettings,
     logger: logging.Logger | None,
     drop_missing_samples: bool,
-) -> tuple[pd.DataFrame, pd.DataFrame, TimeInputUnit, dict[str, Any]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, TimeInputUnit, PreparationMetadata]:
     """Remove invalid rows after converting a complete difference timeline.
 
     Update settings when differences become relative seconds and preserve
@@ -699,7 +739,7 @@ def _exclude_invalid_samples(
         time_unit = "relative_s"
         settings["time_input_unit"] = time_unit
     positions = np.flatnonzero(~invalid)
-    exclusion = {
+    exclusion: PreparationMetadata = {
         "input_samples": len(frame),
         "excluded_samples": excluded_count,
         "samples_after_exclusion": len(positions),

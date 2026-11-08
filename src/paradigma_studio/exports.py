@@ -6,7 +6,7 @@ import csv
 import json
 import re
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, BinaryIO, Literal
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from PySide6.QtCore import Qt
@@ -47,15 +47,19 @@ def export_items(results: AnalysisResults) -> tuple[dict[str, pd.DataFrame], dic
 
 def selected_results(results: AnalysisResults, selected: Iterable[str]) -> AnalysisResults:
     output: AnalysisResults = {
-        key: {} for key in ("classifications", "quantifications", "aggregations", "metadata")
+        "classifications": {},
+        "quantifications": {},
+        "aggregations": {},
+        "metadata": {},
     }
     output["errors"] = []
     for name in selected:
         parts = name.split("/")
-        value = results
+        value: Any = results
         for part in parts:
             value = value[part]
-        target = output
+        # Selection paths traverse extensible nested metadata at this boundary.
+        target = cast("dict[str, Any]", output)
         for part in parts[:-1]:
             target = target.setdefault(part, {})
         target[parts[-1]] = value

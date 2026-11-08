@@ -37,6 +37,7 @@ def preparation_contract(frame: pd.DataFrame) -> None:
     prepare_raw_data(frame, accelerometer_units="g", time_input_unit="absolute_ms")
     correct_watch_orientation(frame, ["-x", "y", "z"], sensor="gyroscope")
     run_paradigma(dfs=frame, pipelines=["tremor"], return_intermediate=["classification"])
+    run_paradigma(dfs=frame, pipelines=("tremor",))
 
     selected["accelerometer_units"] = "rad/s"  # type: ignore[typeddict-item]
     selected["gyroscope_units"] = "g"  # type: ignore[typeddict-item]

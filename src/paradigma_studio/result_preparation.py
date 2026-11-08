@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias, cast
 
 from .contracts import (
     AnalysisResults,
@@ -106,8 +106,11 @@ def _resolve_clock(
             notices = ("Stored recording clock is invalid; using available recording timing.",)
             provenance.pop("display_clock", None)
     if clock is None:
+        # Mapping inputs have mapping timelines; single inputs have flat arrays.
         clock = (
-            batch_clock if isinstance(frame, dict) else recording_clock(frame, settings, timeline)
+            batch_clock
+            if isinstance(frame, dict)
+            else recording_clock(frame, settings, cast("FloatArray | None", timeline))
         )
     origin = settings.get("plot_time_origin", {})
     if not provenance.get("display_clock") and origin.get("mode") == "custom":

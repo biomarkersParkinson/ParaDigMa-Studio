@@ -175,6 +175,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Frozen view ports, callbacks connected before worker start, snapshots, terminal cleanup and coordinator size | [test_composition_order.py](../tests/test_composition_order.py) |
 | Application workflows with the internal driver disabled | [test_composition_without_facade.py](../tests/test_composition_without_facade.py) |
 | Typed lazy adapters, pinned upstream signatures/defaults and object-preserving forwarding | [test_paradigma_api.py](../tests/test_paradigma_api.py); static examples in [preparation_contracts.py](../tests/typing/preparation_contracts.py) |
+| Known result sections, structured errors, Studio metadata, derived frames/arrays and elapsed/calendar return types; rejects backsliding to `Any` | Static examples in [result_contracts.py](../tests/typing/result_contracts.py), included in the regular mypy target |
 | Specific input errors, complete worker/UI tracebacks, failed startup/smoke status and unchanged failure counts | [test_error_handling.py](../tests/test_error_handling.py) |
 | Duplicate diagnostic chains, distinct recording/segment/module/stage/exception contexts, log-only fallback, live/final counts and history cleanup without file rewrites | [test_error_reporting.py](../tests/test_error_reporting.py) |
 

@@ -21,6 +21,7 @@ from .contracts import (
     TimeOffsets,
 )
 from .module_issues import result_issue_summary
+from .result_contracts import ResultCategory
 from .result_preparation import PreparedResults, prepare_results
 from .workspace_state import InputState, ResultState, RunState, SensorState
 
@@ -100,10 +101,13 @@ class ResultController:
             align_recordings=self.callbacks.align_recordings,
             analysis_alignment=self.callbacks.analysis_alignment,
         )
-        if any(
-            "gait" in results.get(stage, {})
-            for stage in ("aggregations", "metadata", "classifications", "quantifications")
-        ):
+        stages: tuple[ResultCategory, ...] = (
+            "aggregations",
+            "metadata",
+            "classifications",
+            "quantifications",
+        )
+        if any("gait" in results.get(stage, {}) for stage in stages):
             # Import chart classes in the worker; actual Qt widgets and canvases
             # are created only by the overview renderer on the UI thread.
             import_module(".gait_overview", __package__)

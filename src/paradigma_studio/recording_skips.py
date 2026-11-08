@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import cast
 
 from .contracts import AnalysisResults, Pipeline
+from .result_contracts import PreparationMetadata, ProcessingError
 
 
 class InsufficientRecordingData(ValueError):
     """A recording has too few usable samples or no retained continuous sections."""
 
-    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+    def __init__(self, message: str, details: PreparationMetadata | None = None) -> None:
         super().__init__(message)
-        self.details = dict(details or {})
+        self.details = cast(PreparationMetadata, dict(details or {}))
 
 
 def skipped_recording_errors(
-    preparation: dict[str, Any], pipelines: Sequence[Pipeline]
-) -> list[dict[str, Any]]:
+    preparation: PreparationMetadata, pipelines: Sequence[Pipeline]
+) -> list[ProcessingError]:
     """Keep per-recording omissions attributable in run history and saved results."""
     return [
         {

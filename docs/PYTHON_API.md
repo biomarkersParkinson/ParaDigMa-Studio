@@ -98,6 +98,17 @@ errors; inspect `results.get("errors")` before accepting the analysis. The
 example stops on any reported error. This writes a standalone result file;
 Studio history uses the separate [run-record contract](#history-records) below.
 
+The `AnalysisResults` annotation, re-exported from `contracts.py`, describes the
+known dictionary sections in
+[`result_contracts.py`](../src/paradigma_studio/result_contracts.py): classifications,
+quantifications, aggregations, metadata and errors. Sections are optional so
+partial results remain representable. Structured errors and Studio's recording,
+preparation and coverage metadata have explicit field types; per-module upstream
+statistics and extension metadata remain dynamic. These are static contracts,
+not runtime coercions: result dictionaries, original DataFrames, extra fields and
+the saved JSON format are preserved. DataFrame columns, units and scientific
+meaning still require runtime validation and numerical comparisons.
+
 For a batch, pass the `frames` returned by `load_recordings` to `analyze` and
 include the matching `sources` dictionary in provenance. Use a shared
 configuration for the recordings, and pass **all original source paths** through

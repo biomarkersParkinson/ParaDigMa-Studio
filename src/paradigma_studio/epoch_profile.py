@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import pandas as pd
+    from numpy.typing import NDArray
 
 
 def mean_epoch_profile(summary: pd.DataFrame, clock: Mapping[str, Any] | None) -> pd.DataFrame:
@@ -30,12 +31,14 @@ def mean_epoch_profile(summary: pd.DataFrame, clock: Mapping[str, Any] | None) -
     values = summary.value.to_numpy(dtype=float, na_value=np.nan)
     valid = np.isfinite(starts) & np.isfinite(values)
     starts, values = starts[valid], values[valid]
+    slots: NDArray[np.int64] | pd.Index[int]
     if clock is None:
         days = np.floor(starts / DAY_SECONDS).astype(np.int64)
         slots = np.floor(starts % DAY_SECONDS / EPOCH_SECONDS).astype(np.int64)
     else:
         stamps = clock_times(starts, clock)
-        days = stamps.tz_localize(None).normalize().asi8
+        # pandas exposes this nanosecond buffer at runtime but omits it in stubs.
+        days = cast("NDArray[np.int64]", cast(Any, stamps.tz_localize(None).normalize()).asi8)
         slots = (stamps.hour * 60 + stamps.minute) // 30
     per_day = (
         pd.DataFrame({"day": days, "slot": slots, "value": values})

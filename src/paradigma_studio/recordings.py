@@ -6,7 +6,7 @@ import logging
 import os
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -149,12 +149,14 @@ def align_recordings(
 ) -> RecordingAlignment:
     """Display offsets only: never shift scientific timestamps or sensor values."""
     module_times: dict[str, dict[str, FloatArray]]
-    common, module_times, local_offsets, clocks = {}, {}, {}, {}
+    common, module_times, clocks = {}, {}, {}
+    local_offsets: dict[str, dict[str, float]] = {}
     for key, frame in frames.items():
         timeline, modules, offsets = analysis_alignment(frame, settings, results)
         if timeline is None:
             timeline = np.full(len(frame), np.nan)
-        common[key], local_offsets[key] = timeline, offsets
+        # With no saved offsets supplied, alignment constructs scalar offsets.
+        common[key], local_offsets[key] = timeline, cast("dict[str, float]", offsets)
         for module, times in modules.items():
             module_times.setdefault(module, {})[key] = times
         clocks[key] = recording_clock(frame, settings, timeline)
@@ -165,19 +167,20 @@ def align_recordings(
         cursor = 0.0
         for key, times in common.items():
             finite = times[np.isfinite(times)]
-            start, end = (finite.min(), finite.max()) if len(finite) else (0.0, 0.0)
+            # NumPy's stubs omit the no-axis scalar reduction for floating arrays.
+            start, end = (finite.min(), finite.max()) if len(finite) else (0.0, 0.0)  # type: ignore[call-overload]
             steps = np.diff(times)
             steps = steps[np.isfinite(steps) & (steps > 0)]
             bases[key] = cursor - start
             cursor += end - start + (float(np.median(steps)) if len(steps) else 1.0)
     sections = results.get("metadata", {}).get("desktop_recordings", {}).get("sections", {})
-    offsets = {}
+    combined_offsets: dict[str, dict[str, float]] = {}
     for file_key, key in sections.items():
         for module in settings.get("pipelines", []):
-            offsets.setdefault(module, {})[file_key] = bases.get(key, 0.0) + local_offsets.get(
-                key, {}
-            ).get(module, 0.0)
-    return common, module_times, offsets, clock, bases
+            combined_offsets.setdefault(module, {})[file_key] = bases.get(
+                key, 0.0
+            ) + local_offsets.get(key, {}).get(module, 0.0)
+    return common, module_times, cast(TimeOffsets, combined_offsets), clock, bases
 
 
 def preview_recording_clock(

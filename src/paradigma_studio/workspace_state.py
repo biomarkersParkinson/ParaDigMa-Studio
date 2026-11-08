@@ -11,7 +11,13 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .contracts import ClockMetadata, LoadingInfo, RecordingDescription, RunRecord as RunRecord
+from .contracts import (
+    AnalysisResults,
+    ClockMetadata,
+    LoadingInfo,
+    RecordingDescription,
+    RunRecord as RunRecord,
+)
 from .result_plot_cache import ResultPlotCache
 
 if TYPE_CHECKING:
@@ -65,7 +71,7 @@ class ResultState:
     _epoch_views: dict = field(default_factory=dict)
     _epoch_presence_views: dict = field(default_factory=dict)
     _detail_selections: dict = field(default_factory=dict)
-    results: dict[str, Any] | None = None
+    results: AnalysisResults | None = None
     result_timeline: Any = None
     result_source_frame: pd.DataFrame | dict[str, pd.DataFrame] | None = None
     display_clock: ClockMetadata | None = None

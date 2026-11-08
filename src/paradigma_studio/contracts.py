@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from os import PathLike
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Protocol, TypeAlias, TypedDict
 
+from .result_contracts import (
+    AnalysisError as AnalysisError,
+    AnalysisResults as AnalysisResults,
+    Pipeline as Pipeline,
+)
+
 if TYPE_CHECKING:
     import logging
 
@@ -22,13 +28,10 @@ if TYPE_CHECKING:
     from .jobs import Worker
 
 PathInput: TypeAlias = str | PathLike[str]
-Pipeline: TypeAlias = Literal["gait", "tremor", "pulse_rate"]
 SensorInput: TypeAlias = "pd.DataFrame | dict[str, pd.DataFrame]"
 FloatArray: TypeAlias = "NDArray[np.floating[Any]]"
 SegmentArray: TypeAlias = "NDArray[np.int64]"
 AnalysisSettings: TypeAlias = dict[str, Any]
-AnalysisResults: TypeAlias = dict[str, Any]
-AnalysisError: TypeAlias = str | dict[str, Any]
 Provenance: TypeAlias = dict[str, Any]
 RunStatus: TypeAlias = Literal[
     "Loading", "Loaded", "Running", "Completed", "Partial", "Failed", "Cancelled", "Unfinished"

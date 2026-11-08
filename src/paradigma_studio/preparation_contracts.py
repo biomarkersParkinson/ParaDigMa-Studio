@@ -6,6 +6,7 @@ Runtime validation and scientific equivalence checks remain necessary.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal, TypeAlias, TypedDict
 
 from .contracts import PathInput, Pipeline, SensorInput
@@ -92,6 +93,6 @@ class OfficialRunOptions(PreparationOptions, PipelineOptions, total=False):
 
     data_path: PathInput | None
     dfs: SensorInput | list[pd.DataFrame] | None
-    pipelines: Pipeline | list[Pipeline] | None
+    pipelines: Pipeline | Sequence[Pipeline] | None
     column_mapping: dict[str, str] | None
     custom_logger: logging.Logger | None

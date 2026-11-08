@@ -239,6 +239,15 @@ the guide does not duplicate the changing target-file list.
 | Stronger service overrides | Also require explicit generic arguments and reject returning `Any` from concretely typed functions |
 | Recursive `ui/` target | Check bodies while signatures are annotated incrementally; new UI modules join automatically |
 
+Core preparation and result-data services participate in the stronger overrides.
+[`result_contracts.py`](../src/paradigma_studio/result_contracts.py) defines the
+known result envelope, structured errors, recording/preparation metadata and
+prepared coverage. `contracts.py` re-exports the existing public result/error
+names. Per-module upstream statistics and extension metadata remain explicitly
+dynamic; derived frame collections and elapsed/calendar clock outputs have
+concrete types. Keep casts at documented dynamic-library, serialization or
+correlated-data boundaries rather than weakening a complete module's checks.
+
 For a new service/controller target, add the file to the configured `files` list.
 Apply stronger overrides when its annotations are complete. Keep callback
 protocols and frozen views explicit, use read-only `Mapping` inputs when no
@@ -247,10 +256,14 @@ Dynamic Qt payloads and extensible metadata retain `Any` at their boundaries.
 Keep scientific and plotting type imports under `TYPE_CHECKING` to preserve lazy
 startup; the packaged `py.typed` marker exposes available annotations to callers.
 
-The normal mypy target includes `tests/typing/preparation_contracts.py`, which
-checks valid calls and expected errors for unsupported units, axes, signals and
-keywords. Runtime and scientific comparisons remain separate checks. On Linux,
-check Windows-specific typing with:
+The normal mypy target includes
+[`tests/typing/preparation_contracts.py`](../tests/typing/preparation_contracts.py)
+and [`tests/typing/result_contracts.py`](../tests/typing/result_contracts.py).
+They check valid calls and expected errors for unsupported preparation options,
+malformed result sections, errors/metadata, frame collections and clock results.
+Each expected-error ignore must suppress a real diagnostic, so a regression to
+`Any` fails the unused-ignore check. Runtime validation and scientific comparisons
+remain separate checks. On Linux, check Windows-specific typing with:
 
 ```sh
 uv run --locked --all-groups python -m mypy --platform win32

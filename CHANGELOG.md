@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Extend the stronger typing checks to core preparation, recording-result merging,
+  coverage and result presentation/reopening. Define stable result-envelope and
+  Studio metadata contracts with static regressions, retaining extensible upstream
+  payloads, existing scientific calculations and saved formats.
 - Compact run descriptions to software versions, warning/error counts and
   available loading/analysis durations, without start or end timestamps.
 - Align Results banners and module notices, distinguishing processing errors,

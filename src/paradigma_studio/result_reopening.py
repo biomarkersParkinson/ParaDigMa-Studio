@@ -7,7 +7,7 @@ import pickle
 import tempfile
 import traceback
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .contracts import AnalysisResults, PathInput, Provenance
 from .history import load_verified_result_export
@@ -81,7 +81,7 @@ def load_saved_results(
                 raise RuntimeError(message)
             # Only the owned child writes this parent-created private path.
             with output.open("rb") as stream:
-                return pickle.load(stream)
+                return cast("tuple[Provenance, AnalysisResults]", pickle.load(stream))
         finally:
             _close_reader(process)
             receiver.close()

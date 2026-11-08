@@ -336,7 +336,14 @@ reopening prepares that data in a background job and then calls
 [`prepare_results`](../src/paradigma_studio/result_preparation.py) service.
 
 `PreparedResults` and `ResultData` separate original tables from display timing,
-coverage, plot frames and interval bounds. Their frozen containers do not make
+coverage and labels. Their APIs and the core/recording-result helpers use the
+stronger service typing profile. `result_contracts.py` describes stable envelope,
+error and Studio metadata fields; module-specific upstream leaves remain dynamic.
+Elapsed arrays and calendar indexes have distinct return types, and offset types
+distinguish scalar module offsets from per-recording maps. Scientific frames and
+wire representations are not converted to satisfy annotations.
+
+Their frozen containers do not make
 DataFrames immutable. Optional date/timing columns, percentage scales and
 half-hour/day/profile summaries belong to presentation; they must not change
 the stored scientific tables. Replacing results invalidates derived views; the

@@ -149,9 +149,12 @@ max-branches = 12
 python_version = "3.11"
 files = [
     "src/paradigma_studio/contracts.py",
+    "src/paradigma_studio/result_contracts.py",
+    "src/paradigma_studio/availability.py",
     "src/paradigma_studio/preparation_contracts.py",
     "src/paradigma_studio/paradigma_api.py",
     "tests/typing/preparation_contracts.py",
+    "tests/typing/result_contracts.py",
     "src/paradigma_studio/input_metadata.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/recording_skips.py",
@@ -183,6 +186,7 @@ files = [
     "src/paradigma_studio/shell_controller.py",
     "src/paradigma_studio/workspace_state.py",
     "src/paradigma_studio/result_data.py",
+    "src/paradigma_studio/results_view.py",
     "src/paradigma_studio/result_preparation.py",
     "src/paradigma_studio/result_reopening.py",
     "src/paradigma_studio/previews.py",
@@ -204,6 +208,14 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = [
     "paradigma_studio.axis_mapping",
+    "paradigma_studio.result_contracts",
+    "paradigma_studio.availability",
+    "paradigma_studio.core",
+    "paradigma_studio.recording_results",
+    "paradigma_studio.result_data",
+    "paradigma_studio.result_preparation",
+    "paradigma_studio.result_reopening",
+    "paradigma_studio.results_view",
     "paradigma_studio.column_mapping",
     "paradigma_studio.input_metadata",
     "paradigma_studio.analysis_limits",
@@ -218,7 +230,7 @@ module = [
     "paradigma_studio.provenance",
     "paradigma_studio.saved_format",
 ]
-# These small services have complete annotations; retain explicit container types
+# These services have complete annotations; retain explicit container types
 # and reject Any returned from a function with a concrete declared return type.
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -233,9 +245,6 @@ module = [
     "paradigma_studio.export_controller",
     "paradigma_studio.shell_controller",
     "paradigma_studio.workspace_state",
-    "paradigma_studio.result_data",
-    "paradigma_studio.result_preparation",
-    "paradigma_studio.result_reopening",
     "paradigma_studio.previews",
     "paradigma_studio.storage",
     "paradigma_studio.exports",

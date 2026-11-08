@@ -480,7 +480,11 @@ class ResultGraphs(QObject):
         from ..time_axis import RecordingTimeFormatter
 
         calendar = self.results.display_clock is not None
-        timezone = clock_origin(self.results.display_clock).tz if calendar else None
+        timezone = (
+            clock_origin(self.results.display_clock).tz
+            if self.results.display_clock is not None
+            else None
+        )
         style_epoch_axis(
             ax,
             timezone,
@@ -501,7 +505,7 @@ class ResultGraphs(QObject):
 
         clock = self.results.display_clock
         calendar = clock is not None
-        timezone = clock_origin(clock).tz if calendar else None
+        timezone = clock_origin(clock).tz if clock is not None else None
         ax.xaxis.set_major_locator(RecordingDayLocator(timezone, calendar=calendar))
         ax.xaxis.set_major_formatter(RecordingDayFormatter(timezone, calendar=calendar))
         ax.set_xlabel(

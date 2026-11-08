@@ -1,19 +1,31 @@
 """Presentation-only aggregate summaries and timelines for official results."""
 
+from __future__ import annotations
+
 import re
+from collections.abc import Hashable, Iterator, Mapping
 from functools import lru_cache
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import numpy as np
 
 from .column_mapping import apply_signal_columns
+from .contracts import AnalysisResults, AnalysisSettings, ClockMetadata, FloatArray, TimeOffsets
 from .core import result_tables
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from numpy.typing import ArrayLike
+
+OverviewEntry = tuple[str, tuple[str, ...], str, Any, str]
+SummaryValue = str | int | float | np.floating[Any]
 
 MODULE_NAMES = {"gait": "Gait", "tremor": "Tremor", "pulse_rate": "Pulse rate"}
 
 
 @lru_cache(maxsize=2)
-def gait_model_threshold(stage):
+def gait_model_threshold(stage: str) -> float:
     from importlib.resources import files
 
     from paradigma.classification import ClassifierPackage
@@ -25,7 +37,9 @@ def gait_model_threshold(stage):
     return float(ClassifierPackage.load(files("paradigma.assets") / asset).threshold)
 
 
-def plot_tables(tables):
+def plot_tables(
+    tables: Mapping[str, pd.DataFrame],
+) -> tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]]:
     """Add display-only gait window indicators; leave raw outputs untouched."""
     import pandas as pd
 
@@ -54,7 +68,7 @@ def plot_tables(tables):
     return plots, labels
 
 
-def _quantification_plot_labels(tables):
+def _quantification_plot_labels(tables: Mapping[str, pd.DataFrame]) -> dict[tuple[str, str], str]:
     labels = {}
     for branch in ("filtered", "unfiltered"):
         name = f"quantifications/gait/{branch}"
@@ -84,7 +98,7 @@ def _quantification_plot_labels(tables):
     return labels
 
 
-def binary_interval_ends(name, frame, times):
+def binary_interval_ends(name: str, frame: pd.DataFrame, times: ArrayLike) -> FloatArray:
     """Display each prediction until the next output update, capped at cadence.
 
     Use the complete output before filtering. Gaps and separate recordings do
@@ -97,8 +111,8 @@ def binary_interval_ends(name, frame, times):
     if module == "tremor":
         default_step = TremorConfig().window_step_length_s
     elif module == "gait":
-        step = "arm_activity" if name.endswith("/arm_activity") else "gait"
-        default_step = GaitConfig(step=step).window_step_length_s
+        gait_step = "arm_activity" if name.endswith("/arm_activity") else "gait"
+        default_step = GaitConfig(step=gait_step).window_step_length_s
     elif module == "pulse_rate":
         config = PulseRateConfig()
         # Quality predictions update every second; quantified estimates use
@@ -110,8 +124,8 @@ def binary_interval_ends(name, frame, times):
         )
     else:
         default_step = None
-    times = np.asarray(times, dtype=float)
-    ends = times.copy()
+    timeline = np.asarray(times, dtype=float)
+    ends = timeline.copy()
     keys = [
         column
         for column in (*PARTICIPANT_COLUMNS, "file_key", "data_segment_nr", "gait_segment_nr")
@@ -123,7 +137,7 @@ def binary_interval_ends(name, frame, times):
         else [np.arange(len(frame))]
     )
     for positions in groups:
-        stamps = times[positions]
+        stamps = timeline[positions]
         gaps = np.diff(stamps)
         positive = gaps[np.isfinite(gaps) & (gaps > 0)]
         step = float(np.median(positive)) if len(positive) else default_step
@@ -142,7 +156,7 @@ def binary_interval_ends(name, frame, times):
     return ends
 
 
-def tremor_window_counts(frame):
+def tremor_window_counts(frame: pd.DataFrame) -> tuple[int, int, float | None] | None:
     """Display the official resting-window denominator for the selected rows."""
     if not {"pred_tremor_checked", "pred_arm_at_rest"}.issubset(frame.columns):
         return None
@@ -152,7 +166,7 @@ def tremor_window_counts(frame):
     return count, denominator, count / denominator * 100 if denominator else None
 
 
-def tremor_overview_entries(results):
+def tremor_overview_entries(results: AnalysisResults) -> list[OverviewEntry]:
     """Selected official measures plus resting-window percentage for display.
 
     Power aggregates already use ParaDigMa's log10(power + 1) scale. Never
@@ -174,7 +188,7 @@ def tremor_overview_entries(results):
     for key in aggregates:
         if key.endswith("_tremor_power") and key not in titles:
             titles[key] = readable_key(key)
-    entries = []
+    entries: list[OverviewEntry] = []
     for key, title in titles.items():
         path, value = aggregates.get(key, ((key,), None))
         explanation = (
@@ -185,7 +199,8 @@ def tremor_overview_entries(results):
         entries.append(("Aggregates", path, title, value, explanation))
     metadata = results.get("metadata", {}).get("tremor", {})
     counts = {path[-1]: value for path, value in flat_values(metadata) if path}
-    rest, total = counts.get("nr_windows_rest"), counts.get("nr_windows_total")
+    rest: Any = counts.get("nr_windows_rest")
+    total: Any = counts.get("nr_windows_total")
     if rest is None or total is None:
         # Older result exports may lack aggregate metadata but retain the exact
         # quantification rows used by the official resting-window denominator.
@@ -211,7 +226,7 @@ def tremor_overview_entries(results):
     return entries
 
 
-def readable_key(key):
+def readable_key(key: str) -> str:
     if key == "perc_windows_tremor":
         return "Checked tremor / resting windows (%)"
     match = re.fullmatch(r"(\d+)_(\d+|inf)", key)
@@ -224,7 +239,7 @@ def readable_key(key):
     return text[0].upper() + text[1:] if text else "Value"
 
 
-def detail_tables(results):
+def detail_tables(results: AnalysisResults) -> dict[str, pd.DataFrame]:
     import pandas as pd
 
     return {
@@ -235,7 +250,7 @@ def detail_tables(results):
     }
 
 
-def aggregation_tables(results):
+def aggregation_tables(results: AnalysisResults) -> dict[str, pd.DataFrame]:
     """Present each original aggregate dictionary as an ordered key/value table.
 
     Object-valued cells preserve integer precision and mixed scalar types;
@@ -245,7 +260,7 @@ def aggregation_tables(results):
 
     tables = {}
 
-    def collect(value, path):
+    def collect(value: object, path: str) -> None:
         if isinstance(value, pd.DataFrame):
             tables[path] = value
         elif isinstance(value, dict):
@@ -264,7 +279,7 @@ def aggregation_tables(results):
     return tables
 
 
-def output_label(name):
+def output_label(name: str) -> str:
     if name.startswith("preparation/"):
         return "Data coverage"
     parts = name.split("/")
@@ -284,10 +299,10 @@ def output_label(name):
     return f"{module} · {stage}{branch}"
 
 
-def plot_metrics(name, frame):
+def plot_metrics(name: str, frame: pd.DataFrame) -> list[Hashable]:
     if name.startswith("preparation/"):
         return ["available"]
-    metrics = measurement_columns(frame)
+    metrics: list[Hashable] = measurement_columns(frame)
     if name.split("/")[1] == "tremor":
         metrics = [
             column
@@ -312,7 +327,7 @@ def plot_metrics(name, frame):
     return metrics
 
 
-def preferred_metric(name, frame):
+def preferred_metric(name: str, frame: pd.DataFrame) -> Hashable | None:
     metrics = plot_metrics(name, frame)
     return next(
         (
@@ -332,7 +347,7 @@ def preferred_metric(name, frame):
     )
 
 
-def detail_timing(results, name, frame):
+def detail_timing(results: AnalysisResults, name: str, frame: pd.DataFrame) -> pd.DataFrame:
     """Estimate gait display positions on the FULL output, before any filtering.
 
     These positions are never added to scientific output tables. Each swing is
@@ -368,7 +383,9 @@ def detail_timing(results, name, frame):
     )
 
 
-def recording_clock(frame, settings, timeline=None):
+def recording_clock(
+    frame: pd.DataFrame | None, settings: AnalysisSettings, timeline: FloatArray | None = None
+) -> ClockMetadata | None:
     """Resolve analysis zero from selected absolute time or declared recording start.
 
     Unselected date columns never establish a clock. Device importers record
@@ -413,7 +430,15 @@ def recording_clock(frame, settings, timeline=None):
     return None
 
 
-def clock_times(times, clock):
+@overload
+def clock_times(times: ArrayLike, clock: None) -> FloatArray: ...
+
+
+@overload
+def clock_times(times: ArrayLike, clock: Mapping[str, Any]) -> pd.DatetimeIndex: ...
+
+
+def clock_times(times: ArrayLike, clock: Mapping[str, Any] | None) -> FloatArray | pd.DatetimeIndex:
     import pandas as pd
 
     if clock is None:
@@ -421,7 +446,7 @@ def clock_times(times, clock):
     return clock_origin(clock) + pd.to_timedelta(np.asarray(times, dtype=float), unit="s")
 
 
-def clock_origin(clock):
+def clock_origin(clock: Mapping[str, Any]) -> pd.Timestamp:
     import pandas as pd
 
     origin = pd.Timestamp(clock["origin"])
@@ -430,7 +455,9 @@ def clock_origin(clock):
     return origin
 
 
-def flat_values(value, prefix=()):
+def flat_values(
+    value: object, prefix: tuple[str, ...] = ()
+) -> Iterator[tuple[tuple[str, ...], Any]]:
     """All aggregate leaves, plus compact non-segment metadata leaves."""
     if isinstance(value, dict):
         for key, child in value.items():
@@ -449,12 +476,12 @@ def flat_values(value, prefix=()):
             yield prefix, value
 
 
-def segment_summary(metadata):
+def segment_summary(metadata: Mapping[str, Any]) -> dict[str, dict[str, SummaryValue]]:
     """Summarize each gait branch, never list individual segments in Overview."""
     summaries = {}
     for branch in ("filtered", "unfiltered"):
         segments = metadata.get(branch, {}).get("per_segment", {})
-        durations = []
+        durations: list[float] = []
         for segment in segments.values():
             try:
                 length = (
@@ -466,7 +493,10 @@ def segment_summary(metadata):
                     durations.append(length)
             except (ValueError, TypeError, KeyError):
                 pass
-        summary = {"Segment count": len(segments), "Segments with valid duration": len(durations)}
+        summary: dict[str, SummaryValue] = {
+            "Segment count": len(segments),
+            "Segments with valid duration": len(durations),
+        }
         if durations:
             q1, median, q3 = np.quantile(durations, [0.25, 0.5, 0.75])
             summary.update(
@@ -481,7 +511,7 @@ def segment_summary(metadata):
     return summaries
 
 
-def time_bound(text, clock):
+def time_bound(text: str, clock: ClockMetadata | None) -> float | None:
     if not text.strip():
         return None
     try:
@@ -495,10 +525,10 @@ def time_bound(text, clock):
         return value
     if not re.match(r"^\d{4}-\d{2}-\d{2}", text.strip()):
         raise ValueError("Use a full ISO date/time or elapsed seconds.")
-    return _date_time_bound(text, clock)
+    return _date_time_bound(text, cast(ClockMetadata, clock))
 
 
-def _date_time_bound(text, clock):
+def _date_time_bound(text: str, clock: ClockMetadata) -> float:
     import pandas as pd
     from pytz.exceptions import AmbiguousTimeError, NonExistentTimeError
 
@@ -515,7 +545,7 @@ def _date_time_bound(text, clock):
     return (bound - origin).total_seconds()
 
 
-def normalise_clock(clock):
+def normalise_clock(clock: Mapping[str, Any]) -> ClockMetadata:
     import pandas as pd
 
     text = clock["origin"]
@@ -533,7 +563,12 @@ def normalise_clock(clock):
     }
 
 
-def analysis_alignment(frame, settings, results, saved_offsets=None):
+def analysis_alignment(
+    frame: pd.DataFrame | None,
+    settings: AnalysisSettings,
+    results: AnalysisResults,
+    saved_offsets: object = None,
+) -> tuple[FloatArray | None, dict[str, FloatArray], TimeOffsets]:
     """Calibrate independently prepared groups to one source-sample timeline.
 
     Different exclusions can move absolute-time zero in each official run.
@@ -545,7 +580,7 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
     groups = results.get("metadata", {}).get("desktop_preparation", {}).get("analysis_groups")
     if not isinstance(groups, list):
         groups = [settings.get("pipelines", [])]
-    timelines = {}
+    timelines: dict[str, FloatArray] = {}
     common = _common_source_timeline(frame, settings)
     for group in groups:
         if not isinstance(group, list) or any(module not in MODULE_NAMES for module in group):
@@ -569,8 +604,8 @@ def analysis_alignment(frame, settings, results, saved_offsets=None):
     return common, timelines, offsets
 
 
-def _saved_alignment_offsets(saved_offsets):
-    offsets = {}
+def _saved_alignment_offsets(saved_offsets: object) -> TimeOffsets:
+    offsets: TimeOffsets = {}
     for module, value in (saved_offsets if isinstance(saved_offsets, dict) else {}).items():
         if module in MODULE_NAMES and isinstance(value, (int, float)) and np.isfinite(value):
             offsets[module] = float(value)
@@ -583,8 +618,8 @@ def _saved_alignment_offsets(saved_offsets):
     return offsets
 
 
-def _common_source_timeline(frame, settings):
-    common = None
+def _common_source_timeline(frame: pd.DataFrame, settings: AnalysisSettings) -> FloatArray | None:
+    common: FloatArray | None = None
     try:
         candidate = source_timeline(frame, settings)
         if np.isfinite(candidate).any():

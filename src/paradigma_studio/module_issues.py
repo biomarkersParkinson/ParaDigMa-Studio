@@ -12,6 +12,13 @@ from typing import Any
 from .contracts import AnalysisResults, Provenance
 from .error_reporting import ErrorContext, reconciled_errors
 from .recording_skips import all_recordings_skipped
+from .result_contracts import ResultCategory
+
+_OUTPUT_CATEGORIES: tuple[ResultCategory, ...] = (
+    "quantifications",
+    "classifications",
+    "aggregations",
+)
 
 
 def _quantity(count: int, noun: str) -> str:
@@ -128,8 +135,7 @@ def module_issue_summaries(
             ),
             aggregation_failed=any(error.stage == "aggregation" for error in failures),
             has_results=any(
-                has_output(results.get(category, {}).get(module))
-                for category in ("quantifications", "classifications", "aggregations")
+                has_output(results.get(category, {}).get(module)) for category in _OUTPUT_CATEGORIES
             ),
         )
     return summaries
@@ -153,10 +159,7 @@ def result_issue_summary(
     failures = [error for error in errors if not error.skipped and not error.operation]
     operations = [error for error in errors if error.operation]
     warning_count = len(set(warnings))
-    available = any(
-        has_output(results.get(category, {}))
-        for category in ("quantifications", "classifications", "aggregations")
-    )
+    available = any(has_output(results.get(category, {})) for category in _OUTPUT_CATEGORIES)
     parts = []
     if failures:
         parts.append(_quantity(len(failures), "processing error"))
