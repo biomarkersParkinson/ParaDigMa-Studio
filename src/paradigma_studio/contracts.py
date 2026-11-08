@@ -31,6 +31,10 @@ PathInput: TypeAlias = str | PathLike[str]
 SensorInput: TypeAlias = "pd.DataFrame | dict[str, pd.DataFrame]"
 FloatArray: TypeAlias = "NDArray[np.floating[Any]]"
 SegmentArray: TypeAlias = "NDArray[np.int64]"
+PositionArray: TypeAlias = "NDArray[np.intp]"
+BoolArray: TypeAlias = "NDArray[np.bool_]"
+TimeLimits: TypeAlias = tuple[float, float]
+SeriesKey: TypeAlias = tuple[str, Hashable]
 AnalysisSettings: TypeAlias = dict[str, Any]
 Provenance: TypeAlias = dict[str, Any]
 RunStatus: TypeAlias = Literal[
@@ -51,6 +55,33 @@ AnalysisEvent: TypeAlias = (
     | tuple[Literal["failed"], str]
     | tuple[Literal["completed"]]
 )
+RecordingCompletion: TypeAlias = tuple[Literal["task_completed"], int]
+RecordingEvent: TypeAlias = (
+    AnalysisLogEvent
+    | tuple[Literal["progress"], str, int]
+    | tuple[Literal["failed"], str]
+    | RecordingCompletion
+)
+
+
+class GaitIntervals(TypedDict):
+    observed: FloatArray
+    gait: FloatArray
+    filtered: FloatArray
+    domain: FloatArray
+
+
+class GaitSummaries(TypedDict):
+    gait: pd.DataFrame
+    filtered: pd.DataFrame
+
+
+class TextWriter(Protocol):
+    def write(self, text: str, /) -> int: ...
+
+
+class LogEventSink(Protocol):
+    def put(self, event: AnalysisLogEvent, /) -> None: ...
 
 
 @dataclass(frozen=True)

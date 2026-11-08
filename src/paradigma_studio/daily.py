@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
+from .contracts import GaitIntervals, GaitSummaries
 from .gait_presence import union
 from .results_view import clock_origin
 
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import pandas as pd
-    from numpy.typing import ArrayLike
+    from numpy.typing import ArrayLike, NDArray
 
     from .contracts import FloatArray
 
@@ -72,7 +73,12 @@ def day_coverage(edges: ArrayLike, starts: ArrayLike, ends: ArrayLike) -> FloatA
     return covered
 
 
-def _daily_frame(edges, values, data_seconds, observations=None):
+def _daily_frame(
+    edges: FloatArray,
+    values: ArrayLike,
+    data_seconds: ArrayLike,
+    observations: NDArray[np.integer[Any]] | None = None,
+) -> pd.DataFrame:
     import pandas as pd
 
     values = np.asarray(values, dtype=float).copy()
@@ -129,17 +135,19 @@ def daily_availability_summary(
 
 
 def gait_daily_summaries(
-    intervals: dict[str, FloatArray], clock: Mapping[str, Any] | None
-) -> dict[str, pd.DataFrame]:
+    intervals: GaitIntervals, clock: Mapping[str, Any] | None
+) -> GaitSummaries:
     """Gait percentages share observed time, preserving the filtered subset."""
     domain = intervals["domain"]
     edges = day_edges(clock, domain[:, 0], domain[:, 1])
     observed = intervals["observed"]
     data = day_coverage(edges, observed[:, 0], observed[:, 1])
-    output = {}
-    for kind in ("gait", "filtered"):
+    output: dict[str, pd.DataFrame] = {}
+    kinds: tuple[Literal["gait", "filtered"], ...] = ("gait", "filtered")
+    for kind in kinds:
         pairs = intervals[kind]
         positive = day_coverage(edges, pairs[:, 0], pairs[:, 1])
         values = np.divide(positive * 100, data, out=np.full(len(data), np.nan), where=data > 0)
         output[kind] = _daily_frame(edges, values, data)
-    return output
+    # Both required branches are populated by the fixed loop above.
+    return cast(GaitSummaries, output)

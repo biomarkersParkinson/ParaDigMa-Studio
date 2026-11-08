@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
+from ..contracts import SeriesKey as SeriesKey
 from ..results_view import (
     MODULE_NAMES,
     gait_model_threshold,
@@ -21,9 +22,6 @@ from ..theme import module_color, tooltip_text
 if TYPE_CHECKING:
     import pandas as pd
     from PySide6.QtWidgets import QTreeWidget
-
-
-SeriesKey = tuple[str, Hashable]
 
 DEFAULT_SERIES = {
     "gait": (

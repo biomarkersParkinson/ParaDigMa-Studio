@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from weakref import ref
 
 import numpy as np
 from PySide6.QtCore import Qt
 
 from .channels import mark_sensor_time
+from .contracts import AnalysisResults, FloatArray, PositionArray, TimeLimits
 from .exploration import SensorContext, gait_context, source_timeline
 from .recordings import source_key
 from .results_view import clock_origin, clock_times
@@ -21,6 +22,7 @@ from .workspace_state import ResultState, SensorState
 
 if TYPE_CHECKING:
     import pandas as pd
+    from matplotlib.axes import Axes
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
     from PySide6.QtWidgets import QComboBox, QLabel, QListWidget, QPushButton, QTabWidget
@@ -56,40 +58,53 @@ class ChannelServices:
 class SensorController:
     def __init__(
         self, state: SensorState, results: ResultState, view: SensorView, channels: ChannelServices
-    ):
+    ) -> None:
         self.state, self.results, self.view, self.channels = state, results, view, channels
         self._plotted_source: ref[SensorNavigator | pd.DataFrame] | None = None
         self.view.sensor_tabs.currentChanged.connect(self.refresh_sensor_table)
 
-    def inspect_sensor_context(self):
+    def inspect_sensor_context(self) -> None:
         import pandas as pd
 
         row = self.view.result_table.currentIndex().row()
         if not self.view.context_button.isEnabled() or row < 0:
             return
         try:
-            selected = self.results.active_frame.iloc[row]
+            # The enabled context action follows installation of a result frame,
+            # positions and matching flat/batch timelines by prepare_results.
+            selected = cast("pd.DataFrame", self.results.active_frame).iloc[row]
             parts = self.view.dataset.currentText().split("/")
             module = parts[1] if len(parts) > 1 else ""
             source_frame = self.results.result_source_frame
             if isinstance(source_frame, dict):
-                key = source_key(selected.get("file_key"), self.results.results)
+                key = source_key(
+                    cast(str, selected.get("file_key")), cast(AnalysisResults, self.results.results)
+                )
                 source_frame = source_frame[key]
-                common = self.results.result_timeline[key]
-                module_timeline = self.results._source_timelines.get(module, {}).get(key, common)
+                common = cast("dict[str, FloatArray]", self.results.result_timeline)[key]
+                module_timeline = (
+                    cast("dict[str, dict[str, FloatArray]]", self.results._source_timelines)
+                    .get(module, {})
+                    .get(key, common)
+                )
                 index = self.sensor_time_index(common, self.results._recording_bases[key])
                 display_timeline = index.times
             else:
                 if self.results.result_timeline is None:
                     self.results.result_timeline = source_timeline(
-                        source_frame, self.results.provenance.get("settings", {})
+                        cast("pd.DataFrame", source_frame),
+                        self.results.provenance.get("settings", {}),
                     )
-                module_timeline = self.results._source_timelines.get(
-                    module, self.results.result_timeline
+                module_timeline = cast("dict[str, FloatArray]", self.results._source_timelines).get(
+                    module, cast(FloatArray, self.results.result_timeline)
                 )
-                index = self.sensor_time_index(self.results.result_timeline)
+                index = self.sensor_time_index(cast(FloatArray, self.results.result_timeline))
                 display_timeline = index.times
-            segment = gait_context(self.results.results, self.view.dataset.currentText(), selected)
+            segment = gait_context(
+                cast(AnalysisResults, self.results.results),
+                self.view.dataset.currentText(),
+                selected,
+            )
             if "time" in selected and pd.notna(selected["time"]):
                 anchor = float(selected["time"])
                 radius = 10.0
@@ -105,10 +120,10 @@ class SensorController:
                 path = self.results.provenance.get("sources", {}).get(key, key)
                 source_name = Path(path).name
             timing = self.results._timings[self.view.dataset.currentText()].iloc[
-                self.results.active_positions[row]
+                cast(PositionArray, self.results.active_positions)[row]
             ]
             self.state._sensor_context = SensorContext(
-                source_frame,
+                cast("pd.DataFrame", source_frame),
                 module_timeline,
                 display_timeline,
                 start,
@@ -128,8 +143,9 @@ class SensorController:
             self.view.context_button.setToolTip(message)
             self.view.status.setText(message)
 
-    def show_sensor_context(self):
-        context = self.state._sensor_context
+    def show_sensor_context(self) -> None:
+        # Called after inspect_sensor_context publishes the complete context.
+        context = cast(SensorContext, self.state._sensor_context)
         positions = context.positions()
         self.state.sensor_frame = context.frame.iloc[positions]
         self.state.sensor_times = context.display_times[positions]
@@ -142,11 +158,11 @@ class SensorController:
         if self.view.sensor_tabs.currentWidget() is not self.view.sensor_table:
             return
         frame = self.state.sensor_frame
-        model = self.view.sensor_table.model()
+        model = cast("FrameModel | None", self.view.sensor_table.model())
         if frame is not None and (model is None or model.frame is not frame):
             self.view.sensor_table.setModel(FrameModel(frame))
 
-    def sensor_time_index(self, times, offset=0.0):
+    def sensor_time_index(self, times: FloatArray, offset: float = 0.0) -> SensorTimeIndex:
         key = id(times), offset
         if key not in self.state._sensor_time_indices:
             display = np.asarray(times, dtype=float)
@@ -159,7 +175,7 @@ class SensorController:
             self.state._sensor_time_indices.popitem(last=False)
         return self.state._sensor_time_indices[key][1]
 
-    def update_sensor_view(self, axes):
+    def update_sensor_view(self, axes: Axes) -> None:
         navigator = self.state._sensor_navigator
         if navigator is None or axes not in self.view.sensor_figure.axes:
             return
@@ -172,10 +188,11 @@ class SensorController:
         positions = navigator.positions(limits)
         self.update_sensor_samples(positions, limits)
 
-    def update_sensor_samples(self, positions, limits):
+    def update_sensor_samples(self, positions: PositionArray, limits: TimeLimits) -> None:
         from .raw_signals import RawSignalTime, update_raw_signal
 
-        navigator = self.state._sensor_navigator
+        # Only a bound navigator requests a visible-sample update.
+        navigator = cast(SensorNavigator, self.state._sensor_navigator)
         self.state.sensor_frame = navigator.context.frame.iloc[positions]
         self.state.sensor_times = navigator.context.display_times[positions]
         self.refresh_sensor_table()
@@ -199,12 +216,12 @@ class SensorController:
                     collection.set_offsets(np.column_stack((xs[present], np.ones(present.sum()))))
             for text in ax.texts:
                 if text.get_gid() == "sensor-no-data":
-                    text.set_visible(self.state.sensor_frame.empty)
+                    text.set_visible(cast("pd.DataFrame", self.state.sensor_frame).empty)
                 elif text.get_gid() == "selected-result-label":
                     text.set_visible(limits[0] <= navigator.anchor <= limits[1])
             ax.relim()
 
-    def reset_sensor_context(self):
+    def reset_sensor_context(self) -> None:
         navigator = self.state._sensor_navigator
         if navigator is None or navigator.home_limits is None:
             return
@@ -222,19 +239,19 @@ class SensorController:
             self.view.sensor_toolbar.settings.read_axes()
         self.view.sensor_canvas.draw_idle()
 
-    def hide_sensor_context(self):
+    def hide_sensor_context(self) -> None:
         if self.view.result_tabs.currentIndex() == self.view.sensor_tab_index:
             self.view.result_tabs.setCurrentIndex(1)
         self.view.result_tabs.setTabVisible(self.view.sensor_tab_index, False)
 
-    def selected_sensor_channels(self):
+    def selected_sensor_channels(self) -> list[str]:
         return self.channels.selected_channels(self.view.sensor_channels)
 
-    def set_sensor_channels(self, channels):
+    def set_sensor_channels(self, channels: list[str]) -> None:
         self.channels.check_channels(self.view.sensor_channels, channels)
         self.plot_sensor()
 
-    def populate_sensor_channels(self):
+    def populate_sensor_channels(self) -> None:
         selection = self.selected_sensor_channels() if self.view.sensor_channels.count() else None
         mapping = self.results.provenance.get("settings", {}).get("column_mapping", {})
         self.state._sensor_channel_colors = self.channels.populate_channels(
@@ -248,10 +265,11 @@ class SensorController:
         # remains empty until the user selects channels again.
         if selection and not self.selected_sensor_channels() and self.view.sensor_channels.count():
             self.channels.check_channels(
-                self.view.sensor_channels, [self.view.sensor_channels.item(0).data(Qt.UserRole)]
+                self.view.sensor_channels,
+                [self.view.sensor_channels.item(0).data(Qt.ItemDataRole.UserRole)],
             )
 
-    def plot_sensor(self, *_):
+    def plot_sensor(self, *_: object) -> None:
         # Clearing axes emits limit changes. These belong to the old figure,
         # not a user pan, and must not replace the current context samples.
         self.disconnect_sensor_view()
@@ -285,8 +303,8 @@ class SensorController:
         return navigator
 
     def _render_sensor_channels(self) -> None:
-        xs = (
-            clock_times(self.state.sensor_times, self.results.display_clock)
+        xs: FloatArray | pd.DatetimeIndex | list[float] = (
+            clock_times(cast(FloatArray, self.state.sensor_times), self.results.display_clock)
             if self.state.sensor_frame is not None
             else []
         )
@@ -305,7 +323,9 @@ class SensorController:
                 "Gyroscope": settings.get("gyroscope_units"),
             },
             calendar=calendar,
-            timezone=clock_origin(self.results.display_clock).tz if calendar else None,
+            timezone=clock_origin(self.results.display_clock).tz
+            if self.results.display_clock is not None
+            else None,
             allow_empty=self.state._sensor_context is not None,
             empty_schema=self.state._sensor_context.frame
             if self.state._sensor_context is not None
@@ -323,7 +343,7 @@ class SensorController:
                 self.view.sensor_figure, context.selected_time, self.results.display_clock
             )
             if navigator is not None:
-                if view_limits is not None or self.state.sensor_frame.empty:
+                if view_limits is not None or cast("pd.DataFrame", self.state.sensor_frame).empty:
                     for ax in self.view.sensor_figure.axes:
                         ax.set_xlim(*(view_limits or navigator.initial_limits), emit=False)
                 navigator.limits = navigator.bounded_limits(
@@ -354,9 +374,9 @@ class SensorController:
                         color="#60728A",
                     )
                     message.set_gid("sensor-no-data")
-                    message.set_visible(self.state.sensor_frame.empty)
+                    message.set_visible(cast("pd.DataFrame", self.state.sensor_frame).empty)
 
-    def disconnect_sensor_view(self):
+    def disconnect_sensor_view(self) -> None:
         for ax, callback in self.state._sensor_view_callbacks.items():
             ax.callbacks.disconnect(callback)
         self.state._sensor_view_callbacks.clear()

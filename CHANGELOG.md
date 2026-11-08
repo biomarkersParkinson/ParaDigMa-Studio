@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Extend meaningful typing to time/selection and gait-summary helpers, recording
+  worker events, export streams and callbacks, graph navigation and selected
+  controllers. Carry concrete timelines, positions and caches through workspace
+  state, with static regression examples for these interfaces.
+
 - Extend the stronger typing checks to core preparation, recording-result merging,
   coverage and result presentation/reopening. Define stable result-envelope and
   Studio metadata contracts with static regressions, retaining extensible upstream

@@ -10,7 +10,14 @@ from typing import TYPE_CHECKING, Any, cast, overload
 import numpy as np
 
 from .column_mapping import apply_signal_columns
-from .contracts import AnalysisResults, AnalysisSettings, ClockMetadata, FloatArray, TimeOffsets
+from .contracts import (
+    AnalysisResults,
+    AnalysisSettings,
+    ClockMetadata,
+    FloatArray,
+    SeriesKey,
+    TimeOffsets,
+)
 from .core import result_tables
 from .exploration import PARTICIPANT_COLUMNS, gait_context, measurement_columns, source_timeline
 
@@ -39,11 +46,12 @@ def gait_model_threshold(stage: str) -> float:
 
 def plot_tables(
     tables: Mapping[str, pd.DataFrame],
-) -> tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]]:
+) -> tuple[dict[str, pd.DataFrame], dict[SeriesKey, str]]:
     """Add display-only gait window indicators; leave raw outputs untouched."""
     import pandas as pd
 
-    plots, labels = dict(tables), {}
+    plots = dict(tables)
+    labels: dict[SeriesKey, str] = {}
     for stage, probability, indicator, title in (
         ("detection", "pred_gait_proba", "pred_gait_window", "Gait presence"),
         (
@@ -68,8 +76,8 @@ def plot_tables(
     return plots, labels
 
 
-def _quantification_plot_labels(tables: Mapping[str, pd.DataFrame]) -> dict[tuple[str, str], str]:
-    labels = {}
+def _quantification_plot_labels(tables: Mapping[str, pd.DataFrame]) -> dict[SeriesKey, str]:
+    labels: dict[SeriesKey, str] = {}
     for branch in ("filtered", "unfiltered"):
         name = f"quantifications/gait/{branch}"
         frame = tables.get(name)

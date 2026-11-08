@@ -7,14 +7,20 @@ import multiprocessing
 import pickle
 import tempfile
 import traceback
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
 from .analysis_progress import AnalysisProgress, RecordingProgress, report_progress
-from .contracts import AnalysisResults, AnalysisSettings
+from .contracts import (
+    AnalysisResults,
+    AnalysisSettings,
+    RecordingCompletion,
+    RecordingEvent,
+    SensorInput,
+)
 
 if TYPE_CHECKING:
     from multiprocessing.process import BaseProcess
@@ -50,7 +56,7 @@ def run_parallel_analysis(
     with tempfile.TemporaryDirectory(prefix="paradigma-analysis-") as directory:
         root = Path(directory)
         tasks: Queue[RecordingTask] = context.Queue(maxsize=workers)
-        events: Queue[Any] = context.Queue()
+        events: Queue[RecordingEvent] = context.Queue()
         processes = [
             context.Process(target=_recording_worker, args=(tasks, events, settings), daemon=True)
             for _ in range(workers)
@@ -73,14 +79,16 @@ def run_parallel_analysis(
             if cancel.is_set():
                 raise AnalysisCancelled()
             with output.open("rb") as stream:
-                result = pickle.load(stream)
+                result = cast(AnalysisResults, pickle.load(stream))
             report_progress(logger, 980)
             return result
         finally:
             _close_workers(processes, tasks, events)
 
 
-def _recording_worker(tasks, events, settings):
+def _recording_worker(
+    tasks: Queue[RecordingTask], events: Queue[RecordingEvent], settings: AnalysisSettings
+) -> None:
     try:
         _run_worker_loop(tasks, events, settings)
     except Exception as exc:  # noqa: BLE001 -- Report failures before a worker exits.
@@ -89,7 +97,9 @@ def _recording_worker(tasks, events, settings):
         events.put(("failed", f"{type(exc).__name__}: {exc}"))
 
 
-def _run_worker_loop(tasks, events, settings):
+def _run_worker_loop(
+    tasks: Queue[RecordingTask], events: Queue[RecordingEvent], settings: AnalysisSettings
+) -> None:
     from paradigma.orchestrator import run_paradigma
     from threadpoolctl import threadpool_limits
 
@@ -122,11 +132,12 @@ def _execute_task(
     from .recording_results import merge_recording_results
 
     with task.input_path.open("rb") as stream:
-        payload = pickle.load(stream)
+        # The parent creates this private task path and determines its payload kind.
+        payload: object = pickle.load(stream)
     if task.key:
         logger.info("Processing recording %s", task.key)
         result = analyze(
-            payload,
+            cast(SensorInput, payload),
             logger=logger,
             progress=progress.span(0, 990) if progress else None,
             **{
@@ -137,14 +148,23 @@ def _execute_task(
         )
     else:
         outputs = []
-        for path in payload:
+        for path in cast("list[Path]", payload):
             with path.open("rb") as stream:
-                outputs.append(pickle.load(stream))
+                outputs.append(cast(AnalysisResults, pickle.load(stream)))
         result = merge_recording_results(outputs, settings, logger, progress=progress)
     _write_pickle(task.output_path, result)
 
 
-def _dispatch_recordings(frames, root, tasks, events, processes, logger, cancel, workers):
+def _dispatch_recordings(
+    frames: dict[str, pd.DataFrame],
+    root: Path,
+    tasks: Queue[RecordingTask],
+    events: Queue[RecordingEvent],
+    processes: Sequence[BaseProcess],
+    logger: logging.Logger,
+    cancel: Event,
+    workers: int,
+) -> list[Path]:
     pending = iter(enumerate(frames.items()))
     paths = [root / f"result-{index}.pkl" for index in range(len(frames))]
     for _ in range(workers):
@@ -167,7 +187,11 @@ def _dispatch_recordings(frames, root, tasks, events, processes, logger, cancel,
 
 
 def _submit_next(
-    pending: Iterator, root: Path, paths: list[Path], tasks: Queue, cancel: Event
+    pending: Iterator[tuple[int, tuple[str, pd.DataFrame]]],
+    root: Path,
+    paths: list[Path],
+    tasks: Queue[RecordingTask],
+    cancel: Event,
 ) -> None:
     from .analysis_process import AnalysisCancelled
 
@@ -183,7 +207,13 @@ def _submit_next(
         tasks.put(RecordingTask(index, path, paths[index], key))
 
 
-def _receive_event(events, processes, logger, cancel, progress=None):
+def _receive_event(
+    events: Queue[RecordingEvent],
+    processes: Sequence[BaseProcess],
+    logger: logging.Logger,
+    cancel: Event,
+    progress: Callable[[str, int], None] | None = None,
+) -> RecordingCompletion:
     from .analysis_process import AnalysisCancelled, forward_analysis_log
 
     while True:
@@ -209,8 +239,14 @@ def _receive_event(events, processes, logger, cancel, progress=None):
             return event
 
 
-def _wait_for_merge(index, events, processes, logger, cancel):
-    def progress(recording, value):
+def _wait_for_merge(
+    index: int,
+    events: Queue[RecordingEvent],
+    processes: Sequence[BaseProcess],
+    logger: logging.Logger,
+    cancel: Event,
+) -> None:
+    def progress(recording: str, value: int) -> None:
         if not recording:
             report_progress(logger, 900 + min(1000, max(0, value)) * 60 // 1000)
 
@@ -219,13 +255,15 @@ def _wait_for_merge(index, events, processes, logger, cancel):
         raise RuntimeError("Analysis worker returned an invalid aggregate completion.")
 
 
-def _write_pickle(path: Path, value: Any) -> None:
+def _write_pickle(path: Path, value: object) -> None:
     # Only parent-created private paths are used, never user-supplied pickles.
     with path.open("wb") as stream:
         pickle.dump(value, stream, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def _close_workers(processes: Sequence[BaseProcess], tasks: Queue, events: Queue) -> None:
+def _close_workers(
+    processes: Sequence[BaseProcess], tasks: Queue[RecordingTask], events: Queue[RecordingEvent]
+) -> None:
     for process in processes:
         if process.pid is not None and process.is_alive():
             process.terminate()

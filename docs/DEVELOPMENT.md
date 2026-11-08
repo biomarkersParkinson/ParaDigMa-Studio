@@ -239,8 +239,9 @@ the guide does not duplicate the changing target-file list.
 | Stronger service overrides | Also require explicit generic arguments and reject returning `Any` from concretely typed functions |
 | Recursive `ui/` target | Check bodies while signatures are annotated incrementally; new UI modules join automatically |
 
-Core preparation and result-data services participate in the stronger overrides.
-[`result_contracts.py`](../src/paradigma_studio/result_contracts.py) defines the
+Core preparation, result-data services, time/selection helpers, worker
+coordination, serialization and graph navigation participate in the stronger
+overrides. [`result_contracts.py`](../src/paradigma_studio/result_contracts.py) defines the
 known result envelope, structured errors, recording/preparation metadata and
 prepared coverage. `contracts.py` re-exports the existing public result/error
 names. Per-module upstream statistics and extension metadata remain explicitly
@@ -259,8 +260,11 @@ startup; the packaged `py.typed` marker exposes available annotations to callers
 The normal mypy target includes
 [`tests/typing/preparation_contracts.py`](../tests/typing/preparation_contracts.py)
 and [`tests/typing/result_contracts.py`](../tests/typing/result_contracts.py).
-They check valid calls and expected errors for unsupported preparation options,
-malformed result sections, errors/metadata, frame collections and clock results.
+[`tests/typing/interface_contracts.py`](../tests/typing/interface_contracts.py)
+also checks tagged worker events, numeric row positions, shared state, controller
+ownership and text/binary export callbacks. The fixtures check valid calls and
+expected errors for unsupported preparation options, malformed result sections,
+errors/metadata, frame collections and clock results.
 Each expected-error ignore must suppress a real diagnostic, so a regression to
 `Any` fails the unused-ignore check. Runtime validation and scientific comparisons
 remain separate checks. On Linux, check Windows-specific typing with:

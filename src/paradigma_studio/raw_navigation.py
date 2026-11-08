@@ -1,33 +1,44 @@
 """Time navigation and visible-sample scaling for original sensor graphs."""
 
-from contextlib import contextmanager
+from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, cast
+
+from .contracts import TimeLimits
 from .raw_signals import autoscale_raw_signals
 from .time_navigation import TimeScroll, TimeToolbar
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+    from PySide6.QtWidgets import QWidget
+
 
 class RawToolbar(TimeToolbar):
-    def __init__(self, canvas, parent):
+    def __init__(self, canvas: FigureCanvasQTAgg, parent: QWidget | None) -> None:
         super().__init__(canvas, parent, time_selection=False)
-        self._full_time_limits = None
-        self._time_axes = self._time_connection = None
+        self._full_time_limits: TimeLimits | None = None
+        self._time_axes: Axes | None = None
+        self._time_connection: int | None = None
         self.time_scroll: TimeScroll = TimeScroll(self, accessible_name="Raw sensor time scrollbar")
         self.time_scroll.watch(canvas)
         self.zoom()
 
-    def _disconnect_time_axis(self):
+    def _disconnect_time_axis(self) -> None:
         if self._time_axes is not None:
-            self._time_axes.callbacks.disconnect(self._time_connection)
+            self._time_axes.callbacks.disconnect(cast(int, self._time_connection))
         self._time_axes = self._time_connection = None
 
-    def _fit_time_view(self, *_):
+    def _fit_time_view(self, *_: object) -> None:
         if self.scrolling_time or not self.canvas.figure.axes:
             return
         limits = self.canvas.figure.axes[0].get_xlim()
         for ax in self.canvas.figure.axes:
             autoscale_raw_signals(ax, limits)
 
-    def refresh(self):
+    def refresh(self) -> None:
         super().refresh()
         self._disconnect_time_axis()
         axes = self.canvas.figure.axes
@@ -46,7 +57,9 @@ class RawToolbar(TimeToolbar):
         self._fit_time_view()
 
     @contextmanager
-    def redraw_channels(self, *, preserve_view=False, time_limits=None):
+    def redraw_channels(
+        self, *, preserve_view: bool = False, time_limits: TimeLimits | None = None
+    ) -> Iterator[None]:
         """Keep time and manual sensor-group limits while rebuilding channels."""
         self.stop_navigation()
         axes = self.canvas.figure.axes

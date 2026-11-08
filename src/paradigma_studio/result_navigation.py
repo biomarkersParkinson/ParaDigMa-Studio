@@ -4,7 +4,7 @@ from .time_navigation import TimeToolbar
 
 
 class ResultsToolbar(TimeToolbar):
-    def _prepare_time_scroll(self):
+    def _prepare_time_scroll(self) -> None:
         self.canvas.panning = self.canvas.time_scrolling = True
         self._automatic_bar_y = [
             ax
@@ -15,7 +15,7 @@ class ResultsToolbar(TimeToolbar):
             ax.set_autoscaley_on(False)
         self.canvas.prepare_time_scroll()
 
-    def _finish_time_scroll(self):
+    def _finish_time_scroll(self) -> None:
         self.canvas.panning = self.canvas.time_scrolling = False
         self.canvas.finish_time_scroll()
         self.restore_automatic_bar_y()

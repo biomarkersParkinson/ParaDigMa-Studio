@@ -5,18 +5,28 @@ from __future__ import annotations
 import json
 import logging
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import get_ident
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QMessageBox
 
-from .contracts import AnalysisResults, Provenance, SensorInput
+from .contracts import (
+    AnalysisError,
+    AnalysisResults,
+    AnalysisSettings,
+    NoticeCallback,
+    Provenance,
+    RunOutput,
+    RunStatus,
+    SensorInput,
+    StartJobCallback,
+)
 from .error_reporting import append_error
 from .history import (
     RunHistory,
@@ -33,15 +43,22 @@ from .result_preparation import PreparedResults
 from .result_reopening import load_saved_results
 from .run_lifecycle import analysis_record, close_loading, new_loading_run
 from .theme import STYLESHEET, light_palette
-from .widgets import RecordModel
+from .widgets import FrameModel, RecordModel
 from .workspace_state import InputState, ResultState, RunState
 
 if TYPE_CHECKING:
+    import pandas as pd
     from PySide6.QtCore import QModelIndex
     from PySide6.QtWidgets import QLabel, QPlainTextEdit, QPushButton, QTabWidget, QWidget
 
     from .contracts import OutputKind, PathInput, RunOutput, RunRecord
     from .widgets import ReadableTable
+
+
+SaveProblem: TypeAlias = tuple[str, int, str, str]
+SaveOutcome: TypeAlias = tuple[
+    list[tuple[str, list[RunOutput]]], list[tuple[str, str, str]], list[SaveProblem]
+]
 
 
 class _SaveProblems(logging.Handler):
@@ -99,12 +116,12 @@ class RunView:
 @dataclass(frozen=True)
 class RunCallbacks:
     navigate: Callable[[int], None]
-    show_notice: Callable[..., None]
+    show_notice: NoticeCallback
     clear_results: Callable[[], None]
-    start_job: Callable[..., None]
+    start_job: StartJobCallback
     prepare_results: Callable[[AnalysisResults, Provenance, SensorInput | None], PreparedResults]
     install_prepared: Callable[[PreparedResults], None]
-    selected_export_table: Callable[[], tuple[str, Any]]
+    selected_export_table: Callable[[], tuple[str, pd.DataFrame | None]]
     is_busy: Callable[[], bool]
     select_run: Callable[[QModelIndex, QModelIndex | None], None]
     update_run_actions: Callable[..., None]
@@ -121,7 +138,7 @@ class RunController:
         callbacks: RunCallbacks,
         *,
         parent: QWidget | None,
-    ):
+    ) -> None:
         self.state, self.results, self.inputs = state, results, inputs
         self.history, self.view, self.callbacks, self.parent = history, view, callbacks, parent
         self._preview_persistence: set[str] = set()
@@ -140,12 +157,13 @@ class RunController:
         )
         self.view.run_table.selectionModel().setCurrentIndex(
             self.view.run_table.model().index(row, 0),
-            QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows,
+            QItemSelectionModel.SelectionFlag.ClearAndSelect
+            | QItemSelectionModel.SelectionFlag.Rows,
         )
         self.view.run_detail_tabs.setCurrentWidget(self.view.run_errors)
         self.callbacks.navigate(3)
 
-    def append_log(self, message, *, owner=None):
+    def append_log(self, message: str, *, owner: RunRecord | None = None) -> None:
         record = owner or self.state.active_run
         if record is not None:
             record["log"] += message + "\n"
@@ -155,14 +173,14 @@ class RunController:
         elif self.state.selected_run is None:
             self.view.log.appendPlainText(message)
 
-    def capture_warning(self, message, *, owner=None):
+    def capture_warning(self, message: str, *, owner: RunRecord | None = None) -> None:
         record = owner or self.state.active_run
         if record is not None and message not in record["warnings"]:
             record["warnings"].append(message)
             record["_history_dirty"] = True
             self.update_run_problems(record)
 
-    def capture_error(self, message, *, owner=None):
+    def capture_error(self, message: str, *, owner: RunRecord | None = None) -> None:
         record = owner or self.state.active_run
         if record is not None and message not in record["errors"]:
             errors = append_error(record["errors"], message)
@@ -171,7 +189,7 @@ class RunController:
                 record["_history_dirty"] = True
                 self.update_run_problems(record)
 
-    def update_run_problems(self, record=None):
+    def update_run_problems(self, record: RunRecord | None = None) -> None:
         record = record or self.state.active_run
         if record is None:
             return
@@ -185,19 +203,23 @@ class RunController:
             self.view.run_summary.setText(self.run_summary_text(record))
             suffix = self.view.run_heading.text().partition(" · ")[2]
             self.view.run_heading.setText(f"{run_status(record)} · {suffix}")
-        model = self.view.run_table.model()
+        model = cast("FrameModel | None", self.view.run_table.model())
         row = next((i for i, run in enumerate(self.state._run_row_records) if run is record), None)
         if model is not None and row is not None:
             for name in ("Status", "Warnings", "Errors"):
                 column = model.frame.columns.get_loc(name)
-                value = run_status(record) if name == "Status" else len(record[name.lower()])
+                value = (
+                    run_status(record)
+                    if name == "Status"
+                    else len(record["warnings"] if name == "Warnings" else record["errors"])
+                )
                 if model.frame.iat[row, column] == value:
                     continue
                 model.frame.iat[row, column] = value
                 index = model.index(row, column)
-                model.dataChanged.emit(index, index, [Qt.DisplayRole])
+                model.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole])
 
-    def persist_run(self, record):
+    def persist_run(self, record: RunRecord) -> bool:
         try:
             self.history.save(record)
             record.pop("_history_dirty", None)
@@ -206,11 +228,11 @@ class RunController:
             self.callbacks.show_notice(f"Run history could not be saved: {exc}")
             return False
 
-    def persist_diagnostics(self, record):
+    def persist_diagnostics(self, record: RunRecord | None) -> None:
         if record is not None and record.get("_history_dirty"):
             self.persist_run(record)
 
-    def finish_operation(self, owner):
+    def finish_operation(self, owner: RunRecord | None) -> None:
         self.persist_diagnostics(owner)
         pending, self._preview_persistence = self._preview_persistence, set()
         for record in self.state.runs:
@@ -282,7 +304,7 @@ class RunController:
         self.state.active_run = None
         self.refresh_runs()
 
-    def begin_analysis(self, settings: dict) -> RunRecord:
+    def begin_analysis(self, settings: AnalysisSettings) -> RunRecord:
         pending = next(
             (record for record in self.state.runs if record["id"] == self.inputs.load_run_id), None
         )
@@ -291,21 +313,21 @@ class RunController:
             self.state.runs.insert(0, record)
         return record
 
-    def finish_run(self, status, errors=()):
+    def finish_run(self, status: RunStatus, errors: Iterable[AnalysisError] = ()) -> None:
         if self.state.active_run is None:
             return
         record = self.state.active_run
         record["status"], record["finished"] = status, now()
         record["errors"] = merge_errors(record["errors"], errors)
         if "loading" in record and "analysis_started" not in record:
-            close_loading(record, record["finished"])
+            close_loading(record, cast(str, record["finished"]))
         if record["errors"] and status == "Completed":
             record["status"] = "Partial"
         self.persist_run(record)
         self.state.active_run = None
         self.refresh_runs()
 
-    def refresh_runs(self):
+    def refresh_runs(self) -> None:
         selected_ids = {record["id"] for record in self.selected_run_records()}
         if self.state.selected_run is not None and not any(
             record is self.state.selected_run for record in self.state._run_row_records
@@ -368,7 +390,7 @@ class RunController:
         selection = self.view.run_table.selectionModel()
         selection.blockSignals(True)
         selection.setCurrentIndex(
-            self.view.run_table.model().index(index, 0), QItemSelectionModel.NoUpdate
+            self.view.run_table.model().index(index, 0), QItemSelectionModel.SelectionFlag.NoUpdate
         )
         rows = [i for i, record in enumerate(self.state.runs) if record["id"] in selected_ids] or [
             index
@@ -376,12 +398,12 @@ class RunController:
         for row in rows:
             selection.select(
                 self.view.run_table.model().index(row, 0),
-                QItemSelectionModel.Select | QItemSelectionModel.Rows,
+                QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
             )
         selection.blockSignals(False)
         self.select_run(selection.currentIndex(), None)
 
-    def select_run(self, current, previous):
+    def select_run(self, current: QModelIndex, previous: QModelIndex | None) -> None:
         if not current.isValid() or current.row() >= len(self.state.runs):
             return
         record = self.state.runs[current.row()]
@@ -433,7 +455,7 @@ class RunController:
         self.update_run_actions()
 
     @staticmethod
-    def run_summary_text(record):
+    def run_summary_text(record: RunRecord) -> str:
         warnings, errors = len(record["warnings"]), len(record.get("errors", []))
         parts = [
             f"Studio {record['studio_version']}",
@@ -450,7 +472,7 @@ class RunController:
             parts.append(f"Analysis {analyzed}")
         return " · ".join(parts)
 
-    def selected_run_records(self):
+    def selected_run_records(self) -> list[RunRecord]:
         selection = self.view.run_table.selectionModel()
         rows = selection.selectedRows() if selection is not None else []
         records = self.state._run_row_records
@@ -460,7 +482,7 @@ class RunController:
             if index.row() < len(records)
         ]
 
-    def update_run_actions(self, *_):
+    def update_run_actions(self, *_: object) -> None:
         records = self.selected_run_records()
         count = len(records)
         current = self.view.run_table.currentIndex()
@@ -505,13 +527,13 @@ class RunController:
             bool(self.state.runs) and not self.callbacks.is_busy()
         )
 
-    def delete_run(self):
+    def delete_run(self) -> None:
         return self.delete_runs(self.selected_run_records())
 
-    def clear_runs(self):
+    def clear_runs(self) -> None:
         return self.delete_runs(list(self.state.runs), clear_all=True)
 
-    def delete_runs(self, records, *, clear_all=False):
+    def delete_runs(self, records: list[RunRecord], *, clear_all: bool = False) -> None:
         """Confirm once, delete safely, and retain state after partial failures."""
         if (
             not records
@@ -550,11 +572,13 @@ class RunController:
             if removed:
                 self._forget_deleted_runs(removed)
 
-    def _confirm_deletion(self, records, files, *, clear_all):
+    def _confirm_deletion(
+        self, records: Sequence[RunRecord], files: Sequence[Path], *, clear_all: bool
+    ) -> bool:
         warning = QMessageBox(self.parent)
         warning.setPalette(light_palette())
         warning.setStyleSheet(STYLESHEET)
-        warning.setIcon(QMessageBox.Warning)
+        warning.setIcon(QMessageBox.Icon.Warning)
         warning.setWindowTitle(
             "Clear all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run"
         )
@@ -572,14 +596,16 @@ class RunController:
         warning.setDetailedText(
             "\n".join(str(path) for path in files) or "No associated export files exist."
         )
-        warning.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-        warning.setDefaultButton(QMessageBox.Cancel)
-        warning.button(QMessageBox.Yes).setText(
+        warning.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel
+        )
+        warning.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        warning.button(QMessageBox.StandardButton.Yes).setText(
             "Delete all runs" if clear_all else "Delete runs" if len(records) > 1 else "Delete run"
         )
-        return warning.exec() == QMessageBox.Yes
+        return warning.exec() == QMessageBox.StandardButton.Yes
 
-    def _forget_deleted_runs(self, removed):
+    def _forget_deleted_runs(self, removed: Sequence[str]) -> None:
         self.state.runs[:] = [record for record in self.state.runs if record["id"] not in removed]
         if self.state.selected_run is not None and self.state.selected_run["id"] in removed:
             self.state.selected_run = None
@@ -603,7 +629,7 @@ class RunController:
             ):
                 view.clear()
 
-    def open_run(self):
+    def open_run(self) -> None:
         record = self.state.selected_run
         if record is None or self.callbacks.is_busy():
             return
@@ -615,11 +641,14 @@ class RunController:
         provenance = dict(record.get("_provenance") or self._run_provenance(record))
         self.view.status.setText("Opening saved results…")
 
-        def read(logger):
+        def read(logger: logging.Logger) -> tuple[str, PreparedResults]:
             values, origin = cached, provenance
             if values is None:
                 origin, values = load_saved_results(
-                    output["path"], logger, run_id=run_id, checksum=output.get("sha256")
+                    cast("RunOutput", output)["path"],
+                    logger,
+                    run_id=run_id,
+                    checksum=cast("RunOutput", output).get("sha256"),
                 )
             else:
                 origin = provenance_for_run(origin, run_id)
@@ -633,7 +662,7 @@ class RunController:
     def _run_provenance(record: RunRecord) -> Provenance:
         return run_provenance(record)
 
-    def _restore_prepared_run(self, payload):
+    def _restore_prepared_run(self, payload: tuple[str, PreparedResults]) -> None:
         run_id, prepared = payload
         self._restore_record(run_id, prepared.provenance, prepared.results)
         self.callbacks.install_prepared(prepared)
@@ -653,7 +682,7 @@ class RunController:
             None,
         )
 
-    def restore_run(self, payload):
+    def restore_run(self, payload: tuple[str, Provenance, AnalysisResults]) -> None:
         run_id, provenance, results = payload
         self._restore_record(run_id, provenance, results)
         self.callbacks.install_prepared(
@@ -663,7 +692,9 @@ class RunController:
         )
         self.update_run_actions()
 
-    def _restore_record(self, run_id, provenance, results):
+    def _restore_record(
+        self, run_id: str, provenance: Provenance, results: AnalysisResults
+    ) -> None:
         record = next(record for record in self.state.runs if record["id"] == run_id)
         provenance = provenance_for_record(provenance or self._run_provenance(record), record)
         self.state.current_run = record
@@ -697,7 +728,7 @@ class RunController:
             )
             if kind == "JSON":
                 self.state.current_run["outputs"][-1].update(
-                    sha256=validate_checksum(checksum), complete=True
+                    {"sha256": validate_checksum(checksum), "complete": True}
                 )
             if kind == "CSV":
                 if metadata_path is not None:
@@ -706,15 +737,19 @@ class RunController:
                     )
                 aggregation = name.startswith("aggregations/")
                 self.state.current_run["outputs"][-1].update(
-                    selected_rows=len(frame),
-                    selection={"scope": "Full run"}
-                    if aggregation
-                    else self.results.active_selection,
+                    {
+                        "selected_rows": len(cast("pd.DataFrame", frame)),
+                        "selection": {"scope": "Full run"}
+                        if aggregation
+                        else self.results.active_selection,
+                    }
                 )
             self.persist_run(self.state.current_run)
             self.refresh_runs()
 
-    def _capture_save_problems(self, records, problems):
+    def _capture_save_problems(
+        self, records: Sequence[RunRecord], problems: Sequence[SaveProblem]
+    ) -> None:
         # Single-run diagnostics already arrive through the owned worker signals.
         if len(records) == 1:
             return
@@ -734,8 +769,10 @@ class RunController:
         protected = [self.inputs.source, *self.inputs.sources.values()]
         self.state._close_after_save = close_after
 
-        def write(logger):
-            saved, failures, problems = [], [], []
+        def write(logger: logging.Logger) -> SaveOutcome:
+            saved: list[tuple[str, list[RunOutput]]] = []
+            failures: list[tuple[str, str, str]] = []
+            problems: list[SaveProblem] = []
             for record, results, provenance in snapshots:
                 handler = _SaveProblems(record["id"], problems)
                 package_logger = logging.getLogger("paradigma")
@@ -757,7 +794,7 @@ class RunController:
                     handler.close()
             return saved, failures, problems
 
-        def completed(payload):
+        def completed(payload: SaveOutcome) -> None:
             saved, failures, problems = payload
             for run_id, outputs in saved:
                 record = next(record for record in self.state.runs if record["id"] == run_id)

@@ -1,26 +1,34 @@
 """Selection helpers shared by result graphs, summaries and tables."""
 
+from __future__ import annotations
+
+from collections.abc import Hashable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from .column_mapping import apply_signal_columns
+from .contracts import AnalysisResults, AnalysisSettings, BoolArray, FloatArray, PositionArray
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass(frozen=True)
 class SensorContext:
     """The initial view of one original recording and its selected Results time."""
 
-    frame: object
-    analysis_times: np.ndarray
-    display_times: np.ndarray
+    frame: pd.DataFrame
+    analysis_times: FloatArray
+    display_times: FloatArray
     start: float
     end: float
     selected_time: float
     source_name: str = ""
     include_end: bool = True
 
-    def positions(self):
+    def positions(self) -> PositionArray:
         upper = (
             self.analysis_times <= self.end if self.include_end else self.analysis_times < self.end
         )
@@ -32,7 +40,7 @@ class SensorContext:
 PARTICIPANT_COLUMNS = ("participant_id", "participant", "subject_id", "subject", "patient_id")
 
 
-def measurement_columns(frame):
+def measurement_columns(frame: pd.DataFrame) -> list[Hashable]:
     return [
         column
         for column in frame.select_dtypes(include=["number", "bool"]).columns
@@ -42,7 +50,9 @@ def measurement_columns(frame):
     ]
 
 
-def gait_context(results, dataset, row):
+def gait_context(
+    results: AnalysisResults, dataset: str, row: pd.Series[Any]
+) -> tuple[float, float, int] | None:
     """Use explicit segment times; never invent per-arm-swing timestamps."""
     if not dataset.startswith("quantifications/gait/") or "gait_segment_nr" not in row:
         return None
@@ -63,16 +73,16 @@ def gait_context(results, dataset, row):
 
 
 def select_rows(
-    frame,
+    frame: pd.DataFrame,
     *,
-    participant_column=None,
-    participant=None,
-    segment=None,
-    column=None,
-    text="",
-    minimum="",
-    maximum="",
-):
+    participant_column: Hashable | None = None,
+    participant: Any = None,
+    segment: Any = None,
+    column: Hashable | None = None,
+    text: str = "",
+    minimum: str = "",
+    maximum: str = "",
+) -> tuple[pd.DataFrame, PositionArray]:
     """Return a positional selection without altering scientific outputs."""
     mask = np.ones(len(frame), dtype=bool)
     if participant_column is not None and participant is not None:
@@ -85,7 +95,14 @@ def select_rows(
     return frame.iloc[positions], positions
 
 
-def _apply_column_filter(frame, mask, column, text, minimum, maximum):
+def _apply_column_filter(
+    frame: pd.DataFrame,
+    mask: BoolArray,
+    column: Hashable | None,
+    text: str,
+    minimum: str,
+    maximum: str,
+) -> None:
     import pandas as pd
 
     if column is None or column not in frame:
@@ -118,7 +135,7 @@ def _apply_column_filter(frame, mask, column, text, minimum, maximum):
             mask &= series.le(high).fillna(False).to_numpy(dtype=bool)
 
 
-def source_timeline(frame, settings):
+def source_timeline(frame: pd.DataFrame, settings: AnalysisSettings) -> FloatArray:
     """Align raw timestamps with the existing wrapper's analysis preparation.
 
     Sensor values remain in their original units. No signal preprocessing or
@@ -142,7 +159,7 @@ def source_timeline(frame, settings):
     if unit.startswith("difference"):
         if not np.isfinite(times).all():
             raise ValueError("Missing time differences prevent sensor alignment.")
-        result = transform_time_array(times, unit, "relative_s")
+        result = cast(FloatArray, transform_time_array(times, unit, "relative_s"))
         # The missing-sample adapter preserves the entire difference timeline
         # and subtracts its first delta before dropping sensor rows.
         if excluded:
@@ -151,11 +168,13 @@ def source_timeline(frame, settings):
     if unit.startswith("absolute"):
         # Official preparation starts at the first retained sample.
         times = times - times.iloc[np.flatnonzero(valid)[0]]
-        return times.to_numpy() / (1000 if unit.endswith("ms") else 1)
+        return cast(FloatArray, times.to_numpy() / (1000 if unit.endswith("ms") else 1))
     return np.asarray(transform_time_array(times, unit, "relative_s"))
 
 
-def _timeline_valid_samples(mapped, settings):
+def _timeline_valid_samples(
+    mapped: pd.DataFrame, settings: AnalysisSettings
+) -> tuple[BoolArray, bool]:
     import pandas as pd
 
     required = {"time"}

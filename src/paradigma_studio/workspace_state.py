@@ -8,15 +8,24 @@ existing input/results without copying or altering scientific tables here.
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .contracts import (
     AnalysisResults,
     ClockMetadata,
+    FloatArray,
+    GaitIntervals,
+    GaitSummaries,
+    JSONValue,
     LoadingInfo,
+    PositionArray,
+    Provenance,
     RecordingDescription,
     RunRecord as RunRecord,
+    SeriesKey,
+    TimeOffsets,
 )
 from .result_plot_cache import ResultPlotCache
 
@@ -27,7 +36,7 @@ if TYPE_CHECKING:
     import pandas as pd
     from matplotlib.artist import Artist
     from matplotlib.axes import Axes
-    from PySide6.QtWidgets import QDialog
+    from PySide6.QtWidgets import QDialog, QLabel, QScrollArea, QTreeWidgetItem, QWidget
 
     from .exploration import SensorContext
     from .jobs import Worker
@@ -57,53 +66,57 @@ class RunState:
 
 @dataclass
 class ResultState:
-    provenance: dict = field(default_factory=dict)
+    provenance: Provenance = field(default_factory=dict)
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
     aggregation_tables: dict[str, pd.DataFrame] = field(default_factory=dict)
     _plot_tables: dict[str, pd.DataFrame] = field(default_factory=dict)
-    _plot_labels: dict[tuple[str, str], str] = field(default_factory=dict)
+    _plot_labels: dict[SeriesKey, str] = field(default_factory=dict)
     _timings: dict[str, pd.DataFrame] = field(default_factory=dict)
-    _interval_ends: dict[str, np.ndarray] = field(default_factory=dict)
-    _bar_bounds: dict[str, tuple[np.ndarray, np.ndarray]] = field(default_factory=dict)
-    _display_offsets: dict = field(default_factory=dict)
-    _source_timelines: dict = field(default_factory=dict)
-    _recording_bases: dict = field(default_factory=dict)
-    _epoch_views: dict = field(default_factory=dict)
-    _epoch_presence_views: dict = field(default_factory=dict)
-    _detail_selections: dict = field(default_factory=dict)
+    _interval_ends: dict[str, FloatArray] = field(default_factory=dict)
+    _bar_bounds: dict[str, tuple[FloatArray, FloatArray]] = field(default_factory=dict)
+    _display_offsets: TimeOffsets = field(default_factory=dict)
+    _source_timelines: dict[str, FloatArray] | dict[str, dict[str, FloatArray]] = field(
+        default_factory=dict
+    )
+    _recording_bases: dict[str, float] = field(default_factory=dict)
+    _epoch_views: dict[tuple[Hashable, ...], pd.DataFrame | GaitSummaries] = field(
+        default_factory=dict
+    )
+    _epoch_presence_views: dict[str, pd.DataFrame] = field(default_factory=dict)
+    _detail_selections: dict[str, tuple[pd.DataFrame, PositionArray]] = field(default_factory=dict)
     results: AnalysisResults | None = None
-    result_timeline: Any = None
+    result_timeline: FloatArray | dict[str, FloatArray] | None = None
     result_source_frame: pd.DataFrame | dict[str, pd.DataFrame] | None = None
     display_clock: ClockMetadata | None = None
-    _gait_presence_cache: Any = None
-    _gait_epoch_cache: Any = None
-    _plot_signature: Any = None
+    _gait_presence_cache: GaitIntervals | None = None
+    _gait_epoch_cache: GaitSummaries | None = None
+    _plot_signature: tuple[int, tuple[SeriesKey, ...]] | None = None
     _installing_results: bool = False
     _profile_selection: tuple[str, str, float] | None = None
-    _table_output_names: Any = None
+    _table_output_names: tuple[str, ...] | None = None
     active_frame: pd.DataFrame | None = None
     display_frame: pd.DataFrame | None = None
-    active_positions: np.ndarray | None = None
-    active_selection: dict = field(default_factory=dict)
-    _table_views: OrderedDict = field(default_factory=OrderedDict)
+    active_positions: PositionArray | None = None
+    active_selection: dict[str, JSONValue] = field(default_factory=dict)
+    _table_views: OrderedDict[tuple[str, bool], pd.DataFrame] = field(default_factory=OrderedDict)
 
-    _table_choices: dict = field(default_factory=dict)
-    _series_items: dict = field(default_factory=dict)
-    _result_layout_index: Any = None
-    results_scroll: Any = None
-    overview_values: dict = field(default_factory=dict)
-    overview_module_cards: dict = field(default_factory=dict)
-    overview_gait_charts: dict = field(default_factory=dict)
+    _table_choices: dict[str, str | None] = field(default_factory=dict)
+    _series_items: dict[SeriesKey, QTreeWidgetItem] = field(default_factory=dict)
+    _result_layout_index: int | None = None
+    results_scroll: QScrollArea | None = None
+    overview_values: dict[tuple[str, str, tuple[str, ...]], QLabel] = field(default_factory=dict)
+    overview_module_cards: dict[str, QWidget] = field(default_factory=dict)
+    overview_gait_charts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
 class SensorState:
     sensor_frame: pd.DataFrame | None = None
-    sensor_times: np.ndarray | None = None
+    sensor_times: FloatArray | None = None
     _sensor_context: SensorContext | None = None
     _sensor_navigator: SensorNavigator | None = None
-    _sensor_time_indices: OrderedDict[tuple[int, float], tuple[Any, SensorTimeIndex]] = field(
-        default_factory=OrderedDict
+    _sensor_time_indices: OrderedDict[tuple[int, float], tuple[FloatArray, SensorTimeIndex]] = (
+        field(default_factory=OrderedDict)
     )
     _sensor_view_callbacks: dict[Axes, int] = field(default_factory=dict)
     _sensor_channel_colors: dict[str, str | tuple[float, ...] | np.ndarray] = field(

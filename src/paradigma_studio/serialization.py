@@ -6,13 +6,13 @@ import csv
 import json
 import math
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Literal, TextIO, TypeVar, cast, overload
 
 import numpy as np
 
-from .contracts import AnalysisResults, JSONValue, PathInput, Provenance
+from .contracts import AnalysisResults, JSONValue, PathInput, Provenance, TextWriter
 from .result_integrity import DigestTextWriter
 from .saved_format import FORMAT_VERSION, RESULT_FORMAT
 from .storage import atomic_file, recording_files, same_file
@@ -21,11 +21,14 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
+_Written = TypeVar("_Written")
+
+
 def json_value(value: Any) -> JSONValue:
     # DataFrame.to_dict produces native scalars. Keep their frequent path free
     # of repeated scientific-type checks and pandas imports during large saves.
     if value is None or type(value) in (str, int, bool):
-        return value
+        return cast(JSONValue, value)
     if type(value) is float:
         return value if math.isfinite(value) else None
     import pandas as pd
@@ -50,7 +53,9 @@ def json_value(value: Any) -> JSONValue:
     return str(value)
 
 
-def _validate_export_destination(path, source=None, protected_sources=()):
+def _validate_export_destination(
+    path: PathInput, source: PathInput | None = None, protected_sources: Iterable[PathInput] = ()
+) -> None:
     for original in recording_files([source, *protected_sources]):
         if same_file(path, original):
             raise ValueError(
@@ -58,7 +63,37 @@ def _validate_export_destination(path, source=None, protected_sources=()):
             )
 
 
-def _write_export(path, writer, *, source=None, protected_sources=(), binary=False):
+@overload
+def _write_export(
+    path: PathInput,
+    writer: Callable[[TextIO], _Written],
+    *,
+    source: PathInput | None = None,
+    protected_sources: Iterable[PathInput] = (),
+    binary: Literal[False] = False,
+) -> _Written: ...
+
+
+@overload
+def _write_export(
+    path: PathInput,
+    writer: Callable[[BinaryIO], _Written],
+    *,
+    source: PathInput | None = None,
+    protected_sources: Iterable[PathInput] = (),
+    binary: Literal[True],
+) -> _Written: ...
+
+
+def _write_export(
+    path: PathInput,
+    writer: Callable[[Any], _Written],
+    *,
+    source: PathInput | None = None,
+    protected_sources: Iterable[PathInput] = (),
+    binary: bool = False,
+) -> _Written:
+    # The overloads pair each writer with the stream mode chosen below.
     target = Path(path)
     _validate_export_destination(target, source, protected_sources)
     with atomic_file(target, binary=binary, newline="") as stream:
@@ -83,11 +118,11 @@ def _json_records(frame: pd.DataFrame) -> JSONValue:
     return cast(JSONValue, records)
 
 
-def _write_json(stream, value):
+def _write_json(stream: TextWriter, value: object) -> None:
     """Lossless standard JSON, bounding temporary row objects to one table batch."""
     import pandas as pd
 
-    def encode(child):
+    def encode(child: JSONValue) -> str:
         return json.dumps(child, allow_nan=False, separators=(",", ":"))
 
     if isinstance(value, pd.DataFrame):
@@ -123,7 +158,7 @@ def export_results(
     *,
     protected_sources: Iterable[PathInput] = (),
 ) -> str:
-    def write(stream):
+    def write(stream: IO[str]) -> str:
         writer = DigestTextWriter(stream)
         _write_json(
             writer,
@@ -144,7 +179,15 @@ def export_results(
     )
 
 
-def _spreadsheet_text(value):
+@overload
+def _spreadsheet_text(value: str) -> str: ...
+
+
+@overload
+def _spreadsheet_text(value: object) -> object: ...
+
+
+def _spreadsheet_text(value: object) -> object:
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value

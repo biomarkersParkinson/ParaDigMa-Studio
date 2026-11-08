@@ -1,6 +1,9 @@
 """Scientific plot presentation: original values, exact state timestamps, scrolling."""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from matplotlib import dates
@@ -13,6 +16,12 @@ from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
+
+from .contracts import FloatArray
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from numpy.typing import ArrayLike
 
 
 def time_selection_triangle():
@@ -376,7 +385,7 @@ def binary_indicator(series, metric):
     return pd.api.types.is_bool_dtype(series.dtype) or labelled or len(np.unique(observed)) == 2
 
 
-def time_coordinates(values):
+def time_coordinates(values: ArrayLike | pd.DatetimeIndex | pd.Series[Any]) -> FloatArray:
     import pandas as pd
 
     if isinstance(values, (pd.DatetimeIndex, pd.Series)) and pd.api.types.is_datetime64_any_dtype(

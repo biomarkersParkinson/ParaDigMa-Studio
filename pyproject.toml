@@ -149,12 +149,25 @@ max-branches = 12
 python_version = "3.11"
 files = [
     "src/paradigma_studio/contracts.py",
+    "src/paradigma_studio/plot_controls.py",
+    "src/paradigma_studio/run_controller.py",
+    "src/paradigma_studio/sensor_controller.py",
+    "src/paradigma_studio/result_workspace_controller.py",
+    "src/paradigma_studio/result_navigation.py",
+
+    "src/paradigma_studio/exploration.py",
+    "src/paradigma_studio/sensor_navigation.py",
+    "src/paradigma_studio/epochs.py",
+    "src/paradigma_studio/gait_presence.py",
+    "src/paradigma_studio/daily.py",
+
     "src/paradigma_studio/result_contracts.py",
     "src/paradigma_studio/availability.py",
     "src/paradigma_studio/preparation_contracts.py",
     "src/paradigma_studio/paradigma_api.py",
     "tests/typing/preparation_contracts.py",
     "tests/typing/result_contracts.py",
+    "tests/typing/interface_contracts.py",
     "src/paradigma_studio/input_metadata.py",
     "src/paradigma_studio/core.py",
     "src/paradigma_studio/recording_skips.py",
@@ -208,6 +221,21 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = [
     "paradigma_studio.axis_mapping",
+    "paradigma_studio.ui.result_plot_data",
+    "paradigma_studio.plot_controls",
+    "paradigma_studio.time_navigation",
+    "paradigma_studio.raw_navigation",
+    "paradigma_studio.result_navigation",
+
+    "paradigma_studio.exploration",
+    "paradigma_studio.sensor_navigation",
+    "paradigma_studio.epochs",
+    "paradigma_studio.gait_presence",
+    "paradigma_studio.daily",
+    "paradigma_studio.parallel_analysis",
+    "paradigma_studio.analysis_process",
+    "paradigma_studio.serialization",
+
     "paradigma_studio.result_contracts",
     "paradigma_studio.availability",
     "paradigma_studio.core",
@@ -230,7 +258,7 @@ module = [
     "paradigma_studio.provenance",
     "paradigma_studio.saved_format",
 ]
-# These services have complete annotations; retain explicit container types
+# These modules have complete annotations; retain explicit container types
 # and reject Any returned from a function with a concrete declared return type.
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -239,6 +267,10 @@ warn_return_any = true
 [[tool.mypy.overrides]]
 module = [
     "paradigma_studio.analysis_controller",
+    "paradigma_studio.run_controller",
+    "paradigma_studio.sensor_controller",
+    "paradigma_studio.result_workspace_controller",
+
     "paradigma_studio.data_controller",
     "paradigma_studio.job_controller",
     "paradigma_studio.result_controller",

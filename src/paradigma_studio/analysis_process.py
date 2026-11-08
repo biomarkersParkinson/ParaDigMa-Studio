@@ -9,7 +9,7 @@ import tempfile
 import traceback
 from pathlib import Path
 from queue import Empty
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .analysis_limits import parallel_worker_count
 from .analysis_progress import AnalysisProgress, report_progress
@@ -18,6 +18,7 @@ from .contracts import (
     AnalysisLogEvent,
     AnalysisResults,
     AnalysisSettings,
+    LogEventSink,
     PathInput,
     SensorInput,
 )
@@ -33,7 +34,7 @@ class AnalysisCancelled(Exception):
 
 
 class QueueLogHandler(logging.Handler):
-    def __init__(self, queue: Queue[AnalysisEvent], recording: str = "") -> None:
+    def __init__(self, queue: LogEventSink, recording: str = "") -> None:
         super().__init__()
         self.queue = queue
         self.recording = recording
@@ -179,12 +180,13 @@ def _wait_for_analysis(
                 raise AnalysisCancelled()
             report_progress(logger, 970)
             with output_path.open("rb") as stream:
-                results = pickle.load(stream)
+                # Only this parent's owned child writes the private result path.
+                results = cast(AnalysisResults, pickle.load(stream))
             report_progress(logger, 980)
             return results
 
 
-def _close_analysis_process(process, queue):
+def _close_analysis_process(process: BaseProcess, queue: Queue[AnalysisEvent]) -> None:
     """Release only the owned process and queue, including on cancellation."""
     if process.pid is not None:
         if process.is_alive():

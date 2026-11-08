@@ -343,8 +343,15 @@ Elapsed arrays and calendar indexes have distinct return types, and offset types
 distinguish scalar module offsets from per-recording maps. Scientific frames and
 wire representations are not converted to satisfy annotations.
 
-Their frozen containers do not make
-DataFrames immutable. Optional date/timing columns, percentage scales and
+Shared workspace state retains typed timelines, position arrays, offsets and
+summary caches after installation. Worker queues distinguish single-analysis
+completion from per-recording completion; the shared log handler only requires
+a log-event sink. Export writer overloads keep text/binary streams and callback
+return values connected. These interfaces add static checking without moving
+work between threads or processes.
+
+The frozen `PreparedResults` and `ResultData` containers do not make DataFrames
+immutable. Optional date/timing columns, percentage scales and
 half-hour/day/profile summaries belong to presentation; they must not change
 the stored scientific tables. Replacing results invalidates derived views; the
 graph renderer resets navigation when it installs the replacement. Overview

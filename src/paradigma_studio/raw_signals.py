@@ -61,8 +61,9 @@ class RawSignalTime:
         else:
             positions = np.flatnonzero(finite)
             observed = self.coordinates[positions]
+            # NumPy stubs omit the no-axis scalar argmin/argmax overloads.
             self.extents = (
-                positions[[observed.argmin(), observed.argmax()]] if len(positions) else positions
+                positions[[observed.argmin(), observed.argmax()]] if len(positions) else positions  # type: ignore[call-overload]
             )
 
     def positions(

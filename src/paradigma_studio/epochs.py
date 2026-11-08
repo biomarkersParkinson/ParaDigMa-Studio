@@ -1,14 +1,24 @@
 """Display-only half-hour summaries; official outputs are never modified."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 
+from .contracts import ClockMetadata
 from .results_view import clock_origin
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from numpy.typing import ArrayLike
+
 
 EPOCH_SECONDS = 1800.0
 MIN_PRESENCE_SECONDS = EPOCH_SECONDS * 0.05
 
 
-def epoch_phase(clock):
+def epoch_phase(clock: ClockMetadata | None) -> float:
     """Shared elapsed offset for local :00/:30 boundaries, including DST."""
     if clock is None:
         return 0.0
@@ -19,7 +29,9 @@ def epoch_phase(clock):
     return -(within_hour % EPOCH_SECONDS)
 
 
-def epoch_summary(times, values, *, binary=False, phase=0.0):
+def epoch_summary(
+    times: ArrayLike, values: ArrayLike, *, binary: bool = False, phase: float = 0.0
+) -> pd.DataFrame:
     """Median, or positive percentage of finite observations, by timestamp.
 
     Missing outcomes do not become absence; empty epochs stay blank. Estimated
@@ -49,7 +61,13 @@ def epoch_summary(times, values, *, binary=False, phase=0.0):
     )
 
 
-def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
+def availability_epoch_summary(
+    starts: ArrayLike,
+    ends: ArrayLike,
+    *,
+    phase: float = 0.0,
+    bounds: tuple[float, float] | None = None,
+) -> pd.DataFrame:
     """Covered time per epoch; union overlaps and retain real recording gaps.
 
     First/last epochs use the recording's partial timespan as their denominator.
@@ -71,7 +89,7 @@ def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
     last = int(np.ceil((high - phase) / EPOCH_SECONDS))
     epoch_starts = np.arange(first, last, dtype=float) * EPOCH_SECONDS + phase
     epoch_ends = epoch_starts + EPOCH_SECONDS
-    merged = []
+    merged: list[list[float]] = []
     for start, end in sorted(zip(np.maximum(starts, low), np.minimum(ends, high), strict=False)):
         if end <= start:
             continue
@@ -105,7 +123,7 @@ def availability_epoch_summary(starts, ends, *, phase=0.0, bounds=None):
     )
 
 
-def require_epoch_presence(summary, presence):
+def require_epoch_presence(summary: pd.DataFrame, presence: pd.DataFrame) -> pd.DataFrame:
     """Hide display medians with under 90 s of presence in their half hour.
 
     Duration comes from unioned presence intervals, not counts of overlapping

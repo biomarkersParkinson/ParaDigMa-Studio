@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from PySide6.QtCore import QObject, Qt
@@ -17,11 +17,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QStackedWidget,
+    QTabBar,
     QTabWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from .contracts import PositionArray, SeriesKey
 from .result_data import detail_table_view
 from .results_view import (
     MODULE_NAMES,
@@ -35,6 +38,18 @@ from .ui.result_overview import ResultOverview
 from .ui.result_series import ResultSeries
 from .widgets import FrameModel, ReadableTable, SeriesTree
 from .workspace_state import GraphState, ResultState, SensorState
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from matplotlib.figure import Figure
+    from PySide6.QtCore import QModelIndex
+
+    from .plotting import SelectionOverlay
+    from .raw_navigation import RawToolbar
+    from .result_canvas import ResultFigureCanvas
+    from .result_navigation import ResultsToolbar
+    from .time_axis import PinnedTimeAxis
+    from .time_navigation import TimeScroll
 
 
 @dataclass(frozen=True)
@@ -61,7 +76,7 @@ class ResultWorkspaceView:
     sensor_table: ReadableTable
     table_actions_layout: QHBoxLayout
     table_dataset: QComboBox
-    table_module_tabs: Any
+    table_module_tabs: QTabBar
     table_stack: QStackedWidget
     timing_toggle: QCheckBox
     y_column: QComboBox
@@ -69,50 +84,53 @@ class ResultWorkspaceView:
     sensor_graphics: Callable[[], ChannelCanvasView]
 
     @property
-    def canvas(self):
+    def canvas(self) -> ResultFigureCanvas:
         return self.result_graphics().canvas
 
     @property
-    def figure(self):
+    def figure(self) -> Figure:
         return self.result_graphics().figure
 
     @property
-    def plot_toolbar(self):
+    def plot_toolbar(self) -> ResultsToolbar:
         return self.result_graphics().plot_toolbar
 
     @property
-    def result_overlay(self):
+    def result_overlay(self) -> SelectionOverlay:
         return self.result_graphics().result_overlay
 
     @property
-    def result_time_scroll(self):
+    def result_time_scroll(self) -> TimeScroll:
         return self.result_graphics().result_time_scroll
 
     @property
-    def sensor_figure(self):
+    def sensor_figure(self) -> Figure:
         return self.sensor_graphics().figure
 
     @property
-    def sensor_toolbar(self):
+    def sensor_toolbar(self) -> RawToolbar:
         return self.sensor_graphics().toolbar
 
     @property
-    def time_axis(self):
+    def time_axis(self) -> PinnedTimeAxis:
         return self.result_graphics().time_axis
 
 
 @dataclass(frozen=True)
 class ResultWorkspaceCallbacks:
-    disconnect_sensor_view: Callable[..., Any]
-    hide_sensor_context: Callable[..., Any]
-    highlight_result_row: Callable[..., Any]
-    plot: Callable[..., Any]
-    result_row_changed: Callable[..., Any]
-    update_context_action: Callable[..., Any]
+    disconnect_sensor_view: Callable[[], None]
+    hide_sensor_context: Callable[[], None]
+    highlight_result_row: Callable[[], None]
+    plot: Callable[[], None]
+    result_row_changed: Callable[[QModelIndex, QModelIndex | None], None]
+    update_context_action: Callable[[QModelIndex], None]
 
 
 def set_results_tab(
-    state: ResultState, view: ResultWorkspaceView, update_context_action: Callable, index: int
+    state: ResultState,
+    view: ResultWorkspaceView,
+    update_context_action: Callable[[QModelIndex], None],
+    index: int,
 ) -> None:
     if index < 0:
         return
@@ -128,9 +146,13 @@ def set_results_tab(
         view.graph_footer_layout.removeWidget(view.context_controls)
         view.table_actions_layout.removeWidget(view.context_controls)
         if index == 1:
-            view.graph_footer_layout.addWidget(view.context_controls, alignment=Qt.AlignRight)
+            view.graph_footer_layout.addWidget(
+                view.context_controls, alignment=Qt.AlignmentFlag.AlignRight
+            )
         else:
-            view.table_actions_layout.addWidget(view.context_controls, alignment=Qt.AlignRight)
+            view.table_actions_layout.addWidget(
+                view.context_controls, alignment=Qt.AlignmentFlag.AlignRight
+            )
         state._result_layout_index = index
     state.results_scroll = view._result_view_scrolls[index]
     aggregation = index == 2 and view.table_dataset.currentData() in state.aggregation_tables
@@ -169,7 +191,7 @@ class ResultWorkspaceController(QObject):
         self.overview = overview
         self.series = series
 
-    def clear_results(self):
+    def clear_results(self) -> None:
         self.callbacks.disconnect_sensor_view()
         self.view.plot_toolbar.stop_navigation()
         for toolbar in (self.view.plot_toolbar, self.view.sensor_toolbar):
@@ -223,12 +245,12 @@ class ResultWorkspaceController(QObject):
         self.view.sensor_toolbar.refresh()
         self.view.canvas.draw_idle()
 
-    def results_tab_changed(self, index):
+    def results_tab_changed(self, index: int) -> None:
         set_results_tab(self.results, self.view, self.callbacks.update_context_action, index)
         if index == 1 and self.results._plot_signature is None:
             self.callbacks.plot()
 
-    def sync_table_outputs(self, force_detail=False):
+    def sync_table_outputs(self, force_detail: bool = False) -> None:
         names = [*self.results.tables, *self.results.aggregation_tables]
         name = self.view.dataset.currentText()
         if (
@@ -270,7 +292,7 @@ class ResultWorkspaceController(QObject):
         self.view.table_module_tabs.blockSignals(previous)
         self.table_module_changed(index)
 
-    def table_module_changed(self, index):
+    def table_module_changed(self, index: int) -> None:
         if index < 0:
             return
         module = self.view.table_module_tabs.tabData(index)
@@ -295,7 +317,7 @@ class ResultWorkspaceController(QObject):
         self.view.table_dataset.blockSignals(previous)
         self.select_output_table()
 
-    def select_output_table(self, *_):
+    def select_output_table(self, *_: object) -> None:
         name = self.view.table_dataset.currentData()
         module = self.view.table_module_tabs.tabData(self.view.table_module_tabs.currentIndex())
         self.results._table_choices[module] = name
@@ -314,7 +336,7 @@ class ResultWorkspaceController(QObject):
                 self.update_detail_note()
         self.results_tab_changed(self.view.result_tabs.currentIndex())
 
-    def table_timing_changed(self, _checked):
+    def table_timing_changed(self, _checked: bool) -> None:
         row = self.view.result_table.currentIndex().row()
         self.refresh_detail_table()
         if (
@@ -326,7 +348,7 @@ class ResultWorkspaceController(QObject):
             self.view.result_table.selectRow(row)
         self.callbacks.highlight_result_row()
 
-    def selected_export_table(self):
+    def selected_export_table(self) -> tuple[str, pd.DataFrame | None]:
         if self.view.result_tabs.currentIndex() == 2:
             name = self.view.table_dataset.currentData()
             if name in self.results.aggregation_tables:
@@ -335,7 +357,10 @@ class ResultWorkspaceController(QObject):
                 return name, None
         return self.view.dataset.currentText(), getattr(self.results, "display_frame", None)
 
-    def build_result_overview(self, prepared_views=None):
+    def build_result_overview(
+        self,
+        prepared_views: tuple[dict[str, pd.DataFrame], dict[tuple[str, str], str]] | None = None,
+    ) -> None:
         (
             self.results.overview_values,
             self.results.overview_module_cards,
@@ -347,23 +372,25 @@ class ResultWorkspaceController(QObject):
             prepared_views,
         )
 
-    def populate_result_series(self):
+    def populate_result_series(self) -> None:
         self.results._series_items = self.series.populate(
             self.results._plot_tables, self.results._plot_labels, self.results.tables
         )
 
-    def selected_result_series(self):
+    def selected_result_series(self) -> list[SeriesKey]:
         chosen = []
         for index in range(self.view.result_series.topLevelItemCount()):
-            module = self.view.result_series.topLevelItem(index)
+            module = cast(QTreeWidgetItem, self.view.result_series.topLevelItem(index))
             for row in range(module.childCount()):
-                item = module.child(row)
-                if item.checkState(0) == Qt.Checked:
-                    chosen.append(item.data(0, Qt.UserRole))
+                item = cast(QTreeWidgetItem, module.child(row))
+                if item.checkState(0) == Qt.CheckState.Checked:
+                    chosen.append(item.data(0, Qt.ItemDataRole.UserRole))
         return chosen
 
-    def select_plot_series(self, item, previous=None):
-        key = item.data(0, Qt.UserRole) if item is not None else None
+    def select_plot_series(
+        self, item: QTreeWidgetItem | None, previous: QTreeWidgetItem | None = None
+    ) -> None:
+        key = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
         if key is None or key[0] not in self.results.tables:
             return
         name, metric = key
@@ -372,7 +399,7 @@ class ResultWorkspaceController(QObject):
         self.view.y_column.setCurrentIndex(self.view.y_column.findData(metric))
         self.view.y_column.blockSignals(False)
 
-    def select_dataset(self, name):
+    def select_dataset(self, name: str) -> None:
         frame = self.results.tables.get(name)
         self.callbacks.hide_sensor_context()
         self.view.context_button.setEnabled(False)
@@ -401,9 +428,9 @@ class ResultWorkspaceController(QObject):
         ):
             item = self.results._series_items.get((name, self.view.y_column.currentData()))
             if item is not None:
-                item.setCheckState(0, Qt.Checked)
+                item.setCheckState(0, Qt.CheckState.Checked)
 
-    def activate_dataset_rows(self, *_):
+    def activate_dataset_rows(self, *_: object) -> None:
         # All official output rows are available; zooming changes only the plot.
         if not self.results._detail_selections:
             self.results._detail_selections = {
@@ -419,7 +446,7 @@ class ResultWorkspaceController(QObject):
         self.refresh_detail_table()
         self.callbacks.plot()
 
-    def refresh_detail_table(self):
+    def refresh_detail_table(self) -> None:
         self.view.context_button.setEnabled(False)
         self.view.context_button.setToolTip(
             "Select a result row or click a graph point"
@@ -437,7 +464,9 @@ class ResultWorkspaceController(QObject):
         view = self.results._table_views.get(key)
         if view is None:
             timing = (
-                self.results._timings[name].iloc[self.results.active_positions] if key[1] else None
+                self.results._timings[name].iloc[cast(PositionArray, self.results.active_positions)]
+                if key[1]
+                else None
             )
             view = detail_table_view(
                 frame, name, timing, self.results._display_offsets, self.results.display_clock
@@ -453,7 +482,7 @@ class ResultWorkspaceController(QObject):
         )
         self.update_detail_note()
 
-    def update_detail_note(self):
+    def update_detail_note(self) -> None:
         name, frame = self.view.dataset.currentText(), self.results.active_frame
         if frame is None:
             return
@@ -479,7 +508,7 @@ class ResultWorkspaceController(QObject):
         if self.view.table_dataset.currentData() in self.results.aggregation_tables:
             self.view.selection_note.setText("Full-run aggregates")
 
-    def update_metric(self, *_):
+    def update_metric(self, *_: object) -> None:
         key = self.view.dataset.currentText(), self.view.y_column.currentData()
         item = self.results._series_items.get(key)
         if item is not None:
@@ -487,6 +516,8 @@ class ResultWorkspaceController(QObject):
             # Changing the active metric replaces its prior default series.
             for previous, candidate in self.results._series_items.items():
                 if previous[0] == key[0]:
-                    candidate.setCheckState(0, Qt.Checked if previous == key else Qt.Unchecked)
+                    candidate.setCheckState(
+                        0, Qt.CheckState.Checked if previous == key else Qt.CheckState.Unchecked
+                    )
             self.view.result_series.blockSignals(False)
         self.callbacks.plot()

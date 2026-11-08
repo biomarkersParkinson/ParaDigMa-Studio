@@ -7,12 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-if TYPE_CHECKING:
-    import pandas as pd
-    from numpy.typing import NDArray
-
 from .availability import availability_views
-from .contracts import AnalysisResults, ClockMetadata, FloatArray, TimeOffsets
+from .contracts import AnalysisResults, ClockMetadata, FloatArray, SeriesKey, TimeOffsets
 from .recordings import timeline_offsets
 from .results_view import (
     aggregation_tables,
@@ -23,13 +19,17 @@ from .results_view import (
     plot_tables,
 )
 
+if TYPE_CHECKING:
+    import pandas as pd
+    from numpy.typing import NDArray
+
 
 @dataclass(frozen=True, slots=True)
 class ResultData:
     tables: dict[str, pd.DataFrame]
     aggregates: dict[str, pd.DataFrame]
     plot_frames: dict[str, pd.DataFrame]
-    plot_labels: dict[tuple[str, str], str]
+    plot_labels: dict[SeriesKey, str]
     timings: dict[str, pd.DataFrame]
     interval_ends: dict[str, FloatArray]
     bar_bounds: dict[str, tuple[FloatArray, FloatArray]]
@@ -78,7 +78,7 @@ def prepare_result_data(results: AnalysisResults, offsets: TimeOffsets) -> Resul
         bar_bounds[name] = starts, ends
     coverage, labels = availability_views(results, offsets)
     plot_frames.update(coverage)
-    plot_labels.update(labels)
+    plot_labels.update(labels.items())
     for name, frame in coverage.items():
         timings[name] = pd.DataFrame({"Timeline time (s)": frame.time})
         interval_ends[name] = frame.end.to_numpy()

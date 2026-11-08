@@ -1,7 +1,13 @@
 """Cached result summaries and display transforms, independent of Qt views."""
 
+from __future__ import annotations
+
+from collections.abc import Hashable
+from typing import TYPE_CHECKING, cast
+
 import numpy as np
 
+from ..contracts import FloatArray, GaitIntervals, GaitSummaries, PositionArray
 from ..daily import daily_availability_summary, daily_summary, gait_daily_summaries
 from ..epoch_profile import mean_epoch_profile
 from ..epochs import availability_epoch_summary, epoch_phase, epoch_summary, require_epoch_presence
@@ -11,10 +17,14 @@ from ..result_plot_cache import ResultPlotCache
 from ..results_view import clock_times
 from ..workspace_state import ResultState
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+
 PROFILE_VIEW = 3
 
 
-def _is_tremor_power(name, metric):
+def _is_tremor_power(name: str, metric: Hashable) -> bool:
     return name.split("/")[1] == "tremor" and metric == "tremor_power"
 
 
@@ -23,7 +33,7 @@ class ResultPlotData:
         self.results = results
         self.cache = cache
 
-    def bar_coordinates(self, name: str, positions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def bar_coordinates(self, name: str, positions: PositionArray) -> tuple[FloatArray, FloatArray]:
         from ..plotting import time_coordinates
 
         starts, ends = self.results._bar_bounds[name]
@@ -38,7 +48,7 @@ class ResultPlotData:
         )
         return left, right
 
-    def point_coordinates(self, name: str, positions: np.ndarray) -> np.ndarray:
+    def point_coordinates(self, name: str, positions: PositionArray) -> FloatArray:
         from ..plotting import time_coordinates
 
         timing = self.results._timings[name]
@@ -56,12 +66,12 @@ class ResultPlotData:
             ),
         )[0]
 
-    def gait_plot_presence(self):
+    def gait_plot_presence(self) -> GaitIntervals:
         import pandas as pd
 
         if self.results._gait_presence_cache is None:
 
-            def frame(stage, metric):
+            def frame(stage: str, metric: str) -> pd.DataFrame | None:
                 name = "classifications/gait/" + stage
                 source = self.results._plot_tables.get(name)
                 if source is None or metric not in source:
@@ -87,7 +97,9 @@ class ResultPlotData:
             )
         return self.results._gait_presence_cache
 
-    def epoch_plot_data(self, name, metric, positions, binary, mode):
+    def epoch_plot_data(
+        self, name: str, metric: Hashable, positions: PositionArray, binary: bool, mode: int
+    ) -> pd.DataFrame:
         if mode == 2:
             return self.daily_plot_data(name, metric, positions, binary)
         key = name, metric, id(positions)
@@ -125,17 +137,21 @@ class ResultPlotData:
                 ):
                     frame = require_epoch_presence(frame, self.epoch_metric_presence(name))
             self.results._epoch_views[key] = frame
-        summary = self.results._epoch_views[key]
+        # Regular/profile/day keys cache frames; only the gait_presence key
+        # below caches the paired gait summaries.
+        summary = cast("pd.DataFrame", self.results._epoch_views[key])
         if mode == PROFILE_VIEW:
             profile_key = "profile", *key
             if profile_key not in self.results._epoch_views:
                 self.results._epoch_views[profile_key] = mean_epoch_profile(
                     summary, self.results.display_clock
                 )
-            return self.results._epoch_views[profile_key]
+            return cast("pd.DataFrame", self.results._epoch_views[profile_key])
         return summary
 
-    def daily_plot_data(self, name, metric, positions, binary):
+    def daily_plot_data(
+        self, name: str, metric: Hashable, positions: PositionArray, binary: bool
+    ) -> pd.DataFrame:
         key = "day", name, metric, id(positions)
         if key not in self.results._epoch_views:
             if name.startswith("classifications/gait/") and metric in (
@@ -147,7 +163,7 @@ class ResultPlotData:
                     self.results._epoch_views[gait_key] = gait_daily_summaries(
                         self.gait_plot_presence(), self.results.display_clock
                     )
-                frame = self.results._epoch_views[gait_key][
+                frame = cast(GaitSummaries, self.results._epoch_views[gait_key])[
                     "gait" if metric == "pred_gait_window" else "filtered"
                 ]
             elif name.startswith("preparation/"):
@@ -167,11 +183,11 @@ class ResultPlotData:
                     binary=binary,
                 )
             self.results._epoch_views[key] = frame
-        return self.results._epoch_views[key]
+        return cast("pd.DataFrame", self.results._epoch_views[key])
 
-    def epoch_metric_presence(self, name):
+    def epoch_metric_presence(self, name: str) -> pd.DataFrame:
         if name not in self.results._epoch_presence_views:
-            pairs = np.empty((0, 2))
+            pairs: FloatArray = np.empty((0, 2))
             if name.startswith("quantifications/gait/"):
                 filtered = name.endswith("/filtered")
                 stage = "classifications/gait/" + ("arm_activity" if filtered else "detection")
@@ -225,10 +241,12 @@ class ResultPlotData:
             )
         return self.results._epoch_presence_views[name]
 
-    def _result_plot_values(self, name, metric, positions):
+    def _result_plot_values(
+        self, name: str, metric: Hashable, positions: PositionArray | list[int]
+    ) -> FloatArray:
         values = (
             self.results._plot_tables[name][metric]
-            .iloc[positions]
+            .iloc[positions]  # type: ignore[index]  # pandas Series stubs omit integer lists.
             .to_numpy(dtype=float, na_value=np.nan)
         )
         if _is_tremor_power(name, metric):

@@ -18,6 +18,7 @@ from .result_plot_data import PROFILE_VIEW, ResultPlotData
 if TYPE_CHECKING:
     from matplotlib.backend_bases import MouseEvent
 
+    from ..contracts import AnalysisResults
     from .result_graphs import ResultGraphCallbacks, ResultGraphView
 
 
@@ -56,7 +57,9 @@ class ResultGraphInteractions:
             )
         segment = (
             gait_context(
-                self.results.results, self.view.dataset.currentText(), frame.iloc[current.row()]
+                cast("AnalysisResults", self.results.results),
+                self.view.dataset.currentText(),
+                frame.iloc[current.row()],
             )
             if valid_row and frame is not None
             else None

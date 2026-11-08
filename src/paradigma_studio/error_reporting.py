@@ -192,7 +192,7 @@ def append_error(existing: Sequence[str], message: str) -> list[str]:
 
 
 def reconciled_errors(
-    existing: Iterable[str], errors: Sequence[AnalysisError]
+    existing: Iterable[str], errors: Iterable[AnalysisError]
 ) -> list[ErrorContext]:
     """Prefer structured errors; retain their context for derived presentation."""
     parsed = [_parse(error) for error in errors] + [_parse_text(text) for text in existing]
@@ -208,6 +208,6 @@ def reconciled_errors(
     return entries
 
 
-def merge_errors(existing: Iterable[str], errors: Sequence[AnalysisError]) -> list[str]:
+def merge_errors(existing: Iterable[str], errors: Iterable[AnalysisError]) -> list[str]:
     """Prefer structured errors; suppress only diagnostics their context covers."""
     return [entry.text for entry in reconciled_errors(existing, errors)]

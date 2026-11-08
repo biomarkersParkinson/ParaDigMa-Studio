@@ -1,6 +1,11 @@
 """One inline settings panel for each graph, without Matplotlib's two dialogs."""
 
+from __future__ import annotations
+
 import math
+from collections.abc import Callable
+from datetime import datetime, tzinfo
+from typing import TYPE_CHECKING, cast
 
 from matplotlib import dates, rcParams
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
@@ -16,40 +21,58 @@ from PySide6.QtWidgets import (
 )
 
 from .assets import DATA_DIRECTORY
+from .contracts import TimeLimits
 from .epoch_profile import format_profile_time, parse_profile_time
 from .field_scrolling import PageLineEdit
 from .plotting import autoscale_bars
 from .theme import light_palette
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.backend_bases import Event, MouseEvent
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+    from matplotlib.typing import ColorType
+    from PySide6.QtWidgets import QWidget
 
-def _calendar_axis(axes, name):
+
+def _calendar_axis(axes: Axes, name: str) -> tuple[bool, str | tzinfo | None]:
     locator = getattr(axes, f"{name}axis").get_major_locator()
     calendar = getattr(locator, "calendar", isinstance(locator, dates.DateLocator))
     timezone = getattr(locator, "timezone", getattr(locator, "tz", None))
     return bool(calendar), timezone
 
 
-def _format_limit(value, *, profile=False, calendar=False, timezone=None):
+def _format_limit(
+    value: float,
+    *,
+    profile: bool = False,
+    calendar: bool = False,
+    timezone: str | tzinfo | None = None,
+) -> str:
     if profile:
         return format_profile_time(round(value, 3))
     if calendar:
         value = round(value * 86400, 3) / 86400
-        return dates.num2date(value, tz=timezone).isoformat(timespec="milliseconds")
+        return cast(datetime, dates.num2date(value, tz=timezone)).isoformat(timespec="milliseconds")
     text = f"{value:.3f}".rstrip("0").rstrip(".")
     return "0" if text == "-0" else text
 
 
 class GraphToolbar(NavigationToolbar2QT):
+    canvas: FigureCanvasQTAgg
     # Subplot spacing and the generic figure editor overlap and inherit the
     # system dialog palette. Constrained layout already handles subplot spacing.
-    toolitems = tuple(
+    # Matplotlib accepts an immutable sequence; its Qt stub specifies a list.
+    toolitems = tuple(  # type: ignore[assignment]
         item for item in NavigationToolbar2QT.toolitems if item[0] not in ("Subplots", "Customize")
     )
 
-    def __init__(self, canvas, parent, *, time_selection=True):
+    def __init__(
+        self, canvas: FigureCanvasQTAgg, parent: QWidget | None, *, time_selection: bool = True
+    ) -> None:
         super().__init__(canvas, parent, coordinates=False)
         self.setPalette(light_palette())
-        self.select_action = None
+        self.select_action: QAction | None = None
         if time_selection:
             self.select_action = QAction(
                 QIcon(str(DATA_DIRECTORY / "select-time.svg")), "Select timepoint", self
@@ -66,12 +89,12 @@ class GraphToolbar(NavigationToolbar2QT):
         self.settings_action.toggled.connect(self.show_settings)
         self.addSeparator()
         self.addAction(self.settings_action)
-        self.active_axes = None
-        self._highlighted_axes = None
-        self.home_callback = None
+        self.active_axes: Axes | None = None
+        self._highlighted_axes: tuple[Axes, ColorType] | None = None
+        self.home_callback: Callable[[], None] | None = None
         canvas.mpl_connect("button_press_event", self.select_axes)
 
-    def add_time_zoom_actions(self, callback):
+    def add_time_zoom_actions(self, callback: Callable[[float], None]) -> None:
         actions = self.actions()
         following = actions[actions.index(self._actions["zoom"]) + 1]
         for name, text, factor in (("zoom_in", "Zoom in", 0.5), ("zoom_out", "Zoom out", 2.0)):
@@ -87,7 +110,7 @@ class GraphToolbar(NavigationToolbar2QT):
             self._actions[name] = action
             self.insertAction(following, action)
 
-    def select_timepoint(self):
+    def select_timepoint(self) -> None:
         if self.select_action is None:
             return
         if self.mode.name == "PAN":
@@ -96,38 +119,38 @@ class GraphToolbar(NavigationToolbar2QT):
             self.zoom()
         self.select_action.setChecked(True)
 
-    def home(self, *args):
+    def home(self, *args: object) -> None:
         if self.home_callback is None:
             return super().home(*args)
         self.home_callback()
 
-    def save_figure(self, *args):
+    def save_figure(self, *args: object) -> str | None:
         # Set export resolution only during Save. Restore this one setting so
         # Matplotlib still remembers the chosen directory for subsequent saves.
         previous_dpi = rcParams["savefig.dpi"]
         rcParams["savefig.dpi"] = 600
         try:
-            return super().save_figure(*args)
+            return cast("str | None", super().save_figure(*args))
         finally:
             rcParams["savefig.dpi"] = previous_dpi
 
-    def pan(self, *args):
+    def pan(self, *args: object) -> None:
         super().pan(*args)
         if self.select_action is not None:
             self.select_action.setChecked(not bool(self.mode))
 
-    def zoom(self, *args):
+    def zoom(self, *args: object) -> None:
         super().zoom(*args)
         if self.select_action is not None:
             self.select_action.setChecked(not bool(self.mode))
 
-    def select_axes(self, event):
+    def select_axes(self, event: MouseEvent) -> None:
         if event.inaxes in self.canvas.figure.axes:
             self.active_axes = event.inaxes
             if self.settings_action.isChecked():
                 self.settings.read_axes()
 
-    def show_settings(self, visible):
+    def show_settings(self, visible: bool) -> None:
         if visible:
             self.settings.read_axes()
         else:
@@ -135,7 +158,7 @@ class GraphToolbar(NavigationToolbar2QT):
             self.highlight_axes(None)
         self.settings.setVisible(visible)
 
-    def highlight_axes(self, axes):
+    def highlight_axes(self, axes: Axes | None) -> None:
         """Shade the limits target without changing data or axis geometry."""
         previous = self._highlighted_axes
         if previous is not None and previous[0] is axes:
@@ -148,17 +171,17 @@ class GraphToolbar(NavigationToolbar2QT):
             axes.set_facecolor("#EAF1F9")
         self.canvas.draw_idle()
 
-    def refresh(self):
+    def refresh(self) -> None:
         # A new metric or recording has new axes and a new navigation history.
         if self._pan_info is not None:
-            self.release_pan(None)
+            self.release_pan(cast("Event", None))
         self.update()
         if self.active_axes not in self.canvas.figure.axes:
             self.active_axes = None
         if self.settings_action.isChecked():
             self.settings.read_axes()
 
-    def press_zoom(self, event):
+    def press_zoom(self, event: Event) -> None:
         self._automatic_bar_y = [
             ax
             for ax in self.canvas.figure.axes
@@ -166,25 +189,26 @@ class GraphToolbar(NavigationToolbar2QT):
         ]
         super().press_zoom(event)
 
-    def release_zoom(self, event):
-        super().release_zoom(event)
+    def release_zoom(self, event: Event | None) -> None:
+        # Navigation cleanup also releases a gesture without a mouse event.
+        super().release_zoom(cast("Event", event))
         self.restore_automatic_bar_y()
         self._automatic_bar_y = []
 
-    def push_current(self):
+    def push_current(self) -> None:
         # Save the final automatic range, so Back/Forward also restore that choice.
         if getattr(self, "_automatic_bar_y", []):
             self.restore_automatic_bar_y()
         super().push_current()
 
-    def restore_automatic_bar_y(self):
+    def restore_automatic_bar_y(self) -> None:
         for ax in getattr(self, "_automatic_bar_y", []):
             if ax in self.canvas.figure.axes:
                 ax.set_autoscaley_on(True)
                 autoscale_bars(ax)
         self.canvas.draw_idle()
 
-    def autoscale_axis(self, ax, axis):
+    def autoscale_axis(self, ax: Axes, axis: str) -> None:
         getattr(ax, f"set_autoscale{axis}_on")(True)
         if axis == "y" and getattr(ax, "_paradigma_binary", False):
             ax.set_ylim(0.65, 1.35)
@@ -196,7 +220,7 @@ class GraphToolbar(NavigationToolbar2QT):
 
 
 class GraphSettings(QFrame):
-    def __init__(self, canvas, toolbar):
+    def __init__(self, canvas: FigureCanvasQTAgg, toolbar: GraphToolbar) -> None:
         super().__init__(toolbar.parentWidget())
         self.canvas, self.toolbar = canvas, toolbar
         self.setObjectName("graphSettings")
@@ -254,7 +278,7 @@ class GraphSettings(QFrame):
         controls.addWidget(self.close_button)
         layout.addLayout(controls, 3, 0, 1, 5)
         self.error = QLabel()
-        self.error.setTextFormat(Qt.PlainText)
+        self.error.setTextFormat(Qt.TextFormat.PlainText)
         self.error.setWordWrap(True)
         self.error.setObjectName("graphError")
         layout.addWidget(self.error, 4, 0, 1, 5)
@@ -264,20 +288,20 @@ class GraphSettings(QFrame):
         self.hide()
         self._initialize_synchronization()
 
-    def _initialize_synchronization(self):
-        self._observed_axes = None
-        self._axis_callbacks = []
-        self._axes_snapshot = None
+    def _initialize_synchronization(self) -> None:
+        self._observed_axes: Axes | None = None
+        self._axis_callbacks: list[int] = []
+        self._axes_snapshot: tuple[TimeLimits, TimeLimits, bool, bool] | None = None
         self._updating = False
-        self._displayed_text = {}
+        self._displayed_text: dict[PageLineEdit, str] = {}
         self.canvas.mpl_connect("draw_event", self.synchronize)
 
-    def axes(self):
+    def axes(self) -> Axes | None:
         if self.toolbar.active_axes in self.canvas.figure.axes:
             return self.toolbar.active_axes
         return self.canvas.figure.axes[0] if self.canvas.figure.axes else None
 
-    def read_axes(self):
+    def read_axes(self) -> None:
         if self._updating:
             return
         self._updating = True
@@ -294,14 +318,14 @@ class GraphSettings(QFrame):
             self._updating = False
 
     @staticmethod
-    def _axis_state(ax):
+    def _axis_state(ax: Axes) -> tuple[TimeLimits, TimeLimits, bool, bool]:
         return ax.get_xlim(), ax.get_ylim(), ax.get_autoscalex_on(), ax.get_autoscaley_on()
 
-    def _watch_axes(self, ax):
+    def _watch_axes(self, ax: Axes | None) -> None:
         if ax is self._observed_axes:
             return
         for connection in self._axis_callbacks:
-            self._observed_axes.callbacks.disconnect(connection)
+            cast("Axes", self._observed_axes).callbacks.disconnect(connection)
         self._observed_axes, self._axis_callbacks = ax, []
         self._axes_snapshot = None
         if ax is not None:
@@ -310,10 +334,10 @@ class GraphSettings(QFrame):
                 for name in ("xlim_changed", "ylim_changed")
             ]
 
-    def stop_observing(self):
+    def stop_observing(self) -> None:
         self._watch_axes(None)
 
-    def synchronize(self, *_):
+    def synchronize(self, *_: object) -> None:
         if self._updating or not self.toolbar.settings_action.isChecked():
             return
         ax = self.axes()
@@ -324,7 +348,7 @@ class GraphSettings(QFrame):
         ):
             self.read_axes()
 
-    def _read_bounds(self, ax):
+    def _read_bounds(self, ax: Axes) -> None:
         self.graph_hint.setText(
             "Click a graph to set its limits. Time limits apply to linked graphs."
         )
@@ -349,25 +373,36 @@ class GraphSettings(QFrame):
                 edit.setText(text)
                 self._displayed_text[edit] = text
 
-    def _edited_bounds(self, ax, axis, lower, upper, parse):
+    def _edited_bounds(
+        self,
+        ax: Axes,
+        axis: str,
+        lower: PageLineEdit,
+        upper: PageLineEdit,
+        parse: Callable[[str], float],
+    ) -> TimeLimits:
         # Rounded display text must never quantize an untouched limit. Still
         # honor an explicit user edit, even when it matches the displayed text.
         current = getattr(ax, f"get_{axis}lim")()
-        return tuple(
-            value
-            if not edit.isModified() and edit.text().strip() == self._displayed_text.get(edit)
-            else float(parse(edit.text().strip()))
-            for edit, value in zip((lower, upper), current, strict=True)
+        # Exactly two bounds are zipped with the two limit editors.
+        return cast(
+            TimeLimits,
+            tuple(
+                value
+                if not edit.isModified() and edit.text().strip() == self._displayed_text.get(edit)
+                else float(parse(edit.text().strip()))
+                for edit, value in zip((lower, upper), current, strict=True)
+            ),
         )
 
-    def apply(self):
+    def apply(self) -> None:
         if self._updating:
             return
         ax = self.axes()
         if ax is None:
             return
         # Validate every field before changing the view. Never modify plot data.
-        limits = {}
+        limits: dict[str, TimeLimits | None] = {}
         try:
             for axis, (automatic, lower, upper) in self.bounds.items():
                 if automatic.isChecked():
@@ -397,7 +432,7 @@ class GraphSettings(QFrame):
         self.read_axes()
         self.canvas.draw_idle()
 
-    def _apply_limits(self, ax, limits):
+    def _apply_limits(self, ax: Axes, limits: dict[str, TimeLimits | None]) -> None:
         self.toolbar.push_current()
         for axis, bounds in limits.items():
             if bounds is None:
@@ -406,7 +441,7 @@ class GraphSettings(QFrame):
                 getattr(ax, f"set_{axis}lim")(*bounds)
         self.toolbar.push_current()
 
-    def reset(self):
+    def reset(self) -> None:
         ax = self.axes()
         if ax is None:
             return
