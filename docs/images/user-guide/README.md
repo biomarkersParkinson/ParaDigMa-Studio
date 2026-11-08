@@ -25,6 +25,11 @@ These images illustrate the current source. The
 [tagged guide](https://github.com/biomarkersParkinson/ParaDigMa-Studio/blob/v1.0.0rc1/docs/USER_GUIDE.md)
 retains the screenshots for the published candidate.
 
+The full set was regenerated and reviewed on 8 November 2026 for the compact
+run reference in Results. Overview, Graphs and Sensor context now identify the
+same entry shown in Runs; the Runs capture also shows the compact duration
+summary. Data and Analyze captures were unchanged.
+
 The seven workspace images follow one real gait analysis of the public, unmodified Axivity
 example `src/paradigma_studio/data/test_data.CWA` (36,400 original samples).
 Source attribution and its SHA-256 checksum are in the bundled

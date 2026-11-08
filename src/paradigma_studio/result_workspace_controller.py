@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from .result_navigation import ResultsToolbar
     from .time_axis import PinnedTimeAxis
     from .time_navigation import TimeScroll
+    from .ui.run_indicator import RunIndicator
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class ResultWorkspaceView:
     result_table: ReadableTable
     result_tabs: QTabWidget
     results_header: QWidget
+    results_source: RunIndicator
     save_results_button: QPushButton
     selection_note: QLabel
     sensor_close: QPushButton
@@ -192,6 +194,7 @@ class ResultWorkspaceController(QObject):
         self.series = series
 
     def clear_results(self) -> None:
+        self.view.results_source.clear()
         self.callbacks.disconnect_sensor_view()
         self.view.plot_toolbar.stop_navigation()
         for toolbar in (self.view.plot_toolbar, self.view.sensor_toolbar):

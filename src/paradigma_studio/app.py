@@ -297,6 +297,7 @@ class MainWindow(QMainWindow):
             result_tabs=self._layout.result_tabs,
         )
         result_callbacks = ResultCallbacks(
+            show_run=lambda run_id: self._run_controller.show_run(run_id),
             append_log=lambda message: self._run_controller.append_log(
                 message, owner=self._run_state.active_run or self._run_state.current_run
             ),

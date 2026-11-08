@@ -383,6 +383,8 @@ def test_local_save_is_preferred_over_a_modified_export(window, tremor_outputs, 
             tremor_outputs["quantifications"]["tremor"],
         )
         assert reopened._run_state.current_run["id"] == record["id"]
+        assert record["id"] in reopened.results_source.toolTip()
+        assert reopened.results_source.accessibleName().endswith(" · sensor.csv")
     finally:
         reopened.close()
 

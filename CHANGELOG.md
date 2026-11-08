@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Identify the displayed result's run with a compact date/time and source line
+  on Results. Click it to select the matching Runs entry; long sources use an
+  ellipsis and tooltip without adding a header row.
+
 - Retry transient Lychee download failures in the documentation workflow.
 
 - Speed up eligible recording batches with bounded, reusable loading processes

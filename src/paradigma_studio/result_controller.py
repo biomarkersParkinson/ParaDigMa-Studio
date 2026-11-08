@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -30,11 +31,12 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QTabWidget
 
     from .result_data import ResultData
+    from .ui.run_indicator import RunIndicator
 
 
 @dataclass(frozen=True)
 class ResultView:
-    results_source: QLabel
+    results_source: RunIndicator
     dataset: QComboBox
     export_button: QPushButton
     save_results_button: QPushButton
@@ -57,6 +59,7 @@ class ResultCallbacks:
     capture_warning: Callable[[str], None]
     navigate: Callable[[int], None]
     is_busy: Callable[[], bool]
+    show_run: Callable[[str], None]
     align_recordings: Callable[
         [dict[str, pd.DataFrame], AnalysisSettings, AnalysisResults], RecordingAlignment
     ]
@@ -78,6 +81,7 @@ class ResultController:
     ) -> None:
         self.state, self.inputs, self.runs, self.sensors = state, inputs, runs, sensors
         self.view, self.callbacks = view, callbacks
+        self.view.results_source.linkActivated.connect(callbacks.show_run)
 
     def analyzed(self, results: AnalysisResults) -> None:
         """Install one result snapshot, then update the view and run lifecycle."""
@@ -163,13 +167,7 @@ class ResultController:
         self.state._bar_bounds = data.bar_bounds
 
     def _show_outputs(self, data: ResultData) -> None:
-        sources = self.state.provenance.get("sources", {})
-        self.view.results_source.setText(
-            f"{len(sources)} recordings · One subject"
-            if len(sources) > 1
-            else Path(self.state.provenance.get("source", self.inputs.source)).name
-            or "Current analysis"
-        )
+        self._show_run_reference()
         self.callbacks.build_result_overview((data.coverage, data.coverage_labels))
         self.callbacks.populate_result_series()
         self.view.dataset.blockSignals(True)
@@ -200,6 +198,28 @@ class ResultController:
         self.view.save_results_button.setEnabled(
             not self.callbacks.is_busy() and self.runs.current_run is not None
         )
+
+    def _show_run_reference(self) -> None:
+        run_id = self.state.provenance.get("run_id", "")
+        record = next((run for run in self.runs.runs if run["id"] == run_id), None)
+        source = self.state.provenance.get(
+            "source", record["source"] if record else self.inputs.source
+        )
+        sources = self.state.provenance.get("sources", record.get("sources", {}) if record else {})
+        summary = f"{len(sources)} recordings" if len(sources) > 1 else Path(source).name
+        summary = summary or "Current analysis"
+        paths = list(sources.values()) or ([source] if source else [])
+        if record is None:
+            self.view.results_source.set_reference(summary, "\n".join(paths))
+            return
+        if len(paths) > 5:
+            paths = [*paths[:5], f"… {len(paths) - 5} more recordings; full list in Runs."]
+        started = datetime.fromisoformat(record["started"]).astimezone().strftime("%d %b %Y, %H:%M")
+        text = f"Run · {started} · {summary}"
+        tooltip = "\n".join(
+            [f"Run: {started}", f"Run ID: {run_id}", *paths, "", "Open this run in Runs."]
+        )
+        self.view.results_source.set_reference(text, tooltip, run_id)
 
     def _report_results(self, results: AnalysisResults, *, completing: bool) -> None:
         errors = results.get("errors", [])

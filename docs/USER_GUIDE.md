@@ -388,6 +388,15 @@ follow the [official ParaDigMa documentation](https://biomarkersparkinson.github
 
 Review aggregate outcomes, explore their timing and inspect the original signals.
 
+The muted line below the Results tabs identifies the displayed run by its date
+and time, matching the **Started** column in Runs, followed by the source filename
+or recording count. Click it to open that entry in Runs. Long filenames use an
+ellipsis; hover for the full path and run ID. For large batches, the tooltip
+previews five sources and Runs contains the complete list. Browsing other Runs
+entries or loading new recordings does not change this reference until their
+results are opened. The line is shared by Overview, Graphs, Tables and Sensor
+context, and disappears when results are cleared.
+
 [![Results Overview showing recording coverage and the example gait analysis](images/user-guide/results.png)](images/user-guide/results.png)
 
 *Overview summarizes the completed gait run. Graphs and Tables provide timing and

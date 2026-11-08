@@ -148,6 +148,9 @@ class RunController:
         return list(record["errors"]) if record is not None else None
 
     def show_errors(self, run_id: str) -> None:
+        self.show_run(run_id, errors=True)
+
+    def show_run(self, run_id: str, *, errors: bool = False) -> None:
         if self.error_messages(run_id) is None:
             self.callbacks.show_notice("This run is no longer available in Runs.")
             return
@@ -160,7 +163,8 @@ class RunController:
             QItemSelectionModel.SelectionFlag.ClearAndSelect
             | QItemSelectionModel.SelectionFlag.Rows,
         )
-        self.view.run_detail_tabs.setCurrentWidget(self.view.run_errors)
+        if errors:
+            self.view.run_detail_tabs.setCurrentWidget(self.view.run_errors)
         self.callbacks.navigate(3)
 
     def append_log(self, message: str, *, owner: RunRecord | None = None) -> None:

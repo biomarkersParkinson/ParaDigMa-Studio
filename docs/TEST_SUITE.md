@@ -93,6 +93,7 @@ identifies exactly which groups the `scientific` marker selects.
 | Exact statistics, nullable/non-sensor columns, bounded batch concurrency, resource fallbacks and background previews | [test_inspection.py](../tests/test_inspection.py), [test_previews.py](../tests/test_previews.py) |
 | Multiple recordings, identifiers, original-file inspection, per-file clocks and shared settings | [test_recordings.py](../tests/test_recordings.py) |
 | Bounded native/process loading, exact values and metadata across formats, progress/order, trust gates, startup/crash cleanup and atomic GUI publication | [test_parallel_loading.py](../tests/test_parallel_loading.py) |
+| Displayed-run identification, exact history navigation, failed-open/input ownership, shared Results views, compact text and keyboard activation | [test_result_run_indicator.py](../tests/test_result_run_indicator.py) |
 | Short batch members, all-skipped batches, unchanged usable outputs, one/two workers, run diagnostics and saved source identities | [test_short_recordings.py](../tests/test_short_recordings.py) |
 | Loading progress, single-file busy mode, completed-file counts, parallel/channel statistics, GUI delivery, stale updates and failed-import preservation | [test_loading_progress.py](../tests/test_loading_progress.py) |
 | Loading-created history, selected-row independence, first/repeated analyses, result ownership, cancelled/failed imports and restart/schema validation | [test_loading_runs.py](../tests/test_loading_runs.py) |

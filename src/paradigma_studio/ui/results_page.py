@@ -29,6 +29,7 @@ from ..workspace_state import GraphState, ResultState
 from .deferred import DeferredWidget, deferred_attribute
 from .graph_views import ChannelCanvasView, ResultCanvasView
 from .result_graphs import ResultGraphView
+from .run_indicator import RunIndicator
 from .workspace_callbacks import WorkspaceCallbacks
 
 if TYPE_CHECKING:
@@ -122,7 +123,7 @@ class ResultsPage:
         self.results_header = QWidget()
         header = QHBoxLayout(self.results_header)
         header.setContentsMargins(0, 0, 0, 0)
-        self.results_source = label("No analysis results", "muted")
+        self.results_source = RunIndicator()
         header.addWidget(self.results_source, 1)
         self.sensor_close = button("Close", self.callbacks.hide_sensor_context)
         self.sensor_close.setAccessibleName("Close sensor context")
@@ -405,6 +406,7 @@ class ResultsPage:
             result_table=self.result_table,
             result_tabs=self.result_tabs,
             results_header=self.results_header,
+            results_source=self.results_source,
             save_results_button=self.save_results_button,
             selection_note=self.selection_note,
             sensor_close=self.sensor_close,

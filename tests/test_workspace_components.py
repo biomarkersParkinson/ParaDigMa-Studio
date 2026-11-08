@@ -28,6 +28,7 @@ from paradigma_studio.results_view import analysis_alignment
 from paradigma_studio.run_controller import RunCallbacks, RunController, RunView
 from paradigma_studio.ui.result_overview import ResultOverview
 from paradigma_studio.ui.result_series import ResultSeries
+from paradigma_studio.ui.run_indicator import RunIndicator
 from paradigma_studio.widgets import ReadableTable
 from paradigma_studio.workspace_state import InputState, ResultState, RunState, SensorState
 
@@ -40,7 +41,7 @@ def result_workspace():
     tabs.addTab(QWidget(), "Overview")
     tabs.addTab(QWidget(), "Graphs")
     view = ResultView(
-        QLabel(parent),
+        RunIndicator(parent),
         QComboBox(parent),
         QPushButton(parent),
         QPushButton(parent),
@@ -63,6 +64,7 @@ def result_workspace():
         items.update(series.populate(state._plot_tables, state._plot_labels, state.tables))
 
     callbacks = ResultCallbacks(
+        show_run=Mock(),
         append_log=Mock(),
         build_result_overview=render,
         populate_result_series=populate,
