@@ -123,6 +123,9 @@ run outside Studio's Python environment and application bundle. Install Node.js
 [installation instructions](https://github.com/lycheeverse/lychee/blob/lychee-v0.21.0/README.md#installation)
 for that version.
 
+CI downloads the pinned Lychee release with bounded retries for temporary
+network or server failures. Link checking then runs offline using `.lychee.toml`.
+
 ### Run locally
 
 From the repository root, in Bash or Git Bash:

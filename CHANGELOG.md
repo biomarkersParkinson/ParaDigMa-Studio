@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retry transient Lychee download failures in the documentation workflow.
+
 - Speed up eligible recording batches with bounded, reusable loading processes
   for AVRO and threads for native readers, with CPU/RAM and small-workload
   fallbacks. Preserve exact initial statistics and input order, record loading
