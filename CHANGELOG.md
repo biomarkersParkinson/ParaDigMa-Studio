@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep the Results run reference free of underlining when it receives focus,
+  including after saving or following the link to Runs.
+
 - Mark the run currently displayed in Results with a small blue eye beside its
   Started timestamp in Runs, independently of row selection or loading status.
 

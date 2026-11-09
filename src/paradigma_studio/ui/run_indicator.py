@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 
 from PySide6.QtCore import QEvent, QSize, Qt
-from PySide6.QtGui import QFocusEvent, QKeyEvent, QResizeEvent
+from PySide6.QtGui import QKeyEvent, QResizeEvent
 from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
 
 from ..theme import tooltip_text
@@ -57,10 +57,9 @@ class RunIndicator(QLabel):
         )
         if self._run_id:
             color = self.palette().color(self.foregroundRole()).name()
-            decoration = "underline" if self.hasFocus() else "none"
             text = (
                 f'<a href="{escape(self._run_id, quote=True)}" '
-                f'style="color: {color}; text-decoration: {decoration};">{text}</a>'
+                f'style="color: {color}; text-decoration: none;">{text}</a>'
             )
         super().setText(text)
 
@@ -70,14 +69,6 @@ class RunIndicator(QLabel):
             event.accept()
             return
         super().keyPressEvent(event)
-
-    def focusInEvent(self, event: QFocusEvent) -> None:
-        super().focusInEvent(event)
-        self._render()
-
-    def focusOutEvent(self, event: QFocusEvent) -> None:
-        super().focusOutEvent(event)
-        self._render()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
